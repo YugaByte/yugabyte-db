@@ -1,30 +1,21 @@
 version: 2
 jobs:
-  # For image tags, see:
-  # https://circleci.com/docs/2.0/docker-image-tags.json
   ubuntu1804:
     docker:
-      - image: circleci/buildpack-deps:18.04
+      - image: yugabytedb/yb_build_infra_ubuntu1804:v2019-04-30T20_16_36_mikhail
     steps:
       - checkout
-      - run:
-          name: Install dependencies
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y \
-              python-pip \
-              uuid-dev \
-              libbz2-dev \
-              libreadline-dev \
-              maven \
-              cmake \
-              rsync \
-              flex \
-              bison \
-              ninja-build \
-              python-dev \
-              openjdk-8-jdk-headless
       - run: |
+          export MAVEN_OPTS="--add-opens=java.base/java.nio=ALL-UNNAMED"
+          export YB_SKIP_INITIAL_SYS_CATALOG_SNAPSHOT=1
+          java -version && ./yb_build.sh --ninja -j 1
+  ubuntu1904_gcc7:
+    docker:
+      - image: yugabytedb/yb_build_infra_ubuntu1904_gcc7:v2019-07-12T01_07_36_mbautin
+    steps:
+      - checkout
+      - run: |
+          sed -i '/^psutil.*/d' ./python_requirements_frozen.txt  # Temporary workaround.
           export MAVEN_OPTS="--add-opens=java.base/java.nio=ALL-UNNAMED"
           export YB_SKIP_INITIAL_SYS_CATALOG_SNAPSHOT=1
           java -version && ./yb_build.sh --ninja -j 1
@@ -34,3 +25,4 @@ workflows:
   build_yugabyte_db:
     jobs:
       - ubuntu1804
+      - ubuntu1904_gcc7
