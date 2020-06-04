@@ -423,15 +423,18 @@ ExplainPlanPB PTSelectStmt::AnalysisResultToPB() {
   string key_conditions = "  Key Conditions: ";
   string filter = "  Filter: ";
   size_t longest = 0;
+  // If index is being used, show limit clause and aggregation of the index.
+  const auto limit_clause = child_select_ ? child_select_->limit_clause_ : limit_clause_;
+  const auto aggregate = child_select_ ? child_select_->is_aggregate() : is_aggregate();
   // If overarching information( "Aggregate" | "Limit") then rest of the explain plan output needs
   // to be indented.
-  if (is_aggregate() || limit_clause_) {
-    string aggr = (is_aggregate()) ? "Aggregate" : "Limit";
-    select_plan->set_aggregate(aggr);
+  if (aggregate || limit_clause) {
+    string aggr_name = aggregate ? "Aggregate" : "Limit";
+    select_plan->set_aggregate(aggr_name);
     key_conditions = "      " + key_conditions;
     filter = "      " + filter;
     select_plan->set_select_type("  ->  " + select_plan->select_type());
-    longest = max(longest, aggr.length());
+    longest = max(longest, aggr_name.length());
   }
   longest = max(longest, select_plan->select_type().length());
   // If index is being used, change the split of key conditions and filters to that of the index.
