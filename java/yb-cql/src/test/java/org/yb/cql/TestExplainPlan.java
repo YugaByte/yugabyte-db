@@ -92,6 +92,16 @@ public class TestExplainPlan extends CQLTester {
       "Row[  ->  Range Scan on imdb.movie_stats        ]" +
       "Row[        Key Conditions: (movie_genre = 'g2')]" +
       "Row[        Filter: (movie_name = 'm2')         ]");
+    assertQuery("EXPLAIN SELECT * FROM movie_stats WHERE user_rank = 5 AND movie_genre = 'm2' " +
+      "LIMIT 1;",
+      "Row[Limit                                                           ]" +
+      "Row[  ->  Index Scan using imdb.best_rated on imdb.movie_stats      ]" +
+      "Row[        Key Conditions: (user_rank = 5) AND (movie_genre = 'm2')]");
+    assertQuery("EXPLAIN SELECT user_name FROM movie_stats WHERE user_rank = 5 AND " +
+      "movie_genre = 'm2' LIMIT 1;",
+      "Row[Limit                                                           ]" +
+      "Row[  ->  Index Only Scan using imdb.best_rated on imdb.movie_stats ]" +
+      "Row[        Key Conditions: (user_rank = 5) AND (movie_genre = 'm2')]");
   }
 
   @Test
