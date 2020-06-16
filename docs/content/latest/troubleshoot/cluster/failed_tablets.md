@@ -33,7 +33,10 @@ In this scenario, the UUID of the tablet is `FOO` and the `--fs_data_dirs` flag 
 Steps to fix:
 
 1. Stop the yb-tserver process (to prevent new restarts, during operations)
-2. Find and remove all the tablet files: `find /mnt/disk1 -name '*FOO*' | xargs rm -rf`
+2. Find and remove all the tablet files: 
+```bash
+find /mnt/disk1 -name '*FOO*' | xargs rm -rf
+```
 3. You need to repeat the command above for each disk in `--fs_data_dirs`
 3. Start back the yb-tserver process
 
