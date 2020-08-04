@@ -89,30 +89,11 @@ Write-heavy applications usually require more disk IOPS (especially if the size 
 
 #### Storage overprovisioning
 
-YugabyteDB stores data compressed by default. We have seen 3-5x compression in a lot of workloads. In some workloads
-, if the app has already compressed large payload columns, then the additional compression that YugabyteDB can do is
- lesser. But assuming say, replication factor is 3, having 3 nodes for each AZ, and compression ratio is 4 -- then if
-  you have 5TB of user data
- -- you'll need **5TB * 3 / 4 ==> 3.75TB** of raw space across all your nodes.
+YugabyteDB stores data compressed by default. The effectiveness of compression depends on the data set. 
+For example, if the data has already been compressed, then the additional compression at the storage layer of YugabyteDB will not be very effective.
 
-There are essentially two key factors -- replication factor and compression.  You should plan for about 20% head room
- on each node to allow space for miscellaneous overheads (temporary additional space needed during compactions as
-  well as metadata overheads) (benefits of per-tablet [size tiered compaction](../../architecture/concepts/yb-tserver
-  ) ). Application created table indexes also need space and must be planned
-  /accounted for.
-
-If one node is down in AZ1 for more than a certain time (by default 15 minutes), then the only other candidate that can
- now host its data is the other remaining node in the same AZ.  A more ideal setup to avoid this overhead would be to
-  use smaller sized nodes but more of them. For example, 4 + 4 + 4. In this case, if one of the nodes is down, there are still 3 other nodes to redistribute the data over.
-
-If  **p**  is percent utilization on every disk, then it has to have a buffer for  **p/(n-1)**  (in case there is a
- node down), where  **n**  is the number of nodes in the AZ/DC, then we recommend that **p + p/(n-1) <= 80% to 85
- %**.  This is just good practice to not run the disk too close to edge of its available capacity. If we go with the
-  **80%** number, then simplifying above,  **p <= 80\*(n-1)/n**. Examples:
-
-* 3 node per AZ, usable space = 53% (26.5% from other node + 20% spare)  
-* 4 node per AZ, usable space = 60% (~20% from other node + 20% spare)  
-* 6 node per AZ, usable space = 66.6% (~14% from other node + 20% spare)  
+Plan for about 20% head room on each node to allow space for miscellaneous overheads such as temporary additional
+ space needed for compactions, metadata overheads, etc.
 
 ### Network
 
