@@ -316,71 +316,6 @@ struct PlainTableOptions {
 extern TableFactory* NewPlainTableFactory(const PlainTableOptions& options =
                                               PlainTableOptions());
 
-struct CuckooTablePropertyNames {
-  // The key that is used to fill empty buckets.
-  static const char kEmptyKey[];
-  // Fixed length of value.
-  static const char kValueLength[];
-  // Number of hash functions used in Cuckoo Hash.
-  static const char kNumHashFunc[];
-  // It denotes the number of buckets in a Cuckoo Block. Given a key and a
-  // particular hash function, a Cuckoo Block is a set of consecutive buckets,
-  // where starting bucket id is given by the hash function on the key. In case
-  // of a collision during inserting the key, the builder tries to insert the
-  // key in other locations of the cuckoo block before using the next hash
-  // function. This reduces cache miss during read operation in case of
-  // collision.
-  static const char kCuckooBlockSize[];
-  // Size of the hash table. Use this number to compute the modulo of hash
-  // function. The actual number of buckets will be kMaxHashTableSize +
-  // kCuckooBlockSize - 1. The last kCuckooBlockSize-1 buckets are used to
-  // accommodate the Cuckoo Block from end of hash table, due to cache friendly
-  // implementation.
-  static const char kHashTableSize[];
-  // Denotes if the key sorted in the file is Internal Key (if false)
-  // or User Key only (if true).
-  static const char kIsLastLevel[];
-  // Indicate if using identity function for the first hash function.
-  static const char kIdentityAsFirstHash[];
-  // Indicate if using module or bit and to calculate hash value
-  static const char kUseModuleHash[];
-  // Fixed user key length
-  static const char kUserKeyLength[];
-};
-
-struct CuckooTableOptions {
-  // Determines the utilization of hash tables. Smaller values
-  // result in larger hash tables with fewer collisions.
-  double hash_table_ratio = 0.9;
-  // A property used by builder to determine the depth to go to
-  // to search for a path to displace elements in case of
-  // collision. See Builder.MakeSpaceForKey method. Higher
-  // values result in more efficient hash tables with fewer
-  // lookups but take more time to build.
-  uint32_t max_search_depth = 100;
-  // In case of collision while inserting, the builder
-  // attempts to insert in the next cuckoo_block_size
-  // locations before skipping over to the next Cuckoo hash
-  // function. This makes lookups more cache friendly in case
-  // of collisions.
-  uint32_t cuckoo_block_size = 5;
-  // If this option is enabled, user key is treated as uint64_t and its value
-  // is used as hash value directly. This option changes builder's behavior.
-  // Reader ignore this option and behave according to what specified in table
-  // property.
-  bool identity_as_first_hash = false;
-  // If this option is set to true, module is used during hash calculation.
-  // This often yields better space efficiency at the cost of performance.
-  // If this optino is set to false, # of entries in table is constrained to be
-  // power of two, and bit and is used to calculate hash, which is faster in
-  // general.
-  bool use_module_hash = true;
-};
-
-// Cuckoo Table Factory for SST table format using Cache Friendly Cuckoo Hashing
-extern TableFactory* NewCuckooTableFactory(
-    const CuckooTableOptions& table_options = CuckooTableOptions());
-
 #endif  // ROCKSDB_LITE
 
 class RandomAccessFileReader;
@@ -498,12 +433,10 @@ class TableFactory {
 // @block_based_table_factory:  block based table factory to use. If NULL, use
 //                              a default one.
 // @plain_table_factory: plain table factory to use. If NULL, use a default one.
-// @cuckoo_table_factory: cuckoo table factory to use. If NULL, use a default one.
 extern TableFactory* NewAdaptiveTableFactory(
     std::shared_ptr<TableFactory> table_factory_to_write = nullptr,
     std::shared_ptr<TableFactory> block_based_table_factory = nullptr,
-    std::shared_ptr<TableFactory> plain_table_factory = nullptr,
-    std::shared_ptr<TableFactory> cuckoo_table_factory = nullptr);
+    std::shared_ptr<TableFactory> plain_table_factory = nullptr);
 
 #endif  // ROCKSDB_LITE
 

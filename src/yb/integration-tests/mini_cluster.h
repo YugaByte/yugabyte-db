@@ -35,6 +35,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "yb/gutil/macros.h"
@@ -157,6 +158,8 @@ class MiniCluster : public MiniClusterBase {
   // found. May block until a leader Master is ready.
   master::MiniMaster* leader_mini_master();
 
+  int LeaderMasterIdx();
+
   // Returns the Master at index 'idx' for this MiniCluster.
   master::MiniMaster* mini_master(int idx);
 
@@ -202,6 +205,10 @@ class MiniCluster : public MiniClusterBase {
   CHECKED_STATUS WaitForTabletServerCount(int count,
                                   std::vector<std::shared_ptr<master::TSDescriptor> >* descs);
 
+  // Wait for all tablet servers to be registered. Returns Status::TimedOut if the desired count is
+  // not achieved within kRegistrationWaitTimeSeconds.
+  CHECKED_STATUS WaitForAllTabletServers();
+
   uint16_t AllocateFreePort() {
     return port_picker_.AllocateFreePort();
   }
@@ -238,7 +245,6 @@ class MiniCluster : public MiniClusterBase {
   Ports master_web_ports_;
   Ports tserver_rpc_ports_;
   Ports tserver_web_ports_;
-  uint16_t next_port_ = 0;
 
   MiniMasters mini_masters_;
   MiniTabletServers mini_tablet_servers_;
@@ -254,12 +260,17 @@ void StepDownRandomTablet(MiniCluster* cluster);
 
 YB_DEFINE_ENUM(ListPeersFilter, (kAll)(kLeaders)(kNonLeaders));
 
+std::unordered_set<string> ListTabletIdsForTable(MiniCluster* cluster, const string& table_id);
+
 std::vector<std::shared_ptr<tablet::TabletPeer>> ListTabletPeers(
     MiniCluster* cluster, ListPeersFilter filter);
 
 std::vector<std::shared_ptr<tablet::TabletPeer>> ListTabletPeers(
     MiniCluster* cluster,
     const std::function<bool(const std::shared_ptr<tablet::TabletPeer>&)>& filter);
+
+CHECKED_STATUS WaitUntilTabletHasLeader(
+    MiniCluster* cluster, const string& tablet_id, MonoTime deadline);
 
 CHECKED_STATUS WaitForLeaderOfSingleTablet(
     MiniCluster* cluster, tablet::TabletPeerPtr leader, MonoDelta duration,
@@ -302,6 +313,8 @@ void ShutdownAllTServers(MiniCluster* cluster);
 CHECKED_STATUS StartAllTServers(MiniCluster* cluster);
 void ShutdownAllMasters(MiniCluster* cluster);
 CHECKED_STATUS StartAllMasters(MiniCluster* cluster);
+
+CHECKED_STATUS BreakConnectivity(MiniCluster* cluster, int idx1, int idx2);
 
 }  // namespace yb
 

@@ -41,8 +41,9 @@
 /* Working state for ybcinbuild and its callback */
 typedef struct
 {
-	bool	isprimary;
-	double	index_tuples;
+	bool	isprimary;		/* are we building a primary index? */
+	double	index_tuples;	/* # of tuples inserted into index */
+	bool	is_backfill;	/* are we concurrently backfilling an index? */
 } YBCBuildState;
 
 /*
@@ -93,6 +94,7 @@ ybcinhandler(PG_FUNCTION_ARGS)
 	amroutine->amparallelrescan = NULL;
 	amroutine->yb_aminsert = ybcininsert;
 	amroutine->yb_amdelete = ybcindelete;
+	amroutine->yb_ambackfill = ybcinbackfill;
 
 	PG_RETURN_POINTER(amroutine);
 }
@@ -104,7 +106,11 @@ ybcinbuildCallback(Relation index, HeapTuple heapTuple, Datum *values, bool *isn
 	YBCBuildState  *buildstate = (YBCBuildState *)state;
 
 	if (!buildstate->isprimary)
-		YBCExecuteInsertIndex(index, values, isnull, heapTuple->t_ybctid);
+		YBCExecuteInsertIndex(index,
+							  values,
+							  isnull,
+							  heapTuple->t_ybctid,
+							  buildstate->is_backfill);
 
 	buildstate->index_tuples += 1;
 }
@@ -118,8 +124,40 @@ ybcinbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	/* Do the heap scan */
 	buildstate.isprimary = index->rd_index->indisprimary;
 	buildstate.index_tuples = 0;
+	buildstate.is_backfill = false;
 	heap_tuples = IndexBuildHeapScan(heap, index, indexInfo, true, ybcinbuildCallback,
 									 &buildstate, NULL);
+
+	/*
+	 * Return statistics
+	 */
+	IndexBuildResult *result = (IndexBuildResult *) palloc(sizeof(IndexBuildResult));
+	result->heap_tuples  = heap_tuples;
+	result->index_tuples = buildstate.index_tuples;
+	return result;
+}
+
+IndexBuildResult *
+ybcinbackfill(Relation heap,
+			  Relation index,
+			  struct IndexInfo *indexInfo,
+			  uint64_t *read_time,
+			  RowBounds *row_bounds)
+{
+	YBCBuildState	buildstate;
+	double			heap_tuples = 0;
+
+	/* Do the heap scan */
+	buildstate.isprimary = index->rd_index->indisprimary;
+	buildstate.index_tuples = 0;
+	buildstate.is_backfill = true;
+	heap_tuples = IndexBackfillHeapRangeScan(heap,
+											 index,
+											 indexInfo,
+											 ybcinbuildCallback,
+											 &buildstate,
+											 read_time,
+											 row_bounds);
 
 	/*
 	 * Return statistics
@@ -141,7 +179,11 @@ ybcininsert(Relation index, Datum *values, bool *isnull, Datum ybctid, Relation 
 			IndexUniqueCheck checkUnique, struct IndexInfo *indexInfo)
 {
 	if (!index->rd_index->indisprimary)
-		YBCExecuteInsertIndex(index, values, isnull, ybctid);
+		YBCExecuteInsertIndex(index,
+							  values,
+							  isnull,
+							  ybctid,
+							  false /* is_backfill */);
 
 	return index->rd_index->indisunique ? true : false;
 }

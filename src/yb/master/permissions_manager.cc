@@ -820,8 +820,7 @@ Status PermissionsManager::GrantRevokePermission(
     // is detected by the semantic analysis in PTQualifiedName::AnalyzeName.
     DCHECK(req->has_namespace_());
     const auto& namespace_info = req->namespace_();
-    ns = FindPtrOrNull(catalog_manager_->namespace_names_mapper_[GetDatabaseType(namespace_info)],
-                       namespace_info.name());
+    s = catalog_manager_->FindNamespaceUnlocked(namespace_info, &ns);
 
     if (req->resource_type() == ResourceType::KEYSPACE) {
       if (ns == nullptr) {

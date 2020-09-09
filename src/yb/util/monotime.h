@@ -236,7 +236,7 @@ inline MonoTime& operator-=(MonoTime& lhs, const MonoDelta& rhs) { // NOLINT
 inline MonoTime operator-(const MonoTime& lhs, const MonoDelta& rhs) {
   MonoTime result = lhs;
   result.AddDelta(-rhs);
-  return MonoTime(lhs);
+  return MonoTime(result);
 }
 
 inline bool operator<(const MonoTime& lhs, const MonoTime& rhs) {

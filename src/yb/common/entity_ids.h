@@ -39,6 +39,7 @@ using PeerId = std::string;
 using SnapshotId = std::string;
 using TabletServerId = PeerId;
 using TabletId = std::string;
+using TablegroupId = std::string;
 
 YB_STRONGLY_TYPED_STRING(KvStoreId);
 
@@ -54,6 +55,8 @@ using RedisConfigKey = std::string;
 static const uint32_t kPgSequencesDataTableOid = 0xFFFF;
 static const uint32_t kPgSequencesDataDatabaseOid = 0xFFFF;
 
+static const uint32_t kPgIndexTableOid = 2610;  // Hardcoded for pg_index. (in pg_index.h)
+
 extern const TableId kPgProcTableId;
 
 // Get YB namespace id for a Postgres database.
@@ -62,12 +65,18 @@ NamespaceId GetPgsqlNamespaceId(uint32_t database_oid);
 // Get YB table id for a Postgres table.
 TableId GetPgsqlTableId(uint32_t database_oid, uint32_t table_oid);
 
+// Get YB tablegroup id for a Postgres tablegroup.
+TablegroupId GetPgsqlTablegroupId(uint32_t database_oid, uint32_t tablegroup_oid);
+
 // Is the namespace/table id a Postgres database or table id?
 bool IsPgsqlId(const string& id);
 
 // Get Postgres database and table oids from a YB namespace/table id.
 Result<uint32_t> GetPgsqlDatabaseOid(const NamespaceId& namespace_id);
 Result<uint32_t> GetPgsqlTableOid(const TableId& table_id);
+Result<uint32_t> GetPgsqlTablegroupOid(const TablegroupId& tablegroup_id);
+Result<uint32_t> GetPgsqlTablegroupOidByTableId(const TableId& table_id);
+Result<uint32_t> GetPgsqlDatabaseOidByTableId(const TableId& table_id);
 
 }  // namespace yb
 

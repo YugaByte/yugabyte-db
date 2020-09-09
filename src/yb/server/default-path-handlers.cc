@@ -213,6 +213,18 @@ static void MemTrackersHandler(const Webserver::WebRequest& req, Webserver::WebR
   *output << "</table>\n";
 }
 
+static MetricLevel MetricLevelFromName(const std::string& level) {
+  if (level == "debug") {
+    return MetricLevel::kDebug;
+  } else if (level == "info") {
+    return MetricLevel::kInfo;
+  } else if (level == "warn") {
+    return MetricLevel::kWarn;
+  } else {
+    return MetricLevel::kDebug;
+  }
+}
+
 static void WriteMetricsAsJson(const MetricRegistry* const metrics,
                                const Webserver::WebRequest& req, Webserver::WebResponse* resp) {
   std::stringstream *output = &resp->output;
@@ -227,6 +239,10 @@ static void WriteMetricsAsJson(const MetricRegistry* const metrics,
   {
     string arg = FindWithDefault(req.parsed_args, "include_schema", "false");
     opts.include_schema_info = ParseLeadingBoolValue(arg.c_str(), false);
+  }
+  {
+    string arg = FindWithDefault(req.parsed_args, "level", "debug");
+    opts.level = MetricLevelFromName(arg);
   }
   JsonWriter::Mode json_mode;
   {
@@ -251,8 +267,16 @@ static void WriteMetricsAsJson(const MetricRegistry* const metrics,
 static void WriteForPrometheus(const MetricRegistry* const metrics,
                                const Webserver::WebRequest& req, Webserver::WebResponse* resp) {
   std::stringstream *output = &resp->output;
+  MetricPrometheusOptions opts;
+
+  {
+    string arg = FindWithDefault(req.parsed_args, "level", "debug");
+    opts.level = MetricLevelFromName(arg);
+  }
+
   PrometheusWriter writer(output);
-  WARN_NOT_OK(metrics->WriteForPrometheus(&writer), "Couldn't write text metrics for Prometheus");
+  WARN_NOT_OK(metrics->WriteForPrometheus(&writer, opts),
+              "Couldn't write text metrics for Prometheus");
 }
 
 static void HandleGetVersionInfo(

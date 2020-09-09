@@ -272,7 +272,7 @@ SELECT count(*) FROM quad_poly_tbl WHERE p << polygon '((300,300),(400,600),(600
                                  QUERY PLAN
 -----------------------------------------------------------------------------
  Aggregate
-   ->  Foreign Scan on quad_poly_tbl
+   ->  Seq Scan on quad_poly_tbl
          Filter: (p << '((300,300),(400,600),(600,500),(700,200))'::polygon)
 (3 rows)
 
@@ -287,7 +287,7 @@ SELECT count(*) FROM quad_poly_tbl WHERE p &< polygon '((300,300),(400,600),(600
                                  QUERY PLAN
 -----------------------------------------------------------------------------
  Aggregate
-   ->  Foreign Scan on quad_poly_tbl
+   ->  Seq Scan on quad_poly_tbl
          Filter: (p &< '((300,300),(400,600),(600,500),(700,200))'::polygon)
 (3 rows)
 
@@ -302,7 +302,7 @@ SELECT count(*) FROM quad_poly_tbl WHERE p && polygon '((300,300),(400,600),(600
                                  QUERY PLAN
 -----------------------------------------------------------------------------
  Aggregate
-   ->  Foreign Scan on quad_poly_tbl
+   ->  Seq Scan on quad_poly_tbl
          Filter: (p && '((300,300),(400,600),(600,500),(700,200))'::polygon)
 (3 rows)
 
@@ -317,7 +317,7 @@ SELECT count(*) FROM quad_poly_tbl WHERE p &> polygon '((300,300),(400,600),(600
                                  QUERY PLAN
 -----------------------------------------------------------------------------
  Aggregate
-   ->  Foreign Scan on quad_poly_tbl
+   ->  Seq Scan on quad_poly_tbl
          Filter: (p &> '((300,300),(400,600),(600,500),(700,200))'::polygon)
 (3 rows)
 
@@ -332,7 +332,7 @@ SELECT count(*) FROM quad_poly_tbl WHERE p >> polygon '((300,300),(400,600),(600
                                  QUERY PLAN
 -----------------------------------------------------------------------------
  Aggregate
-   ->  Foreign Scan on quad_poly_tbl
+   ->  Seq Scan on quad_poly_tbl
          Filter: (p >> '((300,300),(400,600),(600,500),(700,200))'::polygon)
 (3 rows)
 
@@ -347,7 +347,7 @@ SELECT count(*) FROM quad_poly_tbl WHERE p <<| polygon '((300,300),(400,600),(60
                                   QUERY PLAN
 ------------------------------------------------------------------------------
  Aggregate
-   ->  Foreign Scan on quad_poly_tbl
+   ->  Seq Scan on quad_poly_tbl
          Filter: (p <<| '((300,300),(400,600),(600,500),(700,200))'::polygon)
 (3 rows)
 
@@ -362,7 +362,7 @@ SELECT count(*) FROM quad_poly_tbl WHERE p &<| polygon '((300,300),(400,600),(60
                                   QUERY PLAN
 ------------------------------------------------------------------------------
  Aggregate
-   ->  Foreign Scan on quad_poly_tbl
+   ->  Seq Scan on quad_poly_tbl
          Filter: (p &<| '((300,300),(400,600),(600,500),(700,200))'::polygon)
 (3 rows)
 
@@ -377,7 +377,7 @@ SELECT count(*) FROM quad_poly_tbl WHERE p |&> polygon '((300,300),(400,600),(60
                                   QUERY PLAN
 ------------------------------------------------------------------------------
  Aggregate
-   ->  Foreign Scan on quad_poly_tbl
+   ->  Seq Scan on quad_poly_tbl
          Filter: (p |&> '((300,300),(400,600),(600,500),(700,200))'::polygon)
 (3 rows)
 
@@ -392,7 +392,7 @@ SELECT count(*) FROM quad_poly_tbl WHERE p |>> polygon '((300,300),(400,600),(60
                                   QUERY PLAN
 ------------------------------------------------------------------------------
  Aggregate
-   ->  Foreign Scan on quad_poly_tbl
+   ->  Seq Scan on quad_poly_tbl
          Filter: (p |>> '((300,300),(400,600),(600,500),(700,200))'::polygon)
 (3 rows)
 
@@ -407,7 +407,7 @@ SELECT count(*) FROM quad_poly_tbl WHERE p <@ polygon '((300,300),(400,600),(600
                                  QUERY PLAN
 -----------------------------------------------------------------------------
  Aggregate
-   ->  Foreign Scan on quad_poly_tbl
+   ->  Seq Scan on quad_poly_tbl
          Filter: (p <@ '((300,300),(400,600),(600,500),(700,200))'::polygon)
 (3 rows)
 
@@ -422,7 +422,7 @@ SELECT count(*) FROM quad_poly_tbl WHERE p @> polygon '((340,550),(343,552),(341
                             QUERY PLAN
 -------------------------------------------------------------------
  Aggregate
-   ->  Foreign Scan on quad_poly_tbl
+   ->  Seq Scan on quad_poly_tbl
          Filter: (p @> '((340,550),(343,552),(341,553))'::polygon)
 (3 rows)
 
@@ -437,7 +437,7 @@ SELECT count(*) FROM quad_poly_tbl WHERE p ~= polygon '((200, 300),(210, 310),(2
                             QUERY PLAN
 -------------------------------------------------------------------
  Aggregate
-   ->  Foreign Scan on quad_poly_tbl
+   ->  Seq Scan on quad_poly_tbl
          Filter: (p ~= '((200,300),(210,310),(230,290))'::polygon)
 (3 rows)
 

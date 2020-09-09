@@ -70,8 +70,8 @@ public class TestMasterLeaderDecommission extends TestClusterBase {
       // Assert each tserver knows only the list of all 3 masters
       // as it should have heartbeated to master leader.
       assertEquals(3, masters.split(",").length);
-      assertFalse(masters.contains(leaderMasterHp.getHostText()));
-      assertTrue(masters.contains(newMaster.iterator().next().getHostText()));
+      assertFalse(masters.contains(leaderMasterHp.getHost()));
+      assertTrue(masters.contains(newMaster.iterator().next().getHost()));
     }
 
     // Wait for some ops and verify no failures in load tester.

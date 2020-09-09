@@ -26,6 +26,7 @@
 #include "yb/rocksdb/port/stack_trace.h"
 
 DECLARE_double(cache_single_touch_ratio);
+DECLARE_bool(cache_overflow_single_touch);
 
 namespace rocksdb {
 
@@ -138,6 +139,7 @@ TEST_F(DBBlockCacheTest, TestWithoutCompressedBlockCache) {
   auto options = GetOptions(table_options);
   InitTable(options);
 
+  FLAGS_cache_overflow_single_touch = false;
   std::shared_ptr<Cache> cache = NewLRUCache(0, 0, false);
   table_options.block_cache = cache;
   options.table_factory.reset(new BlockBasedTableFactory(table_options));
@@ -161,15 +163,6 @@ TEST_F(DBBlockCacheTest, TestWithoutCompressedBlockCache) {
   cache->SetCapacity(usage / FLAGS_cache_single_touch_ratio);
   ASSERT_EQ(usage, cache->GetPinnedUsage());
 
-  // Test with strict capacity limit.
-  cache->SetStrictCapacityLimit(true);
-  iter = db_->NewIterator(read_options);
-  iter->Seek(ToString(kNumBlocks - 1));
-  ASSERT_TRUE(iter->status().IsIncomplete());
-  CheckCacheCounters(options, 1, 0, 0, 1);
-  delete iter;
-  iter = nullptr;
-
   // Release iterators and access cache again.
   for (size_t i = 0; i < kNumBlocks - 1; i++) {
     iterators[i].reset();
@@ -183,6 +176,7 @@ TEST_F(DBBlockCacheTest, TestWithoutCompressedBlockCache) {
     CheckCacheCounters(options, 0, 1, 0, 0);
     iterators[i].reset(iter);
   }
+  FLAGS_cache_overflow_single_touch = true;
 }
 
 #ifdef SNAPPY
@@ -193,6 +187,7 @@ TEST_F(DBBlockCacheTest, TestWithCompressedBlockCache) {
   options.compression = CompressionType::kSnappyCompression;
   InitTable(options);
 
+  FLAGS_cache_overflow_single_touch = false;
   std::shared_ptr<Cache> cache = NewLRUCache(0, 0, false);
   std::shared_ptr<Cache> compressed_cache = NewLRUCache(0, 0, false);
   table_options.block_cache = cache;
@@ -220,33 +215,7 @@ TEST_F(DBBlockCacheTest, TestWithCompressedBlockCache) {
   ASSERT_LT(0, compressed_usage);
   // Compressed block cache cannot be pinned.
   ASSERT_EQ(0, compressed_cache->GetPinnedUsage());
-
-  // Set strict capacity limit flag. Now block will only load into compressed
-  // block cache.
-  cache->SetCapacity(usage);
-  cache->SetStrictCapacityLimit(true);
-  ASSERT_EQ(usage, cache->GetPinnedUsage());
-  // compressed_cache->SetCapacity(compressed_usage);
-  compressed_cache->SetCapacity(0);
-  // compressed_cache->SetStrictCapacityLimit(true);
-  iter = db_->NewIterator(read_options);
-  iter->Seek(ToString(kNumBlocks - 1));
-  ASSERT_TRUE(iter->status().IsIncomplete());
-  CheckCacheCounters(options, 1, 0, 0, 1);
-  CheckCompressedCacheCounters(options, 1, 0, 1, 0);
-  delete iter;
-  iter = nullptr;
-
-  // Clear strict capacity limit flag. This time we shall hit compressed block
-  // cache.
-  cache->SetStrictCapacityLimit(false);
-  iter = db_->NewIterator(read_options);
-  iter->Seek(ToString(kNumBlocks - 1));
-  ASSERT_OK(iter->status());
-  CheckCacheCounters(options, 1, 0, 1, 0);
-  CheckCompressedCacheCounters(options, 0, 1, 0, 0);
-  delete iter;
-  iter = nullptr;
+  FLAGS_cache_overflow_single_touch = true;
 }
 #endif
 

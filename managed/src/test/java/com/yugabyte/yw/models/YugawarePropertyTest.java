@@ -25,14 +25,14 @@ public class YugawarePropertyTest extends FakeDBApplication {
   public void testAddNewProperty() {
     YugawareProperty.addConfigProperty("Foo",
         Json.toJson(ImmutableMap.of("foo", "bar")), "Sample data");
-    assertEquals(2, YugawareProperty.find.findRowCount());
+    assertEquals(2, YugawareProperty.find.query().findCount());
   }
 
   @Test
   public void testAddExistingProperty() {
     YugawareProperty.addConfigProperty("existing-config",
         Json.toJson(ImmutableMap.of("foo1", "bar1")), "Sample data");
-    assertEquals(1, YugawareProperty.find.findRowCount());
+    assertEquals(1, YugawareProperty.find.query().findCount());
   }
 
   @Test

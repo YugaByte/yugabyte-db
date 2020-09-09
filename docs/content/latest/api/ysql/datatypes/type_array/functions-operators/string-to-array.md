@@ -20,7 +20,7 @@ return value:      text[]
 ```
 **Example:**
 
-```postgresql
+```plpgsql
 select string_to_array(
   'a|b|?|c', -- the to-be-split string
   '|',       -- the character(s) to be taken as the delimiter
@@ -64,7 +64,7 @@ The troublesome sequence is shown in typewriter font here:
 
 These considerations, together with the fact that it can produce only a `text[]` output, mean that the `string_to_array()` function has limited usefulness.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   delim_text  constant text := ' !';

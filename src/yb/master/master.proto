@@ -170,6 +170,17 @@ message TableIdentifierPB {
   optional NamespaceIdentifierPB namespace = 3;
 }
 
+message TablegroupIdentifierPB {
+  // The tablegroup ID to fetch info.
+  optional bytes id = 1;
+
+  // The tablegroup name to fetch info.
+  optional string name = 2;
+
+  // The namespace that the tablegroup is in
+  optional bytes namespace_id = 3;
+}
+
 // This represents one instance of a placement constraint for a table. It is
 // used to dictate what is the minimum number of expected replicas in a certain
 // cloud/region/zone combo.
@@ -329,6 +340,8 @@ message SysTablesEntryPB {
 
   // The table namespace ID.
   optional bytes namespace_id = 11;
+  // The table namespace name.
+  optional bytes namespace_name = 30;
 
   // sequence-id for the table metadata.
   // Used on tablet-report to avoid sending "alter-table" notifications.
@@ -345,6 +358,9 @@ message SysTablesEntryPB {
 
   // The table's partitioning schema.
   optional PartitionSchemaPB partition_schema = 9;
+
+  // The table's partitions version. Incremented each time partitions change.
+  optional uint32 partitions_version = 28;
 
   // The next column ID to assign to newly added columns in this table.
   // This prevents column ID reuse.
@@ -668,6 +684,12 @@ message TServerMetricsPB {
   optional uint64 num_sst_files = 7;
 }
 
+message TabletForSplitPB {
+  required bytes tablet_id = 1;
+  required bytes split_partition_key = 2;
+  required bytes split_encoded_key = 3;
+}
+
 // Heartbeat sent from the tablet-server to the master
 // to establish liveness and report back any status changes.
 message TSHeartbeatRequestPB {
@@ -698,6 +720,9 @@ message TSHeartbeatRequestPB {
   optional int32 leader_count = 7;
 
   optional int32 cluster_config_version = 8;
+
+  // List of candidate tablets for split based on tablet splitting strategy and settings.
+  repeated TabletForSplitPB tablets_for_split = 9;
 }
 
 message TSHeartbeatResponsePB {
@@ -740,6 +765,8 @@ message TSHeartbeatResponsePB {
   optional cdc.ConsumerRegistryPB consumer_registry = 12;
 
   optional int32 cluster_config_version = 13;
+
+  optional int64 tablet_split_size_threshold_bytes = 14;
 }
 
 message TSInformationPB {
@@ -778,7 +805,7 @@ message TabletLocationsPB {
   // Table ids for all the tables on this tablet.
   repeated bytes table_ids = 8;
 
-  // For tablets which are results of splitting we set this to split parent split_depth + 1.
+  // See SysTabletsEntryPB for field with the same name.
   optional uint64 split_depth = 9;
 }
 
@@ -840,6 +867,8 @@ message CreateTableRequestPB {
   optional bytes indexed_table_id = 9; // Indexed table id of this index.
   optional bool is_local_index = 10 [ default = false ];  // Is a local index?
   optional bool is_unique_index = 11 [ default = false ]; // Is a unique index?
+  optional bool skip_index_backfill = 18 [ default = false ]; // Skip online schema migration for
+                                                              // index?
 
   // For RBAC.
   optional string creator_role_name = 12;
@@ -851,6 +880,9 @@ message CreateTableRequestPB {
 
   // Is this a colocated table? This field is only applicable for a colocated database.
   optional bool colocated = 17 [ default = true ];
+
+  // This is only applicable for tablegroups. Eventually colocated will be deprecated.
+  optional bytes tablegroup_id = 19;
 }
 
 message CreateTableResponsePB {
@@ -973,6 +1005,9 @@ message GetTableLocationsResponsePB {
 
   repeated TabletLocationsPB tablet_locations = 2;
   optional TableType table_type = 3;
+
+  // See SysTabletsEntryPB for field with the same name.
+  optional uint32 partitions_version = 4;
 }
 
 message AlterTableRequestPB {
@@ -1017,6 +1052,11 @@ message AlterTableRequestPB {
   optional NamespaceIdentifierPB new_namespace = 4;
   optional TablePropertiesPB alter_properties = 5;
   optional uint32 wal_retention_secs = 6;
+
+  // If set to true, SendAlterTableRequest will be sent even if no changes are specified in this
+  // request.
+  // This is useful to trigger index permissions update.
+  optional bool force_send_alter_request = 7 [default = false];
 }
 
 message AlterTableResponsePB {
@@ -1286,6 +1326,14 @@ message AreLeadersOnPreferredOnlyResponsePB {
   optional MasterErrorPB error = 1;
 }
 
+message AreTransactionLeadersSpreadRequestPB {
+}
+
+message AreTransactionLeadersSpreadResponsePB {
+  // Any error being set implies transaction leaders are incorrectly respecting preferred zones.
+  optional MasterErrorPB error = 1;
+}
+
 // ============================================================================
 //  Namespace  (default namespace = ANY placement)
 // ============================================================================
@@ -1390,6 +1438,47 @@ message GetNamespaceInfoResponsePB {
 
   optional NamespaceIdentifierPB namespace = 2;
   optional bool colocated = 3;
+}
+
+// ============================================================================
+//  Tablegroup
+// ============================================================================
+
+message CreateTablegroupRequestPB {
+  required bytes id = 1;
+  required bytes namespace_id = 2;
+  optional string namespace_name = 3;
+}
+
+message CreateTablegroupResponsePB {
+  // The error, if an error occurred with this request.
+  optional MasterErrorPB error = 1;
+
+  optional bytes parent_table_id = 2;
+  optional bytes parent_table_name = 3;
+}
+
+message DeleteTablegroupRequestPB {
+  required bytes id = 1;
+  required bytes namespace_id = 2;
+}
+
+message DeleteTablegroupResponsePB {
+  // The error, if an error occurred with this request.
+  optional MasterErrorPB error = 1;
+
+  optional bytes parent_table_id = 2;
+}
+
+message ListTablegroupsRequestPB {
+  optional bytes namespace_id = 1;
+}
+
+message ListTablegroupsResponsePB {
+  // The error, if an error occurred with this request.
+  optional MasterErrorPB error = 1;
+
+  repeated TablegroupIdentifierPB tablegroups = 2;
 }
 
 // ============================================================================
@@ -1643,6 +1732,10 @@ message FlushTablesRequestPB {
 
   // Whether we want to compact the tablets instead of flushing them.
   optional bool is_compaction = 2;
+
+  // Whether we want to include index tables in this flush. If there are index tables in the tables
+  // field this field must be set to false, otherwise the request will fail.
+  optional bool add_indexes = 3;
 }
 
 message FlushTablesResponsePB {
@@ -1794,6 +1887,11 @@ service MasterService {
   rpc AlterNamespace(AlterNamespaceRequestPB) returns (AlterNamespaceResponsePB);
   rpc ListNamespaces(ListNamespacesRequestPB) returns (ListNamespacesResponsePB);
   rpc GetNamespaceInfo(GetNamespaceInfoRequestPB) returns (GetNamespaceInfoResponsePB);
+
+  // For Tablegroup:
+  rpc CreateTablegroup(CreateTablegroupRequestPB) returns (CreateTablegroupResponsePB);
+  rpc DeleteTablegroup(DeleteTablegroupRequestPB) returns (DeleteTablegroupResponsePB);
+  rpc ListTablegroups(ListTablegroupsRequestPB) returns (ListTablegroupsResponsePB);
 
   // For Postgres:
   rpc ReservePgsqlOids(ReservePgsqlOidsRequestPB) returns (ReservePgsqlOidsResponsePB);

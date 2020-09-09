@@ -2,7 +2,6 @@
 title: Built-in function call [YCQL]
 headerTitle: Built-in function call
 linkTitle: Function call
-summary: Combination of one or more values.
 description: Use a function call expression to apply the specified function to to given arguments between parentheses and return the result of the computation.
 menu:
   latest:
@@ -103,7 +102,7 @@ full-table operations into smaller sub-tasks that can be run in parallel.
 
 ### Querying a subset of the data
 One use of `partition_hash` is to query a subset of the data and get approximate count of rows in the table.
-For example, suppose we have a table `t` with partitioning columns `(h1,h2)`:
+For example, suppose you have a table `t` with partitioning columns `(h1,h2)`:
 
 ```sql
 create table t (h1 int, h2 int, r1 int, r2 int, v int, 
@@ -114,11 +113,11 @@ We can use this function to query a subset of the data (in this case, 1/128 of t
 select count(*) from t where partition_hash(h1, h2) >= 0 and
                                       partition_hash(h1, h2) < 512;
 ```
-The value `512` comes from dividing the full hash partition range by the number of subsets that we want to query (`65536/128=512`).
+The value `512` comes from dividing the full hash partition range by the number of subsets that you want to query (`65536/128=512`).
 
 ### Parallel full table scans
 
-To do a distributed scan, we can issue, in this case, 128 queries each using a different hash range:
+To do a distributed scan, you can issue, in this case, 128 queries each using a different hash range:
 
 ```sql
 .. where partition_hash(h1, h2) >= 0 and partition_hash(h1, h2) < 512;
@@ -138,7 +137,7 @@ and so on, till the last segment/range of `512` in the partition space:
 ## WriteTime function
 
 The `WriteTime` function returns the timestamp in microseconds when a column was written.
-For example, suppose we have a table `page_views` with a column named `views`:
+For example, suppose you have a table `page_views` with a column named `views`:
 
 ```sql
  SELECT writetime(views) FROM page_views;
@@ -152,8 +151,8 @@ For example, suppose we have a table `page_views` with a column named `views`:
 
 ## TTL function
 
-The TTL function returns the number of seconds until a column or row expires.
-Assuming we have a table `page_views` and a column named `views`:
+The TTL function returns the number of seconds until a column or row expires. 
+Assuming you have a table `page_views` and a column named `views`:
 
 ```sql
 SELECT TTL(views) FROM page_views;

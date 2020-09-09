@@ -57,6 +57,20 @@ Status JsonReader::Init() {
   return Status::OK();
 }
 
+Status JsonReader::ExtractBool(const Value* object,
+                               const char* field,
+                               bool* result) const {
+  const Value* val;
+  RETURN_NOT_OK(ExtractField(object, field, &val));
+  if (PREDICT_FALSE(!val->IsBool())) {
+    return STATUS(InvalidArgument, Substitute(
+        "Wrong type during field extraction: expected bool but got $0",
+        val->GetType()));
+  }
+  *result = val->GetBool();
+  return Status::OK();
+}
+
 Status JsonReader::ExtractInt32(const Value* object,
                                 const char* field,
                                 int32_t* result) const {

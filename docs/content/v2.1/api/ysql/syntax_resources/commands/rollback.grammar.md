@@ -1,0 +1,3 @@
+```
+rollback ::= ROLLBACK [ TRANSACTION | WORK ]
+```

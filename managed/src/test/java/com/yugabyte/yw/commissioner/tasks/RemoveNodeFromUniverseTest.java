@@ -93,6 +93,16 @@ public class RemoveNodeFromUniverseTest extends CommissionerBaseTest {
     defaultUniverse = Universe.get(defaultUniverse.universeUUID);
 
     mockClient = mock(YBClient.class);
+    ShellProcessHandler.ShellResponse dummyShellResponse = new ShellProcessHandler.ShellResponse();
+    dummyShellResponse.message = "true";
+    when(mockNodeManager.nodeCommand(any(), any())).thenReturn(dummyShellResponse);
+    when(mockClient.waitForServer(any(), anyLong())).thenReturn(true);
+
+    try {
+      // WaitForTServerHeartBeats mock.
+      doNothing().when(mockClient).waitForMasterLeader(anyLong());
+    } catch (Exception e) {}
+
 
     when(mockYBClient.getClient(any(), any())).thenReturn(mockClient);
     mockWaits(mockClient);
@@ -191,11 +201,12 @@ public class RemoveNodeFromUniverseTest extends CommissionerBaseTest {
     int taskPosition = 0;
     switch (type) {
       case WITH_MASTER:
-        for (TaskType taskType: REMOVE_NODE_WITH_MASTER) {
+        for (TaskType taskType : REMOVE_NODE_WITH_MASTER) {
           if (taskType.equals(TaskType.WaitForDataMove) && !moveData) {
             position++;
             continue;
           }
+
           List<TaskInfo> tasks = subTasksByPosition.get(taskPosition);
           assertEquals(1, tasks.size());
           assertEquals(taskType, tasks.get(0).getTaskType());

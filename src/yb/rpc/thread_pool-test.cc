@@ -18,11 +18,14 @@
 
 #include <gtest/gtest.h>
 
+#include "yb/rpc/strand.h"
 #include "yb/rpc/thread_pool.h"
 
 #include "yb/util/countdown_latch.h"
 #include "yb/util/test_util.h"
 #include "yb/util/thread.h"
+
+using namespace std::literals;
 
 namespace yb {
 namespace rpc {
@@ -251,6 +254,55 @@ TEST_F(ThreadPoolTest, TestOwns) {
   pool.Enqueue(&task);
   task.Wait();
   ASSERT_TRUE(pool.Owns(task.thread()));
+}
+
+TEST_F(ThreadPoolTest, Strand) {
+  constexpr size_t kTotalTasks = 100;
+  constexpr size_t kTotalWorkers = 4;
+  ThreadPool pool("test", kTotalTasks, kTotalWorkers);
+  Strand strand(&pool);
+
+  CountDownLatch latch(kTotalTasks);
+  std::atomic<int> counter(0);
+  for (auto i = 0; i != kTotalTasks; ++i) {
+    strand.EnqueueFunctor([&counter, &latch] {
+      ASSERT_EQ(++counter, 1);
+      std::this_thread::sleep_for(1ms);
+      ASSERT_EQ(--counter, 0);
+      latch.CountDown();
+    });
+  }
+
+  latch.Wait();
+}
+
+TEST_F(ThreadPoolTest, StrandShutdown) {
+  constexpr size_t kMaxTasks = 100;
+  constexpr size_t kTotalWorkers = 4;
+  ThreadPool pool("test", kMaxTasks, kTotalWorkers);
+  Strand strand(&pool);
+
+  CountDownLatch latch1(1);
+  strand.EnqueueFunctor([&latch1] {
+    latch1.CountDown();
+    std::this_thread::sleep_for(500ms);
+  });
+  class AbortedTask : public StrandTask {
+   public:
+    void Run() override {
+      ASSERT_TRUE(false);
+    }
+
+    void Done(const Status& status) override {
+      ASSERT_TRUE(status.IsAborted());
+    }
+
+    virtual ~AbortedTask() = default;
+  };
+  AbortedTask aborted_task;
+  strand.Enqueue(&aborted_task);
+  latch1.Wait();
+  strand.Shutdown();
 }
 
 } // namespace rpc

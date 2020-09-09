@@ -177,7 +177,7 @@ Status ProcessContextBase::Error(const YBLocation& loc,
 
   // Append this error message to the context.
   error_msgs()->append(msg);
-  LOG(ERROR) << "SQL Error: " << msg;
+  YB_LOG_EVERY_N_SECS(WARNING, 1) << "SQL Error: " << msg;
   return STATUS(QLError, msg.c_str(), Slice(), QLError(error_code_));
 }
 

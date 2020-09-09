@@ -56,7 +56,11 @@ class WriteOperationState;
 YB_STRONGLY_TYPED_BOOL(RequireLease);
 YB_STRONGLY_TYPED_BOOL(IsSysCatalogTablet);
 YB_STRONGLY_TYPED_BOOL(TransactionsEnabled);
-YB_STRONGLY_TYPED_BOOL(AlreadyApplied);
+
+// Used to indicate that a transaction-related operation has already been applied to regular RocksDB
+// (which was flushed) but the corresponding deletion of intents from the intents RocksDB has not
+// been flushed and was therefore lost.
+YB_STRONGLY_TYPED_BOOL(AlreadyAppliedToRegularDB);
 
 }  // namespace tablet
 }  // namespace yb

@@ -165,7 +165,7 @@ public class TestPgAlterTable extends BasePgSQLTest {
 
   @Test
   public void testAddColumnWithForeignKeyConstraint() throws Exception {
-    try (Connection connection = newConnectionBuilder().setIsolationLevel(SERIALIZABLE).connect();
+    try (Connection connection = getConnectionBuilder().withIsolationLevel(SERIALIZABLE).connect();
          Statement statement = connection.createStatement()) {
       statement.execute("CREATE TABLE test_table(id int UNIQUE, pk int PRIMARY KEY)");
 
@@ -200,7 +200,7 @@ public class TestPgAlterTable extends BasePgSQLTest {
 
   @Test
   public void testAddColumnWithForeignKeyConstraintOnDelete() throws Exception {
-    try (Connection connection = newConnectionBuilder().setIsolationLevel(SERIALIZABLE).connect();
+    try (Connection connection = getConnectionBuilder().withIsolationLevel(SERIALIZABLE).connect();
          Statement statement = connection.createStatement()) {
       statement.execute("CREATE TABLE test_table(pk int PRIMARY KEY, id int UNIQUE)");
 
@@ -286,7 +286,7 @@ public class TestPgAlterTable extends BasePgSQLTest {
 
   @Test
   public void testAddColumnWithForeignKeyConstraintOnUpdate() throws Exception {
-    try (Connection connection = newConnectionBuilder().setIsolationLevel(SERIALIZABLE).connect();
+    try (Connection connection = getConnectionBuilder().withIsolationLevel(SERIALIZABLE).connect();
          Statement statement = connection.createStatement()) {
       statement.execute("CREATE TABLE test_table(pk int PRIMARY KEY, id int UNIQUE)");
 

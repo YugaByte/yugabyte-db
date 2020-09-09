@@ -1,8 +1,8 @@
 ---
-title: Build a NodeJS application that uses YSQL
-headerTitle: Build a NodeJS application
-linkTitle: NodeJS
-description: Build a NodeJS application that uses the pg driver and YSQL.
+title: Build a Node.js application that uses YSQL
+headerTitle: Build a Node.js application
+linkTitle: Node.js
+description: Build a Node.js application with the pg driver that uses YSQL.
 aliases:
   - /develop/client-drivers/nodejs/
   - /latest/develop/client-drivers/nodejs/
@@ -22,49 +22,50 @@ showAsideToc: true
 
 <ul class="nav nav-tabs-alt nav-tabs-yb">
   <li >
-    <a href="/latest/quick-start/build-apps/nodejs/ysql-pg" class="nav-link active">
+    <a href="{{< relref "./ysql-pg.md" >}}" class="nav-link active">
       <i class="icon-postgres" aria-hidden="true"></i>
-      YSQL - PG driver
+      YSQL - pg driver
     </a>
   </li>
   <li >
-    <a href="/latest/quick-start/build-apps/nodejs/ysql-sequelize" class="nav-link">
+    <a href="{{< relref "./ysql-sequelize.md" >}}" class="nav-link">
       <i class="icon-postgres" aria-hidden="true"></i>
       YSQL - Sequelize
     </a>
   </li>
   <li>
-    <a href="/latest/quick-start/build-apps/nodejs/ycql" class="nav-link">
+    <a href="{{< relref "./ycql.md" >}}" class="nav-link">
       <i class="icon-cassandra" aria-hidden="true"></i>
       YCQL
     </a>
   </li>
 </ul>
 
-## Install the pg driver
+## Install the node-postgres driver
 
-Install the NodeJS driver using the following command. You can find further details and the source for the driver [here](https://node-postgres.com/).
+Install the [`node-postgres` driver](../../../../reference/drivers/ysql-client-drivers/#node-postgres) using the following command.
 
 ```sh
 $ npm install pg
 ```
 
+The `node-postgres` module is installed.
+
 ## Prerequisites
 
 This tutorial assumes that you have:
 
-- installed YugabyteDB and created a universe. If not, please follow these steps in the [Quick Start guide](../../../../quick-start/explore-ysql/).
-- installed a recent version of `node`. If not, you can find install instructions [here](https://nodejs.org/en/download/).
-
-We will be using the [async](https://github.com/caolan/async) JS utility to work with asynchronous Javascript. Install this by running the following command:
+- installed YugabyteDB and created a universe. If not, follow the steps in [Quick Start](../../../../quick-start).
+- installed a recent version of [`node`](https://nodejs.org/en/download/).
+- installed the [async](https://github.com/caolan/async) JS utility to work with asynchronous Javascript. Install this by running the following command:
 
 ```sh
 $ npm install --save async
 ```
 
-## Sample JavaScript code
+## Create the sample Node.js application
 
-Create a file `yb-ysql-helloworld.js` and add the following content to it.
+Create a file `yb-ysql-helloworld.js` and copy the following content to it.
 
 ```js
 var pg = require('pg');

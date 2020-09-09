@@ -403,10 +403,10 @@ public class YBClient implements AutoCloseable {
 
     long start = System.currentTimeMillis();
     while (System.currentTimeMillis() - start < timeoutMS &&
-      getMasterUUID(hp.getHostText(), hp.getPort()) == null) {
+      getMasterUUID(hp.getHost(), hp.getPort()) == null) {
       Thread.sleep(AsyncYBClient.SLEEP_TIME);
     }
-    return getMasterUUID(hp.getHostText(), hp.getPort()) != null;
+    return getMasterUUID(hp.getHost(), hp.getPort()) != null;
   }
 
   /**
@@ -831,7 +831,7 @@ public class YBClient implements AutoCloseable {
     }
     @Override
     public boolean get() throws Exception {
-      return ping(hp.getHostText(), hp.getPort());
+      return ping(hp.getHost(), hp.getPort());
     }
   }
 

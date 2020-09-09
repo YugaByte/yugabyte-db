@@ -23,6 +23,13 @@ using namespace std::literals;
 
 DECLARE_bool(use_priority_thread_pool_for_flushes);
 DECLARE_bool(allow_preempting_compactions);
+DECLARE_uint64(index_backfill_upperbound_for_user_enforced_txn_duration_ms);
+DECLARE_int32(index_backfill_wait_for_old_txns_ms);
+DECLARE_int32(index_backfill_rpc_timeout_ms);
+DECLARE_int32(index_backfill_rpc_max_delay_ms);
+DECLARE_int32(index_backfill_rpc_max_retries);
+DECLARE_int32(retrying_ts_rpc_max_delay_ms);
+DECLARE_int32(master_ts_rpc_timeout_ms);
 
 ///////////////////////////////////////////////////
 // YBMiniClusterTestBase
@@ -35,6 +42,20 @@ void YBMiniClusterTestBase<T>::SetUp() {
   YBTest::SetUp();
   FLAGS_use_priority_thread_pool_for_flushes = true;
   FLAGS_allow_preempting_compactions = true;
+
+  // Note that if a test intends to use user enforced txns then this flag should be
+  // updated accordingly, as having this to be smaller than the client timeout could
+  // be unsafe. We do not want to have this be a large value in tests because it slows
+  // down the normal create index flow.
+  FLAGS_index_backfill_upperbound_for_user_enforced_txn_duration_ms = 0;
+  FLAGS_index_backfill_wait_for_old_txns_ms = 0;
+
+  FLAGS_index_backfill_rpc_timeout_ms = 6000;
+  FLAGS_index_backfill_rpc_max_delay_ms = 1000;
+  FLAGS_index_backfill_rpc_max_retries = 10;
+  FLAGS_retrying_ts_rpc_max_delay_ms = 1000;
+  FLAGS_master_ts_rpc_timeout_ms = 10000;
+
   verify_cluster_before_next_tear_down_ = true;
 }
 

@@ -29,7 +29,7 @@ public class TestPgRegressIndex extends BasePgSQLTest {
   }
 
   @Test
-  public void testPgRegressHashIndex() throws Exception {
+  public void testPgRegressIndex() throws Exception {
     runPgRegressTest("yb_index_serial_schedule");
   }
 }

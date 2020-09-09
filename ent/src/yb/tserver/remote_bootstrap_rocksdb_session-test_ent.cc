@@ -45,7 +45,7 @@ class RemoteBootstrapRocksDBTest : public RemoteBootstrapTest {
     // Create extra file to check that it will not break snapshot files collecting
     // inside RemoteBootstrapSession::InitSession().
     const string rocksdb_dir = tablet()->metadata()->rocksdb_dir();
-    const string top_snapshots_dir = tablet::TabletSnapshots::SnapshotsDirName(rocksdb_dir);
+    const string top_snapshots_dir = tablet()->metadata()->snapshots_dir();
     const string snapshot_dir = JoinPathSegments(top_snapshots_dir, kSnapshotId);
     ASSERT_TRUE(env_->FileExists(snapshot_dir));
 

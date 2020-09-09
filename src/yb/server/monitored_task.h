@@ -38,6 +38,7 @@
 #include "yb/gutil/ref_counted.h"
 #include "yb/util/enums.h"
 #include "yb/util/monotime.h"
+#include "yb/util/status.h"
 
 namespace yb {
 
@@ -95,6 +96,11 @@ class MonitoredTask : public std::enable_shared_from_this<MonitoredTask> {
 
   // Task completion time, may be !Initialized().
   virtual MonoTime completion_timestamp() const = 0;
+
+  // Whether task was started by the LB.
+  virtual bool started_by_lb() const {
+    return false;
+  }
 
  protected:
   static bool IsStateTerminal(MonitoredTaskState state) {

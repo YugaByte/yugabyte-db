@@ -62,7 +62,6 @@ using std::vector;
 using std::string;
 
 using consensus::MinimumOpId;
-using consensus::OpId;
 using consensus::RaftPeerPB;
 using log::LogAnchorRegistry;
 using log::ReadableLogSegment;

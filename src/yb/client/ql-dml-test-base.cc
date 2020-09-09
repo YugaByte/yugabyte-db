@@ -20,6 +20,7 @@
 #include "yb/client/session.h"
 #include "yb/client/table.h"
 
+#include "yb/common/ql_name.h"
 #include "yb/common/ql_value.h"
 
 #include "yb/util/bfql/gen_opcodes.h"
@@ -66,7 +67,7 @@ void QLDmlTestBase::SetUp() {
 
   ASSERT_OK(CreateClient());
 
-  // Create test table
+  // Create test namespace.
   ASSERT_OK(client_->CreateNamespaceIfNotExists(kTableName.namespace_name(),
                                                 kTableName.namespace_type()));
 }
@@ -88,8 +89,11 @@ void KeyValueTableTest::CreateTable(Transactional transactional) {
   CreateTable(transactional, NumTablets(), client_.get(), &table_);
 }
 
-void KeyValueTableTest::CreateIndex(Transactional transactional, int indexed_column_index) {
-  CreateIndex(transactional, indexed_column_index, table_, client_.get(), &index_);
+void KeyValueTableTest::CreateIndex(Transactional transactional,
+                                    int indexed_column_index,
+                                    bool use_mangled_names) {
+  CreateIndex(
+      transactional, indexed_column_index, use_mangled_names, table_, client_.get(), &index_);
 }
 
 Result<YBqlWriteOpPtr> KeyValueTableTest::Increment(
@@ -136,6 +140,7 @@ void KeyValueTableTest::CreateTable(
 
 void KeyValueTableTest::CreateIndex(Transactional transactional,
                                     int indexed_column_index,
+                                    bool use_mangled_names,
                                     const TableHandle& table,
                                     YBClient* client,
                                     TableHandle* index) {
@@ -147,17 +152,20 @@ void KeyValueTableTest::CreateIndex(Transactional transactional,
   index_info.set_indexed_table_id(table->id());
   index_info.set_is_local(false);
   index_info.set_is_unique(false);
+  index_info.set_use_mangled_column_name(use_mangled_names);
 
   // List key columns of data-table being indexed.
   index_info.set_hash_column_count(1);
-  index_info.add_indexed_hash_column_ids(schema.ColumnId(indexed_column_index));
+  index_info.add_indexed_hash_column_ids(schema.ColumnId(0));
+
   auto* column = index_info.add_columns();
-  column->set_column_name(schema.Column(indexed_column_index).name());
+  const string name = schema.Column(indexed_column_index).name();
+  column->set_column_name(use_mangled_names ? YcqlName::MangleColumnName(name) : name);
   column->set_indexed_column_id(schema.ColumnId(indexed_column_index));
 
   // Setup Index table schema.
   YBSchemaBuilder builder;
-  builder.AddColumn(schema.Column(indexed_column_index).name())
+  builder.AddColumn(use_mangled_names ? YcqlName::MangleColumnName(name) : name)
       ->Type(schema.Column(indexed_column_index).type())
       ->NotNull()
       ->HashPrimaryKey();
@@ -165,25 +173,28 @@ void KeyValueTableTest::CreateIndex(Transactional transactional,
   size_t num_range_keys = 0;
   for (size_t i = 0; i < schema.num_hash_key_columns(); ++i) {
     if (i != indexed_column_index) {
-      builder.AddColumn(schema.Column(i).name())
+      const string name = schema.Column(i).name();
+      builder.AddColumn(use_mangled_names ? YcqlName::MangleColumnName(name) : name)
           ->Type(schema.Column(i).type())
           ->NotNull()
           ->PrimaryKey();
 
       column = index_info.add_columns();
-      column->set_column_name(schema.Column(i).name());
+      column->set_column_name(use_mangled_names ? YcqlName::MangleColumnName(name) : name);
       column->set_indexed_column_id(schema.ColumnId(i));
       ++num_range_keys;
     }
   }
 
   index_info.set_range_column_count(num_range_keys);
+  TableProperties table_properties;
+  table_properties.SetUseMangledColumnName(use_mangled_names);
 
   if (transactional) {
-    TableProperties table_properties;
     table_properties.SetTransactional(true);
-    builder.SetTableProperties(table_properties);
   }
+
+  builder.SetTableProperties(table_properties);
 
   const YBTableName index_name(YQL_DATABASE_CQL, table.name().namespace_name(),
       table.name().table_name() + '_' + schema.Column(indexed_column_index).name() + "_idx");

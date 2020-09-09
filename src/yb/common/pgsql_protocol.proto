@@ -79,7 +79,17 @@ message PgsqlBatchArgumentPB {
   //     WHERE ybctid IN (SELECT base_ybctid FROM <SecondaryIndex> WHERE <key_condition>)
   optional PgsqlExpressionPB ybctid = 2;
 
-  // Will add arguments for hash, range, and regular columns in a batch execution when needed.
+  // Hash codes.
+  optional uint32 hash_code = 3;
+  optional uint32 max_hash_code = 4;
+
+  // Partition values.
+  repeated PgsqlExpressionPB partition_column_values = 5;
+
+  // Range values.
+  repeated PgsqlExpressionPB range_column_values = 6;
+
+  // Will add arguments regular columns in a batch execution when needed.
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -157,6 +167,9 @@ message PgsqlWriteRequestPB {
 
   // Not used with UPDATEs. Use column_new_values to UPDATE a value.
   repeated PgsqlColumnValuePB column_values = 10;
+
+  // If this attribute is present, this request is a batch request.
+  repeated PgsqlBatchArgumentPB batch_arguments = 18;
 
   //------------------------------------------------------------------------------------------------
   // Column New Values.
@@ -271,6 +284,7 @@ message PgsqlReadRequestPB {
   // Where clause condition
   optional PgsqlExpressionPB where_expr = 8;
 
+  // TODO(alex): This should be renamed to make it clear that it's ONLY related to range columns!
   // Conditions for range columns.
   optional PgsqlExpressionPB condition_expr = 22;
 

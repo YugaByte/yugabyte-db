@@ -45,13 +45,12 @@
 #include "yb/common/wire_protocol.h"
 #include "yb/consensus/consensus.h"
 #include "yb/consensus/consensus.proxy.h"
+#include "yb/consensus/consensus_error.h"
 #include "yb/consensus/consensus_meta.h"
 #include "yb/consensus/consensus_queue.h"
 #include "yb/consensus/log.h"
 #include "yb/consensus/replicate_msgs_holder.h"
 
-#include "yb/gutil/map-util.h"
-#include "yb/gutil/stl_util.h"
 #include "yb/gutil/strings/substitute.h"
 #include "yb/rpc/messenger.h"
 #include "yb/rpc/periodic.h"
@@ -64,7 +63,6 @@
 #include "yb/util/flag_tags.h"
 #include "yb/util/logging.h"
 #include "yb/util/monotime.h"
-#include "yb/util/net/dns_resolver.h"
 #include "yb/util/net/net_util.h"
 #include "yb/util/status_callback.h"
 #include "yb/util/threadpool.h"
@@ -310,6 +308,7 @@ void Peer::SendNextRequest(RequestTriggerMode trigger_mode) {
   // condition. When rest of this function is running in parallel to ProcessResponse.
   msgs_holder.ReleaseOps();
 
+  controller_.set_invoke_callback_mode(rpc::InvokeCallbackMode::kThreadPoolHigh);
   proxy_->UpdateAsync(&request_, trigger_mode, &response_, &controller_,
                       std::bind(&Peer::ProcessResponse, retain_self));
 }
@@ -412,6 +411,7 @@ void Peer::ProcessResponse() {
 
 Status Peer::SendRemoteBootstrapRequest() {
   YB_LOG_WITH_PREFIX_EVERY_N_SECS(INFO, 30) << "Sending request to remotely bootstrap";
+  controller_.set_invoke_callback_mode(rpc::InvokeCallbackMode::kThreadPoolNormal);
   return raft_pool_token_->SubmitFunc([retain_self = shared_from_this()]() {
     retain_self->proxy_->StartRemoteBootstrap(
       &retain_self->rb_request_, &retain_self->rb_response_, &retain_self->controller_,

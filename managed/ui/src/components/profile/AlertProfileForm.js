@@ -4,8 +4,7 @@ import React, { Component } from 'react';
 import { Row, Col } from 'react-bootstrap';
 import { YBFormInput, YBButton, YBToggle, YBControlledSelectWithLabel } from '../common/forms/fields';
 import { Formik, Form, Field } from 'formik';
-import { browserHistory } from 'react-router';
-import { isNonAvailable, showOrRedirect } from '../../utils/LayoutUtils';
+import { isDisabled, showOrRedirect } from '../../utils/LayoutUtils';
 import * as Yup from 'yup';
 import _ from 'lodash';
 import { isNonEmptyObject, isNonEmptyArray } from '../../utils/ObjectUtils';
@@ -31,8 +30,8 @@ const validationSchema = Yup.object().shape({
       smtpServer: Yup.string().required('Must specify an SMTP server address'),
       smtpPort: Yup.number().typeError('Must specify an SMTP server port number'),
       emailFrom: Yup.string().email('Must be an email'),
-      smtpUsername: Yup.string().required('Must specify an SMTP server credentials username'),
-      smtpPassword: Yup.string().required('Must specify an SMTP server credentials password'),
+      smtpUsername: Yup.string(),
+      smtpPassword: Yup.string(),
       useSSL: Yup.boolean(),
       useTLS: Yup.boolean()
     })
@@ -53,12 +52,6 @@ export default class AlertProfileForm extends Component {
     this.state = {
       statusUpdated: false
     };
-  }
-
-  componentDidMount() {
-    const { customer } = this.props;
-    this.props.getCustomerUsers();
-    if (isNonAvailable(customer.features, 'main.profile')) browserHistory.push('/');
   }
 
   componentDidUpdate() {
@@ -125,7 +118,11 @@ export default class AlertProfileForm extends Component {
           enableReinitialize
           onSubmit={(values, { setSubmitting, resetForm }) => {
             const data = _.omit(values, 'customSmtp'); // don't submit internal helper field
-            if (!values.customSmtp) {
+            if (values.customSmtp) {
+              // due to smtp specifics have to remove smtpUsername/smtpPassword props from payload when they are empty
+              if (!data.smtpData.smtpUsername) data.smtpData = _.omit(data.smtpData, 'smtpUsername');
+              if (!data.smtpData.smtpPassword) data.smtpData = _.omit(data.smtpData, 'smtpPassword');
+            } else {
               data.smtpData = null; // this will revert smtp settings to default presets
             }
 
@@ -136,7 +133,8 @@ export default class AlertProfileForm extends Component {
             // default form to new values to avoid unwanted validation of smtp fields when they are hidden
             resetForm(values);
           }}
-          render={({ values, handleChange, handleSubmit, isSubmitting }) => (
+        >
+          {({ values, handleChange, handleSubmit, isSubmitting }) => (
             <Form name="EditCustomerProfile" onSubmit={handleSubmit}>
               <Row>
                 <Col md={6} sm={12}>
@@ -291,14 +289,14 @@ export default class AlertProfileForm extends Component {
                   <YBButton
                     btnText="Save"
                     btnType="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isDisabled(customer.data.features, "universe.create")}
                     btnClass="btn btn-orange pull-right"
                   />
                 </Col>
               </div>
             </Form>
           )}
-        />
+        </Formik>
       </div>
     );
   }

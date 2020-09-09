@@ -36,10 +36,10 @@ Use the `ALTER TABLE` statement to change the definition of an existing table.
 
 <div class="tab-content">
   <div id="grammar" class="tab-pane fade show active" role="tabpanel" aria-labelledby="grammar-tab">
-    {{% includeMarkdown "../syntax_resources/commands/alter_table,alter_table_action,alter_table_constraint.grammar.md" /%}}
+    {{% includeMarkdown "../syntax_resources/commands/alter_table,alter_table_action,alter_table_constraint,alter_column_constraint.grammar.md" /%}}
   </div>
   <div id="diagram" class="tab-pane fade" role="tabpanel" aria-labelledby="diagram-tab">
-    {{% includeMarkdown "../syntax_resources/commands/alter_table,alter_table_action,alter_table_constraint.diagram.md" /%}}
+    {{% includeMarkdown "../syntax_resources/commands/alter_table,alter_table_action,alter_table_constraint,alter_column_constraint.diagram.md" /%}}
   </div>
 </div>
 
@@ -57,9 +57,9 @@ Alter the specified table and dependencies.
 
 Specify one of the following actions.
 
-#### ADD [ COLUMN ] *column_name* *data_type*
+#### ADD [ COLUMN ] *column_name* *data_type* [*constraint*](#constraints)
 
-Add the specified column with the specified data type.
+Add the specified column with the specified data type and constraint.
 
 #### RENAME TO *table_name*
 
@@ -71,9 +71,9 @@ Drop the named column from the table.
 
 - `RESTRICT` — Remove only the specified
 
-#### ADD [*alter_table_constraint*](#alter-table-constraint)
+#### ADD [*alter_table_constraint*](#constraints)
 
-Add the specified constraint to the table. For descriptions of valid *table_constraint* values, see [CREATE TABLE](../ddl_create_table).
+Add the specified constraint to the table.
 
 #### DROP CONSTRAINT *constraint_name* [ RESTRICT | CASCADE ]
 
@@ -100,15 +100,40 @@ If enabled, row level security policies will be applied when the user is the tab
 If disabled (the default) then row level security will not be applied when the user is the table owner.
 See [CREATE POLICY](../dcl_create_policy) for details on how to create row level security policies.
 
-### *alter_table_constraint*
+### Constraints
 
-Specify a table constraint.
+Specify a table or column constraint.
 
 #### CONSTRAINT *constraint_name*
 
 Specify the name of the constraint.
 
-#### CHECK ( expression ) | FOREIGN KEY ( column_names ) *reference_clause*
+#### Foreign key
+
+`FOREIGN KEY` and `REFERENCES` specify that the set of columns can only contain values that are present in the referenced columns of the referenced table. It is used to enforce referential integrity of data.
+
+#### Unique
+
+This enforces that the set of columns specified in the `UNIQUE` constraint are unique in the table, that is, no two rows can have the same values for the set of columns specified in the `UNIQUE` constraint.
+
+#### Check
+
+This is used to enforce that data in the specified table meets the requirements specified in the `CHECK` clause.
+
+#### Default
+
+This is used to specify a default value for the column. If an `INSERT` statement does not specify a value for the column, then the default value is used. If no default is specified for a column, then the default is NULL.
+
+#### Deferrable constraints
+
+Constraints can be deferred using the `DEFERRABLE` clause. Currently, only foreign key constraints
+can be deferred in YugabyteDB. A constraint that is not deferrable will be checked after every row
+within a statement. In the case of deferrable constraints, the checking of the constraint can be postponed
+until the end of the transaction.
+
+Constraints marked as `INITIALLY IMMEDIATE` will be checked after every row within a statement.
+
+Constraints marked as `INITIALLY DEFERRED` will be checked at the end of the transaction.
 
 ## See also
 

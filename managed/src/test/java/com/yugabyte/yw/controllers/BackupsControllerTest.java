@@ -36,6 +36,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static play.mvc.Http.Status.BAD_REQUEST;
+import static play.mvc.Http.Status.FORBIDDEN;
 import static play.test.Helpers.contentAsString;
 
 public class BackupsControllerTest extends FakeDBApplication {
@@ -83,8 +84,11 @@ public class BackupsControllerTest extends FakeDBApplication {
     assertAuditEntry(0, defaultCustomer.uuid);
   }
 
-  private Result restoreBackup(UUID universeUUID, JsonNode bodyJson) {
+  private Result restoreBackup(UUID universeUUID, JsonNode bodyJson, Users user) {
     String authToken = defaultUser.createAuthToken();
+    if (user != null) {
+      authToken = user.createAuthToken();
+    }
     String method = "POST";
     String url = "/api/customers/" + defaultCustomer.uuid +
         "/universes/" + universeUUID + "/backups/restore";
@@ -96,7 +100,7 @@ public class BackupsControllerTest extends FakeDBApplication {
     UUID universeUUID = UUID.randomUUID();
     JsonNode bodyJson = Json.newObject();
 
-    Result result = restoreBackup(universeUUID, bodyJson);
+    Result result = restoreBackup(universeUUID, bodyJson, null);
     assertEquals(BAD_REQUEST, result.status());
     JsonNode resultJson = Json.parse(contentAsString(result));
     assertValue(resultJson, "error", "Invalid Universe UUID: " + universeUUID);
@@ -110,12 +114,10 @@ public class BackupsControllerTest extends FakeDBApplication {
     Backup b = Backup.create(defaultCustomer.uuid, bp);
     ObjectNode bodyJson = Json.newObject();
     bodyJson.put("actionType", "RESTORE");
-    Result result = restoreBackup(defaultUniverse.universeUUID, bodyJson);
+    Result result = restoreBackup(defaultUniverse.universeUUID, bodyJson, null);
     assertEquals(BAD_REQUEST, result.status());
     JsonNode resultJson = Json.parse(contentAsString(result));
     assertErrorNodeValue(resultJson, "storageConfigUUID", "This field is required");
-    assertErrorNodeValue(resultJson, "keyspace", "This field is required");
-    assertErrorNodeValue(resultJson, "tableName", "This field is required");
     assertAuditEntry(0, defaultCustomer.uuid);
   }
 
@@ -130,7 +132,7 @@ public class BackupsControllerTest extends FakeDBApplication {
     bodyJson.put("tableName", "mock_table");
     bodyJson.put("actionType", "RESTORE");
     bodyJson.put("storageConfigUUID", bp.storageConfigUUID.toString());
-    Result result = restoreBackup(defaultUniverse.universeUUID, bodyJson);
+    Result result = restoreBackup(defaultUniverse.universeUUID, bodyJson, null);
     assertEquals(BAD_REQUEST, result.status());
     JsonNode resultJson = Json.parse(contentAsString(result));
     assertValue(resultJson, "error", "Storage Location is required");
@@ -148,10 +150,29 @@ public class BackupsControllerTest extends FakeDBApplication {
     bodyJson.put("actionType", "RESTORE");
     bodyJson.put("storageConfigUUID", bp.storageConfigUUID.toString());
     bodyJson.put("storageLocation", b.getBackupInfo().storageLocation);
-    Result result = restoreBackup(defaultUniverse.universeUUID, bodyJson);
+    Result result = restoreBackup(defaultUniverse.universeUUID, bodyJson, null);
     assertEquals(BAD_REQUEST, result.status());
     JsonNode resultJson = Json.parse(contentAsString(result));
     assertValue(resultJson, "error", "Invalid StorageConfig UUID: " + bp.storageConfigUUID);
+    assertAuditEntry(0, defaultCustomer.uuid);
+  }
+
+  @Test
+  public void testRestoreBackupWithReadOnlyUser() {
+    Users user = ModelFactory.testUser(defaultCustomer, "tc@test.com",
+                                       Users.Role.ReadOnly);
+    BackupTableParams bp = new BackupTableParams();
+    bp.storageConfigUUID = UUID.randomUUID();
+    Backup b = Backup.create(defaultCustomer.uuid, bp);
+    ObjectNode bodyJson = Json.newObject();
+    bodyJson.put("keyspace", "mock_ks");
+    bodyJson.put("tableName", "mock_table");
+    bodyJson.put("actionType", "RESTORE");
+    bodyJson.put("storageConfigUUID", bp.storageConfigUUID.toString());
+    bodyJson.put("storageLocation", b.getBackupInfo().storageLocation);
+    Result result = restoreBackup(defaultUniverse.universeUUID, bodyJson, user);
+    assertEquals(FORBIDDEN, result.status());
+    assertEquals("User doesn't have access", contentAsString(result));
     assertAuditEntry(0, defaultCustomer.uuid);
   }
 
@@ -172,7 +193,7 @@ public class BackupsControllerTest extends FakeDBApplication {
     ArgumentCaptor<BackupTableParams> taskParams =  ArgumentCaptor.forClass(BackupTableParams.class);;
     UUID fakeTaskUUID = UUID.randomUUID();
     when(mockCommissioner.submit(any(), any())).thenReturn(fakeTaskUUID);
-    Result result = restoreBackup(defaultUniverse.universeUUID, bodyJson);
+    Result result = restoreBackup(defaultUniverse.universeUUID, bodyJson, null);
     verify(mockCommissioner, times(1)).submit(taskType.capture(), taskParams.capture());
     assertEquals(TaskType.BackupUniverse, taskType.getValue());
     assertOk(result);

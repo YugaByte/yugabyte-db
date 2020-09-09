@@ -206,8 +206,8 @@ class TabletInfo : public RefCountedThreadSafe<TabletInfo>,
   MonoTime last_update_time() const;
 
   // Accessors for the last reported schema version.
-  bool set_reported_schema_version(uint32_t version);
-  uint32_t reported_schema_version() const;
+  bool set_reported_schema_version(const TableId& table_id, uint32_t version);
+  uint32_t reported_schema_version(const TableId& table_id);
 
   bool colocated() const;
 
@@ -253,7 +253,7 @@ class TabletInfo : public RefCountedThreadSafe<TabletInfo>,
   ReplicaMap replica_locations_;
 
   // Reported schema version (in-memory only).
-  uint32_t reported_schema_version_ = 0;
+  std::unordered_map<TableId, uint32_t> reported_schema_version_ = {};
 
   LeaderStepDownFailureTimes leader_stepdown_failure_times_;
 
@@ -293,7 +293,9 @@ struct PersistentTableInfo : public Persistent<SysTablesEntryPB, SysRowEntry::TA
   }
 
   // Return the table's namespace id.
-  const NamespaceName& namespace_id() const { return pb.namespace_id(); }
+  const NamespaceId& namespace_id() const { return pb.namespace_id(); }
+  // Return the table's namespace name.
+  const NamespaceName& namespace_name() const { return pb.namespace_name(); }
 
   const SchemaPB& schema() const {
     return pb.schema();
@@ -327,6 +329,7 @@ class TableInfo : public RefCountedThreadSafe<TableInfo>,
   std::string ToStringWithState() const;
 
   const NamespaceId namespace_id() const;
+  const NamespaceName namespace_name() const;
 
   const CHECKED_STATUS GetSchema(Schema* schema) const;
 
@@ -402,6 +405,7 @@ class TableInfo : public RefCountedThreadSafe<TableInfo>,
   // Get the Status of the last error from the current CreateTable.
   CHECKED_STATUS GetCreateTableErrorStatus() const;
 
+  std::size_t NumLBTasks() const;
   std::size_t NumTasks() const;
   bool HasTasks() const;
   bool HasTasks(MonitoredTask::Type type) const;
@@ -504,7 +508,7 @@ class NamespaceInfo : public RefCountedThreadSafe<NamespaceInfo>,
  public:
   explicit NamespaceInfo(NamespaceId ns_id);
 
-  virtual const std::string& id() const override { return namespace_id_; }
+  virtual const NamespaceId& id() const override { return namespace_id_; }
 
   const NamespaceName& name() const;
 
@@ -526,6 +530,37 @@ class NamespaceInfo : public RefCountedThreadSafe<NamespaceInfo>,
   DISALLOW_COPY_AND_ASSIGN(NamespaceInfo);
 };
 
+// The information about a tablegroup.
+class TablegroupInfo : public RefCountedThreadSafe<TablegroupInfo>{
+ public:
+  explicit TablegroupInfo(TablegroupId tablegroup_id,
+                          NamespaceId namespace_id);
+
+  const std::string& id() const { return tablegroup_id_; }
+  const std::string& namespace_id() const { return namespace_id_; }
+
+  // Operations to track table_set_ information (what tables belong to the tablegroup)
+  void AddChildTable(const TableId& table_id);
+  void DeleteChildTable(const TableId& table_id);
+  bool HasChildTables() const;
+  std::size_t NumChildTables() const;
+
+ private:
+  friend class RefCountedThreadSafe<TablegroupInfo>;
+  ~TablegroupInfo() = default;
+
+  // The tablegroup ID is used in the catalog manager maps to look up the proper
+  // tablet to add user tables to.
+  const TablegroupId tablegroup_id_;
+  const NamespaceId namespace_id_;
+
+  // Protects table_set_.
+  mutable simple_spinlock lock_;
+  std::unordered_set<TableId> table_set_;
+
+  DISALLOW_COPY_AND_ASSIGN(TablegroupInfo);
+};
+
 // The data related to a User-Defined Type which is persisted on disk.
 // This portion of UDTypeInfo is managed via CowObject.
 // It wraps the underlying protobuf to add useful accessors.
@@ -536,7 +571,7 @@ struct PersistentUDTypeInfo : public Persistent<SysUDTypeEntryPB, SysRowEntry::U
   }
 
   // Return the table's namespace id.
-  const NamespaceName& namespace_id() const {
+  const NamespaceId& namespace_id() const {
     return pb.namespace_id();
   }
 
@@ -567,7 +602,7 @@ class UDTypeInfo : public RefCountedThreadSafe<UDTypeInfo>,
 
   const UDTypeName& name() const;
 
-  const NamespaceName& namespace_id() const;
+  const NamespaceId& namespace_id() const;
 
   int field_names_size() const;
 

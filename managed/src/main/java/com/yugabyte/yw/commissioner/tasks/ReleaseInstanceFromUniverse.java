@@ -86,6 +86,14 @@ public class ReleaseInstanceFromUniverse extends UniverseTaskBase {
           .setSubTaskGroupType(SubTaskGroupType.ReleasingInstance);
 
       if (instanceExists(taskParams())) {
+        if (userIntent.providerType.equals(CloudType.onprem)) {
+          // Stop master and tservers.
+          createStopServerTasks(universe.getNodes(), "master", false)
+              .setSubTaskGroupType(SubTaskGroupType.StoppingNodeProcesses);
+          createStopServerTasks(universe.getNodes(), "tserver", false)
+              .setSubTaskGroupType(SubTaskGroupType.StoppingNodeProcesses);
+        }
+
         // Create tasks to terminate that instance. Force delete and ignore errors.
         createDestroyServerTasks(new HashSet<NodeDetails>(Arrays.asList(currentNode)), true, false)
             .setSubTaskGroupType(SubTaskGroupType.ReleasingInstance);

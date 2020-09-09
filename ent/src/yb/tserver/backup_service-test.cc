@@ -58,7 +58,7 @@ TEST_F(BackupServiceTest, TestCreateTabletSnapshot) {
 
   const string snapshot_id = "00000000000000000000000000000000";
   const string rocksdb_dir = tablet->tablet_metadata()->rocksdb_dir();
-  const string top_snapshots_dir = tablet::TabletSnapshots::SnapshotsDirName(rocksdb_dir);
+  const string top_snapshots_dir = tablet->tablet_metadata()->snapshots_dir();
   const string snapshot_dir = JoinPathSegments(top_snapshots_dir, snapshot_id);
 
   TabletSnapshotOpRequestPB req;

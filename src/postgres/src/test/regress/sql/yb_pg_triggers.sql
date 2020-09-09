@@ -1295,8 +1295,6 @@ drop table my_table;
 -- Verify cases that are unsupported with partitioned tables
 --
 create table parted_trig (a int) partition by list (a);
--- TODO When/if (PG-style) partitioned tables are supported in YB enabled the tests below.
-/*
 create function trigger_nothing() returns trigger
   language plpgsql as $$ begin end; $$;
 create trigger failed before insert or update or delete on parted_trig
@@ -1316,12 +1314,17 @@ create table trigpart1 partition of trigpart for values from (0) to (1000);
 create trigger trg1 after insert on trigpart for each row execute procedure trigger_nothing();
 create table trigpart2 partition of trigpart for values from (1000) to (2000);
 create table trigpart3 (like trigpart);
-alter table trigpart attach partition trigpart3 for values from (2000) to (3000);
 select tgrelid::regclass, tgname, tgfoid::regproc from pg_trigger
   where tgrelid::regclass::text like 'trigpart%' order by tgrelid::regclass::text;
+-- Disabling the below tests temporarily because each run of the test can
+-- throw one of two errors. The error message displayed contains the first dependency
+-- resulting from the scan of pg_depend preventing the delete of the trigger. The trigger
+-- depends on the partition table itself and on the trigger created on the partitioned
+-- table, and either of the two error messages are possible.
+/*
 drop trigger trg1 on trigpart1;	-- fail
 drop trigger trg1 on trigpart2;	-- fail
-drop trigger trg1 on trigpart3;	-- fail
+*/
 drop table trigpart2;			-- ok, trigger should be gone in that partition
 select tgrelid::regclass, tgname, tgfoid::regproc from pg_trigger
   where tgrelid::regclass::text like 'trigpart%' order by tgrelid::regclass::text;
@@ -1499,6 +1502,7 @@ alter table parted_constr attach partition parted1_constr
 create constraint trigger parted_trig after insert on parted_constr_ancestor
   deferrable
   for each row execute procedure trigger_notice_ab();
+/*
 create constraint trigger parted_trig_two after insert on parted_constr
   deferrable initially deferred
   for each row when (bark(new.b) AND new.a % 2 = 1)
@@ -1520,9 +1524,9 @@ set constraints parted_trig deferred;
 insert into parted_constr values (1, 'aardvark');
 insert into parted1_constr values (2, 'aardwolf'), (3, 'aasvogel');
 commit;
+*/
 drop table parted_constr_ancestor;
 drop function bark(text);
-
 -- Test that the WHEN clause is set properly to partitions
 create table parted_trigger (a int, b text) partition by range (a);
 create table parted_trigger_1 partition of parted_trigger for values from (0) to (1000);
@@ -1553,6 +1557,7 @@ alter table parted_trigger attach partition parted_trigger_2 for values from (10
 create constraint trigger parted_trigger after update on parted_trigger
   from parted_referenced
   for each row execute procedure trigger_notice_ab();
+/*
 create constraint trigger parted_trigger after update on unparted_trigger
   from parted_referenced
   for each row execute procedure trigger_notice_ab();
@@ -1565,6 +1570,7 @@ select tgname, conname, t.tgrelid::regclass, t.tgconstrrelid::regclass,
   from pg_trigger t join pg_constraint c on (t.tgconstraint = c.oid)
   where tgname = 'parted_trigger'
   order by t.tgrelid::regclass::text;
+*/
 drop table parted_referenced, parted_trigger, unparted_trigger;
 
 -- verify that the "AFTER UPDATE OF columns" event is propagated correctly
@@ -1591,6 +1597,7 @@ drop function trigger_notice_ab();
 create table trg_clone (a int) partition by range (a);
 create table trg_clone1 partition of trg_clone for values from (0) to (1000);
 alter table trg_clone add constraint uniq unique (a) deferrable;
+/*
 create table trg_clone2 partition of trg_clone for values from (1000) to (2000);
 create table trg_clone3 partition of trg_clone for values from (2000) to (3000)
   partition by range (a);
@@ -1599,6 +1606,7 @@ select tgrelid::regclass, count(*) from pg_trigger
   where tgrelid::regclass in ('trg_clone', 'trg_clone1', 'trg_clone2',
 	'trg_clone3', 'trg_clone_3_3')
   group by tgrelid::regclass order by tgrelid::regclass;
+*/
 drop table trg_clone;
 
 --
@@ -1607,8 +1615,6 @@ drop table trg_clone;
 -- format that shows the attribute order, so that we can distinguish
 -- tuple formats (though not dropped attributes).
 --
-*/
-
 -- Let these function be created since they are also used in other tests.
 create or replace function dump_insert() returns trigger language plpgsql as
 $$
@@ -1641,8 +1647,6 @@ $$
   end;
 $$;
 
--- Continue skipped partition tests (TODO to be enabled when PG-style partition tables are supported).
-/*
 --
 -- Verify behavior of statement triggers on partition hierarchy with
 -- transition tables.  Tuples should appear to each trigger in the
@@ -1663,17 +1667,16 @@ alter table parent attach partition child2 for values in ('BBB');
 -- a child with a different column order
 create table child3 (b int, a text);
 alter table parent attach partition child3 for values in ('CCC');
-
 create trigger parent_insert_trig
   after insert on parent referencing new table as new_table
   for each statement execute procedure dump_insert();
+/*
 create trigger parent_update_trig
   after update on parent referencing old table as old_table new table as new_table
   for each statement execute procedure dump_update();
 create trigger parent_delete_trig
   after delete on parent referencing old table as old_table
   for each statement execute procedure dump_delete();
-
 create trigger child1_insert_trig
   after insert on child1 referencing new table as new_table
   for each statement execute procedure dump_insert();

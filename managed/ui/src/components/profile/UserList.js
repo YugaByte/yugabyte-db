@@ -1,7 +1,7 @@
 // Copyright (c) YugaByte, Inc.
 
 import React, { Component } from 'react';
-import { Row, Col, ButtonGroup, DropdownButton, MenuItem } from 'react-bootstrap';
+import { Row, Col, DropdownButton, MenuItem } from 'react-bootstrap';
 import { BootstrapTable, TableHeaderColumn } from 'react-bootstrap-table';
 import { YBPanelItem } from '../panels';
 import { connect } from 'react-redux';
@@ -9,62 +9,82 @@ import { getPromiseState } from '../../utils/PromiseUtils';
 import { YBLoading } from '../common/indicators';
 import { YBButton } from '../../components/common/forms/fields';
 import { openDialog, closeDialog } from '../../actions/modal';
-import { AddUserModal } from '../profile';
+import { AddUserModal } from './modals/AddUserModal';
+import { EditRoleModal } from './modals/EditRoleModal';
 import {YBConfirmModal} from '../modals';
 import { isNotHidden, isDisabled } from '../../utils/LayoutUtils';
-import { getCustomerUsers, getCustomerUsersSuccess, getCustomerUsersFailure,
-         deleteUser, deleteUserResponse } from '../../actions/customers';
+import {
+  changeUserRole,
+  createUser,
+  createUserResponse,
+  deleteUser,
+  deleteUserResponse
+} from '../../actions/customers';
 
 class UserList extends Component {
   constructor(props) {
     super(props);
-    this.state = {userToBeDeleted: {}};
+    this.state = { userForModal: null };
   }
 
-  componentDidMount() {
-    this.props.getCustomerUsers();
-  }
-
-  showDeleteUserModal = (user) => {
-    this.setState({userToBeDeleted: user});
+  showDeleteUserModal(user) {
+    this.setState({ userForModal: user });
     this.props.showConfirmDeleteModal();
   }
 
-  deleteUser = () => {
-    const user = this.state.userToBeDeleted;
-    this.props.deleteUser(user.uuid);
-    this.props.getCustomerUsers();
-    this.props.closeModal();
+  editRole(user) {
+    this.setState({ userForModal: user });
+    this.props.showEditRoleModal();
   }
-  render() {
-    const { users, customer,
-            modal: {visibleModal, showModal},
-            showAddUserModal, closeModal } = this.props;
+
+  doDeleteUser = async () => {
+    const user = this.state.userForModal;
+    try {
+      await this.props.deleteUser(user.uuid);
+    } catch (error) {
+      console.error('Failed to delete user', error);
+    } finally {
+      this.props.getCustomerUsers();
+      this.props.closeModal();
+    }
+  }
+
+  actionsDropdown = (user) => {
+    const { customer } = this.props;
     const loginUserId = localStorage.getItem('userId');
+    if (user.uuid === loginUserId || isDisabled(customer.data.features, 'universe.create')) {
+      return null;
+    } else {
+      return (
+        <DropdownButton
+          className="btn btn-default"
+          title="Actions"
+          id="bg-nested-dropdown"
+          pullRight
+        >
+          <MenuItem onClick={() => this.editRole(user)}>
+            <span className="fa fa-edit"/> Edit User Role
+          </MenuItem>
+          <MenuItem onClick={() => this.showDeleteUserModal(user)}>
+            <span className="fa fa-trash"/> Delete User
+          </MenuItem>
+        </DropdownButton>
+      );
+    }
+  }
+
+  render() {
+    const {
+      users,
+      customer,
+      modal: { visibleModal, showModal },
+      showAddUserModal,
+      closeModal
+    } = this.props;
+
     if (getPromiseState(users).isLoading() || getPromiseState(users).isInit()) {
       return <YBLoading />;
     }
-    const tableBodyContainer = {marginBottom: "1%", paddingBottom: "1%"};
-    const self = this;
-    const formatActionButtons = function(item, row, disabled) {
-      const {customer} = self.props;
-      if (row.uuid !== loginUserId && !isDisabled(customer.data.features, "universe.create")) {
-        return (
-          <ButtonGroup>
-            <DropdownButton className="btn btn-default"
-              title="Actions" id="bg-nested-dropdown" pullRight>
-              <MenuItem
-                eventKey="1"
-                className="menu-item-delete"
-                onClick={self.showDeleteUserModal.bind(self, row)}>
-                <span className="fa fa-trash"/>Delete User
-              </MenuItem>
-            </DropdownButton>
-          </ButtonGroup>
-        );
-      }
-    };
-
 
     return (
       <div className="user-list-container">
@@ -73,38 +93,65 @@ class UserList extends Component {
             <h2>Users</h2>
           </Col>
           <Col className="pull-right">
-            {isNotHidden(customer.data.features, "universe.create") &&
-              <YBButton btnClass="universe-button btn btn-lg btn-orange"
-                onClick={showAddUserModal} btnText="Add User" btnIcon="fa fa-plus"
-                disabled={isDisabled(customer.data.features, "universe.create")} />
+            {isNotHidden(customer.data.features, 'universe.create') &&
+              <YBButton
+                btnClass="universe-button btn btn-lg btn-orange"
+                onClick={showAddUserModal}
+                btnText="Add User"
+                btnIcon="fa fa-plus"
+                disabled={isDisabled(customer.data.features, "universe.create")}
+              />
             }
-            <AddUserModal modalVisible={showModal && visibleModal === 'addUserModal'}
-                          onHide={closeModal} />
-            <YBConfirmModal name={"deleteUserModal"} title={"Delete User"}
-                hideConfirmModal={closeModal} currentModal={"deleteUserModal"}
-                visibleModal={visibleModal} onConfirm={this.deleteUser}
-                confirmLabel={"Delete"} cancelLabel={"Cancel"}>
-              {`Are you sure you want to delete user ${this.state.userToBeDeleted.email}`}
+            {/* re-mount modals in order to internal forms show valid initial values all the times */}
+            {showModal && visibleModal === 'addUserModal' && (
+              <AddUserModal
+                modalVisible
+                onHide={closeModal}
+                createUser={this.props.createUser}
+                getCustomerUsers={this.props.getCustomerUsers}
+              />
+            )}
+            {showModal && visibleModal === 'editRoleModal' && (
+              <EditRoleModal
+                modalVisible
+                onHide={closeModal}
+                user={this.state.userForModal}
+                changeUserRole={this.props.changeUserRole}
+                getCustomerUsers={this.props.getCustomerUsers}
+              />
+            )}
+            <YBConfirmModal
+              name="deleteUserModal"
+              title="Delete User"
+              hideConfirmModal={closeModal}
+              currentModal="deleteUserModal"
+              visibleModal={visibleModal}
+              onConfirm={this.doDeleteUser}
+              confirmLabel="Delete"
+              cancelLabel="Cancel"
+            >
+              Are you sure you want to delete user <strong>{this.state.userForModal?.email}</strong> ?
             </YBConfirmModal>
           </Col>
         </Row>
         <Row>
           <YBPanelItem
             body={
-              <BootstrapTable data={users.data} bodyStyle={tableBodyContainer}>
-                <TableHeaderColumn dataField="uuid" isKey={true} hidden={true}/>
-                <TableHeaderColumn dataField="email" >
+              <BootstrapTable data={users.data} bodyStyle={{ marginBottom: '1%', paddingBottom: '1%' }}>
+                <TableHeaderColumn dataField="uuid" isKey hidden />
+                <TableHeaderColumn dataField="email">
                   Email
                 </TableHeaderColumn>
                 <TableHeaderColumn dataField="role" >
                   Role
                 </TableHeaderColumn>
-
-                <TableHeaderColumn dataField="creationDate"  >
+                <TableHeaderColumn dataField="creationDate">
                   Created At
                 </TableHeaderColumn>
-                <TableHeaderColumn dataField={"actions"}
-                  columnClassName={"table-actions-cell"} dataFormat={formatActionButtons}>
+                <TableHeaderColumn
+                  columnClassName="table-actions-cell"
+                  dataFormat={(cell, row) => this.actionsDropdown(row)}
+                >
                   Actions
                 </TableHeaderColumn>
               </BootstrapTable>
@@ -118,25 +165,27 @@ class UserList extends Component {
 
 const mapDispatchToProps = (dispatch) => {
   return {
-    getCustomerUsers: () => {
-      dispatch(getCustomerUsers()).then((response) => {
-        if (response.payload.status !== 200) {
-          dispatch(getCustomerUsersFailure(response.payload));
-        } else {
-          dispatch(getCustomerUsersSuccess(response.payload));
-        }
+    createUser: (payload) => {
+      return dispatch(createUser(payload)).then((response) => {
+        return dispatch(createUserResponse(response.payload));
       });
     },
+    changeUserRole: (userUUID, newRole) => {
+      return dispatch(changeUserRole(userUUID, newRole));
+    },
     deleteUser: (userUUID) => {
-      dispatch(deleteUser(userUUID)).then((response) => {
-        dispatch(deleteUserResponse(response.payload));
+      return dispatch(deleteUser(userUUID)).then((response) => {
+        return dispatch(deleteUserResponse(response.payload));
       });
     },
     showAddUserModal: () => {
-      dispatch(openDialog("addUserModal"));
+      dispatch(openDialog('addUserModal'));
+    },
+    showEditRoleModal: () => {
+      dispatch(openDialog('editRoleModal'));
     },
     showConfirmDeleteModal: () => {
-      dispatch(openDialog("deleteUserModal"));
+      dispatch(openDialog('deleteUserModal'));
     },
     closeModal: () => {
       dispatch(closeDialog());
@@ -144,12 +193,11 @@ const mapDispatchToProps = (dispatch) => {
   };
 };
 
-function mapStateToProps(state, ownProps) {
+function mapStateToProps(state) {
   return {
     users: state.customer.users,
     modal: state.modal
   };
 }
-
 
 export default connect(mapStateToProps, mapDispatchToProps)(UserList);

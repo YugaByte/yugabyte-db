@@ -182,16 +182,13 @@ void OperationDriver::ExecuteAsync() {
   }
 }
 
-void OperationDriver::HandleConsensusAppend() {
+void OperationDriver::HandleConsensusAppend(
+    const yb::OpId& op_id, const yb::OpId& committed_op_id) {
+  ADOPT_TRACE(trace());
   if (!StartOperation()) {
     return;
   }
-  ADOPT_TRACE(trace());
-  auto* const replicate_msg = operation_->state()->consensus_round()->replicate_msg().get();
-  CHECK(!replicate_msg->has_hybrid_time());
-  replicate_msg->set_hybrid_time(operation_->state()->hybrid_time().ToUint64());
-  replicate_msg->set_monotonic_counter(
-      *operation_->state()->tablet()->monotonic_counter());
+  operation_->state()->LeaderInit(op_id, committed_op_id);
 }
 
 void OperationDriver::PrepareAndStartTask() {
@@ -317,7 +314,7 @@ void OperationDriver::HandleFailure(Status status) {
     case REPLICATED:
     {
       LOG_WITH_PREFIX(FATAL) << "Cannot cancel operations that have already replicated"
-                             << ": " << status << " operation:" << ToString();
+                             << ": " << status << " operation: " << ToString();
     }
   }
 }
@@ -346,18 +343,24 @@ void OperationDriver::ReplicationFinished(
   // Note that if we set the state to REPLICATION_FAILED above, ApplyOperation() will actually abort
   // the operation, i.e. ApplyTask() will never be called and the operation will never be applied to
   // the tablet.
-  if (prepare_state_copy != PREPARED) {
+  if (prepare_state_copy != PrepareState::PREPARED) {
     LOG(DFATAL) << "Replicating an operation that has not been prepared: " << AsString(this);
 
-    LOG(ERROR) << "Attempting to wait for prepared";
+    LOG(ERROR) << "Attempting to wait for the operation to be prepared";
 
     // This case should never happen, but if it happens we are trying to survive.
     for (;;) {
       std::this_thread::sleep_for(1ms);
-      std::lock_guard<simple_spinlock> lock(lock_);
-      if (prepare_state_ == PREPARED) {
-        break;
+      PrepareState prepare_state;
+      {
+        std::lock_guard<simple_spinlock> lock(lock_);
+        prepare_state = prepare_state_;
+        if (prepare_state == PrepareState::PREPARED) {
+          break;
+        }
       }
+      YB_LOG_EVERY_N_SECS(WARNING, 1)
+          << "Waiting for the operation to be prepared, current state: " << prepare_state;
     }
   }
 

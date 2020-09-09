@@ -14,7 +14,7 @@
 #ifndef YB_TABLET_CLEANUP_ABORTS_TASK_H
 #define YB_TABLET_CLEANUP_ABORTS_TASK_H
 
-#include "yb/rpc/thread_pool.h"
+#include "yb/rpc/strand.h"
 
 #include "yb/common/transaction.h"
 
@@ -25,7 +25,7 @@ namespace tablet {
 
 // Removes intents for specified transaction ids.
 // Transaction should be previously aborted, if transaction was committed, then it is ignored.
-class CleanupAbortsTask : public rpc::ThreadPoolTask {
+class CleanupAbortsTask : public rpc::StrandTask {
  public:
   CleanupAbortsTask(TransactionIntentApplier* applier,
                     TransactionIdSet&& transactions_to_cleanup,

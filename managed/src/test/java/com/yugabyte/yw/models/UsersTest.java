@@ -7,7 +7,6 @@ import com.yugabyte.yw.common.ApiUtils;
 import com.yugabyte.yw.common.ModelFactory;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.h2.jdbc.JdbcSQLException;
 import org.junit.Before;
 import org.junit.Test;
 import org.mindrot.jbcrypt.BCrypt;
@@ -105,10 +104,10 @@ public class UsersTest extends FakeDBApplication {
     assertNotNull(authToken);
     assertNotNull(u.getAuthTokenIssueDate());
 
-    Users fetchUser = Users.find.where().eq("uuid", u.uuid).findUnique();
+    Users fetchUser = Users.find.query().where().eq("uuid", u.uuid).findOne();
     fetchUser.deleteAuthToken();
 
-    fetchUser = Users.find.where().eq("uuid", u.uuid).findUnique();
+    fetchUser = Users.find.query().where().eq("uuid", u.uuid).findOne();
     assertNull(fetchUser.getAuthTokenIssueDate());
 
     Users authUser = Users.authWithToken(authToken);

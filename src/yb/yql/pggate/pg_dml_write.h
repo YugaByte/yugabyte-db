@@ -50,6 +50,8 @@ class PgDmlWrite : public PgDml {
     return rows_affected_count_;
   }
 
+  CHECKED_STATUS SetWriteTime(const HybridTime& write_time);
+
  protected:
   // Constructor.
   PgDmlWrite(PgSession::ScopedRefPtr pg_session,

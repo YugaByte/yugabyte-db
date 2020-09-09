@@ -33,6 +33,10 @@
 #include "yb/master/catalog_loaders.h"
 #include "yb/master/master_util.h"
 
+DEFINE_bool(master_ignore_deleted_on_load, false,
+  "Whether the Master should ignore deleted tables & tablets on restart.  "
+  "This reduces failover time at the expense of garbage data." );
+
 namespace yb {
 namespace master {
 
@@ -41,6 +45,11 @@ namespace master {
 ////////////////////////////////////////////////////////////
 
 Status TableLoader::Visit(const TableId& table_id, const SysTablesEntryPB& metadata) {
+  // TODO: We need to properly remove deleted tables.  This can happen async of master loading.
+  if (FLAGS_master_ignore_deleted_on_load && metadata.state() == SysTablesEntryPB::DELETED) {
+    return Status::OK();
+  }
+
   CHECK(!ContainsKey(*catalog_manager_->table_ids_map_, table_id))
         << "Table already exists: " << table_id;
 
@@ -79,6 +88,13 @@ Status TabletLoader::Visit(const TabletId& tablet_id, const SysTabletsEntryPB& m
   // Lookup the table.
   scoped_refptr<TableInfo> first_table(FindPtrOrNull(
       *catalog_manager_->table_ids_map_, metadata.table_id()));
+
+  // TODO: We need to properly remove deleted tablets.  This can happen async of master loading.
+  if (FLAGS_master_ignore_deleted_on_load &&
+      metadata.state() == SysTabletsEntryPB::DELETED &&
+      !first_table) {
+    return Status::OK();
+  }
 
   // Setup the tablet info.
   TabletInfo* tablet = new TabletInfo(first_table, tablet_id);
@@ -119,6 +135,10 @@ Status TabletLoader::Visit(const TabletId& tablet_id, const SysTabletsEntryPB& m
   // DELETING or DELETED state.
   bool should_delete_tablet = true;
 
+  // We need to check if this is a tablegroup parent tablet. If so, we need to add this to the
+  // catalog manager maps below.
+  bool is_tablegroup_tablet = catalog_manager_->IsTablegroupParentTable(*first_table);
+
   for (auto table_id : table_ids) {
     scoped_refptr<TableInfo> table(FindPtrOrNull(*catalog_manager_->table_ids_map_, table_id));
 
@@ -150,6 +170,7 @@ Status TabletLoader::Visit(const TabletId& tablet_id, const SysTabletsEntryPB& m
       // this tablet.
       should_delete_tablet = false;
     }
+
   }
 
 
@@ -167,6 +188,21 @@ Status TabletLoader::Visit(const TabletId& tablet_id, const SysTabletsEntryPB& m
   if (catalog_manager_->IsColocatedParentTable(*first_table)) {
     catalog_manager_->colocated_tablet_ids_map_[first_table->namespace_id()] =
         catalog_manager_->tablet_map_->find(tablet_id)->second;
+  }
+
+  // Add the tablet to tablegroup_tablet_ids_map_ if the tablet is a tablegroup parent.
+  if (is_tablegroup_tablet) {
+    catalog_manager_->tablegroup_tablet_ids_map_[first_table->namespace_id()]
+        [first_table->id().substr(0, 32)] = catalog_manager_->tablet_map_->find(tablet_id)->second;
+
+    TablegroupInfo *tg = new TablegroupInfo(first_table->id().substr(0, 32),
+                                            first_table->namespace_id());
+
+    // Loop through table_ids again to add them to our tablegroup info.
+    for (auto table_id : table_ids) {
+      tg->AddChildTable(table_id);
+    }
+    catalog_manager_->tablegroup_ids_map_[first_table->id().substr(0, 32)] = tg;
   }
 
   LOG(INFO) << "Loaded metadata for " << (tablet_deleted ? "deleted " : "")

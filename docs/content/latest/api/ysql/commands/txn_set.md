@@ -46,7 +46,7 @@ Use the `SET TRANSACTION` statement to set the current transaction isolation lev
 
 ## Semantics
 
-Supports both Serializable and Snapshot Isolation using the PostgreSQL isolation level syntax of `SERIALIZABLE` and `REPEATABLE READS` respectively. Even `READ COMMITTED` and `READ UNCOMMITTED` isolation levels are mapped to Snapshot Isolation.
+Supports both Serializable and Snapshot Isolation using the PostgreSQL isolation level syntax of `SERIALIZABLE` and `REPEATABLE READ` respectively. Even `READ COMMITTED` and `READ UNCOMMITTED` isolation levels are mapped to Snapshot Isolation.
 
 ### *transaction_mode*
 
@@ -71,15 +71,15 @@ Default.
 
 A statement can only see rows committed before it begins.
 
-`READ_COMMITTED` is mapped to `REPEATABLE_READ`.
+`READ COMMITTED` is mapped to `REPEATABLE READ`.
 
 Default in PostgreSQL.
 
 #### READ UNCOMMITTED
 
-`READ_UNCOMMITTED` is mapped to `REPEATABLE_READ`.
+`READ UNCOMMITTED` is mapped to `REPEATABLE READ`.
 
-In PostgreSQL, `READ_UNCOMMITTED` is mapped to `READ_COMMITTED`.
+In PostgreSQL, `READ UNCOMMITTED` is mapped to `READ COMMITTED`.
 
 ### READ WRITE mode
 
@@ -126,7 +126,7 @@ yugabyte=# CREATE TABLE sample(k1 int, k2 int, v1 int, v2 text, PRIMARY KEY (k1,
 Begin a transaction and insert some rows.
 
 ```postgresql
-yugabyte=# BEGIN TRANSACTION; SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; 
+yugabyte=# BEGIN TRANSACTION; SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 ```
 
 ```postgresql
@@ -136,7 +136,7 @@ yugabyte=# INSERT INTO sample(k1, k2, v1, v2) VALUES (1, 2.0, 3, 'a'), (1, 3.0, 
 Start a new shell  with `ysqlsh` and begin another transaction to insert some more rows.
 
 ```postgresql
-yugabyte=# BEGIN TRANSACTION; SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; 
+yugabyte=# BEGIN TRANSACTION; SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 ```
 
 ```postgresql

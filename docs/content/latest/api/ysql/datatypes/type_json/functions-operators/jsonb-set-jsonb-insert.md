@@ -6,7 +6,7 @@ description: Change an existing JSON value using jsonb_set() and insert a new va
 menu:
   latest:
     identifier: jsonb-set-jsonb-insert
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 210
 isTocNested: true
 showAsideToc: true
@@ -46,7 +46,7 @@ return value:       jsonb
 ## Semantics when "jsonb&#95;in" is a JSON object
 parsed, or when two JSON values are concatenated, and if a key is repeated, then the last-mentioned in left-to-right order wins.) The functionality is sufficiently illustrated by a _"json_in"_ value that has just primitive values. The result of each function invocation is the same.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb := '{"a": 1, "b": 2, "c": 3}';
@@ -76,7 +76,7 @@ end;
 $body$;
 ```
 
-Notice that the key _"d"_ , specified by _path_, doesn't yet exist. Each function call asks to produce the result that the key _"d"_ should exist with  the value `4`. The `DO` block shows that the effect of each, as written above, is the same.
+Notice that the specified `path`, the key `"d"` doesn't yet exist. Each function call asks to produce the result that the key `"d"` should exist with  the value `4`. So, as you see, the effect of each, as written above, is the same.
 
 If `jsonb_set()` is invoked with _"create_if_missing"_ set to `FALSE`, then its result is the same as the input. But if `jsonb_insert()` is invoked with _"insert_after"_ set to `TRUE`, then its output is the same as when it's invoked with _"insert_after"_ set to `FALSE`. This reflects the fact that the order of key-value pairs in an _object_ is insignificant.
 
@@ -88,7 +88,7 @@ Try using the function jsonb_set to replace key value.
 
 And this `DO` block quietly succeeds, both when it's invoked with _"create_if_missing"_ set to `FALSE` and when it's invoked with _"create_if_missing"_ set to `TRUE`.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb := '{"a": 1, "b": 2, "c": 3}';
@@ -114,7 +114,7 @@ $body$;
 
 A JSON _array_ is a list of index-addressable values—in other words, the order is defined and significant. Again, the functionality is sufficiently illustrated by a `json_in` value that has just primitive values. Now the result of `jsonb_set()` differs from that of `jsonb_insert()`. 
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb := '["a", "b", "c", "d"]';
@@ -151,7 +151,7 @@ Here, `jsonb_set()` located the fourth value and set it to _"x"_ while `jsonb_in
 
 What if the path denotes a value beyond the end of the array?
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb := '["a", "b", "c", "d"]';
@@ -189,7 +189,7 @@ The path, for `jsonb_insert()`, is also taken to mean the as yet nonexistent fif
 
 Notice that if the path is specified as `-42` (i.e. an impossible _array_ index) the result is to establish the specified new value at the _start_ of the _array_. `jsonb_set` and `jsonb_insert` produce the same result, this:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb := '["a", "b", "c", "d"]';

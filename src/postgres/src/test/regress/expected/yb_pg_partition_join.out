@@ -1,0 +1,1142 @@
+--
+-- PARTITION_JOIN
+-- Test partitionwise join between partitioned tables
+--
+-- Enable partitionwise join, which by default is disabled.
+SET enable_partitionwise_join to true;
+--
+-- partitioned by a single column
+--
+CREATE TABLE prt1 (a int, b int, c varchar) PARTITION BY RANGE(a);
+CREATE TABLE prt1_p1 PARTITION OF prt1 FOR VALUES FROM (0) TO (250);
+CREATE TABLE prt1_p3 PARTITION OF prt1 FOR VALUES FROM (500) TO (600);
+CREATE TABLE prt1_p2 PARTITION OF prt1 FOR VALUES FROM (250) TO (500);
+INSERT INTO prt1 SELECT i, i % 25, to_char(i, 'FM0000') FROM generate_series(0, 599) i WHERE i % 2 = 0;
+CREATE INDEX iprt1_p1_a on prt1_p1(a);
+CREATE INDEX iprt1_p2_a on prt1_p2(a);
+CREATE INDEX iprt1_p3_a on prt1_p3(a);
+ANALYZE prt1;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+CREATE TABLE prt2 (a int, b int, c varchar) PARTITION BY RANGE(b);
+CREATE TABLE prt2_p1 PARTITION OF prt2 FOR VALUES FROM (0) TO (250);
+CREATE TABLE prt2_p2 PARTITION OF prt2 FOR VALUES FROM (250) TO (500);
+CREATE TABLE prt2_p3 PARTITION OF prt2 FOR VALUES FROM (500) TO (600);
+INSERT INTO prt2 SELECT i % 25, i, to_char(i, 'FM0000') FROM generate_series(0, 599) i WHERE i % 3 = 0;
+CREATE INDEX iprt2_p1_b on prt2_p1(b);
+CREATE INDEX iprt2_p2_b on prt2_p2(b);
+CREATE INDEX iprt2_p3_b on prt2_p3(b);
+ANALYZE prt2;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+-- inner join
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1 t1, prt2 t2 WHERE t1.a = t2.b AND t1.b = 0 ORDER BY t1.a, t2.b;
+*/
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1 t1, prt2 t2 WHERE t1.a = t2.b AND t1.b = 0 ORDER BY t1.a, t2.b;
+  a  |  c   |  b  |  c
+-----+------+-----+------
+   0 | 0000 |   0 | 0000
+ 150 | 0150 | 150 | 0150
+ 300 | 0300 | 300 | 0300
+ 450 | 0450 | 450 | 0450
+(4 rows)
+
+-- left outer join, with whole-row reference; partitionwise join does not apply
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1, t2 FROM prt1 t1 LEFT JOIN prt2 t2 ON t1.a = t2.b WHERE t1.b = 0 ORDER BY t1.a, t2.b;
+*/
+SELECT t1, t2 FROM prt1 t1 LEFT JOIN prt2 t2 ON t1.a = t2.b WHERE t1.b = 0 ORDER BY t1.a, t2.b;
+      t1      |      t2
+--------------+--------------
+ (0,0,0000)   | (0,0,0000)
+ (50,0,0050)  |
+ (100,0,0100) |
+ (150,0,0150) | (0,150,0150)
+ (200,0,0200) |
+ (250,0,0250) |
+ (300,0,0300) | (0,300,0300)
+ (350,0,0350) |
+ (400,0,0400) |
+ (450,0,0450) | (0,450,0450)
+ (500,0,0500) |
+ (550,0,0550) |
+(12 rows)
+
+-- right outer join
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1 t1 RIGHT JOIN prt2 t2 ON t1.a = t2.b WHERE t2.a = 0 ORDER BY t1.a, t2.b;
+*/
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1 t1 RIGHT JOIN prt2 t2 ON t1.a = t2.b WHERE t2.a = 0 ORDER BY t1.a, t2.b;
+  a  |  c   |  b  |  c
+-----+------+-----+------
+   0 | 0000 |   0 | 0000
+ 150 | 0150 | 150 | 0150
+ 300 | 0300 | 300 | 0300
+ 450 | 0450 | 450 | 0450
+     |      |  75 | 0075
+     |      | 225 | 0225
+     |      | 375 | 0375
+     |      | 525 | 0525
+(8 rows)
+
+-- full outer join, with placeholder vars
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM (SELECT 50 phv, * FROM prt1 WHERE prt1.b = 0) t1 FULL JOIN (SELECT 75 phv, * FROM prt2 WHERE prt2.a = 0) t2 ON (t1.a = t2.b) WHERE t1.phv = t1.a OR t2.phv = t2.b ORDER BY t1.a, t2.b;
+                            QUERY PLAN
+------------------------------------------------------------------
+ Sort
+   Sort Key: prt1_p1.a, prt2_p1.b
+   ->  Append
+         ->  Hash Full Join
+               Hash Cond: (prt1_p1.a = prt2_p1.b)
+               Filter: (((50) = prt1_p1.a) OR ((75) = prt2_p1.b))
+               ->  Seq Scan on prt1_p1
+                     Filter: (b = 0)
+               ->  Hash
+                     ->  Seq Scan on prt2_p1
+                           Filter: (a = 0)
+         ->  Hash Full Join
+               Hash Cond: (prt1_p2.a = prt2_p2.b)
+               Filter: (((50) = prt1_p2.a) OR ((75) = prt2_p2.b))
+               ->  Seq Scan on prt1_p2
+                     Filter: (b = 0)
+               ->  Hash
+                     ->  Seq Scan on prt2_p2
+                           Filter: (a = 0)
+         ->  Hash Full Join
+               Hash Cond: (prt1_p3.a = prt2_p3.b)
+               Filter: (((50) = prt1_p3.a) OR ((75) = prt2_p3.b))
+               ->  Seq Scan on prt1_p3
+                     Filter: (b = 0)
+               ->  Hash
+                     ->  Seq Scan on prt2_p3
+                           Filter: (a = 0)
+(27 rows)
+
+SELECT t1.a, t1.c, t2.b, t2.c FROM (SELECT 50 phv, * FROM prt1 WHERE prt1.b = 0) t1 FULL JOIN (SELECT 75 phv, * FROM prt2 WHERE prt2.a = 0) t2 ON (t1.a = t2.b) WHERE t1.phv = t1.a OR t2.phv = t2.b ORDER BY t1.a, t2.b;
+ a  |  c   | b  |  c
+----+------+----+------
+ 50 | 0050 |    |
+    |      | 75 | 0075
+(2 rows)
+
+-- Join with pruned partitions from joining relations
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1 t1, prt2 t2 WHERE t1.a = t2.b AND t1.a < 450 AND t2.b > 250 AND t1.b = 0 ORDER BY t1.a, t2.b;
+*/
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1 t1, prt2 t2 WHERE t1.a = t2.b AND t1.a < 450 AND t2.b > 250 AND t1.b = 0 ORDER BY t1.a, t2.b;
+  a  |  c   |  b  |  c
+-----+------+-----+------
+ 300 | 0300 | 300 | 0300
+(1 row)
+
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM (SELECT * FROM prt1 WHERE a < 450) t1 LEFT JOIN (SELECT * FROM prt2 WHERE b > 250) t2 ON t1.a = t2.b WHERE t1.b = 0 ORDER BY t1.a, t2.b;
+*/
+SELECT t1.a, t1.c, t2.b, t2.c FROM (SELECT * FROM prt1 WHERE a < 450) t1 LEFT JOIN (SELECT * FROM prt2 WHERE b > 250) t2 ON t1.a = t2.b WHERE t1.b = 0 ORDER BY t1.a, t2.b;
+  a  |  c   |  b  |  c
+-----+------+-----+------
+   0 | 0000 |     |
+  50 | 0050 |     |
+ 100 | 0100 |     |
+ 150 | 0150 |     |
+ 200 | 0200 |     |
+ 250 | 0250 |     |
+ 300 | 0300 | 300 | 0300
+ 350 | 0350 |     |
+ 400 | 0400 |     |
+(9 rows)
+
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM (SELECT * FROM prt1 WHERE a < 450) t1 FULL JOIN (SELECT * FROM prt2 WHERE b > 250) t2 ON t1.a = t2.b WHERE t1.b = 0 OR t2.a = 0 ORDER BY t1.a, t2.b;
+                         QUERY PLAN
+------------------------------------------------------------
+ Sort
+   Sort Key: prt1_p1.a, b
+   ->  Append
+         ->  Hash Full Join
+               Hash Cond: (prt1_p1.a = b)
+               Filter: ((prt1_p1.b = 0) OR (a = 0))
+               ->  Seq Scan on prt1_p1
+                     Filter: (a < 450)
+               ->  Hash
+                     ->  Result
+                           One-Time Filter: false
+         ->  Hash Full Join
+               Hash Cond: (prt1_p2.a = prt2_p2.b)
+               Filter: ((prt1_p2.b = 0) OR (prt2_p2.a = 0))
+               ->  Seq Scan on prt1_p2
+                     Filter: (a < 450)
+               ->  Hash
+                     ->  Seq Scan on prt2_p2
+                           Filter: (b > 250)
+         ->  Hash Full Join
+               Hash Cond: (prt2_p3.b = a)
+               Filter: ((b = 0) OR (prt2_p3.a = 0))
+               ->  Seq Scan on prt2_p3
+                     Filter: (b > 250)
+               ->  Hash
+                     ->  Result
+                           One-Time Filter: false
+(27 rows)
+
+SELECT t1.a, t1.c, t2.b, t2.c FROM (SELECT * FROM prt1 WHERE a < 450) t1 FULL JOIN (SELECT * FROM prt2 WHERE b > 250) t2 ON t1.a = t2.b WHERE t1.b = 0 OR t2.a = 0 ORDER BY t1.a, t2.b;
+  a  |  c   |  b  |  c
+-----+------+-----+------
+   0 | 0000 |     |
+  50 | 0050 |     |
+ 100 | 0100 |     |
+ 150 | 0150 |     |
+ 200 | 0200 |     |
+ 250 | 0250 |     |
+ 300 | 0300 | 300 | 0300
+ 350 | 0350 |     |
+ 400 | 0400 |     |
+     |      | 375 | 0375
+     |      | 450 | 0450
+     |      | 525 | 0525
+(12 rows)
+
+-- Semi-join
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.* FROM prt1 t1 WHERE t1.a IN (SELECT t2.b FROM prt2 t2 WHERE t2.a = 0) AND t1.b = 0 ORDER BY t1.a;
+*/
+SELECT t1.* FROM prt1 t1 WHERE t1.a IN (SELECT t2.b FROM prt2 t2 WHERE t2.a = 0) AND t1.b = 0 ORDER BY t1.a;
+  a  | b |  c
+-----+---+------
+   0 | 0 | 0000
+ 150 | 0 | 0150
+ 300 | 0 | 0300
+ 450 | 0 | 0450
+(4 rows)
+
+-- Anti-join with aggregates
+EXPLAIN (COSTS OFF)
+SELECT sum(t1.a), avg(t1.a), sum(t1.b), avg(t1.b) FROM prt1 t1 WHERE NOT EXISTS (SELECT 1 FROM prt2 t2 WHERE t1.a = t2.b);
+                    QUERY PLAN
+--------------------------------------------------
+ Aggregate
+   ->  Append
+         ->  Hash Anti Join
+               Hash Cond: (t1.a = t2.b)
+               ->  Seq Scan on prt1_p1 t1
+               ->  Hash
+                     ->  Seq Scan on prt2_p1 t2
+         ->  Hash Anti Join
+               Hash Cond: (t1_1.a = t2_1.b)
+               ->  Seq Scan on prt1_p2 t1_1
+               ->  Hash
+                     ->  Seq Scan on prt2_p2 t2_1
+         ->  Hash Anti Join
+               Hash Cond: (t1_2.a = t2_2.b)
+               ->  Seq Scan on prt1_p3 t1_2
+               ->  Hash
+                     ->  Seq Scan on prt2_p3 t2_2
+(17 rows)
+
+SELECT sum(t1.a), avg(t1.a), sum(t1.b), avg(t1.b) FROM prt1 t1 WHERE NOT EXISTS (SELECT 1 FROM prt2 t2 WHERE t1.a = t2.b);
+  sum  |         avg          | sum  |         avg
+-------+----------------------+------+---------------------
+ 60000 | 300.0000000000000000 | 2400 | 12.0000000000000000
+(1 row)
+
+-- lateral reference
+EXPLAIN (COSTS OFF)
+SELECT * FROM prt1 t1 LEFT JOIN LATERAL
+			  (SELECT t2.a AS t2a, t3.a AS t3a, least(t1.a,t2.a,t3.b) FROM prt1 t2 JOIN prt2 t3 ON (t2.a = t3.b)) ss
+			  ON t1.a = ss.t2a WHERE t1.b = 0 ORDER BY t1.a;
+                                QUERY PLAN
+--------------------------------------------------------------------------
+ Sort
+   Sort Key: t1.a
+   ->  Append
+         ->  Nested Loop Left Join
+               ->  Seq Scan on prt1_p1 t1
+                     Filter: (b = 0)
+               ->  Nested Loop
+                     ->  Index Only Scan using iprt1_p1_a on prt1_p1 t2
+                           Index Cond: (a = t1.a)
+                     ->  Index Scan using iprt2_p1_b on prt2_p1 t3
+                           Index Cond: (b = t2.a)
+         ->  Nested Loop Left Join
+               ->  Seq Scan on prt1_p2 t1_1
+                     Filter: (b = 0)
+               ->  Nested Loop
+                     ->  Index Only Scan using iprt1_p2_a on prt1_p2 t2_1
+                           Index Cond: (a = t1_1.a)
+                     ->  Index Scan using iprt2_p2_b on prt2_p2 t3_1
+                           Index Cond: (b = t2_1.a)
+         ->  Nested Loop Left Join
+               ->  Seq Scan on prt1_p3 t1_2
+                     Filter: (b = 0)
+               ->  Nested Loop
+                     ->  Index Only Scan using iprt1_p3_a on prt1_p3 t2_2
+                           Index Cond: (a = t1_2.a)
+                     ->  Index Scan using iprt2_p3_b on prt2_p3 t3_2
+                           Index Cond: (b = t2_2.a)
+(27 rows)
+
+SELECT * FROM prt1 t1 LEFT JOIN LATERAL
+			  (SELECT t2.a AS t2a, t3.a AS t3a, least(t1.a,t2.a,t3.b) FROM prt1 t2 JOIN prt2 t3 ON (t2.a = t3.b)) ss
+			  ON t1.a = ss.t2a WHERE t1.b = 0 ORDER BY t1.a;
+  a  | b |  c   | t2a | t3a | least
+-----+---+------+-----+-----+-------
+   0 | 0 | 0000 |   0 |   0 |     0
+  50 | 0 | 0050 |     |     |
+ 100 | 0 | 0100 |     |     |
+ 150 | 0 | 0150 | 150 |   0 |   150
+ 200 | 0 | 0200 |     |     |
+ 250 | 0 | 0250 |     |     |
+ 300 | 0 | 0300 | 300 |   0 |   300
+ 350 | 0 | 0350 |     |     |
+ 400 | 0 | 0400 |     |     |
+ 450 | 0 | 0450 | 450 |   0 |   450
+ 500 | 0 | 0500 |     |     |
+ 550 | 0 | 0550 |     |     |
+(12 rows)
+
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, ss.t2a, ss.t2c FROM prt1 t1 LEFT JOIN LATERAL
+			  (SELECT t2.a AS t2a, t3.a AS t3a, t2.b t2b, t2.c t2c, least(t1.a,t2.a,t3.b) FROM prt1 t2 JOIN prt2 t3 ON (t2.a = t3.b)) ss
+			  ON t1.c = ss.t2c WHERE (t1.b + coalesce(ss.t2b, 0)) = 0 ORDER BY t1.a;
+*/
+SELECT t1.a, ss.t2a, ss.t2c FROM prt1 t1 LEFT JOIN LATERAL
+			  (SELECT t2.a AS t2a, t3.a AS t3a, t2.b t2b, t2.c t2c, least(t1.a,t2.a,t3.a) FROM prt1 t2 JOIN prt2 t3 ON (t2.a = t3.b)) ss
+			  ON t1.c = ss.t2c WHERE (t1.b + coalesce(ss.t2b, 0)) = 0 ORDER BY t1.a;
+  a  | t2a | t2c
+-----+-----+------
+   0 |   0 | 0000
+  50 |     |
+ 100 |     |
+ 150 | 150 | 0150
+ 200 |     |
+ 250 |     |
+ 300 | 300 | 0300
+ 350 |     |
+ 400 |     |
+ 450 | 450 | 0450
+ 500 |     |
+ 550 |     |
+(12 rows)
+
+--
+-- partitioned by expression
+--
+CREATE TABLE prt1_e (a int, b int, c int) PARTITION BY RANGE(((a + b)/2));
+CREATE TABLE prt1_e_p1 PARTITION OF prt1_e FOR VALUES FROM (0) TO (250);
+CREATE TABLE prt1_e_p2 PARTITION OF prt1_e FOR VALUES FROM (250) TO (500);
+CREATE TABLE prt1_e_p3 PARTITION OF prt1_e FOR VALUES FROM (500) TO (600);
+INSERT INTO prt1_e SELECT i, i, i % 25 FROM generate_series(0, 599, 2) i;
+CREATE INDEX iprt1_e_p1_ab2 on prt1_e_p1(((a+b)/2));
+CREATE INDEX iprt1_e_p2_ab2 on prt1_e_p2(((a+b)/2));
+CREATE INDEX iprt1_e_p3_ab2 on prt1_e_p3(((a+b)/2));
+ANALYZE prt1_e;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+CREATE TABLE prt2_e (a int, b int, c int) PARTITION BY RANGE(((b + a)/2));
+CREATE TABLE prt2_e_p1 PARTITION OF prt2_e FOR VALUES FROM (0) TO (250);
+CREATE TABLE prt2_e_p2 PARTITION OF prt2_e FOR VALUES FROM (250) TO (500);
+CREATE TABLE prt2_e_p3 PARTITION OF prt2_e FOR VALUES FROM (500) TO (600);
+INSERT INTO prt2_e SELECT i, i, i % 25 FROM generate_series(0, 599, 3) i;
+ANALYZE prt2_e;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1_e t1, prt2_e t2 WHERE (t1.a + t1.b)/2 = (t2.b + t2.a)/2 AND t1.c = 0 ORDER BY t1.a, t2.b;
+*/
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1_e t1, prt2_e t2 WHERE (t1.a + t1.b)/2 = (t2.b + t2.a)/2 AND t1.c = 0 ORDER BY t1.a, t2.b;
+  a  | c |  b  | c
+-----+---+-----+---
+   0 | 0 |   0 | 0
+ 150 | 0 | 150 | 0
+ 300 | 0 | 300 | 0
+ 450 | 0 | 450 | 0
+(4 rows)
+
+--
+-- N-way join
+--
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c, t3.a + t3.b, t3.c FROM prt1 t1, prt2 t2, prt1_e t3 WHERE t1.a = t2.b AND t1.a = (t3.a + t3.b)/2 AND t1.b = 0 ORDER BY t1.a, t2.b;
+*/
+SELECT t1.a, t1.c, t2.b, t2.c, t3.a + t3.b, t3.c FROM prt1 t1, prt2 t2, prt1_e t3 WHERE t1.a = t2.b AND t1.a = (t3.a + t3.b)/2 AND t1.b = 0 ORDER BY t1.a, t2.b;
+  a  |  c   |  b  |  c   | ?column? | c
+-----+------+-----+------+----------+---
+   0 | 0000 |   0 | 0000 |        0 | 0
+ 150 | 0150 | 150 | 0150 |      300 | 0
+ 300 | 0300 | 300 | 0300 |      600 | 0
+ 450 | 0450 | 450 | 0450 |      900 | 0
+(4 rows)
+
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c, t3.a + t3.b, t3.c FROM (prt1 t1 LEFT JOIN prt2 t2 ON t1.a = t2.b) LEFT JOIN prt1_e t3 ON (t1.a = (t3.a + t3.b)/2) WHERE t1.b = 0 ORDER BY t1.a, t2.b, t3.a + t3.b;
+*/
+SELECT t1.a, t1.c, t2.b, t2.c, t3.a + t3.b, t3.c FROM (prt1 t1 LEFT JOIN prt2 t2 ON t1.a = t2.b) LEFT JOIN prt1_e t3 ON (t1.a = (t3.a + t3.b)/2) WHERE t1.b = 0 ORDER BY t1.a, t2.b, t3.a + t3.b;
+  a  |  c   |  b  |  c   | ?column? | c
+-----+------+-----+------+----------+---
+   0 | 0000 |   0 | 0000 |        0 | 0
+  50 | 0050 |     |      |      100 | 0
+ 100 | 0100 |     |      |      200 | 0
+ 150 | 0150 | 150 | 0150 |      300 | 0
+ 200 | 0200 |     |      |      400 | 0
+ 250 | 0250 |     |      |      500 | 0
+ 300 | 0300 | 300 | 0300 |      600 | 0
+ 350 | 0350 |     |      |      700 | 0
+ 400 | 0400 |     |      |      800 | 0
+ 450 | 0450 | 450 | 0450 |      900 | 0
+ 500 | 0500 |     |      |     1000 | 0
+ 550 | 0550 |     |      |     1100 | 0
+(12 rows)
+
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c, t3.a + t3.b, t3.c FROM (prt1 t1 LEFT JOIN prt2 t2 ON t1.a = t2.b) RIGHT JOIN prt1_e t3 ON (t1.a = (t3.a + t3.b)/2) WHERE t3.c = 0 ORDER BY t1.a, t2.b, t3.a + t3.b;
+*/
+SELECT t1.a, t1.c, t2.b, t2.c, t3.a + t3.b, t3.c FROM (prt1 t1 LEFT JOIN prt2 t2 ON t1.a = t2.b) RIGHT JOIN prt1_e t3 ON (t1.a = (t3.a + t3.b)/2) WHERE t3.c = 0 ORDER BY t1.a, t2.b, t3.a + t3.b;
+  a  |  c   |  b  |  c   | ?column? | c
+-----+------+-----+------+----------+---
+   0 | 0000 |   0 | 0000 |        0 | 0
+  50 | 0050 |     |      |      100 | 0
+ 100 | 0100 |     |      |      200 | 0
+ 150 | 0150 | 150 | 0150 |      300 | 0
+ 200 | 0200 |     |      |      400 | 0
+ 250 | 0250 |     |      |      500 | 0
+ 300 | 0300 | 300 | 0300 |      600 | 0
+ 350 | 0350 |     |      |      700 | 0
+ 400 | 0400 |     |      |      800 | 0
+ 450 | 0450 | 450 | 0450 |      900 | 0
+ 500 | 0500 |     |      |     1000 | 0
+ 550 | 0550 |     |      |     1100 | 0
+(12 rows)
+
+-- Cases with non-nullable expressions in subquery results;
+-- make sure these go to null as expected
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.phv, t2.b, t2.phv, t3.a + t3.b, t3.phv FROM ((SELECT 50 phv, * FROM prt1 WHERE prt1.b = 0) t1 FULL JOIN (SELECT 75 phv, * FROM prt2 WHERE prt2.a = 0) t2 ON (t1.a = t2.b)) FULL JOIN (SELECT 50 phv, * FROM prt1_e WHERE prt1_e.c = 0) t3 ON (t1.a = (t3.a + t3.b)/2) WHERE t1.a = t1.phv OR t2.b = t2.phv OR (t3.a + t3.b)/2 = t3.phv ORDER BY t1.a, t2.b, t3.a + t3.b;
+                                                   QUERY PLAN
+----------------------------------------------------------------------------------------------------------------
+ Sort
+   Sort Key: prt1_p1.a, prt2_p1.b, ((prt1_e_p1.a + prt1_e_p1.b))
+   ->  Append
+         ->  Hash Full Join
+               Hash Cond: (prt1_p1.a = ((prt1_e_p1.a + prt1_e_p1.b) / 2))
+               Filter: ((prt1_p1.a = (50)) OR (prt2_p1.b = (75)) OR (((prt1_e_p1.a + prt1_e_p1.b) / 2) = (50)))
+               ->  Hash Full Join
+                     Hash Cond: (prt1_p1.a = prt2_p1.b)
+                     ->  Seq Scan on prt1_p1
+                           Filter: (b = 0)
+                     ->  Hash
+                           ->  Seq Scan on prt2_p1
+                                 Filter: (a = 0)
+               ->  Hash
+                     ->  Seq Scan on prt1_e_p1
+                           Filter: (c = 0)
+         ->  Hash Full Join
+               Hash Cond: (prt1_p2.a = ((prt1_e_p2.a + prt1_e_p2.b) / 2))
+               Filter: ((prt1_p2.a = (50)) OR (prt2_p2.b = (75)) OR (((prt1_e_p2.a + prt1_e_p2.b) / 2) = (50)))
+               ->  Hash Full Join
+                     Hash Cond: (prt1_p2.a = prt2_p2.b)
+                     ->  Seq Scan on prt1_p2
+                           Filter: (b = 0)
+                     ->  Hash
+                           ->  Seq Scan on prt2_p2
+                                 Filter: (a = 0)
+               ->  Hash
+                     ->  Seq Scan on prt1_e_p2
+                           Filter: (c = 0)
+         ->  Hash Full Join
+               Hash Cond: (prt1_p3.a = ((prt1_e_p3.a + prt1_e_p3.b) / 2))
+               Filter: ((prt1_p3.a = (50)) OR (prt2_p3.b = (75)) OR (((prt1_e_p3.a + prt1_e_p3.b) / 2) = (50)))
+               ->  Hash Full Join
+                     Hash Cond: (prt1_p3.a = prt2_p3.b)
+                     ->  Seq Scan on prt1_p3
+                           Filter: (b = 0)
+                     ->  Hash
+                           ->  Seq Scan on prt2_p3
+                                 Filter: (a = 0)
+               ->  Hash
+                     ->  Seq Scan on prt1_e_p3
+                           Filter: (c = 0)
+(42 rows)
+
+SELECT t1.a, t1.phv, t2.b, t2.phv, t3.a + t3.b, t3.phv FROM ((SELECT 50 phv, * FROM prt1 WHERE prt1.b = 0) t1 FULL JOIN (SELECT 75 phv, * FROM prt2 WHERE prt2.a = 0) t2 ON (t1.a = t2.b)) FULL JOIN (SELECT 50 phv, * FROM prt1_e WHERE prt1_e.c = 0) t3 ON (t1.a = (t3.a + t3.b)/2) WHERE t1.a = t1.phv OR t2.b = t2.phv OR (t3.a + t3.b)/2 = t3.phv ORDER BY t1.a, t2.b, t3.a + t3.b;
+ a  | phv | b  | phv | ?column? | phv
+----+-----+----+-----+----------+-----
+ 50 |  50 |    |     |      100 |  50
+    |     | 75 |  75 |          |
+(2 rows)
+
+-- Semi-join
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.* FROM prt1 t1 WHERE t1.a IN (SELECT t1.b FROM prt2 t1, prt1_e t2 WHERE t1.a = 0 AND t1.b = (t2.a + t2.b)/2) AND t1.b = 0 ORDER BY t1.a;
+*/
+SELECT t1.* FROM prt1 t1 WHERE t1.a IN (SELECT t1.b FROM prt2 t1, prt1_e t2 WHERE t1.a = 0 AND t1.b = (t2.a + t2.b)/2) AND t1.b = 0 ORDER BY t1.a;
+  a  | b |  c
+-----+---+------
+   0 | 0 | 0000
+ 150 | 0 | 0150
+ 300 | 0 | 0300
+ 450 | 0 | 0450
+(4 rows)
+
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.* FROM prt1 t1 WHERE t1.a IN (SELECT t1.b FROM prt2 t1 WHERE t1.b IN (SELECT (t1.a + t1.b)/2 FROM prt1_e t1 WHERE t1.c = 0)) AND t1.b = 0 ORDER BY t1.a;
+*/
+SELECT t1.* FROM prt1 t1 WHERE t1.a IN (SELECT t1.b FROM prt2 t1 WHERE t1.b IN (SELECT (t1.a + t1.b)/2 FROM prt1_e t1 WHERE t1.c = 0)) AND t1.b = 0 ORDER BY t1.a;
+  a  | b |  c
+-----+---+------
+   0 | 0 | 0000
+ 150 | 0 | 0150
+ 300 | 0 | 0300
+ 450 | 0 | 0450
+(4 rows)
+
+-- test merge joins
+SET enable_hashjoin TO off;
+SET enable_nestloop TO off;
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.* FROM prt1 t1 WHERE t1.a IN (SELECT t1.b FROM prt2 t1 WHERE t1.b IN (SELECT (t1.a + t1.b)/2 FROM prt1_e t1 WHERE t1.c = 0)) AND t1.b = 0 ORDER BY t1.a;
+*/
+SELECT t1.* FROM prt1 t1 WHERE t1.a IN (SELECT t1.b FROM prt2 t1 WHERE t1.b IN (SELECT (t1.a + t1.b)/2 FROM prt1_e t1 WHERE t1.c = 0)) AND t1.b = 0 ORDER BY t1.a;
+  a  | b |  c
+-----+---+------
+   0 | 0 | 0000
+ 150 | 0 | 0150
+ 300 | 0 | 0300
+ 450 | 0 | 0450
+(4 rows)
+
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c, t3.a + t3.b, t3.c FROM (prt1 t1 LEFT JOIN prt2 t2 ON t1.a = t2.b) RIGHT JOIN prt1_e t3 ON (t1.a = (t3.a + t3.b)/2) WHERE t3.c = 0 ORDER BY t1.a, t2.b, t3.a + t3.b;
+*/
+SELECT t1.a, t1.c, t2.b, t2.c, t3.a + t3.b, t3.c FROM (prt1 t1 LEFT JOIN prt2 t2 ON t1.a = t2.b) RIGHT JOIN prt1_e t3 ON (t1.a = (t3.a + t3.b)/2) WHERE t3.c = 0 ORDER BY t1.a, t2.b, t3.a + t3.b;
+  a  |  c   |  b  |  c   | ?column? | c
+-----+------+-----+------+----------+---
+   0 | 0000 |   0 | 0000 |        0 | 0
+  50 | 0050 |     |      |      100 | 0
+ 100 | 0100 |     |      |      200 | 0
+ 150 | 0150 | 150 | 0150 |      300 | 0
+ 200 | 0200 |     |      |      400 | 0
+ 250 | 0250 |     |      |      500 | 0
+ 300 | 0300 | 300 | 0300 |      600 | 0
+ 350 | 0350 |     |      |      700 | 0
+ 400 | 0400 |     |      |      800 | 0
+ 450 | 0450 | 450 | 0450 |      900 | 0
+ 500 | 0500 |     |      |     1000 | 0
+ 550 | 0550 |     |      |     1100 | 0
+(12 rows)
+
+-- MergeAppend on nullable column
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t2.b FROM (SELECT * FROM prt1 WHERE a < 450) t1 LEFT JOIN (SELECT * FROM prt2 WHERE b > 250) t2 ON t1.a = t2.b WHERE t1.b = 0 ORDER BY t1.a, t2.b;
+*/
+SELECT t1.a, t2.b FROM (SELECT * FROM prt1 WHERE a < 450) t1 LEFT JOIN (SELECT * FROM prt2 WHERE b > 250) t2 ON t1.a = t2.b WHERE t1.b = 0 ORDER BY t1.a, t2.b;
+  a  |  b
+-----+-----
+   0 |
+  50 |
+ 100 |
+ 150 |
+ 200 |
+ 250 |
+ 300 | 300
+ 350 |
+ 400 |
+(9 rows)
+
+-- merge join when expression with whole-row reference needs to be sorted;
+-- partitionwise join does not apply
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t2.b FROM prt1 t1, prt2 t2 WHERE t1::text = t2::text AND t1.a = t2.b ORDER BY t1.a;
+*/
+SELECT t1.a, t2.b FROM prt1 t1, prt2 t2 WHERE t1::text = t2::text AND t1.a = t2.b ORDER BY t1.a;
+ a  | b
+----+----
+  0 |  0
+  6 |  6
+ 12 | 12
+ 18 | 18
+ 24 | 24
+(5 rows)
+
+RESET enable_hashjoin;
+RESET enable_nestloop;
+--
+-- partitioned by multiple columns
+--
+CREATE TABLE prt1_m (a int, b int, c int) PARTITION BY RANGE(a, ((a + b)/2));
+CREATE TABLE prt1_m_p1 PARTITION OF prt1_m FOR VALUES FROM (0, 0) TO (250, 250);
+CREATE TABLE prt1_m_p2 PARTITION OF prt1_m FOR VALUES FROM (250, 250) TO (500, 500);
+CREATE TABLE prt1_m_p3 PARTITION OF prt1_m FOR VALUES FROM (500, 500) TO (600, 600);
+INSERT INTO prt1_m SELECT i, i, i % 25 FROM generate_series(0, 599, 2) i;
+ANALYZE prt1_m;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+CREATE TABLE prt2_m (a int, b int, c int) PARTITION BY RANGE(((b + a)/2), b);
+CREATE TABLE prt2_m_p1 PARTITION OF prt2_m FOR VALUES FROM (0, 0) TO (250, 250);
+CREATE TABLE prt2_m_p2 PARTITION OF prt2_m FOR VALUES FROM (250, 250) TO (500, 500);
+CREATE TABLE prt2_m_p3 PARTITION OF prt2_m FOR VALUES FROM (500, 500) TO (600, 600);
+INSERT INTO prt2_m SELECT i, i, i % 25 FROM generate_series(0, 599, 3) i;
+ANALYZE prt2_m;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM (SELECT * FROM prt1_m WHERE prt1_m.c = 0) t1 FULL JOIN (SELECT * FROM prt2_m WHERE prt2_m.c = 0) t2 ON (t1.a = (t2.b + t2.a)/2 AND t2.b = (t1.a + t1.b)/2) ORDER BY t1.a, t2.b;
+                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------
+ Sort
+   Sort Key: prt1_m_p1.a, prt2_m_p1.b
+   ->  Append
+         ->  Hash Full Join
+               Hash Cond: ((prt1_m_p1.a = ((prt2_m_p1.b + prt2_m_p1.a) / 2)) AND (((prt1_m_p1.a + prt1_m_p1.b) / 2) = prt2_m_p1.b))
+               ->  Seq Scan on prt1_m_p1
+                     Filter: (c = 0)
+               ->  Hash
+                     ->  Seq Scan on prt2_m_p1
+                           Filter: (c = 0)
+         ->  Hash Full Join
+               Hash Cond: ((prt1_m_p2.a = ((prt2_m_p2.b + prt2_m_p2.a) / 2)) AND (((prt1_m_p2.a + prt1_m_p2.b) / 2) = prt2_m_p2.b))
+               ->  Seq Scan on prt1_m_p2
+                     Filter: (c = 0)
+               ->  Hash
+                     ->  Seq Scan on prt2_m_p2
+                           Filter: (c = 0)
+         ->  Hash Full Join
+               Hash Cond: ((prt1_m_p3.a = ((prt2_m_p3.b + prt2_m_p3.a) / 2)) AND (((prt1_m_p3.a + prt1_m_p3.b) / 2) = prt2_m_p3.b))
+               ->  Seq Scan on prt1_m_p3
+                     Filter: (c = 0)
+               ->  Hash
+                     ->  Seq Scan on prt2_m_p3
+                           Filter: (c = 0)
+(24 rows)
+
+SELECT t1.a, t1.c, t2.b, t2.c FROM (SELECT * FROM prt1_m WHERE prt1_m.c = 0) t1 FULL JOIN (SELECT * FROM prt2_m WHERE prt2_m.c = 0) t2 ON (t1.a = (t2.b + t2.a)/2 AND t2.b = (t1.a + t1.b)/2) ORDER BY t1.a, t2.b;
+  a  | c |  b  | c
+-----+---+-----+---
+   0 | 0 |   0 | 0
+  50 | 0 |     |
+ 100 | 0 |     |
+ 150 | 0 | 150 | 0
+ 200 | 0 |     |
+ 250 | 0 |     |
+ 300 | 0 | 300 | 0
+ 350 | 0 |     |
+ 400 | 0 |     |
+ 450 | 0 | 450 | 0
+ 500 | 0 |     |
+ 550 | 0 |     |
+     |   |  75 | 0
+     |   | 225 | 0
+     |   | 375 | 0
+     |   | 525 | 0
+(16 rows)
+
+--
+-- tests for list partitioned tables.
+--
+CREATE TABLE plt1 (a int, b int, c text) PARTITION BY LIST(c);
+CREATE TABLE plt1_p1 PARTITION OF plt1 FOR VALUES IN ('0000', '0003', '0004', '0010');
+CREATE TABLE plt1_p2 PARTITION OF plt1 FOR VALUES IN ('0001', '0005', '0002', '0009');
+CREATE TABLE plt1_p3 PARTITION OF plt1 FOR VALUES IN ('0006', '0007', '0008', '0011');
+INSERT INTO plt1 SELECT i, i, to_char(i/50, 'FM0000') FROM generate_series(0, 599, 2) i;
+ANALYZE plt1;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+CREATE TABLE plt2 (a int, b int, c text) PARTITION BY LIST(c);
+CREATE TABLE plt2_p1 PARTITION OF plt2 FOR VALUES IN ('0000', '0003', '0004', '0010');
+CREATE TABLE plt2_p2 PARTITION OF plt2 FOR VALUES IN ('0001', '0005', '0002', '0009');
+CREATE TABLE plt2_p3 PARTITION OF plt2 FOR VALUES IN ('0006', '0007', '0008', '0011');
+INSERT INTO plt2 SELECT i, i, to_char(i/50, 'FM0000') FROM generate_series(0, 599, 3) i;
+ANALYZE plt2;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+--
+-- list partitioned by expression
+--
+CREATE TABLE plt1_e (a int, b int, c text) PARTITION BY LIST(ltrim(c, 'A'));
+CREATE TABLE plt1_e_p1 PARTITION OF plt1_e FOR VALUES IN ('0000', '0003', '0004', '0010');
+CREATE TABLE plt1_e_p2 PARTITION OF plt1_e FOR VALUES IN ('0001', '0005', '0002', '0009');
+CREATE TABLE plt1_e_p3 PARTITION OF plt1_e FOR VALUES IN ('0006', '0007', '0008', '0011');
+INSERT INTO plt1_e SELECT i, i, 'A' || to_char(i/50, 'FM0000') FROM generate_series(0, 599, 2) i;
+ANALYZE plt1_e;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+-- test partition matching with N-way join
+/*
+EXPLAIN (COSTS OFF)
+SELECT avg(t1.a), avg(t2.b), avg(t3.a + t3.b), t1.c, t2.c, t3.c FROM plt1 t1, plt2 t2, plt1_e t3 WHERE t1.b = t2.b AND t1.c = t2.c AND ltrim(t3.c, 'A') = t1.c GROUP BY t1.c, t2.c, t3.c ORDER BY t1.c, t2.c, t3.c;
+*/
+SELECT avg(t1.a), avg(t2.b), avg(t3.a + t3.b), t1.c, t2.c, t3.c FROM plt1 t1, plt2 t2, plt1_e t3 WHERE t1.b = t2.b AND t1.c = t2.c AND ltrim(t3.c, 'A') = t1.c GROUP BY t1.c, t2.c, t3.c ORDER BY t1.c, t2.c, t3.c;
+         avg          |         avg          |          avg          |  c   |  c   |   c
+----------------------+----------------------+-----------------------+------+------+-------
+  24.0000000000000000 |  24.0000000000000000 |   48.0000000000000000 | 0000 | 0000 | A0000
+  75.0000000000000000 |  75.0000000000000000 |  148.0000000000000000 | 0001 | 0001 | A0001
+ 123.0000000000000000 | 123.0000000000000000 |  248.0000000000000000 | 0002 | 0002 | A0002
+ 174.0000000000000000 | 174.0000000000000000 |  348.0000000000000000 | 0003 | 0003 | A0003
+ 225.0000000000000000 | 225.0000000000000000 |  448.0000000000000000 | 0004 | 0004 | A0004
+ 273.0000000000000000 | 273.0000000000000000 |  548.0000000000000000 | 0005 | 0005 | A0005
+ 324.0000000000000000 | 324.0000000000000000 |  648.0000000000000000 | 0006 | 0006 | A0006
+ 375.0000000000000000 | 375.0000000000000000 |  748.0000000000000000 | 0007 | 0007 | A0007
+ 423.0000000000000000 | 423.0000000000000000 |  848.0000000000000000 | 0008 | 0008 | A0008
+ 474.0000000000000000 | 474.0000000000000000 |  948.0000000000000000 | 0009 | 0009 | A0009
+ 525.0000000000000000 | 525.0000000000000000 | 1048.0000000000000000 | 0010 | 0010 | A0010
+ 573.0000000000000000 | 573.0000000000000000 | 1148.0000000000000000 | 0011 | 0011 | A0011
+(12 rows)
+
+-- joins where one of the relations is proven empty
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1 t1, prt2 t2 WHERE t1.a = t2.b AND t1.a = 1 AND t1.a = 2;
+        QUERY PLAN
+--------------------------
+ Result
+   One-Time Filter: false
+(2 rows)
+
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM (SELECT * FROM prt1 WHERE a = 1 AND a = 2) t1 LEFT JOIN prt2 t2 ON t1.a = t2.b;
+        QUERY PLAN
+--------------------------
+ Result
+   One-Time Filter: false
+(2 rows)
+
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM (SELECT * FROM prt1 WHERE a = 1 AND a = 2) t1 RIGHT JOIN prt2 t2 ON t1.a = t2.b, prt1 t3 WHERE t2.b = t3.a;
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM (SELECT * FROM prt1 WHERE a = 1 AND a = 2) t1 FULL JOIN prt2 t2 ON t1.a = t2.b WHERE t2.a = 0 ORDER BY t1.a, t2.b;
+*/
+--
+-- tests for hash partitioned tables.
+--
+CREATE TABLE pht1 (a int, b int, c text) PARTITION BY HASH(c);
+CREATE TABLE pht1_p1 PARTITION OF pht1 FOR VALUES WITH (MODULUS 3, REMAINDER 0);
+CREATE TABLE pht1_p2 PARTITION OF pht1 FOR VALUES WITH (MODULUS 3, REMAINDER 1);
+CREATE TABLE pht1_p3 PARTITION OF pht1 FOR VALUES WITH (MODULUS 3, REMAINDER 2);
+INSERT INTO pht1 SELECT i, i, to_char(i/50, 'FM0000') FROM generate_series(0, 599, 2) i;
+ANALYZE pht1;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+CREATE TABLE pht2 (a int, b int, c text) PARTITION BY HASH(c);
+CREATE TABLE pht2_p1 PARTITION OF pht2 FOR VALUES WITH (MODULUS 3, REMAINDER 0);
+CREATE TABLE pht2_p2 PARTITION OF pht2 FOR VALUES WITH (MODULUS 3, REMAINDER 1);
+CREATE TABLE pht2_p3 PARTITION OF pht2 FOR VALUES WITH (MODULUS 3, REMAINDER 2);
+INSERT INTO pht2 SELECT i, i, to_char(i/50, 'FM0000') FROM generate_series(0, 599, 3) i;
+ANALYZE pht2;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+--
+-- hash partitioned by expression
+--
+CREATE TABLE pht1_e (a int, b int, c text) PARTITION BY HASH(ltrim(c, 'A'));
+CREATE TABLE pht1_e_p1 PARTITION OF pht1_e FOR VALUES WITH (MODULUS 3, REMAINDER 0);
+CREATE TABLE pht1_e_p2 PARTITION OF pht1_e FOR VALUES WITH (MODULUS 3, REMAINDER 1);
+CREATE TABLE pht1_e_p3 PARTITION OF pht1_e FOR VALUES WITH (MODULUS 3, REMAINDER 2);
+INSERT INTO pht1_e SELECT i, i, 'A' || to_char(i/50, 'FM0000') FROM generate_series(0, 299, 2) i;
+ANALYZE pht1_e;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+-- test partition matching with N-way join
+/*
+EXPLAIN (COSTS OFF)
+SELECT avg(t1.a), avg(t2.b), avg(t3.a + t3.b), t1.c, t2.c, t3.c FROM pht1 t1, pht2 t2, pht1_e t3 WHERE t1.b = t2.b AND t1.c = t2.c AND ltrim(t3.c, 'A') = t1.c GROUP BY t1.c, t2.c, t3.c ORDER BY t1.c, t2.c, t3.c;
+*/
+SELECT avg(t1.a), avg(t2.b), avg(t3.a + t3.b), t1.c, t2.c, t3.c FROM pht1 t1, pht2 t2, pht1_e t3 WHERE t1.b = t2.b AND t1.c = t2.c AND ltrim(t3.c, 'A') = t1.c GROUP BY t1.c, t2.c, t3.c ORDER BY t1.c, t2.c, t3.c;
+         avg          |         avg          |         avg          |  c   |  c   |   c
+----------------------+----------------------+----------------------+------+------+-------
+  24.0000000000000000 |  24.0000000000000000 |  48.0000000000000000 | 0000 | 0000 | A0000
+  75.0000000000000000 |  75.0000000000000000 | 148.0000000000000000 | 0001 | 0001 | A0001
+ 123.0000000000000000 | 123.0000000000000000 | 248.0000000000000000 | 0002 | 0002 | A0002
+ 174.0000000000000000 | 174.0000000000000000 | 348.0000000000000000 | 0003 | 0003 | A0003
+ 225.0000000000000000 | 225.0000000000000000 | 448.0000000000000000 | 0004 | 0004 | A0004
+ 273.0000000000000000 | 273.0000000000000000 | 548.0000000000000000 | 0005 | 0005 | A0005
+(6 rows)
+
+--
+-- multiple levels of partitioning
+--
+CREATE TABLE prt1_l (a int, b int, c varchar) PARTITION BY RANGE(a);
+CREATE TABLE prt1_l_p1 PARTITION OF prt1_l FOR VALUES FROM (0) TO (250);
+CREATE TABLE prt1_l_p2 PARTITION OF prt1_l FOR VALUES FROM (250) TO (500) PARTITION BY LIST (c);
+CREATE TABLE prt1_l_p2_p1 PARTITION OF prt1_l_p2 FOR VALUES IN ('0000', '0001');
+CREATE TABLE prt1_l_p2_p2 PARTITION OF prt1_l_p2 FOR VALUES IN ('0002', '0003');
+CREATE TABLE prt1_l_p3 PARTITION OF prt1_l FOR VALUES FROM (500) TO (600) PARTITION BY RANGE (b);
+CREATE TABLE prt1_l_p3_p1 PARTITION OF prt1_l_p3 FOR VALUES FROM (0) TO (13);
+CREATE TABLE prt1_l_p3_p2 PARTITION OF prt1_l_p3 FOR VALUES FROM (13) TO (25);
+INSERT INTO prt1_l SELECT i, i % 25, to_char(i % 4, 'FM0000') FROM generate_series(0, 599, 2) i;
+ANALYZE prt1_l;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+CREATE TABLE prt2_l (a int, b int, c varchar) PARTITION BY RANGE(b);
+CREATE TABLE prt2_l_p1 PARTITION OF prt2_l FOR VALUES FROM (0) TO (250);
+CREATE TABLE prt2_l_p2 PARTITION OF prt2_l FOR VALUES FROM (250) TO (500) PARTITION BY LIST (c);
+CREATE TABLE prt2_l_p2_p1 PARTITION OF prt2_l_p2 FOR VALUES IN ('0000', '0001');
+CREATE TABLE prt2_l_p2_p2 PARTITION OF prt2_l_p2 FOR VALUES IN ('0002', '0003');
+CREATE TABLE prt2_l_p3 PARTITION OF prt2_l FOR VALUES FROM (500) TO (600) PARTITION BY RANGE (a);
+CREATE TABLE prt2_l_p3_p1 PARTITION OF prt2_l_p3 FOR VALUES FROM (0) TO (13);
+CREATE TABLE prt2_l_p3_p2 PARTITION OF prt2_l_p3 FOR VALUES FROM (13) TO (25);
+INSERT INTO prt2_l SELECT i % 25, i, to_char(i % 4, 'FM0000') FROM generate_series(0, 599, 3) i;
+ANALYZE prt2_l;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+-- inner join, qual covering only top-level partitions
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1_l t1, prt2_l t2 WHERE t1.a = t2.b AND t1.b = 0 ORDER BY t1.a, t2.b;
+*/
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1_l t1, prt2_l t2 WHERE t1.a = t2.b AND t1.b = 0 ORDER BY t1.a, t2.b;
+  a  |  c   |  b  |  c
+-----+------+-----+------
+   0 | 0000 |   0 | 0000
+ 150 | 0002 | 150 | 0002
+ 300 | 0000 | 300 | 0000
+ 450 | 0002 | 450 | 0002
+(4 rows)
+
+-- left join
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1_l t1 LEFT JOIN prt2_l t2 ON t1.a = t2.b AND t1.c = t2.c WHERE t1.b = 0 ORDER BY t1.a, t2.b;
+*/
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1_l t1 LEFT JOIN prt2_l t2 ON t1.a = t2.b AND t1.c = t2.c WHERE t1.b = 0 ORDER BY t1.a, t2.b;
+  a  |  c   |  b  |  c
+-----+------+-----+------
+   0 | 0000 |   0 | 0000
+  50 | 0002 |     |
+ 100 | 0000 |     |
+ 150 | 0002 | 150 | 0002
+ 200 | 0000 |     |
+ 250 | 0002 |     |
+ 300 | 0000 | 300 | 0000
+ 350 | 0002 |     |
+ 400 | 0000 |     |
+ 450 | 0002 | 450 | 0002
+ 500 | 0000 |     |
+ 550 | 0002 |     |
+(12 rows)
+
+-- right join
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1_l t1 RIGHT JOIN prt2_l t2 ON t1.a = t2.b AND t1.c = t2.c WHERE t2.a = 0 ORDER BY t1.a, t2.b;
+*/
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1_l t1 RIGHT JOIN prt2_l t2 ON t1.a = t2.b AND t1.c = t2.c WHERE t2.a = 0 ORDER BY t1.a, t2.b;
+  a  |  c   |  b  |  c
+-----+------+-----+------
+   0 | 0000 |   0 | 0000
+ 150 | 0002 | 150 | 0002
+ 300 | 0000 | 300 | 0000
+ 450 | 0002 | 450 | 0002
+     |      |  75 | 0003
+     |      | 225 | 0001
+     |      | 375 | 0003
+     |      | 525 | 0001
+(8 rows)
+
+-- full join
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM (SELECT * FROM prt1_l WHERE prt1_l.b = 0) t1 FULL JOIN (SELECT * FROM prt2_l WHERE prt2_l.a = 0) t2 ON (t1.a = t2.b AND t1.c = t2.c) ORDER BY t1.a, t2.b;
+                                                     QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------
+ Sort
+   Sort Key: prt1_l_p1.a, prt2_l_p1.b
+   ->  Append
+         ->  Hash Full Join
+               Hash Cond: ((prt1_l_p1.a = prt2_l_p1.b) AND ((prt1_l_p1.c)::text = (prt2_l_p1.c)::text))
+               ->  Seq Scan on prt1_l_p1
+                     Filter: (b = 0)
+               ->  Hash
+                     ->  Seq Scan on prt2_l_p1
+                           Filter: (a = 0)
+         ->  Hash Full Join
+               Hash Cond: ((prt1_l_p2_p1.a = prt2_l_p2_p1.b) AND ((prt1_l_p2_p1.c)::text = (prt2_l_p2_p1.c)::text))
+               ->  Seq Scan on prt1_l_p2_p1
+                     Filter: (b = 0)
+               ->  Hash
+                     ->  Seq Scan on prt2_l_p2_p1
+                           Filter: (a = 0)
+         ->  Hash Full Join
+               Hash Cond: ((prt1_l_p2_p2.a = prt2_l_p2_p2.b) AND ((prt1_l_p2_p2.c)::text = (prt2_l_p2_p2.c)::text))
+               ->  Seq Scan on prt1_l_p2_p2
+                     Filter: (b = 0)
+               ->  Hash
+                     ->  Seq Scan on prt2_l_p2_p2
+                           Filter: (a = 0)
+         ->  Hash Full Join
+               Hash Cond: ((prt1_l_p3_p1.a = prt2_l_p3_p1.b) AND ((prt1_l_p3_p1.c)::text = (prt2_l_p3_p1.c)::text))
+               ->  Append
+                     ->  Seq Scan on prt1_l_p3_p1
+                           Filter: (b = 0)
+               ->  Hash
+                     ->  Append
+                           ->  Seq Scan on prt2_l_p3_p1
+                                 Filter: (a = 0)
+(33 rows)
+
+SELECT t1.a, t1.c, t2.b, t2.c FROM (SELECT * FROM prt1_l WHERE prt1_l.b = 0) t1 FULL JOIN (SELECT * FROM prt2_l WHERE prt2_l.a = 0) t2 ON (t1.a = t2.b AND t1.c = t2.c) ORDER BY t1.a, t2.b;
+  a  |  c   |  b  |  c
+-----+------+-----+------
+   0 | 0000 |   0 | 0000
+  50 | 0002 |     |
+ 100 | 0000 |     |
+ 150 | 0002 | 150 | 0002
+ 200 | 0000 |     |
+ 250 | 0002 |     |
+ 300 | 0000 | 300 | 0000
+ 350 | 0002 |     |
+ 400 | 0000 |     |
+ 450 | 0002 | 450 | 0002
+ 500 | 0000 |     |
+ 550 | 0002 |     |
+     |      |  75 | 0003
+     |      | 225 | 0001
+     |      | 375 | 0003
+     |      | 525 | 0001
+(16 rows)
+
+-- lateral partitionwise join
+/*
+EXPLAIN (COSTS OFF)
+SELECT * FROM prt1_l t1 LEFT JOIN LATERAL
+			  (SELECT t2.a AS t2a, t2.c AS t2c, t2.b AS t2b, t3.b AS t3b, least(t1.a,t2.a,t3.b) FROM prt1_l t2 JOIN prt2_l t3 ON (t2.a = t3.b AND t2.c = t3.c)) ss
+			  ON t1.a = ss.t2a AND t1.c = ss.t2c WHERE t1.b = 0 ORDER BY t1.a;
+*/
+SELECT * FROM prt1_l t1 LEFT JOIN LATERAL
+			  (SELECT t2.a AS t2a, t2.c AS t2c, t2.b AS t2b, t3.b AS t3b, least(t1.a,t2.a,t3.b) FROM prt1_l t2 JOIN prt2_l t3 ON (t2.a = t3.b AND t2.c = t3.c)) ss
+			  ON t1.a = ss.t2a AND t1.c = ss.t2c WHERE t1.b = 0 ORDER BY t1.a;
+  a  | b |  c   | t2a | t2c  | t2b | t3b | least
+-----+---+------+-----+------+-----+-----+-------
+   0 | 0 | 0000 |   0 | 0000 |   0 |   0 |     0
+  50 | 0 | 0002 |     |      |     |     |
+ 100 | 0 | 0000 |     |      |     |     |
+ 150 | 0 | 0002 | 150 | 0002 |   0 | 150 |   150
+ 200 | 0 | 0000 |     |      |     |     |
+ 250 | 0 | 0002 |     |      |     |     |
+ 300 | 0 | 0000 | 300 | 0000 |   0 | 300 |   300
+ 350 | 0 | 0002 |     |      |     |     |
+ 400 | 0 | 0000 |     |      |     |     |
+ 450 | 0 | 0002 | 450 | 0002 |   0 | 450 |   450
+ 500 | 0 | 0000 |     |      |     |     |
+ 550 | 0 | 0002 |     |      |     |     |
+(12 rows)
+
+-- join with one side empty
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM (SELECT * FROM prt1_l WHERE a = 1 AND a = 2) t1 RIGHT JOIN prt2_l t2 ON t1.a = t2.b AND t1.b = t2.a AND t1.c = t2.c;
+                               QUERY PLAN
+-------------------------------------------------------------------------
+ Hash Left Join
+   Hash Cond: ((t2.b = a) AND (t2.a = b) AND ((t2.c)::text = (c)::text))
+   ->  Append
+         ->  Seq Scan on prt2_l_p1 t2
+         ->  Seq Scan on prt2_l_p2_p1 t2_1
+         ->  Seq Scan on prt2_l_p2_p2 t2_2
+         ->  Seq Scan on prt2_l_p3_p1 t2_3
+         ->  Seq Scan on prt2_l_p3_p2 t2_4
+   ->  Hash
+         ->  Result
+               One-Time Filter: false
+(11 rows)
+
+-- Test case to verify proper handling of subqueries in a partitioned delete.
+-- The weird-looking lateral join is just there to force creation of a
+-- nestloop parameter within the subquery, which exposes the problem if the
+-- planner fails to make multiple copies of the subquery as appropriate.
+/*
+EXPLAIN (COSTS OFF)
+DELETE FROM prt1_l
+WHERE EXISTS (
+  SELECT 1
+    FROM int4_tbl,
+         LATERAL (SELECT int4_tbl.f1 FROM int8_tbl LIMIT 2) ss
+    WHERE prt1_l.c IS NULL);
+*/
+--
+-- negative testcases
+--
+CREATE TABLE prt1_n (a int, b int, c varchar) PARTITION BY RANGE(c);
+CREATE TABLE prt1_n_p1 PARTITION OF prt1_n FOR VALUES FROM ('0000') TO ('0250');
+CREATE TABLE prt1_n_p2 PARTITION OF prt1_n FOR VALUES FROM ('0250') TO ('0500');
+INSERT INTO prt1_n SELECT i, i, to_char(i, 'FM0000') FROM generate_series(0, 499, 2) i;
+ANALYZE prt1_n;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+CREATE TABLE prt2_n (a int, b int, c text) PARTITION BY LIST(c);
+CREATE TABLE prt2_n_p1 PARTITION OF prt2_n FOR VALUES IN ('0000', '0003', '0004', '0010', '0006', '0007');
+CREATE TABLE prt2_n_p2 PARTITION OF prt2_n FOR VALUES IN ('0001', '0005', '0002', '0009', '0008', '0011');
+INSERT INTO prt2_n SELECT i, i, to_char(i/50, 'FM0000') FROM generate_series(0, 599, 2) i;
+ANALYZE prt2_n;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+CREATE TABLE prt3_n (a int, b int, c text) PARTITION BY LIST(c);
+CREATE TABLE prt3_n_p1 PARTITION OF prt3_n FOR VALUES IN ('0000', '0004', '0006', '0007');
+CREATE TABLE prt3_n_p2 PARTITION OF prt3_n FOR VALUES IN ('0001', '0002', '0008', '0010');
+CREATE TABLE prt3_n_p3 PARTITION OF prt3_n FOR VALUES IN ('0003', '0005', '0009', '0011');
+INSERT INTO prt2_n SELECT i, i, to_char(i/50, 'FM0000') FROM generate_series(0, 599, 2) i;
+ANALYZE prt3_n;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+CREATE TABLE prt4_n (a int, b int, c text) PARTITION BY RANGE(a);
+CREATE TABLE prt4_n_p1 PARTITION OF prt4_n FOR VALUES FROM (0) TO (300);
+CREATE TABLE prt4_n_p2 PARTITION OF prt4_n FOR VALUES FROM (300) TO (500);
+CREATE TABLE prt4_n_p3 PARTITION OF prt4_n FOR VALUES FROM (500) TO (600);
+INSERT INTO prt4_n SELECT i, i, to_char(i, 'FM0000') FROM generate_series(0, 599, 2) i;
+ANALYZE prt4_n;
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+WARNING:  analyzing non-temporary tables will be ignored
+-- partitionwise join can not be applied if the partition ranges differ
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1 t1, prt4_n t2 WHERE t1.a = t2.a;
+                  QUERY PLAN
+----------------------------------------------
+ Hash Join
+   Hash Cond: (t1.a = t2.a)
+   ->  Append
+         ->  Seq Scan on prt1_p1 t1
+         ->  Seq Scan on prt1_p2 t1_1
+         ->  Seq Scan on prt1_p3 t1_2
+   ->  Hash
+         ->  Append
+               ->  Seq Scan on prt4_n_p1 t2
+               ->  Seq Scan on prt4_n_p2 t2_1
+               ->  Seq Scan on prt4_n_p3 t2_2
+(11 rows)
+
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1 t1, prt4_n t2, prt2 t3 WHERE t1.a = t2.a and t1.a = t3.b;
+*/
+-- partitionwise join can not be applied if there are no equi-join conditions
+-- between partition keys
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1 t1 LEFT JOIN prt2 t2 ON (t1.a < t2.b);
+*/
+-- equi-join with join condition on partial keys does not qualify for
+-- partitionwise join
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1_m t1, prt2_m t2 WHERE t1.a = (t2.b + t2.a)/2;
+*/
+-- equi-join between out-of-order partition key columns does not qualify for
+-- partitionwise join
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1_m t1 LEFT JOIN prt2_m t2 ON t1.a = t2.b;
+                  QUERY PLAN
+----------------------------------------------
+ Hash Left Join
+   Hash Cond: (t1.a = t2.b)
+   ->  Append
+         ->  Seq Scan on prt1_m_p1 t1
+         ->  Seq Scan on prt1_m_p2 t1_1
+         ->  Seq Scan on prt1_m_p3 t1_2
+   ->  Hash
+         ->  Append
+               ->  Seq Scan on prt2_m_p1 t2
+               ->  Seq Scan on prt2_m_p2 t2_1
+               ->  Seq Scan on prt2_m_p3 t2_2
+(11 rows)
+
+-- equi-join between non-key columns does not qualify for partitionwise join
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1_m t1 LEFT JOIN prt2_m t2 ON t1.c = t2.c;
+                  QUERY PLAN
+----------------------------------------------
+ Hash Left Join
+   Hash Cond: (t1.c = t2.c)
+   ->  Append
+         ->  Seq Scan on prt1_m_p1 t1
+         ->  Seq Scan on prt1_m_p2 t1_1
+         ->  Seq Scan on prt1_m_p3 t1_2
+   ->  Hash
+         ->  Append
+               ->  Seq Scan on prt2_m_p1 t2
+               ->  Seq Scan on prt2_m_p2 t2_1
+               ->  Seq Scan on prt2_m_p3 t2_2
+(11 rows)
+
+-- partitionwise join can not be applied between tables with different
+-- partition lists
+/*
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1_n t1 LEFT JOIN prt2_n t2 ON (t1.c = t2.c);
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1_n t1 JOIN prt2_n t2 ON (t1.c = t2.c) JOIN plt1 t3 ON (t1.c = t3.c);
+*/
+-- partitionwise join can not be applied for a join between list and range
+-- partitioned table
+EXPLAIN (COSTS OFF)
+SELECT t1.a, t1.c, t2.b, t2.c FROM prt1_n t1 FULL JOIN prt1 t2 ON (t1.c = t2.c);
+                  QUERY PLAN
+----------------------------------------------
+ Hash Full Join
+   Hash Cond: ((t2.c)::text = (t1.c)::text)
+   ->  Append
+         ->  Seq Scan on prt1_p1 t2
+         ->  Seq Scan on prt1_p2 t2_1
+         ->  Seq Scan on prt1_p3 t2_2
+   ->  Hash
+         ->  Append
+               ->  Seq Scan on prt1_n_p1 t1
+               ->  Seq Scan on prt1_n_p2 t1_1
+(10 rows)
+

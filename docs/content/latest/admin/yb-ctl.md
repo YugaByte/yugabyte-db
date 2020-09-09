@@ -178,7 +178,7 @@ Default: `false`
 
 ##### --listen_ip
 
-Allows a 1-node RF1 cluster to listen on an address different than the default of `127.0.0.1`. For example, setting this to `0.0.0.0` enables the external access of the database APIs and admin UIs. This flag is not applicable to multi-node clusters.
+ Specifies the IP address, or port, for a 1-node cluster to listen on. To enable external access of the YugabyteDB APIs and administration ports, set the value to `0.0.0.0`. Note that this flag is not applicable to multi-node clusters.
 
 Default: `127.0.0.1`
 
@@ -315,11 +315,12 @@ $ ./bin/yb-ctl status
 ```
 
 Following is the output shown for a 3-node RF3 cluster.
+
 ```
 ----------------------------------------------------------------------------------------------------
 | Node Count: 3 | Replication Factor: 3                                                            |
 ----------------------------------------------------------------------------------------------------
-| JDBC                : jdbc:postgresql://127.0.0.1:5433/postgres                                  |
+| JDBC                : jdbc:postgresql://127.0.0.1:5433/yugabyte                                  |
 | YSQL Shell          : bin/ysqlsh                                                                 |
 | YCQL Shell          : bin/ycqlsh                                                                  |
 | YEDIS Shell         : bin/redis-cli                                                              |
@@ -329,7 +330,7 @@ Following is the output shown for a 3-node RF3 cluster.
 ----------------------------------------------------------------------------------------------------
 | Node 1: yb-tserver (pid 27389), yb-master (pid 27380)                                            |
 ----------------------------------------------------------------------------------------------------
-| JDBC                : jdbc:postgresql://127.0.0.1:5433/postgres                                  |
+| JDBC                : jdbc:postgresql://127.0.0.1:5433/yugabyte                                  |
 | YSQL Shell          : bin/ysqlsh                                                                 |
 | YCQL Shell          : bin/ycqlsh                                                                  |
 | YEDIS Shell         : bin/redis-cli                                                              |
@@ -340,7 +341,7 @@ Following is the output shown for a 3-node RF3 cluster.
 ----------------------------------------------------------------------------------------------------
 | Node 2: yb-tserver (pid 27392), yb-master (pid 27383)                                            |
 ----------------------------------------------------------------------------------------------------
-| JDBC                : jdbc:postgresql://127.0.0.2:5433/postgres                                  |
+| JDBC                : jdbc:postgresql://127.0.0.2:5433/yugabyte                                  |
 | YSQL Shell          : bin/ysqlsh -h 127.0.0.2                                                    |
 | YCQL Shell          : bin/ycqlsh 127.0.0.2                                                        |
 | YEDIS Shell         : bin/redis-cli -h 127.0.0.2                                                 |
@@ -351,7 +352,7 @@ Following is the output shown for a 3-node RF3 cluster.
 ----------------------------------------------------------------------------------------------------
 | Node 3: yb-tserver (pid 27395), yb-master (pid 27386)                                            |
 ----------------------------------------------------------------------------------------------------
-| JDBC                : jdbc:postgresql://127.0.0.3:5433/postgres                                  |
+| JDBC                : jdbc:postgresql://127.0.0.3:5433/yugabyte                                  |
 | YSQL Shell          : bin/ysqlsh -h 127.0.0.3                                                    |
 | YCQL Shell          : bin/ycqlsh 127.0.0.3                                                        |
 | YEDIS Shell         : bin/redis-cli -h 127.0.0.3                                                 |
@@ -359,7 +360,6 @@ Following is the output shown for a 3-node RF3 cluster.
 | yb-tserver Logs     : /Users/testuser12/yugabyte-data/node-3/disk-1/yb-data/tserver/logs         |
 | yb-master Logs      : /Users/testuser12/yugabyte-data/node-3/disk-1/yb-data/master/logs          |
 ----------------------------------------------------------------------------------------------------
-
 ```
 
 ## Start and stop an existing cluster
@@ -417,7 +417,6 @@ You can test the failure of a node in a 3-node RF3 cluster by killing 1 instance
 
 The command `./bin/yb-ctl start_node 3` will start yb-tserver3. However, it will throw an error even though the command will succeed. This is because there are only 2 yb-masters present in the cluster at this point. This is not an error in the cluster configuration but rather a warning to highlight that the cluster is under-replicated and does not have enough yb-masters to ensure continued fault tolerance. Following [GitHub issue](https://github.com/yugabyte/yugabyte-db/issues/4156) tracks the work to convert this error into a user-friendly warning.
 
-
 ## Initialize the YEDIS API
 
 The `setup_redis` command to initialize YugabyteDB's Redis-compatible YEDIS API.
@@ -444,7 +443,7 @@ You can pass the placement information for nodes in a cluster from the command l
 $ ./bin/yb-ctl --rf 3 create --placement_info "cloud1.region1.zone1,cloud2.region2.zone2"
 ```
 
-The total number of placement information entries cannot be more than the replication factor (this is because we would not be able to satisfy the data placement constraints for this replication factor). If the total number of placement information entries is lesser than the replication factor, the placement information is passed down to the node in a round robin approach.
+The total number of placement information entries cannot be more than the replication factor (this is because you would not be able to satisfy the data placement constraints for this replication factor). If the total number of placement information entries is lesser than the replication factor, the placement information is passed down to the node in a round robin approach.
 
 To add a node:
 
@@ -452,9 +451,9 @@ To add a node:
 $ ./bin/yb-ctl add_node --placement_info "cloud1.region1.zone1"
 ```
 
-### Create a cluster with custom flags
+### Create a local cluster with custom flags
 
-You can also pass custom flags to the YB-Master and YB-TServer servers.
+When you use `yb-ctl`, you can pass "custom" flags (flags unavailable directly in `yb-ctl`) to the YB-Master and YB-TServer servers.
 
 ```sh
 $ ./bin/yb-ctl --rf 1 create --master_flags "log_cache_size_limit_mb=128,log_min_seconds_to_retain=20,master_backup_svc_queue_length=70" --tserver_flags "log_inject_latency=false,log_segment_size_mb=128,raft_heartbeat_interval_ms=1000"

@@ -413,19 +413,22 @@ SELECT * FROM pg_policies WHERE schemaname = 'regress_rls_schema' AND tablename 
 -- viewpoint from regress_rls_bob
 SET SESSION AUTHORIZATION regress_rls_bob;
 SET row_security TO ON;
-SELECT * FROM part_document WHERE f_leak(dtitle) ORDER BY did;
+SELECT * FROM part_document WHERE f_leak(text(cid)) ORDER BY did;
+/*
 EXPLAIN (COSTS OFF) SELECT * FROM part_document WHERE f_leak(dtitle);
-
+*/
 -- viewpoint from regress_rls_carol
 SET SESSION AUTHORIZATION regress_rls_carol;
-SELECT * FROM part_document WHERE f_leak(dtitle) ORDER BY did;
+SELECT * FROM part_document WHERE f_leak(text(cid)) ORDER BY did;
+/*
 EXPLAIN (COSTS OFF) SELECT * FROM part_document WHERE f_leak(dtitle);
-
+*/
 -- viewpoint from regress_rls_dave
 SET SESSION AUTHORIZATION regress_rls_dave;
-SELECT * FROM part_document WHERE f_leak(dtitle) ORDER BY did;
+SELECT * FROM part_document WHERE f_leak(text(cid)) ORDER BY did;
+/*
 EXPLAIN (COSTS OFF) SELECT * FROM part_document WHERE f_leak(dtitle);
-
+*/
 -- pp1 ERROR
 INSERT INTO part_document VALUES (100, 11, 5, 'regress_rls_dave', 'testing pp1'); -- fail
 -- pp1r ERROR
@@ -437,9 +440,9 @@ INSERT INTO part_document VALUES (100, 55, 1, 'regress_rls_dave', 'testing RLS w
 -- But this should succeed.
 INSERT INTO part_document_satire VALUES (100, 55, 1, 'regress_rls_dave', 'testing RLS with partitions'); -- success
 -- We still cannot see the row using the parent
-SELECT * FROM part_document WHERE f_leak(dtitle) ORDER BY did;
+SELECT * FROM part_document WHERE f_leak(text(cid)) ORDER BY did;
 -- But we can if we look directly
-SELECT * FROM part_document_satire WHERE f_leak(dtitle) ORDER BY did;
+SELECT * FROM part_document_satire WHERE f_leak(text(cid)) ORDER BY did;
 
 -- Turn on RLS and create policy on child to show RLS is checked before constraints
 SET SESSION AUTHORIZATION regress_rls_alice;
@@ -453,12 +456,12 @@ INSERT INTO part_document_satire VALUES (101, 55, 1, 'regress_rls_dave', 'testin
 SELECT * FROM part_document_satire WHERE f_leak(dtitle) ORDER BY did;
 -- The parent looks same as before
 -- viewpoint from regress_rls_dave
-SELECT * FROM part_document WHERE f_leak(dtitle) ORDER BY did;
+SELECT * FROM part_document WHERE f_leak(text(cid)) ORDER BY did;
 EXPLAIN (COSTS OFF) SELECT * FROM part_document WHERE f_leak(dtitle);
 
 -- viewpoint from regress_rls_carol
 SET SESSION AUTHORIZATION regress_rls_carol;
-SELECT * FROM part_document WHERE f_leak(dtitle) ORDER BY did;
+SELECT * FROM part_document WHERE f_leak(text(cid)) ORDER BY did;
 EXPLAIN (COSTS OFF) SELECT * FROM part_document WHERE f_leak(dtitle);
 
 -- only owner can change policies
@@ -470,11 +473,11 @@ ALTER POLICY pp1 ON part_document USING (dauthor = current_user);
 
 -- viewpoint from regress_rls_bob again
 SET SESSION AUTHORIZATION regress_rls_bob;
-SELECT * FROM part_document WHERE f_leak(dtitle) ORDER BY did;
+SELECT * FROM part_document WHERE f_leak(text(cid)) ORDER BY did;
 
 -- viewpoint from rls_regres_carol again
 SET SESSION AUTHORIZATION regress_rls_carol;
-SELECT * FROM part_document WHERE f_leak(dtitle) ORDER BY did;
+SELECT * FROM part_document WHERE f_leak(text(cid)) ORDER BY did;
 
 EXPLAIN (COSTS OFF) SELECT * FROM part_document WHERE f_leak(dtitle);
 

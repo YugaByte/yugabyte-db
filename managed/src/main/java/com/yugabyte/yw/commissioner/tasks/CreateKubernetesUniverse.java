@@ -69,7 +69,7 @@ public class CreateKubernetesUniverse extends KubernetesTaskBase {
       KubernetesPlacement placement = new KubernetesPlacement(pi);
 
       String masterAddresses = PlacementInfoUtil.computeMasterAddresses(pi, placement.masters,
-          taskParams().nodePrefix, provider);
+          taskParams().nodePrefix, provider, taskParams().communicationPorts.masterRpcPort);
 
       boolean isMultiAz = PlacementInfoUtil.isMultiAZ(provider);
 

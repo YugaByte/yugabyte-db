@@ -156,7 +156,7 @@ yugabyte=# SELECT id, c1, c2 FROM sample ORDER BY id;
   3 | monkey | thrush
 ```
 
-Demonstrate "on conflict do nothing". In this case, we don't need to specify the conflict target.
+Demonstrate "on conflict do nothing". In this case, you don't need to specify the conflict target.
 
 ```postgresql
 yugabyte=# INSERT INTO sample(id, c1, c2)
@@ -182,7 +182,7 @@ yugabyte=# SELECT id, c1, c2 FROM sample ORDER BY id;
   4 | cow    | robin
 ```
 
-Demonstrate the real "upsert". In this case, we DO need to specify the conflict target. Notice the use of the
+Demonstrate the real "upsert". In this case, you DO need to specify the conflict target. Notice the use of the
 EXCLUDED keyword to specify the conflicting rows in the to-be-upserted relation.
 
 ```postgresql
@@ -214,7 +214,7 @@ yugabyte=# SELECT id, c1, c2 FROM sample ORDER BY id;
 We can make the "update" happen only for a specified subset of the
 excluded rows. We illustrate this by attempting to insert two conflicting rows
 (with id = 4 and id = 5) and one non-conflicting row (with id = 6).
-And we specify that the existing row with c1 = 'tiger' should not be updated
+And you specify that the existing row with c1 = 'tiger' should not be updated
 with "WHERE sample.c1 <> 'tiger'".
 
 ```postgresql
@@ -290,11 +290,11 @@ yugabyte=# SELECT id, c1, c2 FROM sample ORDER BY c1;
   4 | horse | vulture
 ```
 
-Now do the upsert. Notice that we illustrate the usefulness
+Now do the upsert. Notice that this illustrates the usefulness
 of the WITH clause to define the to-be-upserted relation
 before the INSERT clause and use a subselect instead of
-a VALUES clause. We also specify the conflict column(s)
-indirectly by mentioniing the name of the unique constrained
+a VALUES clause. We also specify the conflict columns
+indirectly by mentioning the name of the unique constrained
 that covers them.
 
 ```postgresql

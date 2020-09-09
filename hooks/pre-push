@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+
+import sys
+
+def run_pre_push_hook(remote_loc, remote_ref):
+    has_github = "github.com" in remote_loc.lower()
+    has_yb_repo = "yugabyte/yugabyte-db" in remote_loc.lower()
+    is_master_push = remote_ref == "refs/heads/master"
+
+    if has_github and has_yb_repo and not is_master_push:
+        sys.stderr.write(
+            "Cannot push any branch except master to yugabyte/yugabyte-db repo, "
+            "which should only be done when running arc land.")
+        return 1
+    return 0
+
+if __name__ == "__main__":
+    [remote_name, remote_loc] = sys.argv[1], sys.argv[2]
+    [local_ref, local_sha1, remote_ref, remote_sha1] = sys.stdin.read().split()
+    sys.exit(run_pre_push_hook(remote_loc, remote_ref))

@@ -20,13 +20,13 @@ showAsideToc: true
 
 <ul class="nav nav-tabs-alt nav-tabs-yb">
   <li>
-    <a href="/latest/deploy/docker/docker-compose" class="nav-link">
+    <a href="{{< relref "./docker-compose.md" >}}" class="nav-link">
       <i class="fab fa-docker" aria-hidden="true"></i>
       Docker Compose
     </a>
   </li>
   <li >
-    <a href="/latest/deploy/docker/docker-swarm" class="nav-link active">
+    <a href="{{< relref "./docker-swarm.md" >}}" class="nav-link active">
       <i class="fas fa-layer-group"></i>
       Docker Swarm
     </a>
@@ -150,7 +150,7 @@ $ docker network create --driver overlay --attachable yugabytedb
 
 ## 3. Create yb-master services
 
-- Create 3 YB-Master [`replicated`](https://docs.docker.com/engine/swarm/how-swarm-mode-works/services/) services each with replicas set to 1. This is the [only way](https://github.com/moby/moby/issues/30963) in Docker Swarm today to get stable network identities for each of the YB-Master containers that we will need to provide as input for creating the YB-TServer service in the next step.
+- Create 3 YB-Master [`replicated`](https://docs.docker.com/engine/swarm/how-swarm-mode-works/services/) services each with replicas set to 1. This is the [only way](https://github.com/moby/moby/issues/30963) in Docker Swarm today to get stable network identities for each of the YB-Master containers that you will need to provide as input for creating the YB-TServer service in the next step.
 
 {{< note title="Note for Kubernetes users" >}}
 
@@ -214,11 +214,11 @@ kqp6eju3kq88        yb-master2          replicated          1/1                 
 ah6wfodd4noh        yb-master3          replicated          1/1                 yugabytedb/yugabyte:latest
 ```
 
-- View the yb-master Admin UI by going to the port 7000 of any node, courtesy of the publish option used when yb-master1 was created. For example, we can see from Step 1 that worker2's IP address is `192.168.99.101`. So, `http://192.168.99.101:7000` takes us to the yb-master Admin UI.
+- View the yb-master Admin UI by going to the port 7000 of any node, courtesy of the publish option used when yb-master1 was created. For example, you can see from Step 1 that worker2's IP address is `192.168.99.101`. So, `http://192.168.99.101:7000` takes us to the yb-master Admin UI.
 
 ## 4. Create yb-tserver service
 
-- Create a single yb-tserver [`global`](https://docs.docker.com/engine/swarm/how-swarm-mode-works/services/) service so that swarm can then automatically spawn 1 container/task on each worker node. Each time we add a node to the swarm, the swarm orchestrator creates a task and the scheduler assigns the task to the new node.
+- Create a single yb-tserver [`global`](https://docs.docker.com/engine/swarm/how-swarm-mode-works/services/) service so that swarm can then automatically spawn 1 container/task on each worker node. Each time you add a node to the swarm, the swarm orchestrator creates a task and the scheduler assigns the task to the new node.
 
 {{< note title="Note for Kubernetes Users" >}}
 The global services concept in Docker Swarm is similar to [Kubernetes DaemonSets](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/).
@@ -230,7 +230,7 @@ $ docker service create \
 --name yb-tserver \
 --network yugabytedb \
 --mount type=volume,source=yb-tserver,target=/mnt/data0 \
---publish 9000:9000 \
+--publish 9000:9000 --publish 5433:5433 --publish 9042:9042 \
 yugabytedb/yugabyte:latest /home/yugabyte/bin/yb-tserver \
 --fs_data_dirs=/mnt/data0 \
 --rpc_bind_addresses=0.0.0.0:9100 \
@@ -255,7 +255,7 @@ ah6wfodd4noh        yb-master3          replicated          1/1                 
 n6padh2oqjk7        yb-tserver          global              3/3                 yugabytedb/yugabyte:latest   *:9000->9000/tcp
 ```
 
-- Now we can go to `http://192.168.99.101:9000` to see the yb-tserver admin UI.
+- Now you can go to `http://192.168.99.101:9000` to see the yb-tserver admin UI.
 
 ## 5. Test the APIs
 

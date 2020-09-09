@@ -25,6 +25,9 @@ struct IndexPath;
 /* Likewise, this file shouldn't depend on execnodes.h. */
 struct IndexInfo;
 
+/* Likewise, this file shouldn't depend on parsenodes.h */
+struct RowBounds;
+
 
 /*
  * Properties for amproperty API.  This list covers properties known to the
@@ -92,6 +95,13 @@ typedef void (*yb_amdelete_function) (Relation indexRelation,
 									  Datum ybctid,
 									  Relation heapRelation,
 									  struct IndexInfo *indexInfo);
+
+/* backfill this Yugabyte-based index */
+typedef IndexBuildResult *(*yb_ambackfill_function) (Relation heapRelation,
+													 Relation indexRelation,
+													 struct IndexInfo *indexInfo,
+													 uint64_t *read_time,
+													 struct RowBounds *row_bounds);
 
 /* bulk delete */
 typedef IndexBulkDeleteResult *(*ambulkdelete_function) (IndexVacuumInfo *info,
@@ -244,8 +254,10 @@ typedef struct IndexAmRoutine
 	aminitparallelscan_function aminitparallelscan; /* can be NULL */
 	amparallelrescan_function amparallelrescan; /* can be NULL */
 
+	/* interface functions to support Yugabyte indexes */
 	yb_aminsert_function yb_aminsert;
 	yb_amdelete_function yb_amdelete;
+	yb_ambackfill_function yb_ambackfill;
 
 } IndexAmRoutine;
 

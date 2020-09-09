@@ -48,6 +48,7 @@
 
 #include "yb/util/concurrent_pod.h"
 #include "yb/util/monotime.h"
+#include "yb/util/net/net_fwd.h"
 #include "yb/util/net/net_util.h"
 #include "yb/util/net/sockaddr.h"
 #include "yb/util/status.h"
@@ -79,9 +80,11 @@ class ProxyContext {
 
   virtual const Protocol* DefaultProtocol() = 0;
 
-  virtual ThreadPool& CallbackThreadPool() = 0;
+  virtual ThreadPool& CallbackThreadPool(ServicePriority priority = ServicePriority::kNormal) = 0;
 
   virtual IoService& io_service() = 0;
+
+  virtual DnsResolver& resolver() = 0;
 
   virtual RpcMetrics& rpc_metrics() = 0;
 
@@ -161,10 +164,9 @@ class Proxy {
   bool IsServiceLocal() const { return call_local_service_; }
 
  private:
-  typedef boost::asio::ip::tcp::resolver Resolver;
   void Resolve();
-  void HandleResolve(const boost::system::error_code& ec, const Resolver::results_type& entries);
-  void ResolveDone(const boost::system::error_code& ec, const Resolver::results_type& entries);
+  void HandleResolve(const Result<IpAddress>& result);
+  void ResolveDone(const Result<IpAddress>& result);
   void NotifyAllFailed(const Status& status);
   void QueueCall(RpcController* controller, const Endpoint& endpoint);
   ThreadPool *GetCallbackThreadPool(

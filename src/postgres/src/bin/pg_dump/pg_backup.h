@@ -130,6 +130,7 @@ typedef struct _dumpOptions
 	const char *dbname;			/* subject to expand_dbname */
 	const char *pghost;
 	const char *pgport;
+	const char *master_hosts;		/* YB Master hosts */
 	const char *username;
 	bool		oids;
 
@@ -160,6 +161,8 @@ typedef struct _dumpOptions
 	int			use_setsessauth;
 	int			enable_row_security;
 	int			load_via_partition_root;
+	int			include_yb_metadata;	/* In this mode DDL statements include YB specific
+										 * metadata such as tablet partitions. */
 
 	/* default, if no "inclusion" switches appear, is to dump everything */
 	bool		include_everything;
@@ -172,6 +175,8 @@ typedef struct _dumpOptions
 	char	   *outputSuperuser;
 
 	int			sequence_data;	/* dump sequence data even in schema-only mode */
+
+	Oid			db_oid;			/* initiated only if include-yb-metadata flag is set */
 } DumpOptions;
 
 /*

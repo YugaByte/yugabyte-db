@@ -7,7 +7,6 @@ import com.yugabyte.yw.common.ApiUtils;
 import com.yugabyte.yw.common.ModelFactory;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.h2.jdbc.JdbcSQLException;
 import org.junit.Test;
 import org.mindrot.jbcrypt.BCrypt;
 import play.libs.Json;

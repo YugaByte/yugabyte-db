@@ -1473,7 +1473,7 @@ testdb=> \d my_table
  second | text    |           |          | 
 ```
 
-Now we change the prompt to something more interesting:
+Now you change the prompt to something more interesting:
 
 ```postgresql
 testdb=> \set PROMPT1 '%n@%m %~%R%# '

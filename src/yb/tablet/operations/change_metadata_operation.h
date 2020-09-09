@@ -55,14 +55,16 @@ class TabletPeer;
 
 // Operation Context for the AlterSchema operation.
 // Keeps track of the Operation states (request, result, ...)
-class ChangeMetadataOperationState : public OperationStateBase<tserver::ChangeMetadataRequestPB> {
+class ChangeMetadataOperationState :
+    public ExclusiveSchemaOperationState<tserver::ChangeMetadataRequestPB> {
  public:
   ~ChangeMetadataOperationState() {
   }
 
-  ChangeMetadataOperationState(
-      Tablet* tablet, log::Log* log, const tserver::ChangeMetadataRequestPB* request = nullptr)
-      : OperationStateBase(tablet, request), log_(log) {}
+  ChangeMetadataOperationState(Tablet* tablet, log::Log* log,
+                            const tserver::ChangeMetadataRequestPB* request = nullptr)
+      : ExclusiveSchemaOperationState(tablet, request), log_(log) {
+  }
 
   explicit ChangeMetadataOperationState(const tserver::ChangeMetadataRequestPB* request)
       : ChangeMetadataOperationState(nullptr, nullptr, request) {
@@ -99,17 +101,12 @@ class ChangeMetadataOperationState : public OperationStateBase<tserver::ChangeMe
     return request()->has_wal_retention_secs();
   }
 
-  void AcquireSchemaLock(rw_semaphore* l);
+  bool has_table_id() const {
+    return request()->has_alter_table_id();
+  }
 
-  // Release the acquired schema lock.
-  // Crashes if the lock was not already acquired.
-  void ReleaseSchemaLock();
-
-  // Note: request_ is set to NULL after this method returns.
-  void Finish() {
-    // Make the request NULL since after this transaction commits
-    // the request may be deleted at any moment.
-    UseRequest(nullptr);
+  const std::string& table_id() const {
+    return request()->alter_table_id();
   }
 
   log::Log* log() const { return log_; }
@@ -126,12 +123,6 @@ class ChangeMetadataOperationState : public OperationStateBase<tserver::ChangeMe
 
   // Lookup map for the associated indexes.
   IndexMap index_map_;
-
-  // The original RPC request and response.
-  std::atomic<const tserver::ChangeMetadataRequestPB*> request_;
-
-  // The lock held on the tablet's schema_lock_.
-  std::unique_lock<rw_semaphore> schema_lock_;
 
   DISALLOW_COPY_AND_ASSIGN(ChangeMetadataOperationState);
 };

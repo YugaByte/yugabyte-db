@@ -87,10 +87,11 @@ readonly YB_JENKINS_NFS_HOME_DIR=/n/jenkins
 
 # In our NFS environment, we keep Linuxbrew builds in this directory.
 readonly SHARED_LINUXBREW_BUILDS_DIR="$YB_JENKINS_NFS_HOME_DIR/linuxbrew"
-readonly SHARED_CUSTOM_HOMEBREW_BUILDS_DIR="$YB_JENKINS_NFS_HOME_DIR/homebrew"
 # Locally cached copies
-readonly LOCAL_THIRDPARTY_DIRS="/opt/yb-build/thirdparty"
-readonly LOCAL_LINUXBREW_DIRS="/opt/yb-build/brew"
+readonly YB_BUILD_DIR="/opt/yb-build"
+readonly LOCAL_THIRDPARTY_DIRS="$YB_BUILD_DIR/thirdparty"
+readonly LOCAL_LINUXBREW_DIRS="$YB_BUILD_DIR/brew"
+readonly LOCAL_DOWNLOAD_DIR="${LOCAL_DOWNLOAD_DIR:-$YB_BUILD_DIR/download_cache}"
 
 # The assumed number of cores per build worker. This is used in the default make parallelism level
 # calculation in yb_build.sh. This does not have to be the exact number of cores per worker, but
@@ -192,9 +193,16 @@ readonly -a MVN_OPTS_TO_DOWNLOAD_ALL_DEPS=(
 )
 
 if is_mac; then
-  readonly FLOCK="/usr/local/bin/flock"
+  if [[ -x /usr/local/bin/flock ]]; then
+    readonly FLOCK="/usr/local/bin/flock"
+    readonly FLOCK_MSG="File locked"
+  else
+    readonly FLOCK="/usr/bin/true"
+    readonly FLOCK_MSG="Skipped file lock"
+  fi
 else
   readonly FLOCK="/usr/bin/flock"
+  readonly FLOCK_MSG="File locked"
 fi
 
 readonly DELAY_ON_BUILD_WORKERS_LIST_HTTP_ERROR_SEC=0.5
@@ -206,11 +214,8 @@ readonly YB_VIRTUALENV_BASENAME=venv
 # Global variables
 # -------------------------------------------------------------------------------------------------
 
-use_nfs_shared_thirdparty=false
-no_nfs_shared_thirdparty=false
-
-# This is needed so we can ignore thirdparty_path.txt, linuxbrew_path.txt, and
-# custom_homebrew_path.txt in the build directory and not pick up old paths from those files in
+# This is needed so we can ignore thirdparty_path.txt and linuxbrew_path.txt
+# in the build directory and not pick up old paths from those files in
 # a clean build.
 is_clean_build=false
 
@@ -228,11 +233,6 @@ fi
 yb_linuxbrew_dir_where_from=""
 if [[ -n ${YB_LINUXBREW_DIR:-} ]]; then
   yb_linuxbrew_dir_where_from=" (from environment)"
-fi
-
-yb_custom_homebrew_dir_where_from=""
-if [[ -n ${YB_CUSTOM_HOMEBREW_DIR:-} ]]; then
-  yb_custom_homebrew_dir_where_from=" (from environment)"
 fi
 
 # To deduplicate Maven arguments
@@ -1052,15 +1052,16 @@ download_and_extract_archive() {
       (
         "$FLOCK" -w "$YB_DOWNLOAD_LOCK_TIMEOUT_SEC" 200
         if [[ ! -d $dest_dir && ! -L $dest_dir ]]; then
-          log "[Host $(hostname)] Acquired lock $lock_path, proceeding with archive installation."
+          log "[Host $(hostname)] $FLOCK_MSG $lock_path, proceeding with archive installation."
           (
             set -x
             "$YB_SRC_ROOT/python/yb/download_and_extract_archive.py" \
-              --url "$url" --dest-dir-parent "$dest_dir_parent"
+              --url "$url" \
+              --dest-dir-parent "$dest_dir_parent" \
+              --local-cache-dir "$LOCAL_DOWNLOAD_DIR"
           )
         else
-          log "[Host $(hostname)] Acquired lock $lock_path but directory $dest_dir already" \
-              "exists. This is OK."
+          log "[Host $(hostname)] $FLOCK_MSG $lock_path but directory $dest_dir already exists."
         fi
       ) 200>"$lock_path"
     )
@@ -1069,6 +1070,17 @@ download_and_extract_archive() {
 }
 
 download_thirdparty() {
+  if [[ ! -w $YB_BUILD_DIR ]]; then
+    echo >&2 "
+  ERROR:  Cannot download pre-built thirdparty dependencies.
+          Due to embedded paths, they must be installed under: $YB_BUILD_DIR
+
+          Option 1) To enable downloading: sudo mkdir -m 777 $YB_BUILD_DIR
+
+          Option 2) To build dependencies from source, use build option --ndltp
+    "
+    fatal "Cannot download pre-built thirdparty dependencies."
+  fi
   download_and_extract_archive "$YB_THIRDPARTY_URL" "$LOCAL_THIRDPARTY_DIRS"
   if [[ -n ${YB_THIRDPARTY_DIR:-} &&
         $YB_THIRDPARTY_DIR != "$extracted_dir" ]]; then
@@ -1080,6 +1092,9 @@ download_thirdparty() {
   yb_thirdparty_dir_where_from=" (downloaded from $YB_THIRDPARTY_URL)"
   save_thirdparty_info_to_build_dir
 
+  if ! is_centos; then
+    return
+  fi
   # Read a linuxbrew_url.txt file in the third-party directory that we downloaded, and follow that
   # link to download and install the appropriate Linuxbrew package.
   local linuxbrew_url_path=$YB_THIRDPARTY_DIR/linuxbrew_url.txt
@@ -1106,15 +1121,14 @@ download_thirdparty() {
 # -------------------------------------------------------------------------------------------------
 
 detect_brew() {
+  if [[ ${YB_DISABLE_LINUXBREW:-0} == "1" ]]; then
+    return
+  fi
   if is_ubuntu; then
     return
   fi
   if is_linux; then
     detect_linuxbrew
-  elif is_mac; then
-    detect_custom_homebrew
-  else
-    log "Not a Linux or a macOS platform, the detect_brew function is a no-op."
   fi
 }
 
@@ -1189,9 +1203,6 @@ wait_for_directory_existence() {
 save_brew_path_to_build_dir() {
   if is_linux; then
     save_var_to_file_in_build_dir "${YB_LINUXBREW_DIR:-}" "linuxbrew_path.txt"
-  fi
-  if is_mac; then
-    save_var_to_file_in_build_dir "${YB_CUSTOM_HOMEBREW_DIR:-}" "custom_homebrew_path.txt"
   fi
 }
 
@@ -1284,92 +1295,11 @@ detect_linuxbrew() {
   fi
 }
 
-# -------------------------------------------------------------------------------------------------
-# Similar to detect_linuxbrew, but for macOS.
-# This function was created by copying detect_linuxbrew and replacing Linuxbrew with Homebrew
-# in a few places. This was done to avoid destabilizing the Linux environment. Rather than
-# refactoring detect_custom_homebrew and detect_linuxbrew functions to extract common parts, we will
-# leave that until our whole build environment framework is rewritten in Python.
-# Mikhail Bautin, 11/14/2018
-# -------------------------------------------------------------------------------------------------
-detect_custom_homebrew() {
-  if ! is_mac; then
-    fatal "Expected this function to only be called on macOS"
-  fi
-  if [[ -n ${YB_CUSTOM_HOMEBREW_DIR:-} ]]; then
-    export YB_CUSTOM_HOMEBREW_DIR
-    return
-  fi
-  if ! "$is_clean_build" && [[ -n ${BUILD_ROOT:-} && -f $BUILD_ROOT/custom_homebrew_path.txt ]]
-  then
-    YB_CUSTOM_HOMEBREW_DIR=$(<"$BUILD_ROOT/custom_homebrew_path.txt")
-    export YB_CUSTOM_HOMEBREW_DIR
-    yb_custom_homebrew_dir_where_from=" (from file '$BUILD_ROOT/custom_homebrew_path.txt')"
-    return
-  fi
-
-  local candidates=(
-    "$HOME/.homebrew-yb-build"
-  )
-
-  local version_for_jenkins_file=$YB_SRC_ROOT/build-support/homebrew_version_for_jenkins.txt
-  if [[ -f $version_for_jenkins_file ]]; then
-    local version_for_jenkins
-    version_for_jenkins=$( read_file_and_trim "$version_for_jenkins_file" )
-    preferred_homebrew_dir="$SHARED_CUSTOM_HOMEBREW_BUILDS_DIR/homebrew_$version_for_jenkins"
-    if [[ -d $preferred_homebrew_dir ]]; then
-      if is_jenkins_user; then
-        # If we're running on Jenkins (or building something for consumption by Jenkins under the
-        # "jenkins" user), then the "Homebrew for Jenkins" directory takes precedence.
-        candidates=( "$preferred_homebrew_dir" "${candidates[@]}" )
-      else
-        # Otherwise, the user's local Homebrew build takes precedence.
-        candidates=( "${candidates[@]}" "$preferred_homebrew_dir" )
-      fi
-    elif is_jenkins; then
-      if is_src_root_on_nfs; then
-        wait_for_directory_existence "$preferred_homebrew_dir"
-      else
-        yb_fatal_exit_code=$YB_EXIT_CODE_NO_SUCH_FILE_OR_DIRECTORY
-        fatal "Warning: Homebrew directory referenced by '$version_for_jenkins_file' does not" \
-              "exist: '$preferred_homebrew_dir', refusing to proceed to prevent " \
-              "non-deterministic builds."
-      fi
-    fi
-  elif is_jenkins; then
-    log "Warning: '$version_for_jenkins_file' does not exist"
-  fi
-
-  local homebrew_dir
-  for homebrew_dir in "${candidates[@]}"; do
-    if [[ -d "$homebrew_dir" &&
-          -d "$homebrew_dir/bin" &&
-          -d "$homebrew_dir/lib" &&
-          -d "$homebrew_dir/include" ]]; then
-      export YB_CUSTOM_HOMEBREW_DIR=$homebrew_dir
-      yb_custom_homebrew_dir_where_from=" (from file '$version_for_jenkins_file')"
-      save_brew_path_to_build_dir
-      break
-    fi
-  done
-}
-# -------------------------------------------------------------------------------------------------
-# End of the detect_custom_homebrew that was created with by copying/pasting and editing
-# the detect_linuxbrew function.
-# -------------------------------------------------------------------------------------------------
-
 using_linuxbrew() {
   if is_linux && [[ -n ${YB_LINUXBREW_DIR:-} ]]; then
     return 0  # true in bash
   fi
   return 1
-}
-
-using_custom_homebrew() {
-  if is_mac && [[ -n ${YB_CUSTOM_HOMEBREW_DIR:-} ]]; then
-    return 0  # true in bash
-  fi
-  return 1  # false in bash
 }
 
 decide_whether_to_use_ninja() {
@@ -1387,11 +1317,6 @@ decide_whether_to_use_ninja() {
       if [[ -x $yb_ninja_path_candidate ]]; then
         export YB_USE_NINJA=1
       fi
-    elif using_custom_homebrew; then
-      local yb_ninja_path_candidate=$YB_CUSTOM_HOMEBREW_DIR/bin/ninja
-      if [[ -x $yb_ninja_path_candidate ]]; then
-        export YB_USE_NINJA=1
-      fi
     fi
   fi
 
@@ -1402,16 +1327,6 @@ find_ninja_executable() {
   if ! using_ninja || [[ -n ${YB_NINJA_PATH:-} ]] ||
      [[ ${yb_ninja_executable_not_needed:-} == "true" ]]; then
     return
-  fi
-
-  if using_custom_homebrew; then
-    # On macOS, prefer to use Ninja from the custom Homebrew directory. That will change as we move
-    # away from Homebrew and Linuxbrew.
-    local yb_ninja_path_candidate=$YB_CUSTOM_HOMEBREW_DIR/bin/ninja
-    if [[ -x $yb_ninja_path_candidate ]]; then
-      export YB_NINJA_PATH=$yb_ninja_path_candidate
-      return
-    fi
   fi
 
   if [[ -x /usr/local/bin/ninja ]]; then
@@ -1447,9 +1362,6 @@ find_ninja_executable() {
   if is_linux; then
     log "YB_LINUXBREW_DIR: ${YB_LINUXBREW_DIR:-undefined}"
   fi
-  if is_mac; then
-    log "YB_CUSTOM_HOMEBREW_DIR: ${YB_CUSTOM_HOMEBREW_DIR:-undefined}"
-  fi
 
   fatal "ninja executable not found"
 }
@@ -1467,10 +1379,6 @@ add_brew_bin_to_path() {
     # We need to add Linuxbrew's bin directory to PATH so that we can find the right compiler and
     # linker.
     put_path_entry_first "$YB_LINUXBREW_DIR/bin"
-  fi
-  if using_custom_homebrew; then
-    # The same for a custom Homebrew installation on macOS.
-    put_path_entry_first "$YB_CUSTOM_HOMEBREW_DIR/bin"
   fi
 }
 
@@ -1741,39 +1649,6 @@ using_default_thirdparty_dir() {
   return 0
 }
 
-find_shared_thirdparty_dir() {
-  local parent_dir_for_shared_thirdparty=$NFS_PARENT_DIR_FOR_SHARED_THIRDPARTY
-  if [[ ! -d $parent_dir_for_shared_thirdparty ]]; then
-    log "Parent directory for shared third-party directories" \
-        "('$NFS_PARENT_DIR_FOR_SHARED_THIRDPARTY') does not exist, cannot use pre-built" \
-        "third-party directory from there."
-    return
-  fi
-
-  local shared_thirdparty_path_file="$YB_BUILD_SUPPORT_DIR/"
-  shared_thirdparty_path_file+="shared_thirdparty_version_for_jenkins_${short_os_name}.txt"
-  local version
-  version=$(<"$shared_thirdparty_path_file")
-  local thirdparty_dir_suffix="yugabyte-thirdparty-${version}/thirdparty"
-  local existing_thirdparty_dir="${parent_dir_for_shared_thirdparty}/${thirdparty_dir_suffix}"
-  if [[ -d $existing_thirdparty_dir ]]; then
-    log "Using existing third-party dependencies from $existing_thirdparty_dir"
-    if is_jenkins; then
-      log "Cleaning the old dedicated third-party dependency build in '$YB_SRC_ROOT/thirdparty'"
-      unset YB_THIRDPARTY_DIR
-      if ! ( set -x; "$YB_SRC_ROOT/thirdparty/clean_thirdparty.sh" --all ); then
-        log "Failed to clean the old third-party directory. Ignoring this error."
-      fi
-    fi
-    export YB_THIRDPARTY_DIR=$existing_thirdparty_dir
-    export NO_REBUILD_THIRDPARTY=1
-    yb_thirdparty_dir_where_from=" (from file '$shared_thirdparty_path_file')"
-    return
-  fi
-
-  fatal "Could not find NFS-shared third-party directory: '$existing_thirdparty_dir'"
-}
-
 find_or_download_thirdparty() {
   if [[ ${YB_IS_THIRDPARTY_BUILD:-} == "1" ]]; then
     return
@@ -1828,13 +1703,6 @@ find_or_download_thirdparty() {
     if using_linuxbrew; then
       log "Using Linuxbrew directory: $YB_LINUXBREW_DIR"
     fi
-  elif ( [[ -f $YB_SRC_ROOT/thirdparty/.yb_thirdparty_do_not_use ]] ||
-         "$use_nfs_shared_thirdparty" ||
-         is_jenkins_user  ||
-         using_remote_compilation ) &&
-       ! "$no_nfs_shared_thirdparty"
-  then
-    find_shared_thirdparty_dir
   fi
 
   if [[ -z ${YB_THIRDPARTY_DIR:-} ]]; then
@@ -1850,9 +1718,6 @@ log_thirdparty_and_toolchain_details() {
     echo "    YB_THIRDPARTY_DIR: ${YB_THIRDPARTY_DIR:-undefined}$yb_thirdparty_dir_where_from"
     if is_linux && [[ -n ${YB_LINUXBREW_DIR:-} ]]; then
       echo "    YB_LINUXBREW_DIR: $YB_LINUXBREW_DIR$yb_linuxbrew_dir_where_from"
-    fi
-    if is_mac && [[ -n ${YB_CUSTOM_HOMEBREW_DIR:-} ]]; then
-      echo "    YB_CUSTOM_HOMEBREW_DIR: $YB_CUSTOM_HOMEBREW_DIR$yb_custom_homebrew_dir_where_from"
     fi
     if [[ -n ${YB_THIRDPARTY_URL:-} ]]; then
       echo "    YB_THIRDPARTY_URL: $YB_THIRDPARTY_URL$yb_thirdparty_url_where_from"
@@ -2277,7 +2142,11 @@ set_prebuilt_thirdparty_url() {
               "From file: $thirdparty_url_file."
       fi
     elif [[ -z ${YB_THIRDPARTY_URL:-} ]]; then
-      fatal "File $thirdparty_url_file not found, cannot set YB_THIRDPARTY_URL"
+      log "$thirdparty_url_file file not found, and YB_THIRDPARTY_URL not set."
+      log "Cannot download pre-built third-party dependencies. Continuing without downloading."
+      export YB_THIRDPARTY_URL=""
+      export YB_DOWNLOAD_THIRDPARTY=0
+      return
     fi
 
     if [[ -z ${YB_THIRDPARTY_URL:-} ]]; then
@@ -2289,9 +2158,6 @@ set_prebuilt_thirdparty_url() {
         log "YB_THIRDPARTY_URL is already set to $YB_THIRDPARTY_URL, not trying to set it to" \
             "the default value of $auto_thirdparty_url"
       fi
-    else
-      fatal "YB_DOWNLOAD_THIRDPARTY is 1 but YB_THIRDPARTY_URL is not set, and could not" \
-            "determine the default value."
     fi
   fi
 }

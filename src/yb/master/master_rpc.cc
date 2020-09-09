@@ -236,7 +236,9 @@ void GetLeaderMasterRpc::Finished(const Status& status) {
     }
     completed_ = true;
   }
-  user_cb_.Run(status, leader_master_);
+  auto callback = std::move(user_cb_);
+  user_cb_.Reset();
+  callback.Run(status, leader_master_);
 }
 
 void GetLeaderMasterRpc::GetMasterRegistrationRpcCbForNode(
@@ -304,7 +306,9 @@ void GetLeaderMasterRpc::GetMasterRegistrationRpcCbForNode(
   // Called if the leader has been determined, or if we've received
   // all of the responses.
   if (new_status.ok()) {
-    user_cb_.Run(new_status, leader_master_);
+    auto callback = std::move(user_cb_);
+    user_cb_.Reset();
+    callback.Run(new_status, leader_master_);
   } else {
     Finished(new_status);
   }

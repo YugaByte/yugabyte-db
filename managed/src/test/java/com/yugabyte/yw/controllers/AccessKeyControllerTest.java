@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yugabyte.yw.commissioner.Common;
 import com.yugabyte.yw.common.AccessManager;
 import com.yugabyte.yw.common.FakeApiHelper;
+import com.yugabyte.yw.common.FakeDBApplication;
 import com.yugabyte.yw.common.ModelFactory;
 import com.yugabyte.yw.common.TemplateManager;
 import com.yugabyte.yw.common.TestHelper;
@@ -66,26 +67,13 @@ import static play.mvc.Http.Status.BAD_REQUEST;
 import static play.mvc.Http.Status.OK;
 import static play.test.Helpers.contentAsString;
 
-public class AccessKeyControllerTest extends WithApplication {
+public class AccessKeyControllerTest extends FakeDBApplication {
   Provider defaultProvider;
   Customer defaultCustomer;
   Users defaultUser;
   Region defaultRegion;
-  AccessManager mockAccessManager;
-  TemplateManager mockTemplateManager;
 
   final static Integer SSH_PORT = 12345;
-
-  @Override
-  protected Application provideApplication() {
-    mockAccessManager = mock(AccessManager.class);
-    mockTemplateManager = mock(TemplateManager.class);
-    return new GuiceApplicationBuilder()
-        .configure((Map) Helpers.inMemoryDatabase())
-        .overrides(bind(AccessManager.class).toInstance(mockAccessManager))
-        .overrides(bind(TemplateManager.class).toInstance(mockTemplateManager))
-        .build();
-  }
 
   @Before
   public void before() {

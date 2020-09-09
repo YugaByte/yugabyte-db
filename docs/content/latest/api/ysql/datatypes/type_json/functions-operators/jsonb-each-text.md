@@ -6,7 +6,7 @@ description: Create a row set with columns "key" (as a SQL text) and "value" (as
 menu:
   latest:
     identifier: jsonb-each-text
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 120
 isTocNested: true
 showAsideToc: true
@@ -25,7 +25,7 @@ return value:      SETOF (text, text)
 
 Use this `ysqlsh` script to create the required type _"t"_ and then to execute the `ASSERT`.
 
-```postgresql
+```plpgsql
 create type t as (k text, v text);
 
 do $body$

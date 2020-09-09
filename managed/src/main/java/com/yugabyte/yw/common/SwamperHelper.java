@@ -25,6 +25,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.UUID;
 
 @Singleton
@@ -52,27 +53,34 @@ public class SwamperHelper {
   @Inject
   play.Configuration appConfig;
 
-
   public enum TargetType {
-    NODE_EXPORT(9300),
-    MASTER_EXPORT(7000),
-    TSERVER_EXPORT(9000),
-    REDIS_EXPORT(11000),
-    CQL_EXPORT(12000),
-    YSQL_EXPORT(13000),
-    INVALID_EXPORT(0);
+    INVALID_EXPORT,
+    NODE_EXPORT,
+    MASTER_EXPORT,
+    TSERVER_EXPORT,
+    REDIS_EXPORT,
+    CQL_EXPORT,
+    YSQL_EXPORT;
 
-    private int port;
-    TargetType(int port) {
-      this.port = port;
-    }
-
-    public int getPort() {
-      return port;
-    }
-
-    static TargetType createFromPort(int port) {
-      return Arrays.stream(TargetType.values()).filter(t -> t.port == port).findFirst().orElse(INVALID_EXPORT);
+    public int getPort(NodeDetails nodeDetails) {
+      switch (this) {
+        case INVALID_EXPORT:
+          return 0;
+        case NODE_EXPORT:
+          return nodeDetails.nodeExporterPort;
+        case MASTER_EXPORT:
+          return nodeDetails.masterHttpPort;
+        case TSERVER_EXPORT:
+          return nodeDetails.tserverHttpPort;
+        case REDIS_EXPORT:
+          return nodeDetails.redisServerHttpPort;
+        case CQL_EXPORT:
+          return nodeDetails.yqlServerHttpPort;
+        case YSQL_EXPORT:
+          return nodeDetails.ysqlServerHttpPort;
+        default:
+          return 0;
+      }
     }
   }
 
@@ -88,7 +96,7 @@ public class SwamperHelper {
     ArrayNode targetNodes = Json.newArray();
     nodes.forEach((node) -> {
       if (node.isActive()) {
-        targetNodes.add(node.cloudInfo.private_ip + ":" + t.port);
+        targetNodes.add(node.cloudInfo.private_ip + ":" + t.getPort(node));
       }
     });
 
@@ -146,7 +154,7 @@ public class SwamperHelper {
     String swamperFile = getSwamperFile(universeUUID, "node");
     universe.getNodes().forEach((node) -> {
       nodeTargets.add(getIndividualConfig(
-          universe, TargetType.NODE_EXPORT, Arrays.asList(node), node.nodeName));
+          universe, TargetType.NODE_EXPORT, Collections.singletonList(node), node.nodeName));
     });
     writeTargetJsonFile(swamperFile, nodeTargets);
 
@@ -159,9 +167,11 @@ public class SwamperHelper {
           // Since some nodes might not be active (for example removed),
           // we do not want to add them to the swamper targets.
           if (node.isActive()) {
-            ybTargets.add(getIndividualConfig(universe, t, Arrays.asList(node), node.nodeName));
+            ybTargets.add(getIndividualConfig(
+              universe, t, Collections.singletonList(node), node.nodeName
+            ));
           }
-        });  
+        });
       }
     }
     writeTargetJsonFile(swamperFile, ybTargets);

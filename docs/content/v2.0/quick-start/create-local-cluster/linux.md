@@ -74,6 +74,8 @@ $ ./bin/yb-ctl --rf 3 create
 
 You can now check `$HOME/yugabyte-data` to see `node-i` directories created where `i` represents the `node_id` of the node. Inside each such directory, there will be two disks, `disk1` and `disk2`, to highlight the fact that YugabyteDB can work with multiple disks at the same time. Note that the IP address of `node-i` is by default set to `127.0.0.i`.
 
+You can now check `$HOME/yugabyte-data` to see the `node-<id>` directories (where `<id>` represents the `node_id` of the node). Inside each node directory, there will be a subdirectory, named `disk-1`. Note that the IP address of `node-<id>` is by default set to `127.0.0.<id>`.
+
 Clients can now connect to the YSQL and YCQL APIs at `localhost:5433` and `localhost:9042` respectively.
 
 ## 2. Check cluster status with yb-ctl

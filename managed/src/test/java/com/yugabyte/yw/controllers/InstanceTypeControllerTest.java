@@ -61,17 +61,6 @@ public class InstanceTypeControllerTest extends FakeDBApplication {
   Users user;
   Provider awsProvider;
   Provider onPremProvider;
-  CloudQueryHelper mockCloudQueryHelper;
-
-  @Override
-  protected Application provideApplication() {
-    mockCloudQueryHelper = mock(CloudQueryHelper.class);
-
-    return new GuiceApplicationBuilder()
-        .configure((Map) Helpers.inMemoryDatabase())
-        .overrides(bind(CloudQueryHelper.class).toInstance(mockCloudQueryHelper))
-        .build();
-  }
 
   @Before
   public void setUp() {

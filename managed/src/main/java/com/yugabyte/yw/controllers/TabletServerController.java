@@ -2,8 +2,6 @@
 
 package com.yugabyte.yw.controllers;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.UUID;
 
 import org.yb.client.ListTabletServersResponse;
@@ -67,8 +65,6 @@ public class TabletServerController extends AuthenticatedController {
    * @return Result tablet server information
    */
   public Result listTabletServers(UUID customerUUID, UUID universeUUID) {
-    final String masterLeaderUrlPrefix = "http://";
-    final String masterLeaderUrlSuffix = ":7000/api/v1/tablet-servers";
     // Validate customer UUID
     if (Customer.get(customerUUID) == null) {
       final String errMsg = "Invalid Customer UUID: " + customerUUID;
@@ -78,11 +74,6 @@ public class TabletServerController extends AuthenticatedController {
 
     // Validate universe UUID and retrieve master leader address
     final Universe universe = Universe.get(universeUUID);
-    if (universe == null) {
-      final String errMsg = "Invalid Universe UUID: " + universeUUID;
-      LOG.error(errMsg);
-      return ApiResponse.error(BAD_REQUEST, errMsg);
-    }
     final String masterLeaderIPAddr = universe.getMasterLeaderHostText();
     if (masterLeaderIPAddr.isEmpty()) {
       final String errMsg =
@@ -94,8 +85,13 @@ public class TabletServerController extends AuthenticatedController {
     JsonNode response;
     // Query master leader tablet servers endpoint
     try {
-      final String masterLeaderUrl =
-              masterLeaderUrlPrefix + masterLeaderIPAddr + masterLeaderUrlSuffix;
+      final int masterHttpPort = universe.getUniverseDetails().communicationPorts.masterHttpPort;
+      final String masterLeaderUrl = String.format(
+        "http://%s:%s/api/v1/tablet-servers",
+        masterLeaderIPAddr,
+        masterHttpPort
+      );
+
       response = apiHelper.getRequest(masterLeaderUrl);
     } catch (Exception e) {
       LOG.error("Failed to get list of tablet servers in universe " + universeUUID, e);

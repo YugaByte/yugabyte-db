@@ -77,7 +77,7 @@ public class EnableEncryptionAtRest extends AbstractTaskBase {
       );
 
       if (universeKeyRef == null || universeKeyRef.length == 0) {
-        throw new RuntimeException("Error occured creating universe key");
+        throw new RuntimeException("Error occurred creating universe key");
       }
 
       final byte[] universeKeyVal = keyManager.getUniverseKey(
@@ -88,7 +88,7 @@ public class EnableEncryptionAtRest extends AbstractTaskBase {
       );
 
       if (universeKeyVal == null || universeKeyVal.length == 0) {
-        throw new RuntimeException("Error occured creating universe key");
+        throw new RuntimeException("Error occurred retrieving universe key from ref");
       }
 
       final String encodedKeyRef = Base64.getEncoder().encodeToString(universeKeyRef);
@@ -103,7 +103,7 @@ public class EnableEncryptionAtRest extends AbstractTaskBase {
         if (!client
                 .waitForMasterHasUniverseKeyInMemory(KEY_IN_MEMORY_TIMEOUT, encodedKeyRef, hp)) {
           throw new RuntimeException(
-                  "Timeout occured waiting for universe encryption key to be set in memory"
+                  "Timeout occurred waiting for universe encryption key to be set in memory"
           );
         }
       }
@@ -111,9 +111,9 @@ public class EnableEncryptionAtRest extends AbstractTaskBase {
       Pair<Boolean, String> isEncryptionEnabled = client.isEncryptionEnabled();
       if (!isEncryptionEnabled.getFirst() ||
               !isEncryptionEnabled.getSecond().equals(encodedKeyRef)) {
-        throw new RuntimeException("Error occured enabling encryption at rest");
+        throw new RuntimeException("Error occurred enabling encryption at rest");
       }
-      // TODO: (Daniel) - Set key ref as active based on master node connectivity (#2982)
+
       EncryptionAtRestUtil.activateKeyRef(
               taskParams().universeUUID,
               taskParams().encryptionAtRestConfig.kmsConfigUUID,

@@ -52,12 +52,14 @@ common_gflags:
   max_log_size: "256"
 process_specific_gflags:
   master:
+    server_broadcast_addresses: "{% if server_broadcast_addresses is defined %}{{ server_broadcast_addresses }}:{{ master_rpc_port }}{% else %}{% endif %}"
     fs_data_dirs: "{{ mount_points }}"
     master_addresses: "{{ master_addresses_for_master | default() }}"
     rpc_bind_addresses: "{{ private_ip }}:{{ master_rpc_port }}"
     webserver_port: "{{ master_http_port }}"
     webserver_interface: "{{ private_ip }}"
   tserver:
+    server_broadcast_addresses: "{% if server_broadcast_addresses is defined %}{{ server_broadcast_addresses }}:{{ tserver_rpc_port }}{% else %}{% endif %}"
     fs_data_dirs: "{{ mount_points }}"
     rpc_bind_addresses: "{{ private_ip }}:{{ tserver_rpc_port }}"
     tserver_master_addrs: "{{ master_addresses_for_tserver  }}"

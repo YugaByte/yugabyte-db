@@ -281,10 +281,10 @@ TEST_F(BlockTest, GetMiddleKey) {
   ASSERT_TRUE(empty_block_middle_key.status().IsIncomplete()) << empty_block_middle_key;
 
   CheckMiddleKey(/* num_keys =*/ 1, block_restart_interval, /* expected_middle_key =*/ 1);
-  CheckMiddleKey(/* num_keys =*/ 2, block_restart_interval, /* expected_middle_key =*/ 2);
+  CheckMiddleKey(/* num_keys =*/ 2, block_restart_interval, /* expected_middle_key =*/ 1);
   CheckMiddleKey(/* num_keys =*/ 3, block_restart_interval, /* expected_middle_key =*/ 2);
   CheckMiddleKey(/* num_keys =*/ 15, block_restart_interval, /* expected_middle_key =*/ 8);
-  CheckMiddleKey(/* num_keys =*/ 16, block_restart_interval, /* expected_middle_key =*/ 9);
+  CheckMiddleKey(/* num_keys =*/ 16, block_restart_interval, /* expected_middle_key =*/ 8);
 }
 
 }  // namespace rocksdb

@@ -48,6 +48,7 @@
 #include "yb/integration-tests/ts_itest-base.h"
 #include "yb/master/master_defaults.h"
 
+#include "yb/util/jsonreader.h"
 #include "yb/util/net/net_util.h"
 #include "yb/util/port_picker.h"
 #include "yb/util/stol_utils.h"
@@ -102,24 +103,35 @@ class BlacklistChecker {
     string out;
     RETURN_NOT_OK(Subprocess::Call(args_, &out));
     boost::erase_all(out, "\n");
-    size_t match_count = 0;
-    std::regex re(R"(.*?hosts \{\s*host:\s*\"([^\"]*)\"\s*port:\s*(\d+)[^\}]*\})");
-    for (std::sregex_iterator i = std::sregex_iterator(out.cbegin(), out.cend(), re), end;
-        i != end; ++i) {
-      HostPort server(i->str(1), VERIFY_RESULT(CheckedStoll(i->str(2))));
-      if (std::find(servers.begin(), servers.end(), server) == servers.end()) {
-        return STATUS_FORMAT(
-            NotFound, "Item $0 not found in list of expected hosts $1",
-            server, servers);
-      } else {
-        ++match_count;
+    JsonReader reader(out);
+
+    vector<const rapidjson::Value *> blacklistEntries;
+    const rapidjson::Value *blacklistRoot;
+    RETURN_NOT_OK(reader.Init());
+    RETURN_NOT_OK(
+        reader.ExtractObject(reader.root(), "serverBlacklist", &blacklistRoot));
+    RETURN_NOT_OK(
+        reader.ExtractObjectArray(blacklistRoot, "hosts", &blacklistEntries));
+
+    for (const rapidjson::Value *entry : blacklistEntries) {
+      std::string host;
+      int32_t port;
+      RETURN_NOT_OK(reader.ExtractString(entry, "host", &host));
+      RETURN_NOT_OK(reader.ExtractInt32(entry, "port", &port));
+      HostPort blacklistServer(host, port);
+      if (std::find(servers.begin(), servers.end(), blacklistServer) ==
+          servers.end()) {
+        return STATUS_FORMAT(NotFound,
+                             "Item $0 not found in list of expected hosts $1",
+                             blacklistServer, servers);
       }
     }
-    if (match_count != servers.size()) {
-      return STATUS_FORMAT(
-          NotFound, "$0 items expected but $1 found",
-          servers.size(), match_count);
+
+    if (blacklistEntries.size() != servers.size()) {
+      return STATUS_FORMAT(NotFound, "$0 items expected but $1 found",
+                           servers.size(), blacklistEntries.size());
     }
+
     return Status::OK();
   }
 
@@ -271,6 +283,7 @@ TEST_F(AdminCliTest, TestDeleteIndex) {
 
   vector<string> ts_flags, master_flags;
   master_flags.push_back("--replication_factor=1");
+  ts_flags.push_back("--index_backfill_upperbound_for_user_enforced_txn_duration_ms=12000");
   BuildAndStart(ts_flags, master_flags);
   string master_address = ToString(cluster_->master()->bound_rpc_addr());
 
@@ -308,14 +321,14 @@ TEST_F(AdminCliTest, TestDeleteIndex) {
   col->set_column_name("C$_key");
   col->set_indexed_column_id(10);
 
-  Status s = table_creator->
-      table_name(YBTableName(YQL_DATABASE_CQL, keyspace, index_name))
-      .table_type(YBTableType::YQL_TABLE_TYPE)
-      .schema(&index_schema)
-      .indexed_table_id(table_id)
-      .is_local_index(false)
-      .is_unique_index(false)
-      .Create();
+  Status s = table_creator->table_name(YBTableName(YQL_DATABASE_CQL, keyspace, index_name))
+                 .table_type(YBTableType::YQL_TABLE_TYPE)
+                 .schema(&index_schema)
+                 .indexed_table_id(table_id)
+                 .is_local_index(false)
+                 .is_unique_index(false)
+                 .timeout(MonoDelta::FromSeconds(60))
+                 .Create();
   ASSERT_OK(s);
 
   tables = ASSERT_RESULT(client->ListTables(/* filter */ "", /* exclude_ysql */ true));
@@ -450,10 +463,15 @@ TEST_F(AdminCliTest, GetIsLoadBalancerIdle) {
       .add_master_server_addr(master_address)
       .Build());
 
-  ASSERT_OK(client->DeleteTable(kTableName, false /* wait */));
+  // Load balancer IsIdle() logic has been changed to the following - unless a task was explicitly
+  // triggered by the load balancer (AsyncAddServerTask / AsyncRemoveServerTask / AsyncTryStepDown)
+  // then the task does not count towards determining whether the load balancer is active. If no
+  // pending LB tasks of the aforementioned types exist, the load balancer will report idle.
 
-  // Because of the delete, the load balancer should become active.
-  ASSERT_OK(WaitFor(
+  // Delete table should not activate the load balancer.
+  ASSERT_OK(client->DeleteTable(kTableName, false /* wait */));
+  // This should timeout.
+  Status s = WaitFor(
       [&]() -> Result<bool> {
         RETURN_NOT_OK(Subprocess::Call(
             ToStringVector(
@@ -464,21 +482,9 @@ TEST_F(AdminCliTest, GetIsLoadBalancerIdle) {
         return output.compare("Idle = 0\n") == 0;
       },
       kWaitTime,
-      "wait for load balancer to become active"));
+      "wait for load balancer to stay idle");
 
-  // Eventually, the load balancer should become idle.
-  ASSERT_OK(WaitFor(
-      [&]() -> Result<bool> {
-        RETURN_NOT_OK(Subprocess::Call(
-            ToStringVector(
-                GetAdminToolPath(),
-                "-master_addresses", master_address,
-                "get_is_load_balancer_idle"),
-            &output));
-        return output.compare("Idle = 1\n") == 0;
-      },
-      kWaitTime,
-      "wait for load balancer to become idle"));
+  ASSERT_FALSE(s.ok());
 }
 
 TEST_F(AdminCliTest, TestLeaderStepdown) {
@@ -506,8 +512,11 @@ TEST_F(AdminCliTest, TestLeaderStepdown) {
   ASSERT_OK(call_admin({"list_tablet_servers", tablet_id}));
   const auto tserver_id = ASSERT_RESULT(regex_fetch_first(R"(\s+([a-z0-9]{32})\s+\S+\s+FOLLOWER)"));
   ASSERT_OK(call_admin({"leader_stepdown", tablet_id, tserver_id}));
-  ASSERT_OK(call_admin({"list_tablet_servers", tablet_id}));
-  ASSERT_EQ(tserver_id, ASSERT_RESULT(regex_fetch_first(R"(\s+([a-z0-9]{32})\s+\S+\s+LEADER)")));
+
+  ASSERT_OK(WaitFor([&]() -> Result<bool> {
+    RETURN_NOT_OK(call_admin({"list_tablet_servers", tablet_id}));
+    return tserver_id == VERIFY_RESULT(regex_fetch_first(R"(\s+([a-z0-9]{32})\s+\S+\s+LEADER)"));
+  }, 5s, "Leader stepdown"));
 }
 
 TEST_F(AdminCliTest, TestGetClusterLoadBalancerState) {

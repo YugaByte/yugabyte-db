@@ -76,6 +76,8 @@ class LogEntryBatch;
 class LogIndex;
 class LogReader;
 
+YB_STRONGLY_TYPED_BOOL(CreateNewSegment);
+
 // Log interface, inspired by Raft's (logcabin) Log. Provides durability to YugaByte as a normal
 // Write Ahead Log and also plays the role of persistent storage for the consensus state machine.
 //
@@ -103,7 +105,7 @@ class Log : public RefCountedThreadSafe<Log> {
   static const Status kLogShutdownStatus;
 
   // Opens or continues a log and sets 'log' to the newly built Log.
-  // After a successful Open() the Log is ready to receive entries.
+  // After a successful Open() the Log is ready to receive entries, if create_new_segment is true.
   static CHECKED_STATUS Open(const LogOptions &options,
                              const std::string& tablet_id,
                              const std::string& wal_dir,
@@ -112,8 +114,10 @@ class Log : public RefCountedThreadSafe<Log> {
                              uint32_t schema_version,
                              const scoped_refptr<MetricEntity>& metric_entity,
                              ThreadPool *append_thread_pool,
+                             ThreadPool* allocation_thread_pool,
                              int64_t cdc_min_replicated_index,
-                             scoped_refptr<Log> *log);
+                             scoped_refptr<Log> *log,
+                             CreateNewSegment create_new_segment = CreateNewSegment::kTrue);
 
   ~Log();
 
@@ -134,6 +138,9 @@ class Log : public RefCountedThreadSafe<Log> {
   CHECKED_STATUS AsyncAppend(LogEntryBatch* entry,
                              const StatusCallback& callback);
 
+  CHECKED_STATUS TEST_AsyncAppendWithReplicates(
+      LogEntryBatch* entry, const ReplicateMsgs& replicates, const StatusCallback& callback);
+
   // Synchronously append a new entry to the log.  Log does not take ownership of the passed
   // 'entry'. If skip_wal_write is true, only update consensus metadata and LogIndex, skip write
   // to wal.
@@ -151,10 +158,6 @@ class Log : public RefCountedThreadSafe<Log> {
   // Blocks the current thread until all the entries in the log queue are flushed and fsynced (if
   // fsync of log entries is enabled).
   CHECKED_STATUS WaitUntilAllFlushed();
-
-  // Kick off an asynchronous task that pre-allocates a new log-segment, setting
-  // 'allocation_status_'. To wait for the result of the task, use allocation_status_.Get().
-  CHECKED_STATUS AsyncAllocateSegment() EXCLUDES(allocation_mutex_);
 
   // The closure submitted to allocation_pool_ to allocate a new segment.
   void SegmentAllocationTask();
@@ -233,13 +236,13 @@ class Log : public RefCountedThreadSafe<Log> {
   // entries appended up to this point are available in closed, readable segments.
   CHECKED_STATUS AllocateSegmentAndRollOver();
 
+  // For a log created with CreateNewSegment::kFalse, this is used to finish log initialization by
+  // allocating a new segment.
+  CHECKED_STATUS EnsureInitialNewSegmentAllocated();
+
   // Returns the total size of the current segments, in bytes.
   // Returns 0 if the log is shut down.
   uint64_t OnDiskSize();
-
-  void ListenPostAppend(std::function<void()> listener) {
-    post_append_listener_ = std::move(listener);
-  }
 
   // Set the schema for the _next_ log segment.
   //
@@ -320,9 +323,16 @@ class Log : public RefCountedThreadSafe<Log> {
     kAllocationFinished // Next segment ready
   };
 
-  Log(LogOptions options, std::string wal_dir, std::string tablet_id, std::string peer_uuid,
-      const Schema& schema, uint32_t schema_version,
-      const scoped_refptr<MetricEntity>& metric_entity, ThreadPool* append_thread_pool);
+  Log(LogOptions options,
+      std::string wal_dir,
+      std::string tablet_id,
+      std::string peer_uuid,
+      const Schema& schema,
+      uint32_t schema_version,
+      const scoped_refptr<MetricEntity>& metric_entity,
+      ThreadPool* append_thread_pool,
+      ThreadPool* allocation_thread_pool,
+      CreateNewSegment create_new_segment = CreateNewSegment::kTrue);
 
   Env* get_env() {
     return options_.env;
@@ -380,10 +390,16 @@ class Log : public RefCountedThreadSafe<Log> {
   // Helper method to get the segment sequence to GC based on the provided min_op_idx.
   CHECKED_STATUS GetSegmentsToGCUnlocked(int64_t min_op_idx, SegmentSequence* segments_to_gc) const;
 
-  const SegmentAllocationState allocation_state() EXCLUDES(allocation_mutex_) {
-    SharedLock<decltype(allocation_mutex_)> shared_lock(allocation_mutex_);
-    return allocation_state_;
+  // Kick off an asynchronous task that pre-allocates a new log-segment, setting
+  // 'allocation_status_'. To wait for the result of the task, use allocation_status_.Get().
+  CHECKED_STATUS AsyncAllocateSegment() REQUIRES(allocation_mutex_);
+
+  SegmentAllocationState allocation_state() EXCLUDES(allocation_mutex_) {
+    return allocation_state_.load(std::memory_order_acquire);
   }
+
+  bool NeedNewSegment(uint32_t entry_batch_bytes);
+  CHECKED_STATUS RollOverIfNecessary(uint32_t entry_batch_bytes) EXCLUDES(allocation_mutex_);
 
   LogOptions options_;
 
@@ -408,8 +424,9 @@ class Log : public RefCountedThreadSafe<Log> {
   // The currently active segment being written.
   gscoped_ptr<WritableLogSegment> active_segment_;
 
-  // The current (active) segment sequence number.
-  std::atomic<uint64_t> active_segment_sequence_number_ = {0};
+  // The current (active) segment sequence number. Initialized in the Log constructor based on
+  // LogOptions.
+  std::atomic<uint64_t> active_segment_sequence_number_;
 
   // The writable file for the next allocated segment
   std::shared_ptr<WritableFile> next_segment_file_;
@@ -440,6 +457,8 @@ class Log : public RefCountedThreadSafe<Log> {
   // This variable is not accessed concurrently.
   yb::OpId last_appended_entry_op_id_;
 
+  yb::OpId last_submitted_op_id_;
+
   // A footer being prepared for the current segment.  When the segment is closed, it will be
   // written.
   LogSegmentFooterPB footer_builder_;
@@ -449,14 +468,13 @@ class Log : public RefCountedThreadSafe<Log> {
 
   // The maximum segment size we want for the current WAL segment, in bytes.  This value keeps
   // doubling (for each subsequent WAL segment) till it gets to max_segment_size_.
-  // Note: The first WAL segment will start off as twice of this value.
-  uint64_t cur_max_segment_size_ = 512 * 1024;
+  uint64_t cur_max_segment_size_;
 
   // Appender manages a TaskStream writing to the log. We will use one taskstream per tablet.
   std::unique_ptr<Appender> appender_;
 
   // A thread pool for asynchronously pre-allocating new log segments.
-  gscoped_ptr<ThreadPool> allocation_pool_;
+  std::unique_ptr<ThreadPoolToken> allocation_token_;
 
   // If true, sync on all appends.
   bool durable_wal_write_;
@@ -484,8 +502,10 @@ class Log : public RefCountedThreadSafe<Log> {
   Promise<Status> allocation_status_;
 
   // Read-write lock to protect 'allocation_state_'.
-  mutable boost::shared_mutex allocation_mutex_;
-  SegmentAllocationState allocation_state_ GUARDED_BY(allocation_mutex_);
+  mutable std::mutex allocation_mutex_;
+  std::condition_variable allocation_cond_;
+  std::atomic<SegmentAllocationState> allocation_state_;
+  bool allocation_requested_ GUARDED_BY(allocation_mutex_) = false;
 
   scoped_refptr<MetricEntity> metric_entity_;
   gscoped_ptr<LogMetrics> metrics_;
@@ -512,114 +532,9 @@ class Log : public RefCountedThreadSafe<Log> {
   // The current replicated index that CDC has read.  Used for CDC read cache optimization.
   std::atomic<int64_t> cdc_min_replicated_index_{std::numeric_limits<int64_t>::max()};
 
+  CreateNewSegment create_new_segment_at_start_;
+
   DISALLOW_COPY_AND_ASSIGN(Log);
-};
-
-// This class represents a batch of operations to be written and synced to the log. It is opaque to
-// the user and is managed by the Log class.
-class LogEntryBatch {
- public:
-  LogEntryBatch(LogEntryTypePB type, LogEntryBatchPB&& entry_batch_pb);
-  ~LogEntryBatch();
-
- private:
-  friend class Log;
-  friend class MultiThreadedLogTest;
-
-  // Serializes contents of the entry to an internal buffer.
-  CHECKED_STATUS Serialize();
-
-  // Sets the callback that will be invoked after the entry is
-  // appended and synced to disk
-  void set_callback(const StatusCallback& cb) {
-    callback_ = cb;
-  }
-
-  // Returns the callback that will be invoked after the entry is
-  // appended and synced to disk.
-  const StatusCallback& callback() {
-    return callback_;
-  }
-
-  bool failed_to_append() const {
-    return state_ == kEntryFailedToAppend;
-  }
-
-  void set_failed_to_append() {
-    state_ = kEntryFailedToAppend;
-  }
-
-  // Mark the entry as reserved, but not yet ready to write to the log.
-  void MarkReserved();
-
-  // Mark the entry as ready to write to log.
-  void MarkReady();
-
-  // Returns a Slice representing the serialized contents of the entry.
-  Slice data() const {
-    DCHECK_EQ(state_, kEntrySerialized);
-    return Slice(buffer_);
-  }
-
-  bool flush_marker() const;
-
-  size_t count() const { return count_; }
-
-  // Returns the total size in bytes of the object.
-  size_t total_size_bytes() const {
-    return total_size_bytes_;
-  }
-
-  // The highest OpId of a REPLICATE message in this batch.
-  consensus::OpId MaxReplicateOpId() const {
-    DCHECK_EQ(REPLICATE, type_);
-    int idx = entry_batch_pb_.entry_size() - 1;
-    DCHECK(entry_batch_pb_.entry(idx).replicate().IsInitialized());
-    return entry_batch_pb_.entry(idx).replicate().id();
-  }
-
-  void SetReplicates(const ReplicateMsgs& replicates) {
-    replicates_ = replicates;
-  }
-
-  // The type of entries in this batch.
-  const LogEntryTypePB type_;
-
-  // Contents of the log entries that will be written to disk.
-  LogEntryBatchPB entry_batch_pb_;
-
-  // Total size in bytes of all entries
-  uint32_t total_size_bytes_ = 0;
-
-  // Number of entries in 'entry_batch_pb_'
-  const size_t count_;
-
-  // The vector of refcounted replicates.  This makes sure there's at least a reference to each
-  // replicate message until we're finished appending.
-  ReplicateMsgs replicates_;
-
-  // Callback to be invoked upon the entries being written and synced to disk.
-  StatusCallback callback_;
-
-  // Buffer to which 'phys_entries_' are serialized by call to 'Serialize()'
-  faststring buffer_;
-
-  // Offset into the log file for this entry batch.
-  int64_t offset_;
-
-  // Segment sequence number for this entry batch.
-  uint64_t active_segment_sequence_number_;
-
-  enum LogEntryState {
-    kEntryInitialized,
-    kEntryReserved,
-    kEntryReady,
-    kEntrySerialized,
-    kEntryFailedToAppend
-  };
-  LogEntryState state_ = kEntryInitialized;
-
-  DISALLOW_COPY_AND_ASSIGN(LogEntryBatch);
 };
 
 }  // namespace log

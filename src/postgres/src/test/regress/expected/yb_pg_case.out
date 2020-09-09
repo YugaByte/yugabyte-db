@@ -298,14 +298,20 @@ SELECT * FROM CASE_TBL ORDER BY i, f;
    8 |  20.2
 (4 rows)
 
--- TODO(jason): uncomment when issue #738 is closed or closing.
--- UPDATE CASE_TBL
---   SET i = CASE WHEN b.i >= 2 THEN (2 * j)
---                 ELSE (3 * j) END
---   FROM CASE2_TBL b
---   WHERE j = -CASE_TBL.i;
---
--- SELECT * FROM CASE_TBL ORDER BY i, f;
+UPDATE CASE_TBL
+  SET i = CASE WHEN b.i >= 2 THEN (2 * j)
+                ELSE (3 * j) END
+  FROM CASE2_TBL b
+  WHERE j = -CASE_TBL.i;
+SELECT * FROM CASE_TBL ORDER BY i, f;
+  i  |   f
+-----+-------
+ -12 |
+  -9 | -30.3
+  -8 |  10.1
+   8 |  20.2
+(4 rows)
+
 --
 -- Nested CASE expressions
 --

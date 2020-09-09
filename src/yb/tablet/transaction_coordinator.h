@@ -106,7 +106,7 @@ class TransactionCoordinator {
   struct ReplicatedData {
     int64_t leader_term;
     const tserver::TransactionStatePB& state;
-    const consensus::OpId& op_id;
+    const OpIdPB& op_id;
     HybridTime hybrid_time;
 
     std::string ToString() const;
@@ -117,7 +117,7 @@ class TransactionCoordinator {
 
   struct AbortedData {
     const tserver::TransactionStatePB& state;
-    const consensus::OpId& op_id;
+    const OpIdPB& op_id;
   };
 
   // Process transaction state replication aborted.

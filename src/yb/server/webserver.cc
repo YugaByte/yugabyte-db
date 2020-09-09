@@ -133,16 +133,21 @@ bool Webserver::IsSecure() const {
 }
 
 Status Webserver::BuildListenSpec(string* spec) const {
-  std::vector<Endpoint> addrs;
-  RETURN_NOT_OK(ParseAddressList(http_address_, 80, &addrs));
-
+  std::vector<Endpoint> endpoints;
+  RETURN_NOT_OK(ParseAddressList(http_address_, 80, &endpoints));
+  if (endpoints.empty()) {
+    return STATUS_FORMAT(
+      ConfigurationError,
+      "No IPs available for address $0", http_address_);
+  }
   std::vector<string> parts;
-  for (const auto& addr : addrs) {
+  for (const auto& endpoint : endpoints) {
     // Mongoose makes sockets with 's' suffixes accept SSL traffic only
-    parts.push_back(ToString(addr) + (IsSecure() ? "s" : ""));
+    parts.push_back(ToString(endpoint) + (IsSecure() ? "s" : ""));
   }
 
   JoinStrings(parts, ",", spec);
+  LOG(INFO) << "Webserver listen spec is " << *spec;
   return Status::OK();
 }
 
@@ -249,6 +254,23 @@ void Webserver::Stop() {
     sq_stop(context_);
     context_ = nullptr;
   }
+}
+
+Status Webserver::GetInputHostPort(HostPort* hp) const {
+  std::vector<HostPort> parsed_hps;
+  RETURN_NOT_OK(HostPort::ParseStrings(
+    http_address_,
+    0 /* default port */,
+    &parsed_hps));
+
+  // Webserver always gets a single host:port specification from WebserverOptions.
+  DCHECK_EQ(parsed_hps.size(), 1);
+  if (parsed_hps.size() != 1) {
+    return STATUS(InvalidArgument, "Expected single host port in WebserverOptions host port");
+  }
+
+  *hp = parsed_hps[0];
+  return Status::OK();
 }
 
 Status Webserver::GetBoundAddresses(std::vector<Endpoint>* addrs_ptr) const {

@@ -265,7 +265,7 @@ public class ProtobufHelper {
    */
   public static Common.HostPortPB hostAndPortToPB(HostAndPort hostAndPort) {
     return Common.HostPortPB.newBuilder()
-        .setHost(hostAndPort.getHostText())
+        .setHost(hostAndPort.getHost())
         .setPort(hostAndPort.getPort())
         .build();
   }

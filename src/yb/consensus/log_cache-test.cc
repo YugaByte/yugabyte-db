@@ -95,7 +95,7 @@ class LogCacheTest : public YBTest {
     fs_manager_.reset(new FsManager(env_.get(), GetTestPath("fs_root"), "tserver_test"));
     ASSERT_OK(fs_manager_->CreateInitialFileSystemLayout());
     ASSERT_OK(fs_manager_->Open());
-    ASSERT_OK(ThreadPoolBuilder("append").Build(&append_pool_));
+    ASSERT_OK(ThreadPoolBuilder("log").Build(&log_thread_pool_));
     ASSERT_OK(log::Log::Open(log::LogOptions(),
                             kTestTablet,
                             fs_manager_->GetFirstTabletWalDirOrDie(kTestTable, kTestTablet),
@@ -103,7 +103,8 @@ class LogCacheTest : public YBTest {
                             schema_,
                             0, // schema_version
                             NULL,
-                            append_pool_.get(),
+                            log_thread_pool_.get(),
+                            log_thread_pool_.get(),
                             std::numeric_limits<int64_t>::max(), // cdc_min_replicated_index
                             &log_));
 
@@ -116,7 +117,7 @@ class LogCacheTest : public YBTest {
     ASSERT_OK(log_->WaitUntilAllFlushed());
   }
 
-  void CloseAndReopenCache(const OpId& preceding_id) {
+  void CloseAndReopenCache(const OpIdPB& preceding_id) {
     // Blow away the memtrackers before creating the new cache.
     cache_.reset();
 
@@ -148,7 +149,7 @@ class LogCacheTest : public YBTest {
   MetricRegistry metric_registry_;
   scoped_refptr<MetricEntity> metric_entity_;
   gscoped_ptr<FsManager> fs_manager_;
-  std::unique_ptr<ThreadPool> append_pool_;
+  std::unique_ptr<ThreadPool> log_thread_pool_;
   gscoped_ptr<LogCache> cache_;
   scoped_refptr<log::Log> log_;
   scoped_refptr<server::Clock> clock_;

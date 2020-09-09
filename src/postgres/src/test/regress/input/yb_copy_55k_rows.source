@@ -2,3 +2,7 @@
 -- COPY
 --
 COPY airports FROM '@abs_builddir@/data/all-airport-codes.csv' CSV HEADER;
+-- Workaround: Sleeping 2 minutes for docdb to complete its background tasks (issue #4855).
+-- Don't sleep more than 60 seconds each to avoid any RPC issues.
+SELECT pg_sleep(60);
+SELECT pg_sleep(60);

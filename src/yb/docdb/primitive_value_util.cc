@@ -83,5 +83,57 @@ Status InitKeyColumnPrimitiveValues(
   return Status::OK();
 }
 
+namespace {
+  template <typename TemplatePB>
+  boost::optional<int32_t> HashCodeFromPB(const TemplatePB pb) {
+    return pb.has_hash_code() ? boost::make_optional<int32_t>(pb.hash_code()) : boost::none;
+  }
+
+  template <typename TemplatePB>
+  boost::optional<int32_t> MaxHashCodeFromPB(const TemplatePB pb) {
+    return pb.has_max_hash_code() ? boost::make_optional<int32_t>(pb.max_hash_code()) : boost::none;
+  }
+} // namespace
+
+boost::optional<int32_t> DocHashCode(const PgsqlReadRequestPB& request,
+                                     int64_t batch_arg_index) {
+  if (batch_arg_index < 0) {
+    return HashCodeFromPB(request);
+  }
+  return HashCodeFromPB(request.batch_arguments(batch_arg_index));
+}
+
+boost::optional<int32_t> DocMaxHashCode(const PgsqlReadRequestPB& request,
+                                        int64_t batch_arg_index) {
+  if (batch_arg_index < 0) {
+    return MaxHashCodeFromPB(request);
+  }
+  return MaxHashCodeFromPB(request.batch_arguments(batch_arg_index));
+}
+
+bool
+DocHasPartitionValues(const PgsqlReadRequestPB& request, int64_t batch_arg_index) {
+  return batch_arg_index < 0 ? request.partition_column_values_size() > 0
+      : request.batch_arguments(batch_arg_index).partition_column_values_size() > 0;
+}
+
+const google::protobuf::RepeatedPtrField<PgsqlExpressionPB>&
+DocPartitionValues(const PgsqlReadRequestPB& request, int64_t batch_arg_index) {
+  return batch_arg_index < 0 ? request.partition_column_values()
+                             : request.batch_arguments(batch_arg_index).partition_column_values();
+}
+
+bool
+DocHasRangeValues(const PgsqlReadRequestPB& request, int64_t batch_arg_index) {
+  // Use shared range value in "request" because currently we do not batch RANGE values.
+  return request.range_column_values().size() > 0;
+}
+
+const google::protobuf::RepeatedPtrField<PgsqlExpressionPB>&
+DocRangeValues(const PgsqlReadRequestPB& request, int64_t batch_arg_index) {
+  // Use shared range value in "request" because currently we do not batch RANGE values.
+  return request.range_column_values();
+}
+
 }  // namespace docdb
 }  // namespace yb

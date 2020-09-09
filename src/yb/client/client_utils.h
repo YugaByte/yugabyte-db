@@ -23,6 +23,7 @@
 namespace yb {
 
 class MemTracker;
+class MetricEntity;
 
 namespace client {
 

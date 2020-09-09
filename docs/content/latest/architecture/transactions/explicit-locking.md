@@ -16,9 +16,9 @@ This section explains how explicit locking works in YugabyteDB. The transactions
 
 ## Concurrency control
 
-[Concurrency control](https://en.wikipedia.org/wiki/Concurrency_control) in databases ensure that multiple transactions can excute concurrently without violating the integrity of the underlying data integrity. Concurrency control is essential for correctness two or more transactions can access the same data at the same time.
+[Concurrency control](https://en.wikipedia.org/wiki/Concurrency_control) in databases ensures that multiple transactions can execute concurrently while preserving data integrity. Concurrency control is essential for correctness in environments where two or more transactions can access the same data at the same time.
 
-The two primary mechanisms to achieve concurrency control are *optimistic* and *pessimistic*. Concurrency control in YugabyteDB can accomodate both of these depending of the scenario.
+The two primary mechanisms to achieve concurrency control are *optimistic* and *pessimistic*. Concurrency control in YugabyteDB can accomodate both of these depending on the scenario.
 
 
 DocDB exposes the ability to write [provisional records]() which is exercised by the query layer. Provisional records are used to order persist locks on rows in order to detect conflicts. Provisional records have a *priority* assosciated with them, which is a number. When two transactions conflict, the transaction with the lower priority is aborted.

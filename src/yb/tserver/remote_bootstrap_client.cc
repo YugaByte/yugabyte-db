@@ -97,6 +97,8 @@ DEFINE_test_flag(int32, simulate_long_remote_bootstrap_sec, 0,
                  "We use this for testing a scenario where a remote bootstrap takes longer than "
                  "follower_unavailable_considered_failed_sec seconds.");
 
+DEFINE_test_flag(bool, download_partial_wal_segments, false, "");
+
 DECLARE_int32(bytes_remote_bootstrap_durable_write_mb);
 
 namespace yb {
@@ -104,7 +106,6 @@ namespace tserver {
 
 using consensus::ConsensusMetadata;
 using consensus::ConsensusStatePB;
-using consensus::OpId;
 using consensus::RaftConfigPB;
 using consensus::RaftPeerPB;
 using env_util::CopyFile;
@@ -333,6 +334,7 @@ Status RemoteBootstrapClient::Start(const string& bootstrap_peer_uuid,
         &fs_manager(),
         table_id,
         tablet_id_,
+        table.namespace_name(),
         table.table_name(),
         table.table_type(),
         schema,
@@ -598,6 +600,11 @@ Status RemoteBootstrapClient::DownloadWALs() {
         return download_status;
       }
       ++counter;
+      if (PREDICT_FALSE(FLAGS_TEST_download_partial_wal_segments) && counter > 0) {
+        LOG(INFO) << "Flag TEST_download_partial_wal_segments set to true. "
+                  << "Stopping WAL files download after one file has been downloaded.";
+        break;
+      }
     }
   } else {
     int num_segments = wal_seqnos_.size();

@@ -105,8 +105,7 @@ class PreparerImpl {
                          OperationDrivers::iterator end);
 };
 
-PreparerImpl::PreparerImpl(consensus::Consensus* consensus,
-                                     ThreadPool* tablet_prepare_pool)
+PreparerImpl::PreparerImpl(consensus::Consensus* consensus, ThreadPool* tablet_prepare_pool)
     : consensus_(consensus),
       tablet_prepare_pool_token_(tablet_prepare_pool
                                      ->NewToken(ThreadPool::ExecutionMode::SERIAL)) {
@@ -149,11 +148,10 @@ Status PreparerImpl::Submit(OperationDriver* operation_driver) {
       std::this_thread::sleep_for(1ms);
     }
     operation_driver->PrepareAndStartTask();
-    return Status::OK();
+  } else {
+    active_tasks_.fetch_add(1, std::memory_order_release);
+    queue_.Push(operation_driver);
   }
-
-  active_tasks_.fetch_add(1, std::memory_order_release);
-  queue_.Push(operation_driver);
 
   auto expected = false;
   if (!running_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
@@ -226,7 +224,7 @@ bool ShouldApplySeparately(OperationType operation_type) {
 void PreparerImpl::ProcessItem(OperationDriver* item) {
   CHECK_NOTNULL(item);
 
-  LOG_IF(DFATAL, !item->is_leader_side()) << "Processing not leader side item";
+  LOG_IF(DFATAL, !item->is_leader_side()) << "Processing follower-side item";
 
   auto operation_type = item->operation_type();
 
@@ -313,7 +311,7 @@ void PreparerImpl::ReplicateSubBatch(
   rounds_to_replicate_.clear();
 
   if (PREDICT_FALSE(!s.ok())) {
-    VLOG(2) << "ReplicateBatch failed with status " << s.ToString()
+    VLOG(1) << "ReplicateBatch failed with status " << s.ToString()
             << ", treating all " << std::distance(batch_begin, batch_end) << " operations as "
             << "failed with that status";
     // Treat all the operations in the batch as failed.

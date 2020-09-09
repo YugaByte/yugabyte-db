@@ -26,8 +26,10 @@ export default class UniverseResources extends Component {
     let volumeSizeGB = 0;
     let volumeCount = 0;
     let universeNodes = <span/>;
+    let renderCosts =  false;
     if (isNonEmptyObject(resources)) {
       empty = false;
+      renderCosts = Number(resources.pricePerHour) > 0;
       costPerDay = <YBCost value={resources.pricePerHour} multiplier={"day"} />;
       costPerMonth = <YBCost value={resources.pricePerHour} multiplier={"month"} />;
       numCores = resources.numCores;
@@ -41,7 +43,7 @@ export default class UniverseResources extends Component {
 
     return (
       this.props.split ? (
-        this.props.split === 'left' ? 
+        this.props.split === 'left' ?
           <div className={(empty ? "universe-resources empty" : "universe-resources")}>
             {universeNodes}
             <YBResourceCount size={numCores || 0} kind="Core" pluralizeKind />
@@ -52,8 +54,12 @@ export default class UniverseResources extends Component {
           </div>
         :
           <div className={(empty ? "universe-resources empty" : "universe-resources")}>
-            <YBResourceCount size={costPerDay} kind="/day" />
-            <YBResourceCount size={costPerMonth} kind="/month" />
+            {renderCosts && (
+              <>
+                <YBResourceCount size={costPerDay} kind="/day" />
+                <YBResourceCount size={costPerMonth} kind="/month" />
+              </>
+            )}
           </div>
       ) :
           <FlexContainer>
@@ -64,8 +70,10 @@ export default class UniverseResources extends Component {
                 <YBResourceCount size={memSizeGB || 0} unit="GB" kind="Memory" />
                 <YBResourceCount size={volumeSizeGB || 0} unit="GB" kind="Storage" />
                 <YBResourceCount size={volumeCount || 0} kind="Volume" pluralizeKind />
-                <YBResourceCount className="hidden-costs" size={costPerDay} kind="/day" />
-                <YBResourceCount className="hidden-costs" size={costPerMonth} kind="/month" />
+                {renderCosts && (<>
+                  <YBResourceCount className="hidden-costs" size={costPerDay} kind="/day" />
+                  <YBResourceCount className="hidden-costs" size={costPerMonth} kind="/month" />
+                </>)}
               </div>
             </FlexGrow>
             <FlexShrink className="universe-resource-btn-container">

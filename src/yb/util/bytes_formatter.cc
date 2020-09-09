@@ -17,6 +17,7 @@
 #include "yb/gutil/strings/substitute.h"
 #include "yb/util/cast.h"
 #include "yb/util/enums.h"
+#include "yb/util/format.h"
 
 using std::string;
 using strings::Substitute;

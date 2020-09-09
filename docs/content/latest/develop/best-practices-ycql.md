@@ -23,11 +23,11 @@ showAsideToc: true
   </li>
 </ul>
 
-## Core Features
+## Core features
 
 ### Global secondary indexes
 
-Indexes use multi-shard transactional capability of YugabyteDB and are global and strongly consistent (ACID). To add secondary indexes you need to create tables with [transactions enabled](../../api/ycql/ddl_create_table/#table-properties-1). They can also be used as materialized views by using the [`INCLUDE` clause](../../api/ycql/ddl_create_index#included-columns).
+Indexes use multi-shard transactional capability of YugabyteDB and are global and strongly consistent (ACID). To add secondary indexes, you need to create tables with [transactions enabled](../../api/ycql/ddl_create_table/#table-properties-1). They can also be used as materialized views by using the [`INCLUDE` clause](../../api/ycql/ddl_create_index#included-columns).
 
 ### Unique indexes
 
@@ -37,17 +37,17 @@ YCQL supports [unique indexes](../../api/ycql/ddl_create_index#unique-index). A 
 
 When querying by a secondary index, the original table is consulted to get the columns that aren't specified in the index. This can result in multiple random reads across the main table.
 
-Sometimes a better way is to include the other columns that we're querying that are not part of the index using the [`INCLUDE` clause](../../api/ycql/ddl_create_index/#included-columns). When additional columns are included in the index, they can be used to respond to queries directly from the index without querying the table.
+Sometimes, a better way is to include the other columns that you're querying that are not part of the index using the [`INCLUDE` clause](../../api/ycql/ddl_create_index/#included-columns). When additional columns are included in the index, they can be used to respond to queries directly from the index without querying the table.
 
 This turns a (possible) random read from the main table to just a filter on the index.
 
 ### Atomic read modify write operations with UPDATE IF EXISTS
 
-Operations like `UPDATE ... IF EXISTS`, `INSERT ... IF NOT EXISTS` which require an atomic read-modify-write, Apache Cassandra uses LWT which requires 4 round-trips between peers. These operations are supported in YugabyteDB a lot more efficiently, because of YugabyteDB's CP (in the CAP theorem) design based on strong consistency, and require only 1 Raft-round trip between peers. Number & Counter types work the same and don't need a separate "counters" table.
+For operations like `UPDATE ... IF EXISTS` and `INSERT ... IF NOT EXISTS` that require an atomic read-modify-write, Apache Cassandra uses LWT which requires 4 round-trips between peers. These operations are supported in YugabyteDB a lot more efficiently, because of YugabyteDB's CP (in the CAP theorem) design based on strong consistency, and require only a single Raft-round trip between peers. Number and counter types work the same and don't need a separate "counters" table.
 
 ### JSONB document data type
 
-YugabyteDB has the [`jsonb`](../../api/ycql/type_jsonb/) data type that makes it easy to model json data which does not have a set schema and might change often. You can use JSONB to group less interesting and less accessed columns of a table. YCQL also supports JSONB expression indexes that can be used to speed up data retrieval that would otherwise require scanning the json entries.
+YugabyteDB supports the [`jsonb`](../../api/ycql/type_jsonb/) data type that makes it easy to model JSON data, which does not have a set schema and might change often. You can use JSONB to group less interesting and less accessed columns of a table. YCQL also supports JSONB expression indexes that can be used to speed up data retrieval that would otherwise require scanning the JSON entries.
 
 {{< note title="Use jsonb columns only when necessary" >}}
 
@@ -57,11 +57,11 @@ YugabyteDB has the [`jsonb`](../../api/ycql/type_jsonb/) data type that makes it
 
 ### Incrementing numeric types
 
-In YugabyteDB, YCQL extends Apache Cassandra to support increment and decrement operators for integer data types. [Integers](../../api/ycql/type_int) can be set, inserted, incremented, and decremented while `COUNTER` can only be incremented or decremented. YugabyteDB implements CAS(compare and swap) operations in one round trip, compared to 4 for Apache Cassandra.
+In YugabyteDB, YCQL extends Apache Cassandra to add increment and decrement operators for integer data types. [Integers](../../api/ycql/type_int) can be set, inserted, incremented, and decremented while `COUNTER` can only be incremented or decremented. YugabyteDB implements CAS(compare and swap) operations in one round trip, compared to four for Apache Cassandra.
 
 ### Expire older records automatically with TTL
 
-YCQL supports automatic expiry of data using the [`TTL feature`](../../api/ycql/ddl_create_table/#use-table-property-to-define-the-default-expiration-time-for-rows). You can set a retention policy for data at table/row/column level and the older data is automatically purged from the database.
+YCQL supports automatic expiration of data using the [`TTL feature`](../../api/ycql/ddl_create_table/#use-table-property-to-define-the-default-expiration-time-for-rows). You can set a retention policy for data at table/row/column level and the older data is automatically purged from the database.
 
 {{< note title="Note" >}}
 
@@ -77,11 +77,11 @@ Use YugabyteDB-specific [client drivers](../../quick-start/build-apps/) because 
 
 ### Leverage connection pooling in the YCQL client
 
-Single client (say a multi-threaded application) should ideally use a single cluster object. The single cluster object typically holds underneath the covers a configurable number of connections to yb-tservers. Typically 1 or 2 per TServer suffices to serve even 64-128 application threads). The same connection can be used for multiple outstanding requests, also known as multiplexing.
+A single client (for example, a multi-threaded application) should ideally use a single cluster object. The single cluster object typically holds underneath the covers a configurable number of connections to yb-tservers. Typically 1 or 2 per TServer suffices to serve even 64-128 application threads. The same connection can be used for multiple outstanding requests, also known as multiplexing.
 
 ### Use prepared statements
 
-Use prepared statements wherever possible. This will ensure that YB partition aware drivers are able to route queries to the tablet leader, improve throughput and server doesn't have to parse the query on each operation.
+Use prepared statements whenever possible. This will ensure that YB partition aware drivers are able to route queries to the tablet leader, improve throughput and server doesn't have to parse the query on each operation.
 
 ### Use batching for higher throughput
 
@@ -89,9 +89,16 @@ Use batching for writing a set of operations. This will send all operations in a
 
 ### Column and row sizes
 
-For consistent latency/performance, we suggest keeping columns in the `2MB` range or less even though we support an individual column being about `32MB`.
+For consistent latency/performance, try keeping columns in the `2MB` range or less even though you support an individual column being about `32 MB`.
 
-Big columns add up when selecting full rows or multiple of them. For consistent latency/performance, we suggest keeping the size of rows in the `32MB` range or less.
+Big columns add up when selecting full rows or multiple of them. For consistent latency/performance, you suggest keeping the size of rows in the `32 MB` range or less.
+
+### Don't use big collections
+
+Collections are designed for storing small sets of values that are not expected to grow to arbitrary size (such as phone numbers or addresses for a user rather than posts or messages). 
+While collections of larger sizes are allowed, they may have a significant impact on performance for queries involving them. 
+In particular, some list operations (insert at an index and remove elements) require a read-before-write. 
+
 
 ## Miscellaneous
 

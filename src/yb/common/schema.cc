@@ -573,6 +573,8 @@ void SchemaBuilder::Reset() {
   num_key_columns_ = 0;
   next_id_ = kFirstColumnId;
   table_properties_.Reset();
+  pgtable_id_ = 0;
+  cotable_id_ = Uuid(boost::uuids::nil_uuid());
 }
 
 void SchemaBuilder::Reset(const Schema& schema) {
@@ -594,6 +596,8 @@ void SchemaBuilder::Reset(const Schema& schema) {
     next_id_ = *std::max_element(col_ids_.begin(), col_ids_.end()) + 1;
   }
   table_properties_ = schema.table_properties_;
+  pgtable_id_ = schema.pgtable_id_;
+  cotable_id_ = schema.cotable_id_;
 }
 
 Status SchemaBuilder::AddKeyColumn(const string& name, const shared_ptr<QLType>& type) {

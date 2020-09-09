@@ -38,7 +38,6 @@ namespace tablet {
 
 namespace {
 
-const std::string kSnapshotsDirSuffix = ".snapshots";
 const std::string kTempSnapshotDirSuffix = ".tmp";
 
 } // namespace
@@ -54,7 +53,6 @@ bool TabletSnapshots::IsTempSnapshotDir(const std::string& dir) {
 }
 
 Status TabletSnapshots::Prepare(SnapshotOperation* operation) {
-  operation->AcquireSchemaLock(&schema_lock());
   return Status::OK();
 }
 
@@ -68,7 +66,7 @@ Status TabletSnapshots::Create(SnapshotOperationState* tx_state) {
     return s.CloneAndPrepend("Unable to flush RocksDB");
   }
 
-  const string top_snapshots_dir = SnapshotsDirName(metadata().rocksdb_dir());
+  const string top_snapshots_dir = metadata().snapshots_dir();
   RETURN_NOT_OK_PREPEND(
       metadata().fs_manager()->CreateDirIfMissingAndSync(top_snapshots_dir),
       Format("Unable to create snapshots directory $0", top_snapshots_dir));
@@ -175,7 +173,7 @@ Status TabletSnapshots::Create(SnapshotOperationState* tx_state) {
 }
 
 Status TabletSnapshots::Restore(SnapshotOperationState* tx_state) {
-  const std::string top_snapshots_dir = SnapshotsDirName(metadata().rocksdb_dir());
+  const std::string top_snapshots_dir = metadata().snapshots_dir();
   const std::string snapshot_dir = tx_state->GetSnapshotDir(top_snapshots_dir);
 
   RETURN_NOT_OK_PREPEND(
@@ -211,7 +209,7 @@ Status TabletSnapshots::RestoreCheckpoint(
 
   // Destroy DB object.
   // TODO: snapshot current DB and try to restore it in case of failure.
-  RETURN_NOT_OK(ResetRocksDBs(/* destroy= */ true));
+  RETURN_NOT_OK(ResetRocksDBs(Destroy::kTrue, DisableFlushOnShutdown::kTrue));
 
   auto s = CopyDirectory(&rocksdb_env(), dir, db_dir, UseHardLinks::kTrue, CreateIfMissing::kTrue);
   if (PREDICT_FALSE(!s.ok())) {
@@ -260,7 +258,7 @@ Status TabletSnapshots::RestoreCheckpoint(
 }
 
 Status TabletSnapshots::Delete(SnapshotOperationState* tx_state) {
-  const std::string top_snapshots_dir = SnapshotsDirName(metadata().rocksdb_dir());
+  const std::string top_snapshots_dir = metadata().snapshots_dir();
   const auto& snapshot_id = tx_state->request()->snapshot_id();
   auto txn_snapshot_id = TryFullyDecodeTxnSnapshotId(snapshot_id);
   const std::string snapshot_dir = JoinPathSegments(

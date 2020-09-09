@@ -58,6 +58,8 @@ using yb::client::YBTableType;
 using yb::client::YBTableName;
 
 METRIC_DECLARE_entity(server);
+METRIC_DECLARE_entity(tablet);
+METRIC_DECLARE_gauge_int64(is_raft_leader);
 METRIC_DECLARE_histogram(handler_latency_yb_tserver_TabletServerAdminService_CreateTablet);
 METRIC_DECLARE_histogram(handler_latency_yb_tserver_TabletServerAdminService_DeleteTablet);
 
@@ -408,6 +410,115 @@ TEST_F(CreateTableITest, TableColocationRemoteBootstrapTest) {
       cluster_->data_root(), "ts-4", "yb-data", "tserver", "wals", "table-" + parent_table_id,
       "tablet-" + tablet_id);
   ASSERT_OK(WaitFor(dirs_exist, MonoDelta::FromSeconds(100), "Create data and wal directories"));
+}
+
+TEST_F(CreateTableITest, TablegroupRemoteBootstrapTest) {
+  const int kNumReplicas = 3;
+  string parent_table_id;
+  string tablet_id;
+  vector<string> ts_flags;
+  vector<string> master_flags;
+  string namespace_name = "tablegroup_test_namespace_name";
+  TablegroupId tablegroup_id = "tablegroup_test_id00000000000000";
+  string namespace_id;
+
+  ts_flags.push_back("--follower_unavailable_considered_failed_sec=3");
+  ts_flags.push_back("--ysql_beta_feature_tablegroup=true");
+  ASSERT_NO_FATALS(StartCluster(ts_flags, master_flags, kNumReplicas));
+
+  ASSERT_OK(
+      client_->CreateNamespace(namespace_name, YQL_DATABASE_PGSQL, "", "", "", boost::none, false));
+
+  {
+    auto namespaces = ASSERT_RESULT(client_->ListNamespaces(boost::none));
+    for (const auto& ns : namespaces) {
+      if (ns.name() == namespace_name) {
+        namespace_id = ns.id();
+        break;
+      }
+    }
+    ASSERT_FALSE(namespace_id.empty());
+  }
+
+  // Since this is just for testing purposes, we do not bother generating a valid PgsqlTablegroupId
+  ASSERT_OK(
+      client_->CreateTablegroup(namespace_name, namespace_id, tablegroup_id));
+
+  // Now want to ensure that the newly created tablegroup shows up in the list.
+  auto exists = ASSERT_RESULT(client_->TablegroupExists(namespace_name, tablegroup_id));
+  ASSERT_TRUE(exists);
+  parent_table_id = tablegroup_id + master::kTablegroupParentTableIdSuffix;
+
+  {
+    google::protobuf::RepeatedPtrField<master::TabletLocationsPB> tablets;
+    ASSERT_OK(WaitFor(
+        [&]() -> bool {
+          EXPECT_OK(client_->GetTabletsFromTableId(parent_table_id, 0, &tablets));
+          return tablets.size() == 1;
+        },
+        MonoDelta::FromSeconds(30), "Create tablegroup tablet"));
+    tablet_id = tablets[0].tablet_id();
+  }
+
+  string rocksdb_dir = JoinPathSegments(
+      cluster_->data_root(), "ts-1", "yb-data", "tserver", "data", "rocksdb",
+      "table-" + parent_table_id, "tablet-" + tablet_id);
+  string wal_dir = JoinPathSegments(
+      cluster_->data_root(), "ts-1", "yb-data", "tserver", "wals", "table-" + parent_table_id,
+      "tablet-" + tablet_id);
+  std::function<Result<bool>()> dirs_exist = [&] {
+    return Env::Default()->FileExists(rocksdb_dir) && Env::Default()->FileExists(wal_dir);
+  };
+
+  ASSERT_OK(WaitFor(dirs_exist, MonoDelta::FromSeconds(30), "Create data and wal directories"));
+
+  // Stop a tablet server and create a new tablet server. This will trigger a remote bootstrap on
+  // the new tablet server.
+  cluster_->tablet_server(2)->Shutdown();
+  ASSERT_OK(cluster_->AddTabletServer());
+  ASSERT_OK(cluster_->WaitForTabletServerCount(4, MonoDelta::FromSeconds(20)));
+
+  // Remote bootstrap should create the correct tablet directory for the new tablet server.
+  rocksdb_dir = JoinPathSegments(
+      cluster_->data_root(), "ts-4", "yb-data", "tserver", "data", "rocksdb",
+      "table-" + parent_table_id, "tablet-" + tablet_id);
+  wal_dir = JoinPathSegments(
+      cluster_->data_root(), "ts-4", "yb-data", "tserver", "wals", "table-" + parent_table_id,
+      "tablet-" + tablet_id);
+  ASSERT_OK(WaitFor(dirs_exist, MonoDelta::FromSeconds(100), "Create data and wal directories"));
+}
+
+TEST_F(CreateTableITest, TestIsRaftLeaderMetric) {
+  const int kNumReplicas = 3;
+  const int kNumTablets = 1;
+  const int kExpectedRaftLeaders = 1;
+  vector<string> ts_flags;
+  vector<string> master_flags;
+  master_flags.push_back("--tablet_creation_timeout_ms=1000");
+  ASSERT_NO_FATALS(StartCluster(ts_flags, master_flags, kNumReplicas));
+  ASSERT_OK(client_->CreateNamespaceIfNotExists(kTableName.namespace_name(),
+                                                kTableName.namespace_type()));
+  std::unique_ptr<client::YBTableCreator> table_creator(client_->NewTableCreator());
+  client::YBSchema client_schema(client::YBSchemaFromSchema(GetSimpleTestSchema()));
+
+  // create a table
+  ASSERT_OK(table_creator->table_name(kTableName)
+                .schema(&client_schema)
+                .num_tablets(kNumTablets)
+                .Create());
+
+  // Count the total Number of Raft Leaders in the cluster. Go through each tablet of every
+  // tablet-server and sum up the leaders.
+  int64_t kNumRaftLeaders = 0;
+  for (int i = 0 ; i < kNumReplicas; i++) {
+    auto tablet_ids = ASSERT_RESULT(cluster_->GetTabletIds(cluster_->tablet_server(i)));
+    for(int ti = 0; ti < inspect_->ListTabletsOnTS(i).size(); ti++) {
+      const char *tabletId = tablet_ids[ti].c_str();
+      kNumRaftLeaders += ASSERT_RESULT(cluster_->tablet_server(i)->GetInt64Metric(
+          &METRIC_ENTITY_tablet, tabletId, &METRIC_is_raft_leader, "value"));
+    }
+  }
+  ASSERT_EQ(kNumRaftLeaders, kExpectedRaftLeaders);
 }
 
 }  // namespace yb

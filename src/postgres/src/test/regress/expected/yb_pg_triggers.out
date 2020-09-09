@@ -1343,8 +1343,12 @@ UPDATE city_view SET continent = 'EU' WHERE continent = 'Europe' RETURNING *;
 UPDATE 1
 UPDATE city_view v1 SET country_name = v2.country_name FROM city_view v2
     WHERE v2.city_name = 'Birmingham' AND v1.city_name = 'London' RETURNING *;
-ERROR:  FROM clause in UPDATE not supported yet
-HINT:  See https://github.com/YugaByte/yugabyte-db/issues/738. Click '+' on the description to raise its priority
+ city_id | city_name | population | country_name | continent | city_id | city_name  | population | country_name | continent
+---------+-----------+------------+--------------+-----------+---------+------------+------------+--------------+-----------
+       2 | London    |    7556900 | UK           | Europe    |  234567 | Birmingham |    1016800 | UK           | Europe
+(1 row)
+
+UPDATE 1
 -- DELETE .. RETURNING
 DELETE FROM city_view WHERE city_name = 'Birmingham' RETURNING *;
  city_id | city_name  | population | country_name | continent
@@ -1360,7 +1364,7 @@ CREATE VIEW european_city_view AS
 SELECT count(*) FROM european_city_view;
  count
 -------
-     0
+     1
 (1 row)
 
 CREATE FUNCTION no_op_trig_fn() RETURNS trigger LANGUAGE plpgsql
@@ -1435,15 +1439,19 @@ UPDATE city_view v SET population = 599657
     AND v.city_id = ci.city_id AND v.country_name = co.country_name
     RETURNING co.country_id, v.country_name,
               v.city_id, v.city_name, v.population;
-ERROR:  FROM clause in UPDATE not supported yet
-HINT:  See https://github.com/YugaByte/yugabyte-db/issues/738. Click '+' on the description to raise its priority
+ country_id | country_name | city_id |   city_name   | population
+------------+--------------+---------+---------------+------------
+          3 | USA          |       3 | Washington DC |     599657
+(1 row)
+
+UPDATE 1
 \set QUIET true
 SELECT * FROM city_view order by city_id;
  city_id |   city_name   | population | country_name |   continent
 ---------+---------------+------------+--------------+---------------
        1 | Tokyo         |   13010279 | Japan        | Asia
-       2 | London        |    7556900 |              |
-       3 | Washington DC |            | USA          | North America
+       2 | London        |    7556900 | UK           | Europe
+       3 | Washington DC |     599657 | USA          | North America
   123456 | New York      |    8391881 | USA          | North America
 (4 rows)
 
@@ -1877,23 +1885,24 @@ drop table my_table;
 -- Verify cases that are unsupported with partitioned tables
 --
 create table parted_trig (a int) partition by list (a);
-ERROR:  PARTITION BY not supported yet
-LINE 1: create table parted_trig (a int) partition by list (a);
-                                         ^
-HINT:  See https://github.com/YugaByte/yugabyte-db/issues/1126. Click '+' on the description to raise its priority
--- TODO When/if (PG-style) partitioned tables are supported in YB enabled the tests below.
-/*
 create function trigger_nothing() returns trigger
   language plpgsql as $$ begin end; $$;
 create trigger failed before insert or update or delete on parted_trig
   for each row execute procedure trigger_nothing();
+ERROR:  "parted_trig" is a partitioned table
+DETAIL:  Partitioned tables cannot have BEFORE / FOR EACH ROW triggers.
 create trigger failed instead of update on parted_trig
   for each row execute procedure trigger_nothing();
+ERROR:  "parted_trig" is a table
+DETAIL:  Tables cannot have INSTEAD OF triggers.
 create trigger failed after update on parted_trig
   referencing old table as old_table
   for each row execute procedure trigger_nothing();
+ERROR:  REFERENCING clause (transition tables) not supported yet
+LINE 2:   referencing old table as old_table
+          ^
+HINT:  See https://github.com/YugaByte/yugabyte-db/issues/1668. Click '+' on the description to raise its priority
 drop table parted_trig;
-
 --
 -- Verify trigger creation for partitioned tables, and drop behavior
 --
@@ -1902,33 +1911,55 @@ create table trigpart1 partition of trigpart for values from (0) to (1000);
 create trigger trg1 after insert on trigpart for each row execute procedure trigger_nothing();
 create table trigpart2 partition of trigpart for values from (1000) to (2000);
 create table trigpart3 (like trigpart);
-alter table trigpart attach partition trigpart3 for values from (2000) to (3000);
+ERROR:  LIKE clause not supported yet
+LINE 1: create table trigpart3 (like trigpart);
+                                ^
+HINT:  See https://github.com/YugaByte/yugabyte-db/issues/1129. Click '+' on the description to raise its priority
 select tgrelid::regclass, tgname, tgfoid::regproc from pg_trigger
   where tgrelid::regclass::text like 'trigpart%' order by tgrelid::regclass::text;
+  tgrelid  | tgname |     tgfoid      
+-----------+--------+-----------------
+ trigpart  | trg1   | trigger_nothing
+ trigpart1 | trg1   | trigger_nothing
+ trigpart2 | trg1   | trigger_nothing
+(3 rows)
+
+-- Disabling the below tests temporarily because each run of the test can
+-- throw one of two errors. The error message displayed contains the first dependency
+-- resulting from the scan of pg_depend preventing the delete of the trigger. The trigger
+-- depends on the partition table itself and on the trigger created on the partitioned
+-- table, and either of the two error messages are possible.
+/*
 drop trigger trg1 on trigpart1;	-- fail
 drop trigger trg1 on trigpart2;	-- fail
-drop trigger trg1 on trigpart3;	-- fail
+*/
 drop table trigpart2;			-- ok, trigger should be gone in that partition
 select tgrelid::regclass, tgname, tgfoid::regproc from pg_trigger
   where tgrelid::regclass::text like 'trigpart%' order by tgrelid::regclass::text;
+  tgrelid  | tgname |     tgfoid      
+-----------+--------+-----------------
+ trigpart  | trg1   | trigger_nothing
+ trigpart1 | trg1   | trigger_nothing
+(2 rows)
+
 drop trigger trg1 on trigpart;		-- ok, all gone
 select tgrelid::regclass, tgname, tgfoid::regproc from pg_trigger
   where tgrelid::regclass::text like 'trigpart%' order by tgrelid::regclass::text;
+ tgrelid | tgname | tgfoid 
+---------+--------+--------
+(0 rows)
 
 drop table trigpart;
 drop function trigger_nothing();
-
 --
 -- Verify that triggers are fired for partitioned tables
 --
 create table parted_stmt_trig (a int) partition by list (a);
 create table parted_stmt_trig1 partition of parted_stmt_trig for values in (1);
 create table parted_stmt_trig2 partition of parted_stmt_trig for values in (2);
-
 create table parted2_stmt_trig (a int) partition by list (a);
 create table parted2_stmt_trig1 partition of parted2_stmt_trig for values in (1);
 create table parted2_stmt_trig2 partition of parted2_stmt_trig for values in (2);
-
 create or replace function trigger_notice() returns trigger as $$
   begin
     raise notice 'trigger % on % % % for %', TG_NAME, TG_TABLE_NAME, TG_WHEN, TG_OP, TG_LEVEL;
@@ -1938,7 +1969,6 @@ create or replace function trigger_notice() returns trigger as $$
     return null;
   end;
   $$ language plpgsql;
-
 -- insert/update/delete statement-level triggers on the parent
 create trigger trig_ins_before before insert on parted_stmt_trig
   for each statement execute procedure trigger_notice();
@@ -1952,7 +1982,6 @@ create trigger trig_del_before before delete on parted_stmt_trig
   for each statement execute procedure trigger_notice();
 create trigger trig_del_after after delete on parted_stmt_trig
   for each statement execute procedure trigger_notice();
-
 -- insert/update/delete row-level triggers on the parent
 create trigger trig_ins_after_parent after insert on parted_stmt_trig
   for each row execute procedure trigger_notice();
@@ -1960,7 +1989,6 @@ create trigger trig_upd_after_parent after update on parted_stmt_trig
   for each row execute procedure trigger_notice();
 create trigger trig_del_after_parent after delete on parted_stmt_trig
   for each row execute procedure trigger_notice();
-
 -- insert/update/delete row-level triggers on the first partition
 create trigger trig_ins_before_child before insert on parted_stmt_trig1
   for each row execute procedure trigger_notice();
@@ -1974,7 +2002,6 @@ create trigger trig_del_before_child before delete on parted_stmt_trig1
   for each row execute procedure trigger_notice();
 create trigger trig_del_after_child after delete on parted_stmt_trig1
   for each row execute procedure trigger_notice();
-
 -- insert/update/delete statement-level triggers on the parent
 create trigger trig_ins_before_3 before insert on parted2_stmt_trig
   for each statement execute procedure trigger_notice();
@@ -1988,36 +2015,67 @@ create trigger trig_del_before_3 before delete on parted2_stmt_trig
   for each statement execute procedure trigger_notice();
 create trigger trig_del_after_3 after delete on parted2_stmt_trig
   for each statement execute procedure trigger_notice();
-
 with ins (a) as (
   insert into parted2_stmt_trig values (1), (2) returning a
 ) insert into parted_stmt_trig select a from ins returning tableoid::regclass, a;
+NOTICE:  trigger trig_ins_before on parted_stmt_trig BEFORE INSERT for STATEMENT
+NOTICE:  trigger trig_ins_before_3 on parted2_stmt_trig BEFORE INSERT for STATEMENT
+NOTICE:  trigger trig_ins_before_child on parted_stmt_trig1 BEFORE INSERT for ROW
+NOTICE:  trigger trig_ins_after_child on parted_stmt_trig1 AFTER INSERT for ROW
+NOTICE:  trigger trig_ins_after_parent on parted_stmt_trig1 AFTER INSERT for ROW
+NOTICE:  trigger trig_ins_after_parent on parted_stmt_trig2 AFTER INSERT for ROW
+NOTICE:  trigger trig_ins_after_3 on parted2_stmt_trig AFTER INSERT for STATEMENT
+NOTICE:  trigger trig_ins_after on parted_stmt_trig AFTER INSERT for STATEMENT
+     tableoid      | a 
+-------------------+---
+ parted_stmt_trig1 | 1
+ parted_stmt_trig2 | 2
+(2 rows)
 
 with upd as (
   update parted2_stmt_trig set a = a
 ) update parted_stmt_trig  set a = a;
-
+NOTICE:  trigger trig_upd_before on parted_stmt_trig BEFORE UPDATE for STATEMENT
+NOTICE:  trigger trig_upd_before_child on parted_stmt_trig1 BEFORE UPDATE for ROW
+NOTICE:  trigger trig_upd_before_3 on parted2_stmt_trig BEFORE UPDATE for STATEMENT
+NOTICE:  trigger trig_upd_after_child on parted_stmt_trig1 AFTER UPDATE for ROW
+NOTICE:  trigger trig_upd_after_parent on parted_stmt_trig1 AFTER UPDATE for ROW
+NOTICE:  trigger trig_upd_after_parent on parted_stmt_trig2 AFTER UPDATE for ROW
+NOTICE:  trigger trig_upd_after on parted_stmt_trig AFTER UPDATE for STATEMENT
+NOTICE:  trigger trig_upd_after_3 on parted2_stmt_trig AFTER UPDATE for STATEMENT
 delete from parted_stmt_trig;
-
+NOTICE:  trigger trig_del_before on parted_stmt_trig BEFORE DELETE for STATEMENT
+NOTICE:  trigger trig_del_before_child on parted_stmt_trig1 BEFORE DELETE for ROW
+NOTICE:  trigger trig_del_after_parent on parted_stmt_trig2 AFTER DELETE for ROW
+NOTICE:  trigger trig_del_after on parted_stmt_trig AFTER DELETE for STATEMENT
 -- insert via copy on the parent
 copy parted_stmt_trig(a) from stdin;
-1
-2
-\.
-
+NOTICE:  trigger trig_ins_before on parted_stmt_trig BEFORE INSERT for STATEMENT
+NOTICE:  trigger trig_ins_before_child on parted_stmt_trig1 BEFORE INSERT for ROW
+NOTICE:  trigger trig_ins_after_child on parted_stmt_trig1 AFTER INSERT for ROW
+NOTICE:  trigger trig_ins_after_parent on parted_stmt_trig1 AFTER INSERT for ROW
+NOTICE:  trigger trig_ins_after_parent on parted_stmt_trig2 AFTER INSERT for ROW
+NOTICE:  trigger trig_ins_after on parted_stmt_trig AFTER INSERT for STATEMENT
 -- insert via copy on the first partition
 copy parted_stmt_trig1(a) from stdin;
-1
-\.
-
+NOTICE:  trigger trig_ins_before_child on parted_stmt_trig1 BEFORE INSERT for ROW
+NOTICE:  trigger trig_ins_after_child on parted_stmt_trig1 AFTER INSERT for ROW
+NOTICE:  trigger trig_ins_after_parent on parted_stmt_trig1 AFTER INSERT for ROW
 -- Disabling a trigger in the parent table should disable children triggers too
 alter table parted_stmt_trig disable trigger trig_ins_after_parent;
 insert into parted_stmt_trig values (1);
+NOTICE:  trigger trig_ins_before on parted_stmt_trig BEFORE INSERT for STATEMENT
+NOTICE:  trigger trig_ins_before_child on parted_stmt_trig1 BEFORE INSERT for ROW
+NOTICE:  trigger trig_ins_after_child on parted_stmt_trig1 AFTER INSERT for ROW
+NOTICE:  trigger trig_ins_after on parted_stmt_trig AFTER INSERT for STATEMENT
 alter table parted_stmt_trig enable trigger trig_ins_after_parent;
 insert into parted_stmt_trig values (1);
-
+NOTICE:  trigger trig_ins_before on parted_stmt_trig BEFORE INSERT for STATEMENT
+NOTICE:  trigger trig_ins_before_child on parted_stmt_trig1 BEFORE INSERT for ROW
+NOTICE:  trigger trig_ins_after_child on parted_stmt_trig1 AFTER INSERT for ROW
+NOTICE:  trigger trig_ins_after_parent on parted_stmt_trig1 AFTER INSERT for ROW
+NOTICE:  trigger trig_ins_after on parted_stmt_trig AFTER INSERT for STATEMENT
 drop table parted_stmt_trig, parted2_stmt_trig;
-
 -- Verify that triggers fire in alphabetical order
 create table parted_trig (a int) partition by range (a);
 create table parted_trig_1 partition of parted_trig for values from (0) to (1000)
@@ -2030,8 +2088,14 @@ create trigger aaa after insert on parted_trig_1 for each row execute procedure 
 create trigger bbb after insert on parted_trig for each row execute procedure trigger_notice();
 create trigger qqq after insert on parted_trig_1_1 for each row execute procedure trigger_notice();
 insert into parted_trig values (50), (1500);
+NOTICE:  trigger aaa on parted_trig_1_1 AFTER INSERT for ROW
+NOTICE:  trigger bbb on parted_trig_1_1 AFTER INSERT for ROW
+NOTICE:  trigger mmm on parted_trig_1_1 AFTER INSERT for ROW
+NOTICE:  trigger qqq on parted_trig_1_1 AFTER INSERT for ROW
+NOTICE:  trigger zzz on parted_trig_1_1 AFTER INSERT for ROW
+NOTICE:  trigger bbb on parted_trig_2 AFTER INSERT for ROW
+NOTICE:  trigger zzz on parted_trig_2 AFTER INSERT for ROW
 drop table parted_trig;
-
 -- test irregular partitions (i.e., different column definitions),
 -- including that the WHEN clause works
 create function bark(text) returns bool language plpgsql immutable
@@ -2067,10 +2131,19 @@ create trigger parted_trig_odd after insert on parted_irreg for each row
 -- we should hear barking for every insert, but parted_trig_odd only emits
 -- noise for odd values of a. parted_trig does it for all inserts.
 insert into parted_irreg values (1, 'aardvark'), (2, 'aanimals');
+NOTICE:  aardvark <- woof!
+NOTICE:  aanimals <- woof!
+NOTICE:  trigger parted_trig on parted1_irreg AFTER INSERT for ROW: (a,b)=(1,aardvark)
+NOTICE:  trigger parted_trig_odd on parted1_irreg AFTER INSERT for ROW: (a,b)=(1,aardvark)
+NOTICE:  trigger parted_trig on parted1_irreg AFTER INSERT for ROW: (a,b)=(2,aanimals)
 insert into parted1_irreg values ('aardwolf', 2);
+NOTICE:  aardwolf <- woof!
+NOTICE:  trigger parted_trig on parted1_irreg AFTER INSERT for ROW: (a,b)=(2,aardwolf)
 insert into parted_irreg_ancestor values ('aasvogel', 3);
+NOTICE:  aasvogel <- woof!
+NOTICE:  trigger parted_trig on parted1_irreg AFTER INSERT for ROW: (a,b)=(3,aasvogel)
+NOTICE:  trigger parted_trig_odd on parted1_irreg AFTER INSERT for ROW: (a,b)=(3,aasvogel)
 drop table parted_irreg_ancestor;
-
 --
 -- Constraint triggers and partitioned tables
 create table parted_constr_ancestor (a int, b text)
@@ -2085,6 +2158,11 @@ alter table parted_constr attach partition parted1_constr
 create constraint trigger parted_trig after insert on parted_constr_ancestor
   deferrable
   for each row execute procedure trigger_notice_ab();
+ERROR:  CREATE CONSTRAINT TRIGGER not supported yet
+LINE 1: create constraint trigger parted_trig after insert on parted...
+        ^
+HINT:  See https://github.com/YugaByte/yugabyte-db/issues/1709. Click '+' on the description to raise its priority
+/*
 create constraint trigger parted_trig_two after insert on parted_constr
   deferrable initially deferred
   for each row when (bark(new.b) AND new.a % 2 = 1)
@@ -2106,9 +2184,9 @@ set constraints parted_trig deferred;
 insert into parted_constr values (1, 'aardvark');
 insert into parted1_constr values (2, 'aardwolf'), (3, 'aasvogel');
 commit;
+*/
 drop table parted_constr_ancestor;
 drop function bark(text);
-
 -- Test that the WHEN clause is set properly to partitions
 create table parted_trigger (a int, b text) partition by range (a);
 create table parted_trigger_1 partition of parted_trigger for values from (0) to (1000);
@@ -2126,8 +2204,10 @@ insert into parted_trigger values
 	(1000, 'c'), (1001, 'ddd'), (1002, 'efg'), (1003, 'f'),
 	(2000, 'e'), (2001, 'fff'), (2002, 'ghi'), (2003, 'h');
 update parted_trigger set a = a + 2; -- notice for odd 'a' values, long 'b' values
+NOTICE:  trigger parted_trigger on parted_trigger_1 AFTER UPDATE for ROW: (a,b)=(3,bbb)
+NOTICE:  trigger parted_trigger on parted_trigger_2 AFTER UPDATE for ROW: (a,b)=(1003,ddd)
+NOTICE:  trigger parted_trigger on parted_trigger_3_2 AFTER UPDATE for ROW: (a,b)=(2003,fff)
 drop table parted_trigger;
-
 -- try a constraint trigger, also
 create table parted_referenced (a int);
 create table unparted_trigger (a int, b text);	-- for comparison purposes
@@ -2139,6 +2219,11 @@ alter table parted_trigger attach partition parted_trigger_2 for values from (10
 create constraint trigger parted_trigger after update on parted_trigger
   from parted_referenced
   for each row execute procedure trigger_notice_ab();
+ERROR:  CREATE CONSTRAINT TRIGGER not supported yet
+LINE 1: create constraint trigger parted_trigger after update on par...
+        ^
+HINT:  See https://github.com/YugaByte/yugabyte-db/issues/1709. Click '+' on the description to raise its priority
+/*
 create constraint trigger parted_trigger after update on unparted_trigger
   from parted_referenced
   for each row execute procedure trigger_notice_ab();
@@ -2151,8 +2236,8 @@ select tgname, conname, t.tgrelid::regclass, t.tgconstrrelid::regclass,
   from pg_trigger t join pg_constraint c on (t.tgconstraint = c.oid)
   where tgname = 'parted_trigger'
   order by t.tgrelid::regclass::text;
+*/
 drop table parted_referenced, parted_trigger, unparted_trigger;
-
 -- verify that the "AFTER UPDATE OF columns" event is propagated correctly
 create table parted_trigger (a int, b text) partition by range (a);
 create table parted_trigger_1 partition of parted_trigger for values from (0) to (1000);
@@ -2168,15 +2253,22 @@ alter table parted_trigger attach partition parted_trigger_3 for values from (20
 insert into parted_trigger values (0, 'a'), (1000, 'c'), (2000, 'e'), (2001, 'eeee');
 update parted_trigger set a = a + 2;	-- no notices here
 update parted_trigger set b = b || 'b';	-- all triggers should fire
+NOTICE:  trigger parted_trigger on parted_trigger_1 AFTER UPDATE for ROW: (a,b)=(2,ab)
+NOTICE:  trigger parted_trigger on parted_trigger_2 AFTER UPDATE for ROW: (a,b)=(1002,cb)
+NOTICE:  trigger parted_trigger on parted_trigger_3_1 AFTER UPDATE for ROW: (a,b)=(2002,eb)
+NOTICE:  trigger parted_trigger on parted_trigger_3_2 AFTER UPDATE for ROW: (a,b)=(2003,eeeeb)
 drop table parted_trigger;
-
 drop function trigger_notice_ab();
-
 -- Make sure we don't end up with unnecessary copies of triggers, when
 -- cloning them.
 create table trg_clone (a int) partition by range (a);
 create table trg_clone1 partition of trg_clone for values from (0) to (1000);
 alter table trg_clone add constraint uniq unique (a) deferrable;
+ERROR:  DEFERRABLE unique constraints are not supported yet
+LINE 1: alter table trg_clone add constraint uniq unique (a) deferra...
+                                  ^
+HINT:  See https://github.com/YugaByte/yugabyte-db/issues/1129. Click '+' on the description to raise its priority
+/*
 create table trg_clone2 partition of trg_clone for values from (1000) to (2000);
 create table trg_clone3 partition of trg_clone for values from (2000) to (3000)
   partition by range (a);
@@ -2185,15 +2277,14 @@ select tgrelid::regclass, count(*) from pg_trigger
   where tgrelid::regclass in ('trg_clone', 'trg_clone1', 'trg_clone2',
 	'trg_clone3', 'trg_clone_3_3')
   group by tgrelid::regclass order by tgrelid::regclass;
+*/
 drop table trg_clone;
-
 --
 -- Test the interaction between transition tables and both kinds of
 -- inheritance.  We'll dump the contents of the transition tables in a
 -- format that shows the attribute order, so that we can distinguish
 -- tuple formats (though not dropped attributes).
 --
-*/
 -- Let these function be created since they are also used in other tests.
 create or replace function dump_insert() returns trigger language plpgsql as
 $$
@@ -2223,39 +2314,36 @@ $$
     return null;
   end;
 $$;
--- Continue skipped partition tests (TODO to be enabled when PG-style partition tables are supported).
-/*
 --
 -- Verify behavior of statement triggers on partition hierarchy with
 -- transition tables.  Tuples should appear to each trigger in the
 -- format of the relation the trigger is attached to.
 --
-
 -- set up a partition hierarchy with some different TupleDescriptors
 create table parent (a text, b int) partition by list (a);
-
 -- a child matching parent
 create table child1 partition of parent for values in ('AAA');
-
 -- a child with a dropped column
 create table child2 (x int, a text, b int);
 alter table child2 drop column x;
 alter table parent attach partition child2 for values in ('BBB');
-
 -- a child with a different column order
 create table child3 (b int, a text);
 alter table parent attach partition child3 for values in ('CCC');
-
 create trigger parent_insert_trig
   after insert on parent referencing new table as new_table
   for each statement execute procedure dump_insert();
+ERROR:  REFERENCING clause (transition tables) not supported yet
+LINE 2:   after insert on parent referencing new table as new_table
+                                 ^
+HINT:  See https://github.com/YugaByte/yugabyte-db/issues/1668. Click '+' on the description to raise its priority
+/*
 create trigger parent_update_trig
   after update on parent referencing old table as old_table new table as new_table
   for each statement execute procedure dump_update();
 create trigger parent_delete_trig
   after delete on parent referencing old table as old_table
   for each statement execute procedure dump_delete();
-
 create trigger child1_insert_trig
   after insert on child1 referencing new table as new_table
   for each statement execute procedure dump_insert();

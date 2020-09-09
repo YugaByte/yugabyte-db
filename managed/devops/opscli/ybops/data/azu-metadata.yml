@@ -1,0 +1,61 @@
+# Copyright 2020 YugaByte, Inc. and Contributors
+#
+# Licensed under the Polyform Free Trial License 1.0.0 (the "License"); you
+# may not use this file except in compliance with the License. You
+# may obtain a copy of the License at
+#
+# https://github.com/YugaByte/yugabyte-db/blob/master/licenses/POLYFORM-FREE-TRIAL-LICENSE-1.0.0.txt
+
+region_cidr_format: "{}.0.0/16"
+zone_cidr_format: "{}.{}.0/20"
+# All Azure regions that currently support Availability Zones
+# https://docs.microsoft.com/en-us/azure/availability-zones/az-region
+
+regions:
+  westus2:
+    cidr_prefix: "10.12"
+    image: "OpenLogic:CentOS:7_8:7.8.2020051900"
+    zones: ['1', '2','3']
+  centralus:
+    cidr_prefix: "10.13"
+    image: "OpenLogic:CentOS:7_8:7.8.2020051900"
+    zones: ['1', '2','3']
+  eastus:
+    cidr_prefix: "10.14"
+    image: "OpenLogic:CentOS:7_8:7.8.2020051900"
+    zones: ['1', '2','3']
+  eastus2:
+    cidr_prefix: "10.15"
+    image: "OpenLogic:CentOS:7_8:7.8.2020051900"
+    zones: ['1', '2','3']
+  westeurope:
+    cidr_prefix: "10.16"
+    image: "OpenLogic:CentOS:7_8:7.8.2020051900"
+    zones: ['1', '2','3']
+  northeurope:
+    cidr_prefix: "10.17"
+    image: "OpenLogic:CentOS:7_8:7.8.2020051900"
+    zones: ['1', '2','3']
+  japaneast:
+    cidr_prefix: "10.18"
+    image: "OpenLogic:CentOS:7_8:7.8.2020051900"
+    zones: ['1', '2','3']
+  southeastasia:
+    cidr_prefix: "10.19"
+    image: "OpenLogic:CentOS:7_8:7.8.2020051900"
+    zones: ['1', '2','3']
+  australiaeast:
+    cidr_prefix: "10.20"
+    image: "OpenLogic:CentOS:7_8:7.8.2020051900"
+    zones: ['1', '2','3']
+  uksouth:
+    cidr_prefix: "10.21"
+    image: "OpenLogic:CentOS:7_8:7.8.2020051900"
+    zones: ['1', '2','3']
+  francecentral:
+    cidr_prefix: "10.22"
+    image: "OpenLogic:CentOS:7_8:7.8.2020051900"
+    zones: ['1', '2','3']
+
+credential_vars: ['AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'AZURE_TENANT_ID',
+                  'AZURE_SUBSCRIPTION_ID', 'AZURE_RG']

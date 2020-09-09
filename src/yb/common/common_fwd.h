@@ -47,6 +47,7 @@ class QLValuePB;
 class TableProperties;
 
 struct ColumnId;
+struct OpId;
 struct QLTableColumn;
 
 enum class PgSystemAttrNum : int;

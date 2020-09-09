@@ -110,17 +110,19 @@ class TabletHarness {
     RETURN_NOT_OK(fs_manager_->Open());
 
     RaftGroupMetadataPtr metadata;
-    RETURN_NOT_OK(RaftGroupMetadata::LoadOrCreate(fs_manager_.get(),
-                                               "YBTableTest",
-                                               options_.tablet_id,
-                                               "YBTableTest",
-                                               options_.table_type,
-                                               schema_,
-                                               partition.first,
-                                               partition.second,
-                                               boost::none /* index_info */,
-                                               TABLET_DATA_READY,
-                                               &metadata));
+    RETURN_NOT_OK(RaftGroupMetadata::LoadOrCreate(
+        fs_manager_.get(),
+        "YBTableTest",
+        options_.tablet_id,
+        "test",
+        "YBTableTest",
+        options_.table_type,
+        schema_,
+        partition.first,
+        partition.second,
+        boost::none /* index_info */,
+        TABLET_DATA_READY,
+        &metadata));
     if (options_.enable_metrics) {
       metrics_registry_.reset(new MetricRegistry());
     }

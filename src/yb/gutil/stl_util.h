@@ -39,8 +39,8 @@
 // and Google friendly API.
 //
 
-#ifndef UTIL_GTL_STL_UTIL_H_
-#define UTIL_GTL_STL_UTIL_H_
+#ifndef YB_GUTIL_STL_UTIL_H
+#define YB_GUTIL_STL_UTIL_H
 
 #include <stddef.h>
 #include <string.h>  // for memcpy
@@ -65,6 +65,7 @@ using std::iterator_traits;
 using std::string;
 #include <vector>
 using std::vector;
+#include <set>
 
 #include "yb/gutil/integral_types.h"
 #include "yb/gutil/macros.h"
@@ -717,7 +718,7 @@ class UnaryOperateOnFirst
   UnaryOperateOnFirst() {
   }
 
-  UnaryOperateOnFirst(const UnaryOp& f) : f_(f) {  // TODO(user): explicit?
+  explicit UnaryOperateOnFirst(const UnaryOp& f) : f_(f) {
   }
 
   typename UnaryOp::result_type operator()(const Pair& p) const {
@@ -740,7 +741,7 @@ class UnaryOperateOnSecond
   UnaryOperateOnSecond() {
   }
 
-  UnaryOperateOnSecond(const UnaryOp& f) : f_(f) {  // TODO(user): explicit?
+  explicit UnaryOperateOnSecond(const UnaryOp& f) : f_(f) {
   }
 
   typename UnaryOp::result_type operator()(const Pair& p) const {
@@ -763,7 +764,7 @@ class BinaryOperateOnFirst
   BinaryOperateOnFirst() {
   }
 
-  BinaryOperateOnFirst(const BinaryOp& f) : f_(f) {  // TODO(user): explicit?
+  explicit BinaryOperateOnFirst(const BinaryOp& f) : f_(f) {
   }
 
   typename BinaryOp::result_type operator()(const Pair& p1,
@@ -788,7 +789,7 @@ class BinaryOperateOnSecond
   BinaryOperateOnSecond() {
   }
 
-  BinaryOperateOnSecond(const BinaryOp& f) : f_(f) {
+  explicit BinaryOperateOnSecond(const BinaryOp& f) : f_(f) {
   }
 
   typename BinaryOp::result_type operator()(const Pair& p1,
@@ -858,7 +859,7 @@ class STLCountingAllocator : public Alloc {
   typedef typename Alloc::size_type size_type;
 
   STLCountingAllocator() : bytes_used_(NULL) { }
-  STLCountingAllocator(int64* b) : bytes_used_(b) {}  // TODO(user): explicit?
+  explicit STLCountingAllocator(int64* b) : bytes_used_(b) {}
 
   // Constructor used for rebinding
   template <class U>
@@ -987,5 +988,9 @@ template<typename T> T* release_ptr(T **ptr) {
   return tmp;
 }
 
+template<typename T>
+std::set<T> VectorToSet(const std::vector<T>& v) {
+  return std::set<T>(v.begin(), v.end());
+}
 
-#endif  // UTIL_GTL_STL_UTIL_H_
+#endif  // YB_GUTIL_STL_UTIL_H

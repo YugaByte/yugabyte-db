@@ -311,7 +311,8 @@ Status BulkLoadTask::InsertRow(const string &row,
   // Comment from PritamD: Don't need cross shard transaction support in bulk load, but I guess
   // once we have secondary indexes we probably might need to ensure bulk load builds the indexes
   // as well.
-  docdb::QLWriteOperation op(schema, index_map, nullptr /* unique_index_key_schema */, boost::none);
+  docdb::QLWriteOperation op(std::shared_ptr<const Schema>(&schema, [](const Schema*){}),
+                             index_map, nullptr /* unique_index_key_schema */, boost::none);
   RETURN_NOT_OK(op.Init(&req, &resp));
   RETURN_NOT_OK(op.Apply({
       doc_write_batch,

@@ -226,6 +226,7 @@ TEST(TestCatalogManager, TestLoadBalancedPerAZ) {
 
 TEST(TestCatalogManager, TestLeaderLoadBalanced) {
   // AreLeadersOnPreferredOnly should always return true.
+  // Note that this is essentially using transaction_tables_use_preferred_zones = true
   ReplicationInfoPB replication_info;
   SetupClusterConfig({"a", "b", "c"}, &replication_info);
 

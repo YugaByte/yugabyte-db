@@ -24,6 +24,7 @@ EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1 WHERE k = 1 RETURNING k, v1;
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1, v2 = 1 + 2 WHERE k = 1;
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1, v2 = 2 WHERE k = 1 RETURNING k, v1, v2;
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1, v2 = 2 WHERE k = 1 RETURNING *;
+EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = v1 + 1, v2 = 2 WHERE k = 1 RETURNING v2;
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1 WHERE k IN (1);
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 3 + 2 WHERE k = 1;
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = power(2, 3 - 1) WHERE k = 1;
@@ -38,6 +39,7 @@ EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1, v2 = v1 + v2 WHERE k = 1;
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = v2 + 1, v2 = 1 WHERE k = 1;
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1 WHERE k = 1 and v2 = 1;
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1 WHERE k = 1 RETURNING v2;
+EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = v1 + 1 WHERE k = 1 RETURNING v1;
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1 WHERE k = 1 RETURNING *;
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1 WHERE k > 1;
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1 WHERE k != 1;
@@ -94,6 +96,12 @@ UPDATE single_row SET v1 = 2, v2 = 2 WHERE k = 1 RETURNING v1, v2, k;
 SELECT * FROM single_row;
 
 UPDATE single_row SET v1 = 3, v2 = 3 WHERE k = 1 RETURNING *;
+SELECT * FROM single_row;
+
+UPDATE single_row SET v1 = v1 + 1 WHERE k = 1 RETURNING v1;
+SELECT * FROM single_row;
+
+UPDATE single_row SET v1 = v1 + 1, v2 = 4 WHERE k = 1 RETURNING v2;
 SELECT * FROM single_row;
 
 DELETE FROM single_row WHERE k = 1 RETURNING k;
@@ -619,6 +627,36 @@ SELECT * FROM single_row_default_col ORDER BY k;
 -- Setting b to null should not be allowed.
 UPDATE single_row_default_col SET b = NULL, c = 5 WHERE k = 3;
 SELECT * FROM single_row_default_col ORDER BY k;
+
+--
+-- Test single-row with partial index
+--
+
+CREATE TABLE single_row_partial_index(k SERIAL PRIMARY KEY, value INT NOT NULL, status INT NOT NULL);
+CREATE UNIQUE INDEX ON single_row_partial_index(value ASC) WHERE status = 10;
+INSERT INTO single_row_partial_index(value, status) VALUES(1, 10), (2, 20), (3, 10), (4, 30);
+EXPLAIN (COSTS OFF) SELECT * FROM single_row_partial_index WHERE status = 10;
+SELECT * FROM single_row_partial_index WHERE status = 10;
+EXPLAIN (COSTS OFF) UPDATE single_row_partial_index SET status = 10 WHERE k = 2;
+UPDATE single_row_partial_index SET status = 10 WHERE k = 2;
+SELECT * FROM single_row_partial_index WHERE status = 10;
+EXPLAIN (COSTS OFF) UPDATE single_row_partial_index SET status = 9 WHERE k = 1;
+UPDATE single_row_partial_index SET status = 9 WHERE k = 1;
+SELECT * FROM single_row_partial_index WHERE status = 10;
+
+--
+-- Test single-row with index expression
+--
+
+CREATE TABLE single_row_expression_index(k SERIAL PRIMARY KEY, value text NOT NULL);
+CREATE UNIQUE INDEX ON single_row_expression_index(lower(value) ASC);
+INSERT INTO single_row_expression_index(value) VALUES('aBc'), ('deF'), ('HIJ');
+EXPLAIN (COSTS OFF) SELECT * FROM single_row_expression_index WHERE lower(value)='def';
+SELECT * FROM single_row_expression_index WHERE lower(value)='def';
+EXPLAIN (COSTS OFF) UPDATE single_row_expression_index SET value = 'kLm' WHERE k = 2;
+UPDATE single_row_expression_index SET value = 'kLm' WHERE k = 2;
+SELECT * FROM single_row_expression_index WHERE lower(value)='def';
+SELECT * FROM single_row_expression_index WHERE lower(value)='klm';
 
 --
 -- Test array types.

@@ -28,15 +28,18 @@ namespace enterprise {
 class ClusterAdminClient : public yb::tools::ClusterAdminClient {
   typedef yb::tools::ClusterAdminClient super;
  public:
-  ClusterAdminClient(std::string addrs, int64_t timeout_millis)
-      : super(std::move(addrs), timeout_millis) {}
+  ClusterAdminClient(std::string addrs, MonoDelta timeout)
+      : super(std::move(addrs), timeout) {}
 
-  ClusterAdminClient(const HostPort& init_master_addrs, int64_t timeout_millis)
-      : super(init_master_addrs, timeout_millis) {}
+  ClusterAdminClient(const HostPort& init_master_addrs, MonoDelta timeout)
+      : super(init_master_addrs, timeout) {}
 
   // Snapshot operations.
-  CHECKED_STATUS ListSnapshots(bool show_details, bool show_restored);
-  CHECKED_STATUS CreateSnapshot(const std::vector<client::YBTableName>& tables);
+  CHECKED_STATUS ListSnapshots(bool show_details, bool show_restored, bool show_deleted);
+  CHECKED_STATUS CreateSnapshot(const std::vector<client::YBTableName>& tables,
+                                const bool add_indexes = true,
+                                const int flush_timeout_secs = 0);
+  CHECKED_STATUS CreateNamespaceSnapshot(const TypedNamespaceName& ns);
   CHECKED_STATUS RestoreSnapshot(const std::string& snapshot_id);
   CHECKED_STATUS DeleteSnapshot(const std::string& snapshot_id);
 

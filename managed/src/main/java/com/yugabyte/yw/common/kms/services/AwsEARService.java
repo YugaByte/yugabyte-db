@@ -12,29 +12,13 @@ package com.yugabyte.yw.common.kms.services;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.yugabyte.yw.common.kms.algorithms.AwsAlgorithm;
 import com.yugabyte.yw.common.kms.util.AwsEARServiceUtil;
-import com.yugabyte.yw.common.kms.util.AwsEARServiceUtil.KeyType;
 import com.yugabyte.yw.common.kms.util.EncryptionAtRestUtil;
 import com.yugabyte.yw.common.kms.util.KeyProvider;
 import com.yugabyte.yw.forms.UniverseTaskParams.EncryptionAtRestConfig;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+
 import java.util.UUID;
-
-enum AwsAlgorithm implements SupportedAlgorithmInterface {
-    AES(Arrays.asList(128, 256));
-
-    private List<Integer> keySizes;
-
-    public List<Integer> getKeySizes() {
-        return this.keySizes;
-    }
-
-    private AwsAlgorithm(List<Integer> keySizes) {
-        this.keySizes = keySizes;
-    }
-}
 
 /**
  * An implementation of EncryptionAtRestService to communicate with AWS KMS

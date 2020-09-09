@@ -48,6 +48,7 @@
 #include "optimizer/tlist.h"
 #include "parser/parse_coerce.h"
 #include "parser/parsetree.h"
+#include "pg_yb_utils.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/selfuncs.h"
@@ -115,8 +116,9 @@ static void make_inh_translation_list(Relation oldrelation,
 						  Relation newrelation,
 						  Index newvarno,
 						  List **translated_vars);
-static Bitmapset *translate_col_privs(const Bitmapset *parent_privs,
-					List *translated_vars);
+static Bitmapset *translate_col_privs(Relation parentrel,
+                                      const Bitmapset *parent_privs,
+                                      List *translated_vars);
 static Node *adjust_appendrel_attrs_mutator(Node *node,
 							   adjust_appendrel_attrs_context *context);
 static Relids adjust_child_relids(Relids relids, int nappinfos,
@@ -1840,12 +1842,15 @@ expand_single_inheritance_child(PlannerInfo *root, RangeTblEntry *parentrte,
 		 */
 		if (childOID != parentOID)
 		{
-			childrte->selectedCols = translate_col_privs(parentrte->selectedCols,
-														 appinfo->translated_vars);
-			childrte->insertedCols = translate_col_privs(parentrte->insertedCols,
-														 appinfo->translated_vars);
-			childrte->updatedCols = translate_col_privs(parentrte->updatedCols,
-														appinfo->translated_vars);
+			childrte->selectedCols = translate_col_privs(parentrel,
+			                                             parentrte->selectedCols,
+			                                             appinfo->translated_vars);
+			childrte->insertedCols = translate_col_privs(parentrel,
+			                                             parentrte->insertedCols,
+			                                             appinfo->translated_vars);
+			childrte->updatedCols = translate_col_privs(parentrel,
+			                                            parentrte->updatedCols,
+			                                            appinfo->translated_vars);
 		}
 	}
 
@@ -1963,7 +1968,6 @@ make_inh_translation_list(Relation oldrelation, Relation newrelation,
 				elog(ERROR, "could not find inherited attribute \"%s\" of relation \"%s\"",
 					 attname, RelationGetRelationName(newrelation));
 		}
-
 		/* Found it, check type and collation match */
 		if (atttypid != att->atttypid || atttypmod != att->atttypmod)
 			elog(ERROR, "attribute \"%s\" of relation \"%s\" does not match parent's type",
@@ -1995,30 +1999,27 @@ make_inh_translation_list(Relation oldrelation, Relation newrelation,
  * we set the per-column bits for all inherited columns.
  */
 static Bitmapset *
-translate_col_privs(const Bitmapset *parent_privs,
-					List *translated_vars)
+translate_col_privs(Relation parentrel,
+                    const Bitmapset *parent_privs,
+                    List *translated_vars)
 {
 	Bitmapset  *child_privs = NULL;
 	bool		whole_row;
 	int			attno;
 	ListCell   *lc;
-
-	/*
-	 * TODO check that these offsets (i.e. FirstLowInvalidHeapAttributeNumber) work
-	 * properly for YugaByte tables after #1129 (specifically INHERITS).
-	 */
+	const int firstLowInvalidAttrNumber = YBGetFirstLowInvalidAttributeNumber(parentrel);
 
 	/* System attributes have the same numbers in all tables */
-	for (attno = FirstLowInvalidHeapAttributeNumber + 1; attno < 0; attno++)
+	for (attno = firstLowInvalidAttrNumber + 1; attno < 0; attno++)
 	{
-		if (bms_is_member(attno - FirstLowInvalidHeapAttributeNumber,
+		if (bms_is_member(attno - firstLowInvalidAttrNumber,
 						  parent_privs))
 			child_privs = bms_add_member(child_privs,
-										 attno - FirstLowInvalidHeapAttributeNumber);
+										 attno - firstLowInvalidAttrNumber);
 	}
 
 	/* Check if parent has whole-row reference */
-	whole_row = bms_is_member(InvalidAttrNumber - FirstLowInvalidHeapAttributeNumber,
+	whole_row = bms_is_member(InvalidAttrNumber - firstLowInvalidAttrNumber,
 							  parent_privs);
 
 	/* And now translate the regular user attributes, using the vars list */
@@ -2031,10 +2032,12 @@ translate_col_privs(const Bitmapset *parent_privs,
 		if (var == NULL)		/* ignore dropped columns */
 			continue;
 		if (whole_row ||
-			bms_is_member(attno - FirstLowInvalidHeapAttributeNumber,
+			bms_is_member(attno - firstLowInvalidAttrNumber,
 						  parent_privs))
+		{
 			child_privs = bms_add_member(child_privs,
-										 var->varattno - FirstLowInvalidHeapAttributeNumber);
+										 var->varattno - firstLowInvalidAttrNumber);
+		}
 	}
 
 	return child_privs;

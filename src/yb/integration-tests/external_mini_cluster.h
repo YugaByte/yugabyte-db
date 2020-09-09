@@ -258,7 +258,7 @@ class ExternalMiniCluster : public MiniClusterBase {
   CHECKED_STATUS GetNumMastersAsSeenBy(ExternalMaster* master, int* num_peers);
 
   // Get the last committed opid for the current leader master.
-  CHECKED_STATUS GetLastOpIdForLeader(consensus::OpId* opid);
+  CHECKED_STATUS GetLastOpIdForLeader(OpIdPB* opid);
 
   // The leader master sometimes does not commit the config in time on first setup, causing
   // CheckHasCommittedOpInCurrentTermUnlocked check - that the current term should have had at least
@@ -298,7 +298,7 @@ class ExternalMiniCluster : public MiniClusterBase {
   int tablet_server_index_by_uuid(const std::string& uuid) const;
 
   // Return all masters.
-  std::vector<ExternalDaemon*> master_daemons() const;
+  std::vector<ExternalMaster*> master_daemons() const;
 
   // Return all tablet servers and masters.
   std::vector<ExternalDaemon*> daemons() const;
@@ -431,7 +431,7 @@ class ExternalMiniCluster : public MiniClusterBase {
   CHECKED_STATUS GetLastOpIdForEachMasterPeer(
       const MonoDelta& timeout,
       consensus::OpIdType opid_type,
-      std::vector<consensus::OpId>* op_ids);
+      std::vector<OpIdPB>* op_ids);
 
   // Ensure that the leader server is allowed to process a config change (by having at least one
   // commit in the current term as leader).

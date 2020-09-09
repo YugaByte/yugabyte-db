@@ -33,7 +33,7 @@ isTocNested: true
 
 </ul>
 
-There are a number of well-known experiments where eventually-consistent NoSQL databases were scaled out to perform millions of inserts and queries. Here, we do the same using YSQL, the Yugabyte SQL API that is PostgreSQL-compatible, strongly-consistent, and supports distributed SQL. We created a 100-node YugabyteDB cluster, ran single-row INSERT and SELECT workloads with high concurrency – each for an hour and measured the sustained performance (throughput and latency). This topic details the results of this experiment as well as highlights the key aspects of the YugabyteDB architecture that makes it fit for such high-volume ingest workloads. Although this topic describes the results of benchmark tests performed by Yugabyte, you can follow the steps below to perform your own benchmarks on the scalability of queries in your YugabyteDB clusters.
+There are a number of well-known experiments where eventually-consistent NoSQL databases were scaled out to perform millions of inserts and queries. Here, you do the same using YSQL, the Yugabyte SQL API that is PostgreSQL-compatible, strongly-consistent, and supports distributed SQL. We created a 100-node YugabyteDB cluster, ran single-row INSERT and SELECT workloads with high concurrency – each for an hour and measured the sustained performance (throughput and latency). This topic details the results of this experiment as well as highlights the key aspects of the YugabyteDB architecture that makes it fit for such high-volume ingest workloads. Although this topic describes the results of benchmark tests performed by Yugabyte, you can follow the steps below to perform your own benchmarks on the scalability of queries in your YugabyteDB clusters.
 
 ## Database cluster setup
 
@@ -65,7 +65,7 @@ $ sudo apt install default-jre
 The [YugabyteDB workload generator](https://github.com/yugabyte/yb-sample-apps) was downloaded on to these machines as shown below.
 
 ```sh
-$ wget -P target https://github.com/YugaByte/yb-sample-apps/releases/download/v1.2.0/yb-sample-apps.jar
+$ wget -P target https://github.com/YugaByte/yb-sample-apps/releases/download/v1.3.0/yb-sample-apps.jar
 ```
 
 This benchmark program can take a list of servers in the database cluster, and then perform random operations across these servers. In order to do this, we set up an environment variable with the list of comma-separated `host:port` entries of the 100 database servers as shown below.

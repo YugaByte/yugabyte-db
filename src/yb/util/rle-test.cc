@@ -206,7 +206,7 @@ void ValidateRle(const vector<T>& values, int bit_width,
   faststring buffer;
   RleEncoder<T> encoder(&buffer, bit_width);
 
-  for (const auto& value : values) {
+  for (const auto value : values) {
     encoder.Put(value);
   }
   int encoded_len = encoder.Flush();
@@ -223,7 +223,7 @@ void ValidateRle(const vector<T>& values, int bit_width,
 
   // Verify read
   RleDecoder<T> decoder(buffer.data(), encoded_len, bit_width);
-  for (const auto& value : values) {
+  for (const auto value : values) {
     T val = 0;
     bool result = decoder.Get(&val);
     EXPECT_TRUE(result);

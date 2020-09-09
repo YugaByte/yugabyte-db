@@ -98,7 +98,7 @@ class ServerBaseOptions {
   ServerBaseOptions(const ServerBaseOptions& options);
 
  protected:
-  ServerBaseOptions();
+  explicit ServerBaseOptions(int default_port);
 
  private:
   void SetMasterAddressesNoValidation(MasterAddressesPtr master_addresses);

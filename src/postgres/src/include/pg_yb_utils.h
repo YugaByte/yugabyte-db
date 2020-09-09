@@ -87,6 +87,17 @@ extern bool IsYBRelation(Relation relation);
  */
 extern bool IsYBBackedRelation(Relation relation);
 
+/*
+ * Returns whether a relation's attribute is a real column in the backing
+ * YugaByte table. (It implies we can both read from and write to it).
+ */
+extern bool IsRealYBColumn(Relation rel, int attrNum);
+
+/*
+ * Returns whether a relation's attribute is a YB system column.
+ */
+extern bool IsYBSystemColumn(int attrNum);
+
 extern bool YBNeedRetryAfterCacheRefresh(ErrorData *edata);
 
 extern void YBReportFeatureUnsupported(const char *err_msg);
@@ -98,6 +109,18 @@ extern AttrNumber YBGetFirstLowInvalidAttributeNumberFromOid(Oid relid);
 extern int YBAttnumToBmsIndex(Relation rel, AttrNumber attnum);
 
 extern AttrNumber YBBmsIndexToAttnum(Relation rel, int idx);
+
+/*
+ * Get primary key columns as bitmap set of a table for real YB columns.
+ * Subtracts YBGetFirstLowInvalidAttributeNumber from column attribute numbers.
+ */
+extern Bitmapset *YBGetTablePrimaryKeyBms(Relation rel);
+
+/*
+ * Get primary key columns as bitmap set of a table for real and system YB columns.
+ * Subtracts (YBSystemFirstLowInvalidAttributeNumber + 1) from column attribute numbers.
+ */
+extern Bitmapset *YBGetTableFullPrimaryKeyBms(Relation rel);
 
 /*
  * Check if a relation has row triggers that may reference the old row.
@@ -137,8 +160,8 @@ extern void HandleYBStatusIgnoreNotFound(YBCStatus status, bool *not_found);
  * the given YugaByte statement.
  */
 extern void HandleYBStatusWithOwner(YBCStatus status,
-																		YBCPgStatement ybc_stmt,
-																		ResourceOwner owner);
+									YBCPgStatement ybc_stmt,
+									ResourceOwner owner);
 
 /*
  * Same as HandleYBStatus but delete the table description first if the
@@ -274,10 +297,29 @@ void YBRaiseNotSupportedSignal(const char *msg, int issue_no, int signal_level);
 // YB Debug utils.
 
 /**
- * YSQL variable that can be used to enable/disable yugabyte debug mode.
- * e.g. 'SET yb_debug_mode=true'.
+ * YSQL guc variables that can be used to toggle yugabyte debug features.
+ * e.g. 'SET yb_debug_report_error_stacktrace=true' and
+ *      'RESET yb_debug_report_error_stacktrace'.
+ * See also the corresponding entries in guc.c.
  */
-extern bool yb_debug_mode;
+
+/* Add stacktrace information to every YSQL error. */
+extern bool yb_debug_report_error_stacktrace;
+
+/* Log cache misses and cache refresh events. */
+extern bool yb_debug_log_catcache_events;
+
+/*
+ * Log automatic statement (or transaction) restarts such as read-restarts and
+ * schema-version restarts (e.g. catalog version mismatch errors).
+ */
+extern bool yb_debug_log_internal_restarts;
+
+/*
+ * See also ybc_util.h which contains additional such variable declarations for
+ * variables that are (also) used in the pggate layer.
+ * Currently: yb_debug_log_docdb_requests.
+ */
 
 /*
  * Get a string representation of a datum (given its type).
@@ -294,6 +336,7 @@ extern const char* YBHeapTupleToString(HeapTuple tuple, TupleDesc tupleDesc);
  */
 bool YBIsInitDbAlreadyDone();
 
+int YBGetDdlNestingLevel();
 void YBIncrementDdlNestingLevel();
 void YBDecrementDdlNestingLevel(bool success);
 

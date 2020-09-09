@@ -29,6 +29,7 @@ public class MetricQueryExecutor implements Callable<JsonNode> {
   private Map<String, String> queryParam = new HashMap<>();
   private Map<String, String> additionalFilters = new HashMap<>();
   private String queryUrl;
+  private int queryRangeSecs = 0;
 
   public MetricQueryExecutor(Configuration appConfig, ApiHelper apiHelper,
                              Map<String, String> queryParam, Map<String, String> additionalFilters,
@@ -38,8 +39,26 @@ public class MetricQueryExecutor implements Callable<JsonNode> {
     this.queryParam.putAll(queryParam);
     this.additionalFilters.putAll(additionalFilters);
     this.ybMetricQueryComponent = ybMetricQueryComponent;
-
-    // LOG.info("Executing metric query {}: {}", queryUrl, queryParam);
+    int scrapeIntervalSecs = appConfig.getInt("yb.metrics.scrape_interval_secs", 10);
+    if (queryParam.containsKey("step")) {
+      // Rate queries like rate(rpc_latency_count[rate_interval]) are performed over multiple
+      // windows of size "step" in the query range (start, end). We set rate_interval to the step
+      // size so that the rate is computed over all points in the 'step' window.
+      //
+      // One minor issue here is that this approach does not include changes that happen at the
+      // boundary of the step windows, so we add in 2 scrape intervals to calculate rate
+      // including the boundary. This makes the rate smoother but also slightly inaccurate.
+      // We use 2 scrape intervals instead of 1 because with the current low
+      // scrape interval of 10s it could be that we don't have scrapes in the exact 10s interval.
+      try {
+        this.queryRangeSecs = Integer.parseInt(queryParam.get("step")) + 2 * scrapeIntervalSecs;
+      } catch (NumberFormatException ex) {
+        LOG.warn("Invalid value for step parameter, ignoring: " + queryParam.get("step"));
+      }
+    } else {
+      LOG.warn("Missing step size in query parameters, this is unexpected. " +
+               "Queries over longer time windows like 6h/1d will be inaccurate.");
+    }
   }
 
   /**
@@ -64,6 +83,7 @@ public class MetricQueryExecutor implements Callable<JsonNode> {
       } else {
         this.queryUrl = this.getMetricsUrl() + "/query";
       }
+      //LOG.info("Executing metric query {}: {}", queryUrl, queryParam);
       return apiHelper.getRequest(queryUrl, new HashMap<String, String>(), queryParam);
     }
   }
@@ -77,7 +97,7 @@ public class MetricQueryExecutor implements Callable<JsonNode> {
     if (config == null) {
       responseJson.put("error", "Invalid Query Key");
     } else {
-      Map<String, String> queries = config.getQueries(additionalFilters);
+      Map<String, String> queries = config.getQueries(additionalFilters, this.queryRangeSecs);
       responseJson.set("layout", Json.toJson(config.getLayout()));
       ArrayList<MetricGraphData> output = new ArrayList<>();
       for (Map.Entry<String, String> e : queries.entrySet()) {

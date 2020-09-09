@@ -21,9 +21,9 @@
 
 #include "yb/docdb/doc_key.h"
 #include "yb/docdb/doc_ql_scanspec.h"
+#include "yb/docdb/doc_reader.h"
 #include "yb/docdb/doc_scanspec_util.h"
 #include "yb/docdb/doc_ttl_util.h"
-#include "yb/docdb/docdb.h"
 #include "yb/docdb/docdb-internal.h"
 #include "yb/docdb/docdb_rocksdb_util.h"
 #include "yb/docdb/intent_aware_iterator.h"

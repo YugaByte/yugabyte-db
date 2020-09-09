@@ -90,7 +90,7 @@ bool RWOperationCounter::WaitMutexAndIncrement(CoarseTimePoint deadline) {
     deadline = CoarseMonoClock::now() + 10ms;
   }
   for (;;) {
-    std::unique_lock<std::timed_mutex> lock(disable_, deadline);
+    std::unique_lock<decltype(disable_)> lock(disable_, deadline);
     if (!lock.owns_lock()) {
       return false;
     }
@@ -121,12 +121,11 @@ bool RWOperationCounter::Increment() {
   return true;
 }
 
-Status RWOperationCounter::DisableAndWaitForOps(const MonoDelta& timeout, Stop stop) {
+Status RWOperationCounter::DisableAndWaitForOps(const CoarseTimePoint& deadline, Stop stop) {
   LongOperationTracker long_operation_tracker(__func__, 1s);
 
   const auto start_time = CoarseMonoClock::now();
-  const auto deadline = start_time + timeout;
-  std::unique_lock<std::timed_mutex> lock(disable_, deadline);
+  std::unique_lock<decltype(disable_)> lock(disable_, deadline);
   if (!lock.owns_lock()) {
     return STATUS(TimedOut, "Timed out waiting to disable the resource exclusively");
   }
@@ -173,16 +172,17 @@ Status RWOperationCounter::WaitForOpsToFinish(
 }
 
 ScopedRWOperation::ScopedRWOperation(RWOperationCounter* counter, const CoarseTimePoint& deadline)
+    : data_{counter, counter ? counter->resource_name() : ""
 #ifndef NDEBUG
-    : long_operation_tracker_("ScopedRWOperation", 1s)
+            , LongOperationTracker("ScopedRWOperation", 1s)
 #endif
-    {
+      } {
   if (counter != nullptr) {
     // The race condition between IsReady() and Increment() is OK, because we are checking if
     // anyone has started an exclusive operation since we did the increment, and don't proceed
     // with this shared-ownership operation in that case.
-    if (counter->Increment() || counter->WaitMutexAndIncrement(deadline)) {
-      counter_ = counter;
+    if (!counter->Increment() && !counter->WaitMutexAndIncrement(deadline)) {
+      data_.counter_ = nullptr;
     }
   }
 }
@@ -192,30 +192,43 @@ ScopedRWOperation::~ScopedRWOperation() {
 }
 
 void ScopedRWOperation::Reset() {
-  if (counter_ != nullptr) {
-    counter_->Decrement();
-    counter_ = nullptr;
+  if (data_.counter_ != nullptr) {
+    data_.counter_->Decrement();
+    data_.counter_ = nullptr;
   }
+  data_.resource_name_ = "";
 }
 
 ScopedRWOperationPause::ScopedRWOperationPause(
-    RWOperationCounter* counter, const MonoDelta& timeout, Stop stop)
-    : was_stop_(stop) {
+    RWOperationCounter* counter, const CoarseTimePoint& deadline, Stop stop) {
   if (counter != nullptr) {
-    status_ = counter->DisableAndWaitForOps(timeout, stop);
-    if (status_.ok()) {
-      counter_ = counter;
+    data_.status_ = counter->DisableAndWaitForOps(deadline, stop);
+    if (data_.status_.ok()) {
+      data_.counter_ = counter;
     }
+  }
+  data_.was_stop_ = stop;
+}
+
+ScopedRWOperationPause::~ScopedRWOperationPause() {
+  Reset();
+}
+
+void ScopedRWOperationPause::Reset() {
+  if (data_.counter_ != nullptr) {
+    data_.counter_->Enable(Unlock(data_.status_.ok()), data_.was_stop_);
+    // Prevent from the destructor calling Enable again.
+    data_.counter_ = nullptr;
   }
 }
 
 void ScopedRWOperationPause::ReleaseMutexButKeepDisabled() {
-  CHECK_OK(status_);
-  CHECK_NOTNULL(counter_);
-  CHECK(was_stop_);
-  counter_->UnlockExclusiveOpMutex();
+  CHECK_OK(data_.status_);
+  CHECK_NOTNULL(data_.counter_);
+  CHECK(data_.was_stop_);
+  data_.counter_->UnlockExclusiveOpMutex();
   // Make sure the destructor has no effect when it runs.
-  counter_ = nullptr;
+  data_.counter_ = nullptr;
 }
 
 }  // namespace yb

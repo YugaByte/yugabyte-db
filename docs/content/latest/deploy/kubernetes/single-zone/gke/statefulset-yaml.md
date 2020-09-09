@@ -140,7 +140,7 @@ yb-tservers   ClusterIP   None         <none>        9000/TCP,9100/TCP,9042/TCP,
 You can connect to the YCQL API by running the following.
 
 ```sh
-$ kubectl exec -it yb-tserver-0 bin/ycqlsh
+$ kubectl exec -it yb-tserver-0 -- ycqlsh yb-tserver-0
 ```
 
 ```

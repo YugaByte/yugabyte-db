@@ -79,6 +79,16 @@ using std::unordered_set;
 using std::vector;
 using strings::Substitute;
 
+DEFINE_string(
+    net_address_filter,
+    "ipv4_external,ipv4_all",
+    "Order in which to select ip addresses returned by the resolver"
+    "Can be set to something like \"ipv4_all,ipv6_all\" to prefer IPv4 over "
+    "IPv6 addresses."
+    "Can be set to something like \"ipv4_external,ipv4_all,ipv6_all\" to "
+    "prefer external IPv4 "
+    "addresses first. Other options include ipv6_external,ipv6_non_link_local");
+
 namespace yb {
 
 namespace {
@@ -140,23 +150,45 @@ Status HostPort::RemoveAndGetHostPortList(
   return Status::OK();
 }
 
-Status HostPort::ParseString(const string& str, uint16_t default_port) {
-  std::pair<string, string> p = strings::Split(str, strings::delimiter::Limit(":", 1));
-
-  // Strip any whitespace from the host.
-  StripWhiteSpace(&p.first);
-
-  // Parse the port.
+// Accepts entries like: [::1], 127.0.0.1, [::1]:7100, 0.0.0.0:7100,
+// f.q.d.n:7100
+Status HostPort::ParseString(const string &str_in, uint16_t default_port) {
   uint32_t port;
-  if (p.second.empty() && strcount(str, ':') == 0) {
-    // No port specified.
+  string host;
+
+  string str(str_in);
+  StripWhiteSpace(&str);
+  size_t pos = str.rfind(':');
+  if (str[0] == '[' && str[str.length() - 1] == ']' && str.length() > 2) {
+    // The whole thing is an IPv6 address.
+    host = str.substr(1, str.length() - 2);
     port = default_port;
-  } else if (!SimpleAtoi(p.second, &port) ||
-             port > 65535) {
-    return STATUS(InvalidArgument, "Invalid port", str);
+  } else if (pos == string::npos) {
+    // No port was specified, the whole thing must be a host.
+    host = str;
+    port = default_port;
+  } else if (pos > 1 && pos + 1 < str.length() &&
+             SimpleAtoi(str.substr(pos + 1), &port)) {
+
+    if (port > numeric_limits<uint16_t>::max()) {
+      return STATUS(InvalidArgument, "Invalid port", str);
+    }
+
+    // Got a host:port
+    host = str.substr(0, pos);
+    if (host[0] == '[' && host[host.length() - 1] == ']' && host.length() > 2) {
+      // Remove brackets if we have an IPv6 address
+      host = host.substr(1, host.length() - 2);
+    }
+  } else {
+    return STATUS(InvalidArgument,
+                  Format(
+                      "Invalid port: expected port after ':' "
+                      "at position $0 in $1",
+                      pos, str));
   }
 
-  host_.swap(p.first);
+  host_ = host;
   port_ = port;
   return Status::OK();
 }
@@ -184,7 +216,7 @@ const string getaddrinfo_rc_to_string(int rc) {
 Result<std::unique_ptr<addrinfo, AddrinfoDeleter>> HostToInetAddrInfo(const std::string& host) {
   struct addrinfo hints;
   memset(&hints, 0, sizeof(hints));
-  hints.ai_family = AF_INET;
+  hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
   struct addrinfo* res = nullptr;
   int rc = 0;
@@ -202,9 +234,10 @@ Result<std::unique_ptr<addrinfo, AddrinfoDeleter>> HostToInetAddrInfo(const std:
 
 template <typename F>
 CHECKED_STATUS ResolveInetAddresses(const std::string& host, F func) {
-  auto fast_resolve = TryFastResolve(host);
+  boost::optional<IpAddress> fast_resolve = TryFastResolve(host);
   if (fast_resolve) {
     func(*fast_resolve);
+    VLOG(4) << "Fast resolved " << host << " to " << fast_resolve->to_string();
     return Status::OK();
   }
 
@@ -233,13 +266,27 @@ CHECKED_STATUS ResolveInetAddresses(const std::string& host, F func) {
 Status HostPort::ResolveAddresses(std::vector<Endpoint>* addresses) const {
   TRACE_EVENT1("net", "HostPort::ResolveAddresses",
                "host", host_);
-  return ResolveInetAddresses(host_, [this, addresses](const IpAddress& address) {
-    Endpoint endpoint(address, port_);
-    if (addresses) {
-      addresses->push_back(endpoint);
-    }
-    VLOG(2) << "Resolved address " << endpoint << " for host/port " << ToString();
-  });
+  if (!addresses) {
+    return Status::OK();
+  }
+  vector<IpAddress> ip_addresses;
+  RETURN_NOT_OK(ResolveInetAddresses(
+      host_, [this, &ip_addresses](const IpAddress &ip_address) {
+        ip_addresses.push_back(ip_address);
+        VLOG(3) << "Resolved address " << ip_address.to_string() << " for host "
+                << host_;
+      }));
+
+  FilterAddresses(FLAGS_net_address_filter, &ip_addresses);
+
+  VLOG(2) << "Returned " << ip_addresses.size() << " addresses for host "
+          << host_;
+  for (const auto &ip_addr : ip_addresses) {
+    VLOG(2) << "Returned address " << ip_addr.to_string() << " for host "
+            << host_;
+    addresses->push_back(Endpoint(ip_addr, port_));
+  }
+  return Status::OK();
 }
 
 Status HostPort::ParseStrings(const string& comma_sep_addrs,
@@ -249,7 +296,8 @@ Status HostPort::ParseStrings(const string& comma_sep_addrs,
   std::vector<string> addr_strings = strings::Split(
       comma_sep_addrs, separator, strings::SkipEmpty());
   std::vector<HostPort> host_ports;
-  for (const string& addr_string : addr_strings) {
+  for (string& addr_string : addr_strings) {
+    StripWhiteSpace(&addr_string);
     HostPort host_port;
     RETURN_NOT_OK(host_port.ParseString(addr_string, default_port));
     host_ports.push_back(host_port);
@@ -258,9 +306,7 @@ Status HostPort::ParseStrings(const string& comma_sep_addrs,
   return Status::OK();
 }
 
-string HostPort::ToString() const {
-  return Substitute("$0:$1", host_, port_);
-}
+string HostPort::ToString() const { return HostPortToString(host_, port_); }
 
 string HostPort::ToCommaSeparatedString(const std::vector<HostPort>& hostports) {
   vector<string> hostport_strs;
@@ -270,9 +316,7 @@ string HostPort::ToCommaSeparatedString(const std::vector<HostPort>& hostports) 
   return JoinStrings(hostport_strs, ",");
 }
 
-bool IsPrivilegedPort(uint16_t port) {
-  return port <= 1024 && port != 0;
-}
+bool IsPrivilegedPort(uint16_t port) { return port < 1024 && port != 0; }
 
 Status ParseAddressList(const std::string& addr_list,
                         uint16_t default_port,
@@ -314,6 +358,13 @@ Result<string> GetHostname() {
   std::string result;
   RETURN_NOT_OK(GetHostname(&result));
   return result;
+}
+
+Status GetLocalAddresses(const string &filter_spec,
+                         std::vector<IpAddress> *result) {
+  RETURN_NOT_OK(GetLocalAddresses(result, AddressFilter::ANY));
+  FilterAddresses(filter_spec, result);
+  return Status::OK();
 }
 
 Status GetLocalAddresses(std::vector<IpAddress>* result, AddressFilter filter) {
@@ -532,7 +583,11 @@ HostPort HostPort::FromBoundEndpoint(const Endpoint& endpoint) {
 std::string HostPortToString(const std::string& host, int port) {
   DCHECK_GE(port, 0);
   DCHECK_LE(port, 65535);
-  return Format("$0:$1", host, port);
+  if (host.find(':') != string::npos) {
+    return Format("[$0]:$1", host, port);
+  } else {
+    return Format("$0:$1", host, port);
+  }
 }
 
 Status HostToAddresses(
@@ -557,11 +612,27 @@ Result<IpAddress> HostToAddress(const std::string& host) {
   return addr;
 }
 
-boost::optional<IpAddress> TryFastResolve(const std::string& host) {
+bool IsWildcardAddress(const std::string& host_str) {
+  boost::system::error_code ec;
+  auto addr = IpAddress::from_string(host_str, ec);
+  return !ec && addr.is_unspecified();
+}
+
+Result<IpAddress> ParseIpAddress(const std::string& host) {
   boost::system::error_code ec;
   auto addr = IpAddress::from_string(host, ec);
-  if (!ec) {
-    return addr;
+  if (ec) {
+    return STATUS_FORMAT(InvalidArgument, "Failed to parse $0: $1", host, ec.message());
+  }
+
+  VLOG(4) << "Resolving ip address to itself for input: " << host;
+  return addr;
+}
+
+boost::optional<IpAddress> TryFastResolve(const std::string& host) {
+  auto result = ParseIpAddress(host);
+  if (result.ok()) {
+    return *result;
   }
 
   // For testing purpose we resolve A.B.C.D.ip.yugabyte to A.B.C.D.

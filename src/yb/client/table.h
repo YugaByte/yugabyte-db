@@ -85,6 +85,8 @@ class YBTable : public std::enable_shared_from_this<YBTable> {
 
   int32_t GetPartitionCount() const;
 
+  int32_t GetPartitionsVersion() const;
+
   // Indexes available on the table.
   const IndexMap& index_map() const;
 
@@ -140,12 +142,18 @@ class YBTable : public std::enable_shared_from_this<YBTable> {
   friend class YBClient;
   friend class internal::GetTableSchemaRpc;
 
+  struct VersionedPartitions {
+    std::vector<std::string> keys;
+    // See SysTabletsEntryPB::partitions_version.
+    int32_t version;
+  };
+
   YBTable(client::YBClient* client, const YBTableInfo& info);
 
   CHECKED_STATUS Open();
 
   // Fetches tablet partitions from master using GetTableLocations RPC.
-  Result<std::vector<std::string>> FetchPartitions();
+  Result<VersionedPartitions> FetchPartitions();
 
   client::YBClient* const client_;
   YBTableType table_type_;
@@ -153,13 +161,17 @@ class YBTable : public std::enable_shared_from_this<YBTable> {
 
   // Mutex protecting partitions_.
   mutable rw_spinlock mutex_;
-  std::vector<std::string> partitions_;
+  VersionedPartitions partitions_ GUARDED_BY(mutex_);
 
   std::atomic<bool> partitions_are_stale_{false};
   std::mutex partitions_refresh_mutex_;
 
   DISALLOW_COPY_AND_ASSIGN(YBTable);
 };
+
+size_t FindPartitionStartIndex(const std::vector<std::string>& partitions,
+                               const std::string& partition_key,
+                               size_t group_by = 1);
 
 } // namespace client
 } // namespace yb

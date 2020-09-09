@@ -76,7 +76,10 @@ public class NodeDetailsTest {
     for (NodeDetails.NodeState nodeState : NodeDetails.NodeState.values()) {
       nd.state = nodeState;
       if (nodeState == NodeDetails.NodeState.ToBeAdded) {
-        assertEquals(ImmutableSet.of(NodeActionType.DELETE), nd.getAllowedActions());
+        assertEquals(ImmutableSet.of(NodeActionType.DELETE, NodeActionType.REMOVE),
+                     nd.getAllowedActions());
+      } else if (nodeState == NodeDetails.NodeState.Adding) {
+        assertEquals(ImmutableSet.of(NodeActionType.REMOVE), nd.getAllowedActions());
       } else if (nodeState == NodeDetails.NodeState.Live) {
         assertEquals(ImmutableSet.of(NodeActionType.STOP, NodeActionType.REMOVE),
                      nd.getAllowedActions());

@@ -2,7 +2,6 @@
 title: CREATE ROLE statement [YCQL]
 headerTitle: CREATE ROLE
 linkTitle: CREATE ROLE
-summary: Create a new role
 description: Use the `CREATE ROLE` statement to create a new role that is used to authenticate into YCQL and as a group of permissions used to restrict operations on the database objects.
 menu:
   latest:

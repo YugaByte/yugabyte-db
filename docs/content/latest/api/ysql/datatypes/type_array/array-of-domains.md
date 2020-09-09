@@ -7,7 +7,7 @@ menu:
   latest:
     identifier: array-of-domains
     parent: api-ysql-datatypes-array
-    weight: 10
+    weight: 40
 isTocNested: true
 showAsideToc: true
 ---
@@ -25,7 +25,7 @@ An array of `DOMAIN` values lets you create, for example, a one-dimensional arra
 
 There are use cases for which a ragged structure is essential. Most programming languages, therefore, have constructs that support this.
 
-Look at the section [Example use case: GPS trip data](../../type_array/#example-use-case-gps-trip-data). It considers the representation of the GPS trips whose recording is broken up into laps, thus:
+Look at [Example use case: GPS trip data](../../type_array/#example-use-case-gps-trip-data). It considers the representation of the GPS trips whose recording is broken up into laps, thus:
 
 - Each trip is made up of one or many laps.
 - Each lap is typically made up of a large number GPS data points.
@@ -56,7 +56,7 @@ begin
 ```
 See [`array_fill()`](..//functions-operators/array-fill/). 
 
-The property of the declaration of an array variable that it cannot fix the dimensionality of a value that is subsequently assigned to the variable was pointed out in the [Array data types and functionality](../../type_array/) section. A column in a table with an array data type shares this property so that the column  can hold arrays of different dimensionality in different rows. This goes hand-in-hand with the fact that the following declarations of _"v1"_ and "_v2"_, though apparently different, define identical semantics.
+The property of the declaration of an array variable that it cannot fix the dimensionality of a value that is subsequently assigned to the variable was pointed out in [Array data types and functionality](../../type_array/). A column in a table with an array data type shares this property so that the column  can hold arrays of different dimensionality in different rows. This goes hand-in-hand with the fact that the following declarations of _"v1"_ and "_v2"_, though apparently different, define identical semantics.
 
 ```
 declare
@@ -78,7 +78,9 @@ But this causes a compilation error. The paradox is exactly that `int[]` is anon
 
 The `DOMAIN` brings the functionality that overcomes the apparent restriction. First, do this:
 
-```postgresql
+```plpgsql
+set client_min_messages = warning;
+drop domain if exists int_arr_t cascade;
 create domain int_arr_t as int[];
 create table t(k serial primary key, v1 int_arr_t[], typecast text, v2 int_arr_t[]);
 ```
@@ -86,7 +88,7 @@ Notice that the use of the `CREATE DOMAIN` statement is an example of _type cons
 
 The columns _"v1"_ and _"v2"_ are now ready to store ragged arrays of arrays. Prove it like this:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   arr_1      constant int_arr_t := array[1, 2];
@@ -99,8 +101,8 @@ $body$;
 ```
 By using a `DO` block to set the value of _"ragged_arr"_ by building it bottom-up, you emphasize the fact that it really is a one-dimensional array of one-dimensional arrays of different lengths. It is, then, clearly _not_ a rectilinear two-dimensional array.
 
-Now use the technique that the section [The non-lossy round trip: value to text typecast and back to value](../literals/text-typecasting-and-literals/#the-non-lossy-round-trip-value-to-text-typecast-and-back-to-value) explained to inspect the `::text` typecast of the ragged array and then to show that, by typecasting this back to a value of the original data type, it can serve as the literal for the original value. First, do this:
-```postgresql
+Now use the technique that [The non-lossy round trip: value to text typecast and back to value](../literals/text-typecasting-and-literals/#the-non-lossy-round-trip-value-to-text-typecast-and-back-to-value) explained to inspect the `::text` typecast of the ragged array and then to show that, by typecasting this back to a value of the original data type, it can serve as the literal for the original value. First, do this:
+```plpgsql
 update t
 set typecast = v1::text
 where k = 1;
@@ -115,13 +117,13 @@ This is the result:
  {"{1,2}","{3,4,5}"}
 ```
 
-This sentence is copied from the section [The non-lossy round trip: value to text typecast and back to value](..//literals/text-typecasting-and-literals/#the-non-lossy-round-trip-value-to-text-typecast-and-back-to-value):
+This sentence is copied from [The non-lossy round trip: value to text typecast and back to value](..//literals/text-typecasting-and-literals/#the-non-lossy-round-trip-value-to-text-typecast-and-back-to-value):
 
 > Notice how the syntax for the _array of arrays_ `text` value compares with the syntax for the _2-d array_ `text` value. Because the _array of arrays_ is ragged, the two inner `{}` pairs contain respectively two and three values. To distinguish between this case and the ordinary rectilinear case, the inner `{}` pairs are surrounded by double quotes.
 
 Now do this:
 
-```postgresql
+```plpgsql
 update t
 set v2 = typecast::int_arr_t[]
 where k = 1;
@@ -140,7 +142,7 @@ The original value has been recreated.
 ### Addressing values in a ragged array of arrays
 
 First, consider this counter example:
-```postgresql
+```plpgsql
 \pset null '<IS NULL'>
 with v as (
   select  '{{1,2},{3,4}}'::int[] as two_d_arr)
@@ -167,7 +169,7 @@ And it reminds you that you must supply exactly as many index values as the arra
 - How do you address, for example, the _first_ value in the array that is itself the _second_ array in the ragged array of arrays?
 
 You know before typing it that this can't be right:
-```postgresql
+```plpgsql
 select v1[2][1] as "v1[2][1]" from t where k = 1;
 ```
 Sure enough, it shows this:
@@ -177,7 +179,7 @@ Sure enough, it shows this:
  <IS NULL>
 ```
 You don't get an error. But neither do you get what you want. Try this instead:
-```postgresql
+```plpgsql
 select v1[2] as "v1[2]" from t where k = 1;
 ```
 This is the result:
@@ -187,7 +189,7 @@ This is the result:
  {3,4,5}
 ```
 This is the clue. You have identified the leaf array, in the array of arrays, that you want to. Now you have to identify the desired value in _that_ array. Try this:
-```postgresql
+```plpgsql
 select (v1[2])[1] as "(v1[2])[1]" from t where k = 1;
 ```
 This is the result:
@@ -197,7 +199,7 @@ This is the result:
           3
 ```
 In the same way, you can inspect the geometric properties of the leaf array like this:
-```postgresql
+```plpgsql
 select
   array_lower(v1[1], 1) as v1_lb,
   array_upper(v1[1], 1) as v1_ub,
@@ -213,7 +215,7 @@ This is the result:
 ```
 Finally, try this counter example:
 
-```postgresql
+```plpgsql
 with v as (
   select  '{{1,2},{3,4}}'::int[] as two_d_arr)
 select
@@ -221,6 +223,187 @@ select
 from v;
 ```
 It causes a SQL compilation error. You must know whether the value at hand, within which you want to address a value,  is a rectilinear multidimensional array or a ragged array of arrays.
+
+### Using FOREACH with an array of DOMAINs
+
+This example demonstrates the problem.
+
+```plpgsql
+set client_min_messages = warning;
+drop domain if exists array_t cascade;
+drop domain if exists arrays_t cascade;
+
+create domain array_t  as int[];
+create domain arrays_t as array_t[];
+
+\set VERBOSITY verbose
+do $body$
+declare
+  arrays arrays_t := array[
+    array[1, 2]::array_t, array[3, 4, 5]::array_t];
+
+  runner array_t not null := '{}';
+begin
+  -- Error 42804 here.
+  foreach runner in array arrays loop
+    raise info '%', runner::text;
+  end loop;
+end;
+$body$;
+```
+It causes this syntax error:
+
+```
+42804: FOREACH expression must yield an array, not type arrays_t
+```
+The error text might confuse you. It really means that the argument of the `ARRAY` keyword in the loop header must, literally, be an explicit array—and _not_ a domain that names such an array.
+
+A simple workaround is to declare _"arrays"_ explicitly as
+_"array_t[]"_ rather that use _"arrays_t"_ as a shorthand for this.
+
+```plpgsql
+\set VERBOSITY default
+do $body$
+declare
+  arrays array_t[] := array[
+    array[1, 2]::array_t, array[3, 4, 5]::array_t];
+
+  runner array_t not null := '{}';
+begin
+  foreach runner in array arrays loop
+    raise info '%', runner::text;
+  end loop;
+end;
+$body$;
+```
+
+It shows this:
+
+```
+INFO:  {1,2}
+INFO:  {3,4,5}
+```
+
+What if you really _do_ need to use a `DOMAIN`? For example, you might want to define a constraint like this:
+
+```plpgsql
+set client_min_messages = warning;
+drop domain if exists arrays_t cascade;
+create domain arrays_t as array_t[]
+check ((cardinality(value) = 2));
+```
+
+The workaround is to typecast the argument of the `ARRAY` keyword _in situ_ to an array of the appropriate element data type.
+
+```plpgsql
+do $body$
+declare
+  arrays arrays_t := array[
+    array[1, 2]::array_t, array[3, 4, 5]::array_t];
+
+  runner array_t not null := '{}';
+begin
+  foreach runner in array arrays::array_t[] loop
+    raise info '%', runner::text;
+  end loop;
+end;
+$body$;
+```
+Once again, it shows this:
+
+```
+INFO:  {1,2}
+INFO:  {3,4,5}
+```
+
+### Using array_agg() to produce an array of DOMAIN values
+
+See [array_agg()](../functions-operators/array-agg-unnest/#array-agg-first-overload). It turns out that directly aggregating `DOMAIN` values that represent a ragged array is not supported. But a simple PL/pgSQL function provides the workaround. This sets up to demonstrate the problem:
+
+```plpgsql
+set client_min_messages = warning;
+drop table if exists t cascade;
+drop domain if exists array_t cascade;
+drop domain if exists arrays_t cascade;
+
+create domain array_t  as int[];
+create domain arrays_t as array_t[];
+
+create table t(k serial primary key, v array_t);
+
+insert into t(v) values
+  ('{2,6}'),
+  ('{1,4,5,6}'),
+  ('{4,5}'),
+  ('{2,3}'),
+  ('{4,5}'),
+  ('{3,5,7}');
+
+select v from t order by k;
+```
+It shows the raggedness thus:
+
+```
+     v     
+-----------
+ {2,6}
+ {1,4,5,6}
+ {4,5}
+ {2,3}
+ {4,5}
+ {3,5,7}
+```
+
+And this demonstrates the problem:
+
+```plpgsql
+\set VERBOSITY verbose
+select
+  array_agg(v order by k)
+from t;
+```
+
+It causes this error:
+
+```
+2202E: cannot accumulate arrays of different dimensionality
+```
+
+Typecasting cannot come to the rescue here. But this function produces the required result:
+
+```plpgsql
+\set VERBOSITY default
+create or replace function array_agg_v()
+  returns arrays_t
+  immutable
+  language plpgsql
+as $body$
+<<b>>declare
+  v  array_t    not null := '{}';
+  n  int        not null := 0;
+  r  array_t[]  not null := '{}';
+begin
+  for b.v in (select t.v from t order by k) loop
+    n := n + 1;
+    r[n] := b.v;
+  end loop;
+  return r;
+end b;
+$body$;
+```
+Do this:
+
+```plpgsql
+select array_agg_v();
+```
+
+This is the result:
+
+```
+                       array_agg_v                       
+---------------------------------------------------------
+ {"{2,6}","{1,4,5,6}","{4,5}","{2,3}","{4,5}","{3,5,7}"}
+```
 
 ## Creating a matrix of matrices
 
@@ -232,7 +415,7 @@ Look for the heading [Matrices with more general entries](https://en.wikipedia.o
 
 > One special but common case is block matrices, which may be considered as matrices whose entries themselves are matrices.
 
-Various disciplines in mathematics, physics, and the like, use block matrices. The section [Uses of arrays](../../type_array/#uses-of-arrays) explains how such cases generate various kinds of arrays in client-side programs and need to use these values later, again in client-side programs. This brings the requirement, in the present use case, to persist and to retrieve block matrices.
+Various disciplines in mathematics, physics, and the like, use block matrices. [Uses of arrays](../../type_array/#uses-of-arrays) explains how such cases generate various kinds of arrays in client-side programs and need to use these values later, again in client-side programs. This brings the requirement, in the present use case, to persist and to retrieve block matrices.
 
 Though this use case is relatively exotic, the techniques that are used to implement the required structures (and in particular, the dependency of a viable solution upon user-defined `DOMAIN` data types) are of general utility. Its for this reason that the approach is explained here.
 
@@ -246,7 +429,7 @@ First, define the data type for the "payload" matrix. To make it interesting, as
 - Each of the matrix's values must be `NOT NULL`.
 
 The motivating requirement for the `DOMAIN` type constructor is that it must allow arbitrary constraints to be defined on values of the constructed type, like this:
-```postgresql
+```plpgsql
 create domain matrix_t as text[]
 check (
   (value is not null)         and
@@ -275,7 +458,7 @@ Next, define the block matrix as a matrix of _"matrix_t"_. Assume that similar f
 - Each of the matrix's values must be `NOT NULL`.
 
 The `CREATE DOMAIN` statement for _"block_matrix_t"_ is therefore similar to that for _"matrix_t"_:
-```postgresql
+```plpgsql
 create domain block_matrix_t as matrix_t[]
 check (
   (value is not null)         and
@@ -296,7 +479,7 @@ These two `CREATE DOMAIN` statements are uncomfortably verbose and repetitive. B
 
 Next, create a block matrix value, insert it, and its `::text` typecast, into a table, and inspect the typecast's value.
 
-```postgresql
+```plpgsql
 create table block_matrices_1(k int primary key, v block_matrix_t, text_typecast text);
 
 do $body$
@@ -369,12 +552,12 @@ This is the result (after manual whitespace formatting):
 ```
 **Note:** The annotations _"block_matrix"_, and so on, are just that. Because they are _within_ the `text` value, they are part of that value and therefore render it illegal. They were added manually just to highlight the meaning of the overall `text` value.
 
-Finally, check that even this exotic structure conforms to the universal rule, copied from the section [The non-lossy round trip: value to text typecast and back to value](..//literals/text-typecasting-and-literals/#the-non-lossy-round-trip-value-to-text-typecast-and-back-to-value):
+Finally, check that even this exotic structure conforms to the universal rule, copied from [The non-lossy round trip: value to text typecast and back to value](..//literals/text-typecasting-and-literals/#the-non-lossy-round-trip-value-to-text-typecast-and-back-to-value):
 
 > - Any value of any data type, primitive or composite, can be `::text` typecasted. Similarly, there always exists a `text` value that, when properly spelled, can be typecasted to a value of any desired data type, primitive or composite.
 > - If you `::text` typecast a value of any data type and then typecast that `text` value to the original value's data type, then the value that you get is identical to the original value.
 
-```postgresql
+```plpgsql
 create table block_matrices_2(k int primary key, v block_matrix_t);
 
 insert into block_matrices_2(k, v)
@@ -404,7 +587,7 @@ The rule holds.
 
 ### Using unnest() on an array of arrays
 First, produce the list of _"matrix_t"_ values, in row-major order:
-```postgresql
+```plpgsql
 with matrices as (
   select unnest(v) as m
   from block_matrices_1
@@ -416,7 +599,7 @@ from matrices order by m;
 ```
 See [`unnest()`](../functions-operators/array-agg-unnest/#unnest).
 
-The term _"row-major order"_ is explained in the section [Joint semantics](../functions-operators/properties/#joint-semantics) within the section _"Functions for reporting the geometric properties of an array"_..
+The term _"row-major order"_ is explained in [Joint semantics](../functions-operators/properties/#joint-semantics) within the section _"Functions for reporting the geometric properties of an array"_..
 
 This is the result:
 
@@ -429,7 +612,7 @@ This is the result:
  4 | {{28,29,30},{31,32,33},{34,35,36}}
 ```
 Now unnest a _"matrix_t"_ value of interest:
-```postgresql
+```plpgsql
 select unnest(v[2][1]) as val
 from block_matrices_1
 where k = 1
@@ -446,7 +629,7 @@ This is the result:
  27
 ```
 Use this query if you want to see _all_ of the leaf values in row-major order:
-```postgresql
+```plpgsql
 with
   matrixes as (
     select unnest(v) as m

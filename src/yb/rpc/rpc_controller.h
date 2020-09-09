@@ -53,7 +53,8 @@ YB_DEFINE_ENUM(InvokeCallbackMode,
     // On reactor thread.
     (kReactorThread)
     // On thread pool.
-    (kThreadPool));
+    (kThreadPoolNormal)
+    (kThreadPoolHigh));
 
 // Controller for managing properties of a single RPC call, on the client side.
 //
@@ -165,7 +166,7 @@ class RpcController {
   // Once the call is sent, it is tracked here.
   OutboundCallPtr call_;
   bool allow_local_calls_in_curr_thread_ = false;
-  InvokeCallbackMode invoke_callback_mode_ = InvokeCallbackMode::kThreadPool;
+  InvokeCallbackMode invoke_callback_mode_ = InvokeCallbackMode::kThreadPoolNormal;
 
   DISALLOW_COPY_AND_ASSIGN(RpcController);
 };

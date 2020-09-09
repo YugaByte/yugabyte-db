@@ -13,6 +13,8 @@
 
 package org.yb.pgsql;
 
+import static org.yb.AssertionWrappers.*;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.slf4j.Logger;
@@ -28,10 +30,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.yb.AssertionWrappers.assertEquals;
-import static org.yb.AssertionWrappers.assertTrue;
-import static org.yb.AssertionWrappers.fail;
-
 @RunWith(value=YBTestRunnerNonTsanOnly.class)
 public class TestPgUpdate extends BasePgSQLTest {
   private static final Logger LOG = LoggerFactory.getLogger(TestPgUpdate.class);
@@ -39,64 +37,41 @@ public class TestPgUpdate extends BasePgSQLTest {
   @Test
   public void testBasicUpdate() throws SQLException {
     String tableName = "test_basic_update";
-    List<Row> allRows = setupSimpleTable(tableName);
+    setupSimpleTable(tableName);
 
     // UPDATE with condition on partition columns.
     String query = String.format("SELECT h FROM %s WHERE h = 2 AND vi = 1000", tableName);
     try (Statement statement = connection.createStatement()) {
-      try (ResultSet rs = statement.executeQuery(query)) {
-        int rcount = 0;
-        while (rs.next()) rcount++;
-        assertEquals(0, rcount);
-      }
+      assertNoRows(statement, query);
     }
 
     try (Statement statement = connection.createStatement()) {
-      String update_txt = String.format("UPDATE %s SET vi = 1000 WHERE h = 2", tableName);
-      statement.execute(update_txt);
-
-      // Not allowing update primary key columns.
-      update_txt = String.format("UPDATE %s SET r = 1000 WHERE h = 2", tableName);
-      runInvalidQuery(statement, update_txt);
-      update_txt = String.format("UPDATE %s SET h = h + 1 WHERE vi = 2", tableName);
-      runInvalidQuery(statement, update_txt);
+      statement.execute(String.format("UPDATE %s SET vi = 1000 WHERE h = 2", tableName));
     }
 
     try (Statement statement = connection.createStatement()) {
-      try (ResultSet rs = statement.executeQuery(query)) {
-        int rcount = 0;
-        while (rs.next()) rcount++;
-        assertEquals(10, rcount);
-      }
+      List<Row> rows = getRowList(statement.executeQuery(query));
+      assertEquals(10, rows.size());
     }
 
     // UPDATE with condition on regular columns.
     query = String.format("SELECT h FROM %s WHERE vi = 2000", tableName);
     try (Statement statement = connection.createStatement()) {
-      try (ResultSet rs = statement.executeQuery(query)) {
-        int rcount = 0;
-        while (rs.next()) rcount++;
-        assertEquals(0, rcount);
-      }
+      assertNoRows(statement, query);
     }
 
     try (Statement statement = connection.createStatement()) {
-      String update_txt = String.format("UPDATE %s SET vi = 2*vi WHERE vi = 1000", tableName);
-      statement.execute(update_txt);
+      statement.execute(String.format("UPDATE %s SET vi = 2*vi WHERE vi = 1000", tableName));
     }
 
     try (Statement statement = connection.createStatement()) {
-      try (ResultSet rs = statement.executeQuery(query)) {
-        int rcount = 0;
-        while (rs.next()) rcount++;
-        assertEquals(10, rcount);
-      }
+      List<Row> rows = getRowList(statement.executeQuery(query));
+      assertEquals(10, rows.size());
     }
   }
 
   @Test
   public void testUpdateWithSingleColumnKey() throws SQLException {
-    List<Row> allRows = new ArrayList<>();
     String tableName = "test_update_single_column_key";
     try (Statement statement = connection.createStatement()) {
       createSimpleTableWithSingleColumnKey(tableName);
@@ -106,38 +81,22 @@ public class TestPgUpdate extends BasePgSQLTest {
         int r = h + 100;
         statement.execute(String.format(insertTemplate, tableName,
                                         h, r + 0.5, h * 10 + r, "v" + h + r));
-        allRows.add(new Row((long) h,
-                            r + 0.5,
-                            h * 10 + r,
-                            "v" + h + r));
       }
     }
 
     try (Statement statement = connection.createStatement()) {
       String query = String.format("SELECT h FROM %s WHERE h > 5 AND vi = 1000", tableName);
-      try (ResultSet rs = statement.executeQuery(query)) {
-        int rcount = 0;
-        while (rs.next()) rcount++;
-        assertEquals(0, rcount);
-      }
+      assertNoRows(statement, query);
     }
 
     try (Statement statement = connection.createStatement()) {
-      String update_stmt = String.format("UPDATE %s SET vi = 1000 WHERE h > 5", tableName);
-      statement.execute(update_stmt);
-
-      // Not allowing update primary key columns.
-      update_stmt = String.format("UPDATE %s SET h = h + 100 WHERE vi = 2", tableName);
-      runInvalidQuery(statement, update_stmt);
+      statement.execute(String.format("UPDATE %s SET vi = 1000 WHERE h > 5", tableName));
     }
 
     try (Statement statement = connection.createStatement()) {
       String query = String.format("SELECT h FROM %s WHERE h > 5 AND vi = 1000", tableName);
-      try (ResultSet rs = statement.executeQuery(query)) {
-        int rcount = 0;
-        while (rs.next()) rcount++;
-        assertEquals(4, rcount);
-      }
+      List<Row> rows = getRowList(statement.executeQuery(query));
+      assertEquals(4, rows.size());
     }
   }
 
@@ -147,17 +106,17 @@ public class TestPgUpdate extends BasePgSQLTest {
     createSimpleTable(tableName);
 
     List<Row> expectedRows = new ArrayList<>();
-    try (Statement insert_stmt = connection.createStatement()) {
-      String insert_format = "INSERT INTO %s(h, r, vi, vs) VALUES(%d, %f, %d, '%s')";
+    try (Statement stmt = connection.createStatement()) {
+      String insertFmt = "INSERT INTO %s(h, r, vi, vs) VALUES(%d, %f, %d, '%s')";
       for (long h = 0; h < 5; h++) {
         for (int r = 0; r < 5; r++) {
-          String insert_text = String.format(insert_format, tableName,
+          String insertQuery = String.format(insertFmt, tableName,
                                              h, r + 0.5, h * 10 + r, "v" + h + r);
           if (h == 2 || h == 3) {
             // Constructring rows to be returned by UPDATE.
             expectedRows.add(new Row(h + 100L, r + 0.5 + 100, toIntExact(h * 10 + r + 2000)));
           }
-          insert_stmt.execute(insert_text);
+          stmt.execute(insertQuery);
         }
       }
     }
@@ -165,14 +124,14 @@ public class TestPgUpdate extends BasePgSQLTest {
     // Sort expected rows to match with result set.
     Collections.sort(expectedRows);
 
-    try (Statement update_stmt = connection.createStatement()) {
+    try (Statement stmt = connection.createStatement()) {
       // Update with RETURNING clause.
-      String update_text = String.format("UPDATE %s SET vi = vi + 1000 WHERE h = 2 OR h = 3 " +
+      String updateQuery = String.format("UPDATE %s SET vi = vi + 1000 WHERE h = 2 OR h = 3 " +
                                          "RETURNING h + 100, r + 100, vi + 1000", tableName);
-      update_stmt.execute(update_text);
+      stmt.execute(updateQuery);
 
       // Verify RETURNING clause.
-      ResultSet returning = update_stmt.getResultSet();
+      ResultSet returning = stmt.getResultSet();
       assertEquals(expectedRows, getSortedRowList(returning));
     }
   }
@@ -184,33 +143,35 @@ public class TestPgUpdate extends BasePgSQLTest {
     List<Row> expectedRows = new ArrayList<>();
 
     try (Statement stmt = connection.createStatement()) {
-      String create_table_format = "CREATE TABLE %s(a INT PRIMARY KEY, b INT CHECK (b > 0))";
-      stmt.execute(String.format(create_table_format, tableName));
+      String createTableFmt = "CREATE TABLE %s(a INT PRIMARY KEY, b INT CHECK (b > 0))";
+      stmt.execute(String.format(createTableFmt, tableName));
 
-      String insert_format = "INSERT INTO %s(a, b) VALUES(%d, %d) RETURNING a, b";
+      String insertFmt = "INSERT INTO %s(a, b) VALUES(%d, %d) RETURNING a, b";
 
       // INSERT with invalid value will fail.
-      String insert_text = String.format(insert_format, tableName, 1, -1);
-      runInvalidQuery(stmt, insert_text);
+      String insertQuery = String.format(insertFmt, tableName, 1, -1);
+      runInvalidQuery(stmt, insertQuery, "violates check constraint");
 
       ResultSet returning;
       // INSERT with valid value will succeed.
       for (int i = 1; i <= 5; ++i) {
-        insert_text = String.format(insert_format, tableName, i, i);
-        stmt.execute(insert_text);
+        insertQuery = String.format(insertFmt, tableName, i, i);
+        stmt.execute(insertQuery);
         expectedRows.add(new Row(i, i));
         returning = stmt.getResultSet();
         assertEquals(expectedRows.subList(i - 1, i), getSortedRowList(returning));
       }
 
       // UPDATE with invalid value will fail.
-      runInvalidQuery(stmt, String.format("UPDATE %s SET b = -1 WHERE a = 1", tableName));
+      runInvalidQuery(stmt, String.format("UPDATE %s SET b = -1 WHERE a = 1", tableName),
+          "violates check constraint");
       stmt.execute(String.format("SELECT * FROM %s", tableName));
       returning = stmt.getResultSet();
       assertEquals(expectedRows, getSortedRowList(returning));
 
       // UPDATE multiple rows where some row will be invalid.
-      runInvalidQuery(stmt, String.format("Update %s SET b = b - 2 WHERE a < 5", tableName));
+      runInvalidQuery(stmt, String.format("Update %s SET b = b - 2 WHERE a < 5", tableName),
+          "violates check constraint");
       stmt.execute(String.format("SELECT * FROM %s", tableName));
       returning = stmt.getResultSet();
       assertEquals(expectedRows, getSortedRowList(returning));
@@ -229,59 +190,59 @@ public class TestPgUpdate extends BasePgSQLTest {
 
   @Test
   public void testConcurrentUpdate() throws Exception {
+    try (Statement stmt = connection.createStatement()) {
+      stmt.execute("CREATE TABLE test_concurrent_update (k int primary key," +
+                   " v1 int, v2 int, v3 int, v4 int)");
+      stmt.execute("INSERT INTO test_concurrent_update VALUES" +
+                                           " (0, 0, 0, 0, 0)");
 
-    connection.createStatement().execute("create table test_concurrent_update (k int primary key," +
-                                         " v1 int, v2 int, v3 int, v4 int)");
-    connection.createStatement().execute("insert into test_concurrent_update values" +
-                                         " (0, 0, 0, 0, 0)");
+      final List<Throwable> errors = new ArrayList<Throwable>();
 
-    final List<Throwable> errors = new ArrayList<Throwable>();
+      // Test concurrent update to individual columns from 1 to 100. They should not block one
+      // another.
+      List<Thread> threads = new ArrayList<Thread>();
+      for (int i = 1; i <= 4; i++) {
+        final int index = i;
+        Thread thread = new Thread(() -> {
+          try (PreparedStatement updateStmt = connection.prepareStatement(
+                    String.format("UPDATE test_concurrent_update SET v%d = ? WHERE k = 0", index));
+               PreparedStatement selectStmt = connection.prepareStatement(
+                    String.format("SELECT v%d from test_concurrent_update WHERE k = 0", index))) {
 
-    // Test concurrent update to individual columns from 1 to 100. They should not block one
-    // another.
-    List<Thread> threads = new ArrayList<Thread>();
-    for (int i = 1; i <= 4; i++) {
-      final int index = i;
-      Thread thread = new Thread(() -> {
-        try {
-          PreparedStatement updateStmt = connection.prepareStatement(
-                  String.format("update test_concurrent_update set v%d = ? where k = 0", index));
-          PreparedStatement selectStmt = connection.prepareStatement(
-                  String.format("select v%d from test_concurrent_update where k = 0", index));
+            for (int j = 1; j <= 100; j++) {
+              // Update column.
+              updateStmt.setInt(1, j);
+              updateStmt.execute();
 
-          for (int j = 1; j <= 100; j++) {
-            // Update column.
-            updateStmt.setInt(1, j);
-            updateStmt.execute();
+              // Verify update.
+              ResultSet rs = selectStmt.executeQuery();
+              assertNextRow(rs, j);
+            }
 
-            // Verify update.
-            ResultSet rs = selectStmt.executeQuery();
-            assertNextRow(rs, j);
+          } catch (Throwable e) {
+            synchronized (errors) {
+              errors.add(e);
+            }
           }
+        });
+        thread.start();
+        threads.add(thread);
+      }
 
-        } catch (Throwable e) {
-          synchronized (errors) {
-            errors.add(e);
-          }
-        }
-      });
-      thread.start();
-      threads.add(thread);
+      for (Thread thread : threads) {
+        thread.join();
+      }
+
+      // Verify final result of all columns.
+      assertOneRow(stmt, "SELECT v1, v2, v3, v4 FROM test_concurrent_update WHERE k = 0",
+                   100, 100, 100, 100);
+
+      // Log the actual errors that occurred.
+      for (Throwable e : errors) {
+        LOG.error("Errors occurred", e);
+      }
+      assertTrue(errors.isEmpty());
     }
-
-    for (Thread thread : threads) {
-      thread.join();
-    }
-
-    // Verify final result of all columns.
-    assertOneRow("select v1, v2, v3, v4 from test_concurrent_update where k = 0",
-                 100, 100, 100, 100);
-
-    // Log the actual errors that occurred.
-    for (Throwable e : errors) {
-      LOG.error("Errors occurred", e);
-    }
-    assertTrue(errors.isEmpty());
   }
 
   /*
@@ -294,21 +255,59 @@ public class TestPgUpdate extends BasePgSQLTest {
     setupSimpleTable(tableName);
 
     PreparedStatement updateStmt = connection.prepareStatement(
-            "update test_update_expr_pushdown SET vi = vi + ?, vs = vs || ? " +
+            "UPDATE test_update_expr_pushdown SET vi = vi + ?, vs = vs || ? " +
                     "WHERE h = 2 AND r = 2.5");
-    int expected_vi = 22;
-    String expected_vs = "v22";
+    int expectedVi = 22;
+    String expectedVs = "v22";
     for (int i = 0; i < 20; i++) {
       // Use float instead of int to check bind param casting.
-      float vi_inc = i * 10 + 5.4F;
-      String vs_concat = "," + i;
-      updateStmt.setFloat(1, vi_inc);
-      updateStmt.setString(2, vs_concat);
+      float viInc = i * 10 + 5.4F;
+      String vsConcat = "," + i;
+      updateStmt.setFloat(1, viInc);
+      updateStmt.setString(2, vsConcat);
       updateStmt.execute();
-      expected_vi += vi_inc;
-      expected_vs += vs_concat;
-      assertOneRow("select vi,vs from test_update_expr_pushdown where h = 2 and r = 2.5",
-                   expected_vi, expected_vs);
+      expectedVi += viInc;
+      expectedVs += vsConcat;
+      assertOneRow(connection.createStatement(),
+                   "SELECT vi,vs FROM test_update_expr_pushdown WHERE h = 2 AND r = 2.5",
+                   expectedVi, expectedVs);
+    }
+  }
+
+  @Test
+  public void testUpdateFrom() throws SQLException {
+    String tableName1 = "test_update_from";
+    String tableName2 = "test_helper";
+    createSimpleTable(tableName1);
+    createSimpleTable(tableName2);
+
+    // Fill in the helper table:
+    try (Statement insert_stmt = connection.createStatement()) {
+      insert_stmt.execute("INSERT INTO " + tableName2 + "(h, r, vi, vs) VALUES(1, 0.5, 10, 'v')");
+    }
+
+    List<Row> expectedRows = new ArrayList<>();
+    try (Statement insert_stmt = connection.createStatement()) {
+      String insert_format = "INSERT INTO %s(h, r, vi, vs) VALUES(%d, %f, %d, '%s')";
+      for (long h = 0; h < 5; h++) {
+        String insert_text = String.format(insert_format, tableName1,
+                                           h, h + 0.5, h * 10 + h, "v" + h );
+        if (h == 1) {
+          // Constructing rows to be returned by UPDATE.
+          expectedRows.add(new Row(h, h + 0.5, h * 10 + h, "l", 1, 0.5, 10, "v"));
+        }
+        insert_stmt.execute(insert_text);
+      }
+    }
+
+    try (Statement update_stmt = connection.createStatement()) {
+      // Testing FROM in UPDATE with RETURNING clause:
+      update_stmt.execute("UPDATE " + tableName1 + " SET vs = 'l' FROM " + tableName2 +
+                          " WHERE " + tableName1 + ".h  = " + tableName2 + ".h RETURNING *");
+
+      // Verify RETURNING clause.
+      ResultSet returning = update_stmt.getResultSet();
+      assertEquals(expectedRows, getSortedRowList(returning));
     }
   }
 }

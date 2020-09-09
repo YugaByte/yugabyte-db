@@ -53,7 +53,6 @@
 
 #include "yb/util/enums.h"
 #include "yb/util/flag_tags.h"
-#include "yb/util/kernel_stack_watchdog.h"
 #include "yb/util/metrics.h"
 #include "yb/util/random_util.h"
 #include "yb/util/result.h"

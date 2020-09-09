@@ -64,6 +64,9 @@ DEFINE_bool(ysql_non_txn_copy, false,
 DEFINE_int32(ysql_max_read_restart_attempts, 20,
              "How many read restarts can we try transparently before giving up");
 
+DEFINE_test_flag(bool, ysql_disable_transparent_cache_refresh_retry, false,
+    "Never transparently retry commands that fail with cache version mismatch error");
+
 DEFINE_int32(ysql_output_buffer_size, 262144,
              "Size of postgres-level output buffer, in bytes. "
              "While fetched data resides within this buffer and hasn't been flushed to client yet, "
@@ -73,21 +76,18 @@ DEFINE_bool(ysql_suppress_unsupported_error, false,
             "Suppress ERROR on use of unsupported SQL statement and use WARNING instead");
 
 // Top-level flag to enable all YSQL beta features.
-DEFINE_bool(ysql_beta_features, true,
+DEFINE_bool(ysql_beta_features, false,
             "Whether to enable all ysql beta features");
 
 // Per-feature flags -- only relevant if ysql_beta_features is false.
-DEFINE_bool(ysql_beta_feature_function, false,
-            "Whether to enable 'function' ysql beta feature");
-
-DEFINE_bool(ysql_beta_feature_trigger, false,
-            "Whether to enable the 'trigger' ysql beta feature");
-
-DEFINE_bool(ysql_beta_feature_roles, false,
-            "Whether to enable the 'roles' ysql beta feature");
 
 DEFINE_bool(ysql_beta_feature_extension, false,
             "Whether to enable the 'extension' ysql beta feature");
+
+DEFINE_bool(ysql_beta_feature_tablegroup, true,
+            "Whether to enable the incomplete 'tablegroup' ysql beta feature");
+
+TAG_FLAG(ysql_beta_feature_tablegroup, hidden);
 
 DEFINE_bool(ysql_enable_manual_sys_table_txn_ctl, false,
             "Enable manual transaction control for YSQL system tables. Mostly needed for testing. "

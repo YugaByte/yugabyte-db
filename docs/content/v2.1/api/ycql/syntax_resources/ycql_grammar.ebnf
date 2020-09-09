@@ -1,0 +1,143 @@
+alter_table ::= 'ALTER' 'TABLE' table_name ('ADD' ( column_name column_type ) { ',' ( column_name column_type ) } | 'DROP' ( column_name { ',' column_name } ) | 'RENAME' ( column_name 'TO' column_name ) { ',' ( column_name 'TO' column_name ) }  | 'WITH' ( property_name '=' property_literal ) { 'AND' ( property_name '=' property_literal ) } )+ ;
+
+column_type ::= '<type>';
+
+create_index ::= 'CREATE' 'INDEX' [ 'IF' 'NOT' 'EXISTS' ] index_name 'ON' \
+                     table_name '(' partition_key_columns [ clustering_key_columns ] ')' \
+                     [ clustering_key_column_ordering ] [ covering_columns ];
+
+partition_key_columns = ( index_column | '(' index_column { ',' index_column } ')' );
+
+clustering_key_columns = index_column { ',' index_column };
+
+clustering_key_column_ordering = 'WITH' 'CLUSTERING' 'ORDER' 'BY' '(' ( index_column [ ( 'ASC' | 'DESC' ) ] ) {',' ( index_column [ ( 'ASC' | 'DESC' ) ] ) } ')';
+
+index_column = column_name | jsonb_attribute;
+
+jsonb_attribute = column_name {'->' "'attribute_name'" } '->>' "'attribute_name'";
+
+covering_columns = ( 'COVERING' | 'INCLUDE' ) '(' column_name { ',' column_name } ')';
+
+create_keyspace ::= 'CREATE' ( 'KEYSPACE' | 'SCHEMA' ) [ 'IF' 'NOT' 'EXISTS' ] keyspace_name keyspace_properties ;
+
+keyspace_properties ::= [ 'WITH' 'REPLICATION' '=' '{' keyspace_property { ',' keyspace_property } '}' ] [ 'AND' 'DURABLE_WRITES' '=' ( 'true' | 'false' ) ] ;
+
+keyspace_property ::= property_name '=' property_literal ;
+
+create_table ::= 'CREATE' 'TABLE' [ 'IF' 'NOT' 'EXISTS' ] table_name '(' table_schema ')' [ table_properties ] ;
+
+table_schema ::= ( ( column_name column_type ( 'PRIMARY' 'KEY' | 'STATIC' )+ ) | ( 'PRIMARY' 'KEY' '(' '(' column_name {',' column_name } ')' { ','  column_name } ')' ) ) { ','  ( ( column_name column_type ( 'PRIMARY' 'KEY' | 'STATIC' )+ ) | ( 'PRIMARY' 'KEY' '(' '(' column_name {',' column_name } ')' { ','  column_name } ')' ) ) } ;
+
+table_properties ::= 'WITH' ( property_name = property_literal | 'CLUSTERING' 'ORDER' 'BY' '(' ( column_name [ 'ASC' | 'DESC' ] ) { ',' ( column_name [ 'ASC' | 'DESC' ] ) } ')' | 'COMPACT' 'STORAGE' ) { 'AND' ( property_name = property_literal | 'CLUSTERING' 'ORDER' 'BY' '(' ( column_name [ 'ASC' | 'DESC' ] ) { ',' ( column_name [ 'ASC' | 'DESC' ] ) } ')' | 'COMPACT' 'STORAGE' ) } ;
+
+create_type ::= 'CREATE' 'TYPE' [ 'IF' 'NOT' 'EXISTS' ] type_name
+                    '(' (field_name field_type ) { ',' ( field_name field_type ) } ')' ;
+
+field_type ::= '<type>' ;
+
+drop_keyspace ::= 'DROP' ( 'KEYSPACE' | 'SCHEMA' ) [ 'IF' 'EXISTS' ] keyspace_name ;
+
+drop_table ::= 'DROP' 'TABLE' [ 'IF' 'EXISTS' ] table_name ;
+
+drop_type ::= 'DROP' 'TYPE' [ 'IF' 'EXISTS' ] type_name ;
+
+use_keyspace ::= 'USE' keyspace_name ;
+
+delete ::= 'DELETE' 'FROM' table_name
+               [ 'USING' 'TIMESTAMP' timestamp_expression ]
+               'WHERE' where_expression
+               [ 'IF' ( [ 'NOT' ] 'EXISTS' | if_expression ) ] ;
+
+where_expression ::= ( column_name ( '<' | '<=' | '=' |  '>=' | '>' | 'IN' | 'NOT IN' ) expression ) { 'AND' ( column_name ( '<' | '<=' | '=' |  '>=' | '>' | 'IN' | 'NOT IN' ) expression ) } ;
+
+if_expression ::= ( column_name ( '<' | '<=' | '=' |  '>=' | '>' | 'IN' | 'NOT IN' ) expression ) { 'AND' ( column_name ( '<' | '<=' | '=' |  '>=' | '>' | 'IN' | 'NOT IN' ) expression ) } ;
+
+insert ::= 'INSERT' 'INTO' table_name '(' column_name { ',' column_name } ')'
+               'VALUES' '(' expression { ',' expression } ')' \
+               [ 'IF' ( [ 'NOT' ] 'EXISTS' | if_expression ) ]
+               [ 'USING' using_expression ] ;
+
+using_expression ::= ( ttl_or_timestamp_expression ) { 'AND' ( ttl_or_timestamp_expression ) } ;
+
+ttl_or_timestamp_expression ::= ( 'TTL' ttl_expression | 'TIMESTAMP' timestamp_expression ) ;
+
+expression ::= '<expression>' ;
+
+select ::= 'SELECT' [ 'DISTINCT' ] ( '*' | column_name { ',' column_name } ) 'FROM' table_name \
+               [ 'WHERE' where_expression [ 'ALLOW FILTERING' ] ] \
+               [ 'IF' if_expression ] \
+               [ 'ORDER BY' order_expression ] \
+               [ 'LIMIT' limit_expression ] [ 'OFFSET' offset_expression ] ;
+
+order_expression ::= '(' ( column_name [ 'ASC' | 'DESC' ] ) { ',' ( column_name [ 'ASC' | 'DESC' ] ) } ')';
+
+update ::= 'UPDATE' table_name
+              [ 'USING' using_expression ]
+              'SET' assignment { ',' assignment } \
+              'WHERE' where_expression
+              [ 'IF' ( [ 'NOT' ] 'EXISTS' | if_expression ) ] ;
+
+transaction_block ::= 'BEGIN' 'TRANSACTION' \
+                      ( ( insert | update | delete ) ';' )
+                      { ( insert | update | delete ) ';' } \
+                      'END' 'TRANSACTION' ';' ;
+
+truncate ::= 'TRUNCATE' [ 'TABLE' ] table_name;
+
+assignment ::= column_name '=' expression ;
+
+ttl_expression ::= '<Integer Literal>' ;
+
+timestamp_expression ::= '<Integer Literal>' ;
+
+limit_expression ::= '<Integer Literal>' ;
+
+offset_expression ::= '<Integer Literal>' ;
+
+keyspace_name ::= '<Text Literal>' ;
+
+property_name ::= '<Text Literal>' ;
+
+property_literal ::= '<Text Literal>' ;
+
+table_name ::= [ keyspace_name '.' ] '<Text Literal>' ;
+
+index_name ::= '<Text Literal>' ;
+
+column_name ::= '<Text Literal>' ;
+
+type_name ::= [ keyspace_name '.' ] '<Text Literal>' ;
+
+field_name ::= '<Text Literal>' ;
+
+alter_role ::= 'ALTER' 'ROLE' role_name  'WITH' ( role_property ) { 'AND' ( role_property ) } ;
+
+create_role ::= 'CREATE' 'ROLE' role_name [ 'WITH' ( role_property ) { 'AND' ( role_property ) } ] ;
+
+role_property ::=  'PASSWORD' '=' '<Text Literal>'
+                   | 'LOGIN' '=' '<Boolean Literal>'
+                   | 'SUPERUSER' '=' '<Boolean Literal>' ;
+
+drop_role ::= 'DROP' 'ROLE' [ 'IF' 'EXISTS' ] role_name ;
+
+grant_role ::=  'GRANT' role_name 'TO' role_name ;
+
+revoke_role ::=  'REVOKE' role_name 'FROM' role_name ;
+
+grant_permission ::=  'GRANT' (all_permissions | permission) 'ON' resource 'TO' role_name ;
+
+revoke_permission ::= 'REVOKE' (all_permissions | permission) 'ON' resource 'FROM' role_name ;
+
+all_permissions ::= 'ALL' [ 'PERMISSIONS' ] ;
+
+role_name ::= '<Text Literal>' ;
+
+permission ::=  ('CREATE' | 'ALTER' | 'DROP' | 'SELECT' | 'MODIFY' | 'AUTHORIZE' | 'DESCRIBE' | 'EXECUTE') [ 'PERMISSION' ] ;
+resource ::=   'ALL' ('KEYSPACES' | 'ROLES')
+             | 'KEYSPACE' keyspace_name
+             | [ 'TABLE' ] table_name
+             | 'ROLE' role_name ;
+
+alter_keyspace ::= 'ALTER' ('KEYSPACE' | 'SCHEMA') keyspae_name keyspace_properties;
+
+explain ::= 'EXPLAIN' (select | update | insert | delete);

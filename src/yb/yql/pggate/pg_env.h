@@ -21,6 +21,9 @@
 #ifndef YB_YQL_PGGATE_PG_ENV_H_
 #define YB_YQL_PGGATE_PG_ENV_H_
 
+#include <memory>
+#include <string>
+
 #include <boost/functional/hash/hash.hpp>
 
 #include "yb/common/entity_ids.h"
@@ -43,6 +46,19 @@ struct PgObjectId {
       : database_oid(database_oid), object_oid(object_oid) {}
   PgObjectId()
       : database_oid(kPgInvalidOid), object_oid(kPgInvalidOid) {}
+  explicit PgObjectId(const TableId& table_id) {
+    auto res = GetPgsqlDatabaseOidByTableId(table_id);
+    if (res.ok()) {
+      database_oid = res.get();
+    }
+    res = GetPgsqlTableOid(table_id);
+    if (res.ok()) {
+      object_oid = res.get();
+    } else {
+      // Reset the previously set database_oid.
+      database_oid = kPgInvalidOid;
+    }
+  }
 
   bool IsValid() const {
     return database_oid != kPgInvalidOid && object_oid != kPgInvalidOid;
@@ -50,6 +66,10 @@ struct PgObjectId {
 
   TableId GetYBTableId() const {
     return GetPgsqlTableId(database_oid, object_oid);
+  }
+
+  TablegroupId GetYBTablegroupId() const {
+    return GetPgsqlTablegroupId(database_oid, object_oid);
   }
 
   std::string ToString() const {
@@ -66,7 +86,6 @@ struct PgObjectId {
     boost::hash_combine(value, id.object_oid);
     return value;
   }
-
 };
 
 typedef boost::hash<PgObjectId> PgObjectIdHash;

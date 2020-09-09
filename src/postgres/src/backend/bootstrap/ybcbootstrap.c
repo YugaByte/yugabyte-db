@@ -137,8 +137,9 @@ void YBCCreateSysCatalogTable(const char *table_name,
 	                                   table_oid,
 	                                   is_shared_relation,
 	                                   false, /* if_not_exists */
-									   pkey_idx == NULL, /* add_primary_key */
-									   true, /* colocated */
+									   								 pkey_idx == NULL, /* add_primary_key */
+									   								 true, /* colocated */
+									   								 InvalidOid /*tablegroup oid*/,
 	                                   &yb_stmt));
 
 	/* Add all key columns first, then the regular columns */

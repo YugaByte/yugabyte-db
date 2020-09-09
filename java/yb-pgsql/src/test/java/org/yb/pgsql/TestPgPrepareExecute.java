@@ -116,14 +116,14 @@ public class TestPgPrepareExecute extends BasePgSQLTest {
     }
 
     // Test bind variable pushdown:
-    // Inequality on hash key -- until index range scan is supported, foreign scan is still the best
+    // Inequality on hash key -- until index range scan is supported, seq scan is still the best
     // path.
     query = "EXPLAIN SELECT * FROM test WHERE h > ?";
     try (PreparedStatement sel = connection.prepareStatement(query)) {
       sel.setLong(1, 2);
       ResultSet rs = sel.executeQuery();
       List<Row> rows = getRowList(rs);
-      assertTrue(rows.toString().contains("Foreign Scan"));
+      assertTrue(rows.toString().contains("Seq Scan"));
     }
   }
 

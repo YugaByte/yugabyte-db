@@ -175,7 +175,7 @@ class KubernetesDetails():
 class NodeChecker():
 
     def __init__(self, node, node_name, identity_file, ssh_port, start_time_ms,
-                 namespace_to_config, ysql_port, enable_tls_client):
+                 namespace_to_config, ysql_port, ycql_port, redis_port, enable_tls_client):
         self.node = node
         self.node_name = node_name
         self.identity_file = identity_file
@@ -192,6 +192,8 @@ class NodeChecker():
         if not self.is_k8s and not os.path.isfile(self.identity_file):
             raise RuntimeError('Error: cannot find identity file {}'.format(self.identity_file))
         self.ysql_port = ysql_port
+        self.ycql_port = ycql_port
+        self.redis_port = redis_port
 
     def _new_entry(self, message, process=None):
         return Entry(message, self.node, process, self.node_name)
@@ -366,7 +368,7 @@ class NodeChecker():
         e = self._new_entry("Connectivity with cqlsh")
 
         cqlsh = '{}/bin/cqlsh'.format(YB_TSERVER_DIR)
-        remote_cmd = '{} {} -e "SHOW HOST"'.format(cqlsh, self.node)
+        remote_cmd = '{} {} {} -e "SHOW HOST"'.format(cqlsh, self.node, self.ycql_port)
         if self.enable_tls_client:
             cert_file = K8S_CERT_FILE_PATH if self.is_k8s else VM_CERT_FILE_PATH
 
@@ -375,7 +377,8 @@ class NodeChecker():
         output = self._remote_check_output(remote_cmd).strip()
 
         errors = []
-        if not (output.startswith('Connected to local cluster at {}:9042'.format(self.node)) or
+        if not (output.startswith('Connected to local cluster at {}:{}'
+                                  .format(self.node, self.ycql_port)) or
                 "AuthenticationFailed('Remote end requires authentication.'" in output):
             errors = [output]
         return e.fill_and_return_entry(errors, len(errors) > 0)
@@ -384,7 +387,7 @@ class NodeChecker():
         logging.info("Checking redis cli works for node {}".format(self.node))
         e = self._new_entry("Connectivity with redis-cli")
         redis_cli = '{}/bin/redis-cli'.format(YB_TSERVER_DIR)
-        remote_cmd = 'echo "ping" | {} -h {}'.format(redis_cli, self.node)
+        remote_cmd = 'echo "ping" | {} -h {} -p {}'.format(redis_cli, self.node, self.redis_port)
 
         output = self._remote_check_output(remote_cmd).strip()
 
@@ -703,6 +706,8 @@ class Cluster():
         self.namespace_to_config = data["namespaceToConfig"]
         self.enable_ysql = data["enableYSQL"]
         self.ysql_port = data["ysqlPort"]
+        self.ycql_port = data["ycqlPort"]
+        self.redis_port = data["redisPort"]
 
 
 class UniverseDefinition():
@@ -748,7 +753,7 @@ def main():
             checker = NodeChecker(
                     node, node_name, c.identity_file, c.ssh_port,
                     args.start_time_ms, c.namespace_to_config, c.ysql_port,
-                    c.enable_tls_client)
+                    c.ycql_port, c.redis_port, c.enable_tls_client)
             # TODO: use paramiko to establish ssh connection to the nodes.
             if node in master_nodes:
                 coordinator.add_check(

@@ -105,7 +105,7 @@ In the above you will see that to present the date in a friendly readable format
 
 ## Time zones
 
-Thus far, we have been operating with the default time zone installed for YugabyteDB being UTC (+0). Lets select what time zones are available from Yugabyte:
+Thus far, you have been operating with the default time zone installed for YugabyteDB being UTC (+0). Lets select what time zones are available from Yugabyte:
 
 ```
 yugabyte=# select * from pg_timezone_names;
@@ -393,7 +393,7 @@ yb_demo=# select d.order_id, to_char(o.created_at, 'DD-MON-YYYY HH AM') AS "Orde
 ```
 
 {{< note title="Note" >}}
-Your data will be slightly different as we used a `RANDOM()` function for setting the 'delivery_date' in the new 'order_deliveries' table.
+Your data will be slightly different as you used a `RANDOM()` function for setting the 'delivery_date' in the new 'order_deliveries' table.
 {{< /note >}}
 
 You can use views of the YugabyteDB Data Catalogs to create data that is already prepared and formatted for your application code so that your SQL is simpler. Below is an example that is defined in the yb_demo database (has no dependency on yb_demo). This demonstration shows how you can nominate a shortlist of timezones that are formatted and ready to use for display purposes.
@@ -534,7 +534,7 @@ The `EXTRACT` command is the preferred command to `DATE_PART`.
 
 ## Manipulating using truncation
 
-Another useful command is `DATE_TRUNC` which is used to 'floor' the timestamp to a particular unit. For the following YSQL, we assume that you are in the 'yb_demo' database with the demo data loaded.
+Another useful command is `DATE_TRUNC` which is used to 'floor' the timestamp to a particular unit. For the following YSQL, you assume that you are in the 'yb_demo' database with the demo data loaded.
 
 ```
 yb_demo=# select date_trunc('hour', current_timestamp);
@@ -596,7 +596,7 @@ yugabyte=# select to_char(current_date, 'Day, DD-MON-YYYY') AS "Today",
 
 ```
 
-The above approach is to `EXTRACT` the current day of the week as an integer. As today is a Tuesday, the result will be 2. As we know there are 7 days per week, we need to target a calculation that has a result of 8, being 1 day more than the 7th day. We use this to calculate how many days to add to the current date (7 days - 2 + 1 day) to arrive at the next Monday which is day of the week (ISO dow) #1. My addition of the `AT TIME ZONE` was purely illustrative and would not impact the result because I am dealing with days, and my timezone difference is only +10 hours, therefore it does not affect the date. However, if you are working with hours or smaller, then the timezone will *potentially* have a bearing on your result.
+The above approach is to `EXTRACT` the current day of the week as an integer. As today is a Tuesday, the result will be 2. As you know there are 7 days per week, you need to target a calculation that has a result of 8, being 1 day more than the 7th day. We use this to calculate how many days to add to the current date (7 days - 2 + 1 day) to arrive at the next Monday which is day of the week (ISO dow) #1. My addition of the `AT TIME ZONE` was purely illustrative and would not impact the result because I am dealing with days, and my timezone difference is only +10 hours, therefore it does not affect the date. However, if you are working with hours or smaller, then the timezone will *potentially* have a bearing on your result.
 
 {{< tip title="Fun Fact" >}}
 For the very curious, why is there a gap after 'Tuesday' and 'Monday' in the example above? All 'Day' values are space padded to 9 characters. You could use string functions to remove the extra spaces if needed for formatting purposes or you could do a trimmed `TO_CHAR` for the 'Day' then concatenate with a comma and another `TO_CHAR` for the 'DD-MON-YYYY'.
@@ -604,7 +604,7 @@ For the very curious, why is there a gap after 'Tuesday' and 'Monday' in the exa
 
 ## Ambiguity - Using DateStyle
 
-People in different locations of the world are familiar with local representations of dates. Times are reasonably similar, but dates can differ. Within the USA, they use 3/5/19, whereas in Australia we would use 5/3/19 and in Europe they would use either 5.3.19 or 5/3/19. What is the date in question? 5th March, 2019.
+People in different locations of the world are familiar with local representations of dates. Times are reasonably similar, but dates can differ. Within the USA, they use 3/5/19, whereas in Australia you would use 5/3/19 and in Europe they would use either 5.3.19 or 5/3/19. What is the date in question? 5th March, 2019.
 
 YugabyteDB has `DateStyle` which is a setting that you apply to your session so that ambiguous dates can be determined and the display of dates in YSQL can be defaulted to a particular format.
 
@@ -713,15 +713,15 @@ Best practise is to pass all text representations of date and time data types th
 
 The final example above illustrates the difficulty that can occur with dates. The system is expecting a 'DMY' value but your source is of format 'MDY', therefore YugabyteDB will not know how to convert it in ambiguous cases, therefore be explicit as shown.
 
-## Getting dirty - into the logs we go
+## Getting dirty - into the logs you go
 
 {{< note title="Note" >}}
 This is for those more interested in getting into some of the more finer points of control.
 {{< /note >}}
 
-YugabyteDB has inherited a lot of similar capability of the YSQL API to the PostgreSQL SQL API, and this will explain why when we start to look under the hood, it is looking very much like pg.
+YugabyteDB has inherited a lot of similar capability of the YSQL API to the PostgreSQL SQL API, and this will explain why when you start to look under the hood, it is looking very much like pg.
 
-YugabyteDB tracks its settings in its catalog, lets query some relevant settings and this time we will transform the layout of the query results using the `Expanded display` setting. This can be done in any database.
+YugabyteDB tracks its settings in its catalog, lets query some relevant settings and this time you will transform the layout of the query results using the `Expanded display` setting. This can be done in any database.
 
 ```
 yugabyte=# \x on
@@ -758,7 +758,7 @@ yugabyte=# \x off
 
 ```
 
-Using the `log_directory` and `log_filename` references, we can find the YugabyteDB log to examine the timestamps being inserted into the logs. These are all UTC timestamps and should remain that way.
+Using the `log_directory` and `log_filename` references, you can find the YugabyteDB log to examine the timestamps being inserted into the logs. These are all UTC timestamps and should remain that way.
 
 You will see that the `lc_time` setting is currently UTF and the file the setting is obtained from is listed. Opening that file **as sudo/superuser**, you will see contents that look like the below (after much scrolling or searching for 'datestyle'):
 
@@ -815,7 +815,7 @@ yugabyte=# select current_date;
 
 ```
 
-Now you don't need to make those settings each time you enter YSQL. However, applications should not rely upon these settings, they should always `SET` their requirements before submitting their SQL. These settings should only be used by 'casual querying' such as we are doing now.
+Now you don't need to make those settings each time you enter YSQL. However, applications should not rely upon these settings, they should always `SET` their requirements before submitting their SQL. These settings should only be used by 'casual querying' such as you are doing now.
 
 ## Conclusion
 

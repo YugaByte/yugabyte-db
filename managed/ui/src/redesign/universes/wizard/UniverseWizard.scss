@@ -1,0 +1,35 @@
+@import "../../uikit/common";
+
+.universe-wizard {
+  $x-padding: 50px;
+  $y-padding: 35px;
+
+  padding: $y-padding $x-padding;
+  background-color: $YB_PAGE_BACKGROUND;
+  height: calc(100vh - 105px); // temp hack to stretch widget to all visible area and don't touch parents
+  font-family: $YB_FONT_FAMILY;
+
+  &__title {
+    font-size: 30px;
+    font-weight: 600;
+    color: $YB_TEXT_1;
+    margin-bottom: 40px;
+  }
+
+  &__container {
+    display: flex;
+    margin-left: -$x-padding;
+    margin-bottom: 20px;
+  }
+
+  &__form {
+    flex-grow: 1;
+    min-width: 880px;
+    background-color: $YB_FORM_BACKGROUND;
+    padding: $y-padding $x-padding;
+  }
+
+  &__summary {
+    min-width: 400px;
+  }
+}

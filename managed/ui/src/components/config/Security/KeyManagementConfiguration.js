@@ -276,7 +276,8 @@ class KeyManagementConfiguration extends Component {
           onSubmit={values => {
             this.submitKMSForm(values);
           }}
-          render={props => (
+        >
+          {props => (
             <form onSubmit={props.handleSubmit}>
               <Row>
                 <Col lg={8}>
@@ -311,7 +312,7 @@ class KeyManagementConfiguration extends Component {
               </div>
             </form>
           )}
-        />
+        </Formik>
       </div>
     );
   }

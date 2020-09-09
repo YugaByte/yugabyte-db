@@ -80,5 +80,8 @@ void YQLVirtualTable::GetSortedLiveDescriptors(std::vector<std::shared_ptr<TSDes
       });
 }
 
+const std::string kSystemTablesReleaseVersion = "3.9-SNAPSHOT";
+const std::string kSystemTablesReleaseVersionColumn = "release_version";
+
 }  // namespace master
 }  // namespace yb

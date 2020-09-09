@@ -35,11 +35,11 @@ class RegisterForm extends Component {
 
       name: Yup.string()
         .required('Enter a name'),
-      
+
       email: Yup.string()
         .required('Enter email')
         .email('This is not a valid email'),
-      
+
       password: Yup.string()
         .required('Enter password'),
 
@@ -70,10 +70,8 @@ class RegisterForm extends Component {
               this.submitRegister(values);
               setSubmitting(false);
             }}
-            render={({
-              handleSubmit,
-              isSubmitting
-            }) => (
+          >
+            {({ handleSubmit, isSubmitting }) => (
               <Form className="form-register" onSubmit={handleSubmit}>
                 <div className={`alert alert-danger form-error-alert ${authToken.error ? '': 'hide'}`}>
                   {<strong>{JSON.stringify(authToken.error)}</strong>}
@@ -92,7 +90,7 @@ class RegisterForm extends Component {
                 </div>
               </Form>
             )}
-          />
+          </Formik>
         </div>
       </div>
     );

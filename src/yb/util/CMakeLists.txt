@@ -183,7 +183,6 @@ set(UTIL_SRCS
   init.cc
   jsonreader.cc
   jsonwriter.cc
-  kernel_stack_watchdog.cc
   locks.cc
   logging.cc
   malloc.cc
@@ -213,6 +212,7 @@ set(UTIL_SRCS
   path_util.cc
   pb_util-internal.cc
   pb_util.cc
+  pg_connstr.cc
   physical_time.cc
   port_picker.cc
   priority_thread_pool.cc
@@ -248,7 +248,7 @@ set(UTIL_SRCS
   timestamp.cc
   trace.cc
   trilean.cc
-  ulimit_info.cc
+  ulimit_util.cc
   universe_key_manager.cc
   url-coding.cc
   user.cc
@@ -407,7 +407,6 @@ endif()
 ADD_YB_TEST(slice-test)
 ADD_YB_TEST(spinlock_profiling-test)
 ADD_YB_TEST(split-test)
-ADD_YB_TEST(stack_watchdog-test)
 ADD_YB_TEST(stats/iostats_context_test)
 ADD_YB_TEST(status-test)
 ADD_YB_TEST(stol_utils-test)
@@ -450,10 +449,7 @@ target_link_libraries(jsonwriter_test_proto
 #######################################
 
 ADD_YB_TEST(jsonwriter-test)
-if(NOT "${NO_TESTS}")
-  target_link_libraries(jsonwriter-test
-    jsonwriter_test_proto)
-endif()
+YB_TEST_TARGET_LINK_LIBRARIES(jsonwriter-test jsonwriter_test_proto)
 
 #######################################
 # proto_container_test_proto
@@ -483,13 +479,10 @@ target_link_libraries(proto_container_test_proto
 #######################################
 
 ADD_YB_TEST(pb_util-test)
-if(NOT "${NO_TESTS}")
-  target_link_libraries(pb_util-test
-    proto_container_test_proto)
-endif()
+YB_TEST_TARGET_LINK_LIBRARIES(pb_util-test proto_container_test_proto)
 
 ADD_YB_TEST(encrypted_env-test)
-target_link_libraries(encrypted_env-test encryption_test_util)
+YB_TEST_TARGET_LINK_LIBRARIES(encrypted_env-test encryption_test_util)
 
 ADD_YB_TEST(ctr_cipher_stream-test)
-target_link_libraries(ctr_cipher_stream-test encryption_test_util)
+YB_TEST_TARGET_LINK_LIBRARIES(ctr_cipher_stream-test encryption_test_util)

@@ -27,12 +27,12 @@ return value:      anyarray
 
 These thee ordinary functions also create an array value from scratch:
 
-- The [`array_fill()`](../functions-operators/array-fill/) function creates a "blank canvas" array of the specified shape with all values set the same to what you want.
-- The [`array_agg()`](../functions-operators/array-agg-unnest/#array-agg) function creates an array (of, in general, an implied _"row"_ type) from a SQL subquery.
-- The [`text_to_array()`](../functions-operators/string-to-array/) function creates a `text[]`array from a single `text` value that uses a a specifiable delimiter to beak it into individual values.
+- [`array_fill()`](../functions-operators/array-fill/) creates a "blank canvas" array of the specified shape with all values set the same to what you want.
+- [`array_agg()`](../functions-operators/array-agg-unnest/#array-agg) creates an array (of, in general, an implied _"row"_ type) from a SQL subquery.
+- [`text_to_array()`](../functions-operators/string-to-array/) creates a `text[]`array from a single `text` value that uses a a specifiable delimiter to beak it into individual values.
 
 **Example:**
-```postgresql
+```plpgsql
 create type rt as (f1 int, f2 text);
 select array[(1, 'a')::rt, (2, 'b')::rt, (3, 'dog \ house')::rt]::rt[] as arr;
 ```
@@ -67,11 +67,11 @@ begin
   one_d_1 := array[r[1], r[2], r[3]];
   assert (one_d_1 = r), 'assert failed';
 ```
-The [`array_dims()`](../functions-operators/properties/#array-dims) function is documented in the _"Functions for reporting the geometric properties of an array"_ section.
+[`array_dims()`](../functions-operators/properties/#array-dims) is documented in the _"Functions for reporting the geometric properties of an array"_ section.
 
 Run this to create the required user-defined _"row"_ type and the table function and then to invoke it.
 
-```postgresql
+```plpgsql
 -- Don't create "type rt" if it's still there following the previous example.
 create type rt as (f1 int, f2 text);
 
@@ -158,7 +158,7 @@ And this is the second row. The readability was improved by adding some whitespa
 ## Using the array[] constructor in a prepared statement
 
 This example emphasizes the value of using the `array[]` constructor over using an array literal because it lets you use expressions like `chr()` within it.
-```postgresql
+```plpgsql
 -- Don't create "type rt" if it's still there followng the previous examples.
 create type rt as (f1 int, f2 text);
 create table t(k serial primary key, arr rt[]);
@@ -169,12 +169,12 @@ prepare stmt(rt[]) as insert into t(arr) values($1);
 execute stmt(array[(104, chr(104))::rt, (105, chr(105))::rt, (106, chr(106))::rt]);
 ```
 This execution of the prepared statement, using an array literal as the actual argument, is semantically equivalent:
-```postgresql
+```plpgsql
 execute stmt('{"(104,h)","(105,i)","(106,j)"}');
 ```
 But here, of course, you just have to know in advance that `chr(104)` is `h`, and so on. Prove that the results of the two executions of the prepared statement are identical thus:
 
-```postgresql
+```plpgsql
 select
   (
     (select arr from t where k = 1)

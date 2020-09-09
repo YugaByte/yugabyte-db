@@ -4,15 +4,14 @@ package com.yugabyte.yw.common;
 
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
+import com.yugabyte.yw.common.kms.util.EncryptionAtRestUtil;
 import com.yugabyte.yw.forms.*;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
 import com.yugabyte.yw.models.*;
 import com.yugabyte.yw.models.helpers.PlacementInfo;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.File;
+import java.util.*;
 
 import com.yugabyte.yw.common.PlacementInfoUtil;
 
@@ -30,7 +29,6 @@ public class TableManager extends DevopsBase {
 
   public enum CommandSubType {
     BACKUP,
-
     BULK_IMPORT;
 
     public String getScript() {
@@ -58,7 +56,7 @@ public class TableManager extends DevopsBase {
     String accessKeyCode = userIntent.accessKeyCode;
     AccessKey accessKey = AccessKey.get(region.provider.uuid, accessKeyCode);
     List<String> commandArgs = new ArrayList<>();
-    Map<String, String> extraVars = new HashMap<>();
+    Map<String, String> extraVars = region.provider.getConfig();
     Map<String, String> namespaceToConfig = new HashMap<>();
 
     boolean nodeToNodeTlsEnabled = userIntent.enableNodeToNodeEncrypt;
@@ -75,17 +73,66 @@ public class TableManager extends DevopsBase {
     commandArgs.add(subType.getScript());
     commandArgs.add("--masters");
     commandArgs.add(universe.getMasterAddresses());
-    commandArgs.add("--table");
-    commandArgs.add(taskParams.tableName);
-    commandArgs.add("--keyspace");
-    commandArgs.add(taskParams.keyspace);
 
     switch (subType) {
       case BACKUP:
         BackupTableParams backupTableParams = (BackupTableParams) taskParams;
-        Customer customer = Customer.find.where().idEq(universe.customerId).findUnique();
+        commandArgs.add("--parallelism");
+        commandArgs.add(Integer.toString(backupTableParams.parallelism));
+        if (backupTableParams.actionType == BackupTableParams.ActionType.CREATE) {
+          if (backupTableParams.tableUUIDList != null && !backupTableParams.tableUUIDList.isEmpty()) {
+            for (int listIndex = 0; listIndex < backupTableParams.tableNameList.size(); listIndex++) {
+              commandArgs.add("--table");
+              commandArgs.add(backupTableParams.tableNameList.get(listIndex));
+              commandArgs.add("--keyspace");
+              commandArgs.add(backupTableParams.keyspace);
+              commandArgs.add("--table_uuid");
+              commandArgs.add(backupTableParams.tableUUIDList.get(listIndex).toString());
+            }
+          } else {
+            if (backupTableParams.tableName != null) {
+              commandArgs.add("--table");
+              commandArgs.add(taskParams.tableName);
+            }
+            commandArgs.add("--keyspace");
+            commandArgs.add(taskParams.keyspace);
+          }
+        } else if (backupTableParams.actionType == BackupTableParams.ActionType.RESTORE) {
+          if (backupTableParams.tableUUIDList != null && !backupTableParams.tableUUIDList.isEmpty()) {
+            for (String tableName : backupTableParams.tableNameList) {
+              commandArgs.add("--table");
+              commandArgs.add(tableName);
+            }
+          } else if (backupTableParams.tableName != null) {
+            commandArgs.add("--table");
+            commandArgs.add(taskParams.tableName);
+          }
+          if (backupTableParams.keyspace != null) {
+            commandArgs.add("--keyspace");
+            commandArgs.add(backupTableParams.keyspace);
+          }
+        }
+
+        Customer customer = Customer.find.query().where().idEq(universe.customerId).findOne();
         CustomerConfig customerConfig = CustomerConfig.get(customer.uuid,
                                                            backupTableParams.storageConfigUUID);
+        File backupKeysFile = EncryptionAtRestUtil
+          .getUniverseBackupKeysFile(backupTableParams.storageLocation);
+
+        if (backupTableParams.actionType.equals(BackupTableParams.ActionType.CREATE)) {
+            if (backupKeysFile.exists()) {
+                commandArgs.add("--backup_keys_source");
+                commandArgs.add(backupKeysFile.getAbsolutePath());
+            }
+        } else if (
+          backupTableParams.actionType.equals(BackupTableParams.ActionType.RESTORE_KEYS)
+        ) {
+            if (!backupKeysFile.exists() && (backupKeysFile.getParentFile().exists() ||
+                backupKeysFile.getParentFile().mkdirs())) {
+                commandArgs.add("--restore_keys_destination");
+                commandArgs.add(backupKeysFile.getAbsolutePath());
+            }
+        }
 
         if (region.provider.code.equals("kubernetes")) {
             commandArgs.add("--k8s_config");
@@ -121,15 +168,17 @@ public class TableManager extends DevopsBase {
         if (taskParams.sse) {
           commandArgs.add("--sse");
         }
-        extraVars = customerConfig.dataAsMap();
-        if (region.provider.code.equals("kubernetes")) {
-          extraVars.putAll(region.provider.getConfig());
-        }
-
+        // Update env vars with customer config data after provider config to make sure the correct
+        // credentials are used.
+        extraVars.putAll(customerConfig.dataAsMap());
         break;
       // TODO: Add support for TLS connections for bulk-loading.
       // Tracked by issue: https://github.com/YugaByte/yugabyte-db/issues/1864
       case BULK_IMPORT:
+        commandArgs.add("--table");
+        commandArgs.add(taskParams.tableName);
+        commandArgs.add("--keyspace");
+        commandArgs.add(taskParams.keyspace);
         BulkImportParams bulkImportParams = (BulkImportParams) taskParams;
         ReleaseManager.ReleaseMetadata metadata =
             releaseManager.getReleaseByVersion(userIntent.ybSoftwareVersion);
@@ -155,7 +204,6 @@ public class TableManager extends DevopsBase {
         commandArgs.add("--s3bucket");
         commandArgs.add(bulkImportParams.s3Bucket);
 
-        extraVars = region.provider.getConfig();
         extraVars.put("AWS_DEFAULT_REGION", region.code);
 
         break;

@@ -592,15 +592,6 @@ class YBTransaction::Impl final {
       return;
     }
 
-    // If we don't have any tablets that have intents written to them, just abort it.
-    // But notify caller that commit was successful, so it is transparent for him.
-    if (tablets_.empty()) {
-      VLOG_WITH_PREFIX(4) << "Committed empty";
-      DoAbort(deadline, transaction);
-      commit_callback_(Status::OK());
-      return;
-    }
-
     tserver::UpdateTransactionRequestPB req;
     req.set_tablet_id(status_tablet_->tablet_id());
     req.set_propagated_hybrid_time(manager_->Now().ToUint64());
@@ -609,10 +600,23 @@ class YBTransaction::Impl final {
     state.set_status(seal_only ? TransactionStatus::SEALED : TransactionStatus::COMMITTED);
     state.mutable_tablets()->Reserve(tablets_.size());
     for (const auto& tablet : tablets_) {
+      // If tablet does not have metadata it should not participate in commit.
+      if (!seal_only && !tablet.second.has_metadata) {
+        continue;
+      }
       state.add_tablets(tablet.first);
       if (seal_only) {
         state.add_tablet_batches(tablet.second.num_batches);
       }
+    }
+
+    // If we don't have any tablets that have intents written to them, just abort it.
+    // But notify caller that commit was successful, so it is transparent for him.
+    if (state.tablets().empty()) {
+      VLOG_WITH_PREFIX(4) << "Committed empty";
+      DoAbort(deadline, transaction);
+      commit_callback_(Status::OK());
+      return;
     }
 
     manager_->rpcs().RegisterAndStart(

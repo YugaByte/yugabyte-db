@@ -43,6 +43,7 @@
 #include "yb/util/status.h"
 #include "yb/util/net/net_fwd.h"
 
+DECLARE_string(net_address_filter);
 namespace yb {
 
 // A container for a host:port pair.
@@ -196,8 +197,18 @@ enum class AddressFilter {
 };
 Status GetLocalAddresses(std::vector<IpAddress>* result, AddressFilter filter);
 
+// Get local addresses, filtered and ordered by the filter_spec specified
+// For details of the filter_spec, see inetaddress.h
+Status GetLocalAddresses(const string &filter_spec,
+                         std::vector<IpAddress> *result);
+
 // Convert the given host/port pair to a string of the host:port format.
 std::string HostPortToString(const std::string& host, int port);
+
+template <class PB>
+static std::string HostPortPBToString(const PB& pb) {
+  return HostPortToString(pb.host(), pb.port());
+}
 
 CHECKED_STATUS HostToAddresses(
     const std::string& host,
@@ -205,6 +216,10 @@ CHECKED_STATUS HostToAddresses(
 
 Result<IpAddress> HostToAddress(const std::string& host);
 boost::optional<IpAddress> TryFastResolve(const std::string& host);
+Result<IpAddress> ParseIpAddress(const std::string& host);
+
+// Returns true if host_str is 0.0.0.0 or [::]
+bool IsWildcardAddress(const std::string& host_str);
 
 } // namespace yb
 

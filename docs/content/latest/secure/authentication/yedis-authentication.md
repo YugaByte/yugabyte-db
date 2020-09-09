@@ -91,7 +91,7 @@ PONG
 
 YEDIS allows for multiple passwords (up to 2) to be accepted. This enables performing a graceful change of password without experiencing any application outage. Note that this requires knowing the old password.
 
-Let us assume that the old password is `old-password` and the new password we intend to change it to is `new-password`. The preferred sequence is:
+Let us assume that the old password is `old-password` and the new password you intend to change it to is `new-password`. The preferred sequence is:
 
 - Add a new password
 

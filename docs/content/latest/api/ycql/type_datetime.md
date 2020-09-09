@@ -1,8 +1,8 @@
 ---
 title: Date and time data types (DATE, TIME, and TIMESTAMP) [YCQL]
-summary: DATE, TIME, and TIMESTAMP
+headerTitle: Date and time data types (DATE, TIME, and TIMESTAMP)
 linkTitle: DATE, TIME, and TIMESTAMP
-description: Use the date and time data types (DATE, TIME, and TIMESTAMP) to specify data of date and time at a time zone.
+description: Use the date and time data types (DATE, TIME, and TIMESTAMP) to specify dates and time.
 menu:
   latest:
     parent: api-cassandra
@@ -18,41 +18,99 @@ showAsideToc: true
 
 ## Synopsis
 
-Use datetime data types to specify data of date and time at a time zone, `DATE` for a specific day, `TIME` for time of day, and `TIMESTAMP` for the combination of both date and time.
+Use datetime data types to specify data of date and time at a time zone, `DATE` for a specific date, `TIME` for time of day, and `TIMESTAMP` for the combination of both date and time.
 
 ## Syntax
 
 ```
 type_specification ::= TIMESTAMP | DATE | TIME
-
-timestamp_format ::= date_format [ time_format ] [ timezone_format ]
-date_format ::= digit digit digit digit '-' digit [ digit ] '-' digit [ digit ]
-time_format ::= digit [ digit ] [ ':' digit [ digit ] [ ':' digit [digit]  [ '.' digit [ digit [ digit ] ] ] ] ] 
-timezone_format ::= [ 'UTC' ] ( '+' | '-' ) digit [ digit ] ':' digit [ digit ] 
 ```
-
-Where
-
-- the `timestamp_format` given above is not the timestamp literal but is used to match text literals when converting them to `TIMESTAMP` type.
 
 ## Semantics
 
 - Columns of type `DATE`, `TIME` and `TIMESTAMP` can be part of the `PRIMARY KEY`.
-- Implicitly, value of type datetime type are neither convertible nor comparable to other data types.
+- Implicitly, values of datetime types cannot be converted or compared to other data types.
 - Values of integer and text data types with the correct format (given above) are convertible to datetime types.
 - Supported timestamp range is from year `1900` to year `9999`.
-- If not specified, the default value for hour, minute, second, and millisecond components is `0`.
-- If not specified, the default timezone is UTC.
+- The default value for hour, minute, second, and millisecond components is `0`.
+- The default time zone is `UTC`.
+
+### DATE
+
+A date is represented using a 32-bit unsigned integer representing the number of days since epoch (January 1, 1970) with no corresponding time value.
+Use [INSERT](../dml_insert) or [UPDATE](../dml_update) to add values as an integer (days since epoch) or in the string format shown below.
+
+#### Syntax
+```
+yyyy-mm-dd
+```
+
+- `yyyy`: four digit year.
+- `mm`: two digit month.
+- `dd`: two digit day.
+
+For example, `2020-07-29`.
+
+### TIME
+
+Values of the `time` data type are encoded as 64-bit signed integers representing the number of nanoseconds since midnight with no corresponding date value.
+
+Use [INSERT](../dml_insert) or [UPDATE](../dml_update) to add values in the following string format, where subseconds (`f`) are optional and if provided, can be less than nanosecond:
+
+#### Syntax
+```
+hh:mm:ss[.fffffffff]
+```
+
+- `hh`: two digit hour, using a 24-hour clock.
+- `mm`: two digit minutes.
+- `ss`: two digit seconds.
+- `fffffffff`: (Optional) three digit sub-seconds, or nanoseconds. When excluded, set to `0`.
+
+For example, `12:34:56` or `12:34:56.789` or `12:34:56.123456789`.
+
+### TIMESTAMP
+
+Values of the `timestamp` data type combines date, time, and time zone, in ISO 8601 format.
+
+Use [INSERT](../dml_insert) or [UPDATE](../dml_update) to add values in the string format shown below, where milliseconds (`f`) are optional.
+
+#### Syntax
+```
+yyyy-mm-dd[ (T| )HH:MM[:SS][.fff]][(+|-)NNNN]
+```
+
+Required date (`yyyy-mm-dd`) where:
+
+- `yyyy`: four digit year.
+- `mm`: two digit month.
+- `dd`: two digit day.
+
+Optional time (HH:MM[:SS][.fff]) where:
+
+- `HH`: two digit hour, using a 24-hour clock.
+- `MM`: two digit minutes.
+- `SS`: (Optional) two digit seconds.
+- `fff`: (Optional) three digit sub-seconds, or milliseconds. When excluded, set to `0`.
+
+Optional time zone (`(+|-)NNNN`) where:
+
+- `+|-`: Add or subtract the NNNN from GMT
+- `NNNN`: The 4-digit time zone (RFC 822). For example, `+0000` is GMT and `-0800` is PST.
+
+NNNN is the RFC-822 4-digit time zone, for example +0000 is GMT and -0800 is PST.
+
+For example, for July 29, 2020 midnight PST, valid timestamp values include `2020-07-29 12:34:56.789+0000`, `2020-07-29 12:34:56.789`, `2020-07-29 12:34:56`, and `2020-07-29`.
 
 ## Examples
 
-### Using the date and type types
+### Using the date and time types
 
 ```sql
 ycqlsh:example> CREATE TABLE orders(customer_id INT, order_date DATE, order_time TIME, amount DECIMAL, PRIMARY KEY ((customer_id), order_date, order_time));
 ```
 
-Date and time values can be inserted using currentdate and currenttime standard functions.
+Date and time values can be inserted using `currentdate` and `currenttime` standard functions.
 
 ```sql
 ycqlsh:example> INSERT INTO orders(customer_id, order_date, order_time, amount) VALUES (1, currentdate(), currenttime(), 85.99);

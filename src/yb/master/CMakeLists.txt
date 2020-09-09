@@ -159,8 +159,16 @@ target_link_libraries(master_test_common
   master ${MASTER_PROTO_LIBS} yb_client ${YB_MIN_TEST_LIBS})
 
 # Tests
-set(YB_TEST_LINK_LIBS master ${MASTER_PROTO_LIBS} master_test_common yb_client ${YB_MIN_TEST_LIBS})
+set(YB_TEST_LINK_LIBS master
+  ${MASTER_PROTO_LIBS}
+  integration-tests
+  master_test_common
+  cql_test_util
+  yb_client
+  yb_tools_util
+  ${YB_MIN_TEST_LIBS})
 ADD_YB_TEST(catalog_manager-test)
+ADD_YB_TEST(flush_manager-test)
 ADD_YB_TEST(master-test)
 ADD_YB_TEST(sys_catalog-test)
 

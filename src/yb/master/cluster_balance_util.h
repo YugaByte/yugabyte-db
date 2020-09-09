@@ -32,6 +32,8 @@ DECLARE_int32(min_leader_stepdown_retry_interval_ms);
 
 DECLARE_bool(enable_load_balancing);
 
+DECLARE_bool(transaction_tables_use_preferred_zones);
+
 DECLARE_int32(leader_balance_threshold);
 
 DECLARE_int32(leader_balance_unresponsive_timeout_ms);
@@ -49,6 +51,8 @@ DECLARE_int32(load_balancer_max_concurrent_adds);
 DECLARE_int32(load_balancer_max_concurrent_removals);
 
 DECLARE_int32(load_balancer_max_concurrent_moves);
+
+DECLARE_int32(load_balancer_max_concurrent_moves_per_table);
 
 namespace yb {
 namespace master {
@@ -166,7 +170,7 @@ struct Options {
   // this.
   int kMaxTabletRemoteBootstraps = FLAGS_load_balancer_max_concurrent_tablet_remote_bootstraps;
 
-  // Max number of tablets being remote bootstrapped for a specific tabe, if we enable limiting
+  // Max number of tablets being remote bootstrapped for a specific table, if we enable limiting
   // this.
   int kMaxTabletRemoteBootstrapsPerTable =
       FLAGS_load_balancer_max_concurrent_tablet_remote_bootstraps_per_table;
@@ -184,8 +188,12 @@ struct Options {
   // Max number of tablet peer replicas to add in any one run of the load balancer.
   int kMaxConcurrentAdds = FLAGS_load_balancer_max_concurrent_adds;
 
-  // Max number of tablet leaders on tablet servers to move in any one run of the load balancer.
+  // Max number of tablet leaders on tablet servers (across the cluster) to move in any one run of
+  // the load balancer.
   int kMaxConcurrentLeaderMoves = FLAGS_load_balancer_max_concurrent_moves;
+
+  // Max number of tablet leaders per table to move in any one run of the load balancer.
+  int kMaxConcurrentLeaderMovesPerTable = FLAGS_load_balancer_max_concurrent_moves_per_table;
 
   // TODO(bogdan): add state for leaders starting remote bootstraps, to limit on that end too.
 };
@@ -752,6 +760,9 @@ class PerTableLoadState {
   // Pointer to the cluster global state so that it can be updated when operations like add or
   // remove are executed.
   GlobalLoadState* global_state_;
+
+  // Boolean whether tablets for this table should respect the affinited zones.
+  bool use_preferred_zones_ = true;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(PerTableLoadState);

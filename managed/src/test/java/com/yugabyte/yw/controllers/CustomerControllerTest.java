@@ -10,6 +10,7 @@ import com.yugabyte.yw.commissioner.Common;
 import com.yugabyte.yw.common.ApiUtils;
 import com.yugabyte.yw.common.CloudQueryHelper;
 import com.yugabyte.yw.common.FakeApiHelper;
+import com.yugabyte.yw.common.FakeDBApplication;
 import com.yugabyte.yw.common.CallHomeManager.CollectionLevel;
 import com.yugabyte.yw.common.ModelFactory;
 import com.yugabyte.yw.metrics.MetricQueryHelper;
@@ -53,24 +54,8 @@ import static play.mvc.Http.Status.OK;
 import static play.mvc.Http.Status.FORBIDDEN;
 import static play.test.Helpers.fakeRequest;
 
-public class CustomerControllerTest extends WithApplication {
-  MetricQueryHelper mockMetricQueryHelper;
-  CloudQueryHelper mockCloudQueryHelper;
+public class CustomerControllerTest extends FakeDBApplication {
   String baseRoute = "/api/customers/";
-
-  @Override
-  protected Application provideApplication() {
-    mockMetricQueryHelper = mock(MetricQueryHelper.class);
-    Commissioner mockCommissioner = mock(Commissioner.class);
-    mockCloudQueryHelper = mock(CloudQueryHelper.class);
-
-    return new GuiceApplicationBuilder()
-      .configure((Map) Helpers.inMemoryDatabase())
-      .overrides(bind(MetricQueryHelper.class).toInstance(mockMetricQueryHelper))
-      .overrides(bind(Commissioner.class).toInstance(mockCommissioner))
-      .overrides(bind(CloudQueryHelper.class).toInstance(mockCloudQueryHelper))
-      .build();
-  }
 
   private Customer customer;
   private Users user;

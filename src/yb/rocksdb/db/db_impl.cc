@@ -159,6 +159,9 @@ DEFINE_int32(small_compaction_extra_priority, 1,
 DEFINE_bool(rocksdb_use_logging_iterator, false,
             "Wrap newly created RocksDB iterators in a logging wrapper");
 
+DEFINE_test_flag(int32, max_write_waiters, std::numeric_limits<int32_t>::max(),
+                 "Max allowed number of write waiters per RocksDB instance in tests.");
+
 namespace rocksdb {
 
 namespace {
@@ -2392,6 +2395,7 @@ void DBImpl::NotifyOnCompactionCompleted(
     info.stats = compaction_job_stats;
     info.table_properties = c->GetOutputTableProperties();
     info.compaction_reason = c->compaction_reason();
+    info.is_full_compaction = c->is_full_compaction();
     for (size_t i = 0; i < c->num_input_levels(); ++i) {
       for (const auto fmd : *c->inputs(i)) {
         auto fn = TableFileName(db_options_.db_paths, fmd->fd.GetNumber(),
@@ -2406,7 +2410,7 @@ void DBImpl::NotifyOnCompactionCompleted(
         }
       }
     }
-    for (const auto newf : c->edit()->GetNewFiles()) {
+    for (const auto& newf : c->edit()->GetNewFiles()) {
       info.output_files.push_back(
           TableFileName(db_options_.db_paths,
                         newf.second.fd.GetNumber(),
@@ -4537,7 +4541,7 @@ bool DBImpl::KeyMayExist(const ReadOptions& read_options,
   roptions.read_tier = kBlockCacheTier; // read from block cache only
   auto s = GetImpl(roptions, column_family, key, value, value_found);
 
-  // If block_cache is enabled and the index block of the table didn't
+  // If block_cache is enabled and the index block of the table was
   // not present in block_cache, the return value will be Status::Incomplete.
   // In this case, key may still exist in the table.
   return s.ok() || s.IsIncomplete();
@@ -4833,7 +4837,17 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
 
   StopWatch write_sw(env_, db_options_.statistics.get(), DB_WRITE);
 
+#ifndef NDEBUG
+  auto num_write_waiters = write_waiters_.fetch_add(1, std::memory_order_acq_rel);
+#endif
+
   write_thread_.JoinBatchGroup(&w);
+
+#ifndef NDEBUG
+  write_waiters_.fetch_sub(1, std::memory_order_acq_rel);
+  DCHECK_LE(num_write_waiters, FLAGS_TEST_max_write_waiters);
+#endif
+
   if (w.state == WriteThread::STATE_PARALLEL_FOLLOWER) {
     // we are a non-leader in a parallel group
     PERF_TIMER_GUARD(write_memtable_time);

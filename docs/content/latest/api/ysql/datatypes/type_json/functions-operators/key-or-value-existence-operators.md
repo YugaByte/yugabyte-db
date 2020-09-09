@@ -6,7 +6,7 @@ description: Test if JSONB values exist as keys in an object or as string value(
 menu:
   latest:
     identifier: key-or-value-existence-operators
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 17
 isTocNested: true
 showAsideToc: true
@@ -31,7 +31,7 @@ return value:       boolean
 
 Here, the existence expression evaluates to `TRUE` so the  `ASSERT` succeeds:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb := '{"a": "x", "b": "y"}';
@@ -46,7 +46,7 @@ $body$;
 
 Here, the existence expression for this counter-example evaluates to `FALSE` because the left-hand JSON value has _"x"_ as a _value_ and not as a _key_.
 
-````postgresql
+````plpgsql
 do $body$
 declare
   j constant jsonb := '{"a": "x", "b": "y"}';
@@ -61,7 +61,7 @@ $body$;
 
 Here, the existence expression for this counter-example evaluates to `FALSE` because the left-hand JSON value has the _object_ not at top-level but as the second subvalue in a top-level _array_:
 
-````postgresql
+````plpgsql
 do $body$
 declare
   j constant jsonb := '[1, {"a": "x", "b": "y"}]';
@@ -76,7 +76,7 @@ $body$;
 
 **Input is an _array_:** 
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_str_arr constant jsonb := '["cat", "dog", "from"]';
@@ -92,7 +92,7 @@ $body$;
 **Further clarification of semantics:**
 
 The only possible (and useful) match for the right-hand scalar SQL `text` value is a _key_ name in an _object_ or a _string_ value in an _array_. Here are the counter-examples for the other primitive and compound JSON values:
-```postgresql
+```plpgsql
 do $body$
 declare
   -- Positive test
@@ -132,7 +132,7 @@ where the left hand value is a primitive JSON _string_, has no practical utility
 
 ## The&#160; &#160;?|&#160; &#160;operator
 
-**Purpose:** If the left-hand JSON value is an _object_, test if it has _at least one_ key-value pair where the key name is present in the right-hand list of scalar `text` values. If the the left-hand JSON value is an _array_, test if it has _at least one_ _string_ value that is present in the right-hand list of scalar `text` values.
+**Purpose:** If the left-hand JSON value is an _object_, test if it has _at least one_ key-value pair where the key name is present in the right-hand list of scalar `text` values. If the left-hand JSON value is an _array_, test if it has _at least one_ _string_ value that is present in the right-hand list of scalar `text` values.
 
 **Signature:**
 
@@ -143,7 +143,7 @@ return value:       boolean
 **Input is an _object_:**
 
 Here, the existence expression evaluates to `TRUE`.
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb := '{"a": "x", "b": "y", "c": "z"}';
@@ -158,7 +158,7 @@ $body$;
 
 Here, the existence expression for this counter-example evaluates to `FALSE` because none of the `text` values in the right-hand array exists as the key of a key-value pair.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb := '{"a": "x", "b": "y", "c": "z"}';
@@ -177,7 +177,7 @@ $body$;
 
 Here, the existence expression evaluates to `TRUE`.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb := '["a", "b", "c"]';
@@ -205,7 +205,7 @@ return value:       boolean
 
 Here, the existence expression evaluates to _true_:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb := '{"a": "w", "b": "x", "c": "y", "d": "z"}';
@@ -220,7 +220,7 @@ $body$;
 
 Here, the existence expression for this counter-example evaluates to `FALSE` because _'z'_ in the right-hand key list exists as the value of a key-value pair, but not as the key of such a pair.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb := '{"a": "x", "b": "y", "c": "z"}';
@@ -236,7 +236,7 @@ $body$;
 
 Here, existence expression evaluates to _true_:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb := '["a", "b", "c", "d"]';

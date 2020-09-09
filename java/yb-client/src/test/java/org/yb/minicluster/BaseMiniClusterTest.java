@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.Arrays;
 
 import static org.yb.AssertionWrappers.fail;
 
@@ -62,7 +63,10 @@ public class BaseMiniClusterTest extends BaseYBTest {
    */
   protected static MiniYBCluster miniCluster;
 
-  protected static List<String> masterArgs = new ArrayList<String>();
+  // Default master args to make sure we don't wait to trigger new LB tasks upon master leader
+  // failover.
+  protected static List<String> masterArgs = new ArrayList<>(
+          Arrays.asList("--load_balancer_initial_delay_secs=0"));
   protected static List<String> tserverArgs = new ArrayList<String>();
 
   protected static Map<String, String> tserverEnvVars = new TreeMap<>();
@@ -211,12 +215,14 @@ public class BaseMiniClusterTest extends BaseYBTest {
     }
     LOG.info("BaseMiniClusterTest.createMiniCluster is running");
     int numTservers = tserverArgs.size();
+    List<String> allMasterArgs = new ArrayList<>(masterArgs);
+    allMasterArgs.addAll(this.masterArgs);
     miniCluster = new MiniYBClusterBuilder()
                       .numMasters(numMasters)
                       .numTservers(numTservers)
                       .defaultTimeoutMs(DEFAULT_SLEEP)
                       .testClassName(getClass().getName())
-                      .masterArgs(masterArgs)
+                      .masterArgs(allMasterArgs)
                       .useIpWithCertificate(useIpWithCertificate)
                       .perTServerArgs(tserverArgs)
                       .sslCertFile(certFile)

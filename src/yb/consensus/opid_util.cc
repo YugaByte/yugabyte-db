@@ -41,6 +41,8 @@
 #include "yb/gutil/port.h"
 #include "yb/gutil/strings/substitute.h"
 
+#include "yb/util/opid.h"
+
 namespace yb {
 namespace consensus {
 
@@ -48,7 +50,7 @@ const int64_t kMinimumTerm = 0;
 const int64_t kMinimumOpIdIndex = 0;
 const int64_t kInvalidOpIdIndex = -1;
 
-int OpIdCompare(const OpId& first, const OpId& second) {
+int OpIdCompare(const OpIdPB& first, const OpIdPB& second) {
   DCHECK(first.IsInitialized());
   DCHECK(second.IsInitialized());
   if (PREDICT_TRUE(first.term() == second.term())) {
@@ -57,13 +59,13 @@ int OpIdCompare(const OpId& first, const OpId& second) {
   return first.term() < second.term() ? -1 : 1;
 }
 
-bool OpIdEquals(const OpId& left, const OpId& right) {
+bool OpIdEquals(const OpIdPB& left, const OpIdPB& right) {
   DCHECK(left.IsInitialized());
   DCHECK(right.IsInitialized());
   return left.term() == right.term() && left.index() == right.index();
 }
 
-bool OpIdLessThan(const OpId& left, const OpId& right) {
+bool OpIdLessThan(const OpIdPB& left, const OpIdPB& right) {
   DCHECK(left.IsInitialized());
   DCHECK(right.IsInitialized());
   if (left.term() < right.term()) return true;
@@ -71,7 +73,7 @@ bool OpIdLessThan(const OpId& left, const OpId& right) {
   return left.index() < right.index();
 }
 
-bool OpIdBiggerThan(const OpId& left, const OpId& right) {
+bool OpIdBiggerThan(const OpIdPB& left, const OpIdPB& right) {
   DCHECK(left.IsInitialized());
   DCHECK(right.IsInitialized());
   if (left.term() > right.term()) return true;
@@ -79,7 +81,7 @@ bool OpIdBiggerThan(const OpId& left, const OpId& right) {
   return left.index() > right.index();
 }
 
-bool CopyIfOpIdLessThan(const consensus::OpId& to_compare, consensus::OpId* target) {
+bool CopyIfOpIdLessThan(const OpIdPB& to_compare, OpIdPB* target) {
   if (to_compare.IsInitialized() &&
       (!target->IsInitialized() || OpIdLessThan(to_compare, *target))) {
     target->CopyFrom(to_compare);
@@ -88,39 +90,39 @@ bool CopyIfOpIdLessThan(const consensus::OpId& to_compare, consensus::OpId* targ
   return false;
 }
 
-size_t OpIdHashFunctor::operator() (const OpId& id) const {
+size_t OpIdHashFunctor::operator() (const OpIdPB& id) const {
   return (id.term() + 31) ^ id.index();
 }
 
-bool OpIdEqualsFunctor::operator() (const OpId& left, const OpId& right) const {
+bool OpIdEqualsFunctor::operator() (const OpIdPB& left, const OpIdPB& right) const {
   return OpIdEquals(left, right);
 }
 
-bool OpIdLessThanPtrFunctor::operator() (const OpId* left, const OpId* right) const {
+bool OpIdLessThanPtrFunctor::operator() (const OpIdPB* left, const OpIdPB* right) const {
   return OpIdLessThan(*left, *right);
 }
 
-bool OpIdIndexLessThanPtrFunctor::operator() (const OpId* left, const OpId* right) const {
+bool OpIdIndexLessThanPtrFunctor::operator() (const OpIdPB* left, const OpIdPB* right) const {
   return left->index() < right->index();
 }
 
-bool OpIdCompareFunctor::operator() (const OpId& left, const OpId& right) const {
+bool OpIdCompareFunctor::operator() (const OpIdPB& left, const OpIdPB& right) const {
   return OpIdLessThan(left, right);
 }
 
-bool OpIdBiggerThanFunctor::operator() (const OpId& left, const OpId& right) const {
+bool OpIdBiggerThanFunctor::operator() (const OpIdPB& left, const OpIdPB& right) const {
   return OpIdBiggerThan(left, right);
 }
 
-OpId MinimumOpId() {
-  OpId op_id;
+OpIdPB MinimumOpId() {
+  OpIdPB op_id;
   op_id.set_term(0);
   op_id.set_index(0);
   return op_id;
 }
 
-OpId MaximumOpId() {
-  OpId op_id;
+OpIdPB MaximumOpId() {
+  OpIdPB op_id;
   op_id.set_term(std::numeric_limits<int64_t>::max());
   op_id.set_index(std::numeric_limits<int64_t>::max());
   return op_id;
@@ -141,12 +143,12 @@ struct DeltaIdEqualsTo {
   }
 };
 
-std::ostream& operator<<(std::ostream& os, const consensus::OpId& op_id) {
+std::ostream& operator<<(std::ostream& os, const OpIdPB& op_id) {
   os << OpIdToString(op_id);
   return os;
 }
 
-std::string OpIdToString(const OpId& op_id) {
+std::string OpIdToString(const OpIdPB& op_id) {
   if (!op_id.IsInitialized()) {
     return "<uninitialized op>";
   }
@@ -158,8 +160,8 @@ std::string OpsRangeString(const ConsensusRequestPB& req) {
   ret.reserve(100);
   ret.push_back('[');
   if (req.ops_size() > 0) {
-    const OpId& first_op = req.ops(0).id();
-    const OpId& last_op = req.ops(req.ops_size() - 1).id();
+    const OpIdPB& first_op = req.ops(0).id();
+    const OpIdPB& last_op = req.ops(req.ops_size() - 1).id();
     strings::SubstituteAndAppend(&ret, "$0.$1-$2.$3",
                                  first_op.term(), first_op.index(),
                                  last_op.term(), last_op.index());
@@ -168,12 +170,16 @@ std::string OpsRangeString(const ConsensusRequestPB& req) {
   return ret;
 }
 
-OpId MakeOpId(int64_t term, int64_t index) {
-  OpId ret;
+OpIdPB MakeOpId(int64_t term, int64_t index) {
+  OpIdPB ret;
   ret.set_index(index);
   ret.set_term(term);
   LOG_IF(DFATAL, term < 0 || index < 0) << "MakeOpId: negative term/index: " << OpIdToString(ret);
   return ret;
+}
+
+OpIdPB MakeOpIdPB(const yb::OpId& op_id) {
+  return MakeOpId(op_id.term, op_id.index);
 }
 
 } // namespace consensus

@@ -133,6 +133,9 @@ class ControlScript(object):
         self.set_env_vars()
 
         if self.configs.temp_data.get("daemon"):
+            # In daemon mode, self.daemonize() forks. The child process then executes
+            # normal control flow. The parent process waits for the child process until
+            # a status message can be printed to the terminal and then exits within daemonize.
             self.daemonize()
         self.script.write_pid(os.getpid())
         errors = self.script.set_rlimits(print_info=True)
@@ -147,13 +150,14 @@ class ControlScript(object):
 
     # Kills currently running yugabyted process if it exists.
     def stop(self, *args):
-        err = self.script.kill()
+        (err, pid) = self.script.kill()
         if err:
             Output.print_out(
                 "Failed to shut down {}: {}. Please check PID in {}".format(
                     SCRIPT_NAME, err, self.script.pidfile))
             sys.exit(1)
-        else:
+        elif pid:
+            self.script.wait_until_stop(pid)
             Output.print_out("Stopped {} using config {}.".format(SCRIPT_NAME, self.conf_file))
         sys.exit(0)
 
@@ -163,6 +167,38 @@ class ControlScript(object):
             Output.print_out(self.get_status_string())
         else:
             Output.print_out("{} is not running.".format(SCRIPT_NAME))
+
+    # Destroy the YugabyteDB cluster.
+    def destroy(self):
+        (err, pid) = self.script.kill()
+        if err:
+            Output.log_error_and_exit(
+                "Failed to shut down {}: {}. Please check PID in {}".format(
+                    SCRIPT_NAME, err, self.script.pidfile))
+        elif pid:
+            self.script.wait_until_stop(pid)
+            Output.print_out("Stopped {} using config {}.".format(SCRIPT_NAME, self.conf_file))
+        logpath = self.configs.saved_data.get("log_dir")
+        datapath = self.configs.saved_data.get("data_dir")
+
+        if (self.conf_file == BREW_CONF_FILE):
+            Output.print_out("{} destroy is not supported for brew installations.".format(
+                SCRIPT_NAME))
+            return
+
+        if os.path.isdir(logpath):
+            shutil.rmtree(logpath)
+            Output.print_out("Deleted logs at {}.".format(logpath))
+
+        if os.path.isdir(datapath):
+            shutil.rmtree(datapath)
+            Output.print_out("Deleted data at {}.".format(datapath))
+
+        if os.path.exists(self.conf_file):
+            os.remove(self.conf_file)
+            Output.print_out("Deleted conf file at {}.".format(self.conf_file))
+
+        sys.exit(0)
 
     # Prints YugabyteDB version.
     def version(self):
@@ -360,10 +396,29 @@ class ControlScript(object):
         # exit no matter what
         os._exit(os.EX_OK)
 
+    def start_first_master_tserver(self, master_addresses):
+        self.processes.get("master").start()
+        if not self.setup_master():
+            # TODO(sanketh): Make these all throw exceptions instead of excns + return values
+            return "Failed to start master {}".format(SCRIPT_NAME)
+
+        self.update_tserver_master_addrs()
+        self.processes.get("tserver").start()
+        if not self.wait_tserver():
+            return "Failed to start tserver {}".format(SCRIPT_NAME)
+
+        universe_uuid = YBAdminProxy.get_cluster_uuid(master_addresses)
+        if universe_uuid and universe_uuid != self.configs.saved_data["universe_uuid"]:
+            self.configs.saved_data["universe_uuid"] = universe_uuid
+            self.configs.save_configs()
+
+        return None
+
+
     # Starts yb-master, yb-tserver, and yugaware processes.
     # After initializing, creates a callhome thread.
     def start_processes(self):
-        bind_ip = self.configs.saved_data.get("bind_ip")
+        bind_ip = self.configs.saved_data.get("listen")
         advertise_ip = bind_ip if bind_ip != IP_ANY else IP_LOCALHOST
         master_rpc_port = self.configs.saved_data.get("master_rpc_port")
         join_ip = self.configs.saved_data.get("join")
@@ -401,6 +456,7 @@ class ControlScript(object):
                 "--default_memory_limit_to_ram_ratio=0.35",
                 "--instance_uuid_override={}".format(self.configs.saved_data.get("master_uuid")),
             ]
+        # if a join ip is specified, bring up a shell mode master
         if not join_ip:
             yb_master_cmd.append("--master_addresses={}".format(master_addresses))
 
@@ -492,38 +548,28 @@ class ControlScript(object):
             # Start or initialize yb-master and yb-tserver.
             if is_first_run:
                 Output.init_animation("Running system checks...")
+
                 self.post_install_yb()
 
-            for name in ("master", "tserver"):
-                process = self.processes.get(name)
-                process.remove_error_logs()
-                if not process.is_running():
-                    if not is_first_run:
+                ret = self.start_first_master_tserver(master_addresses)
+                if ret:
+                    Output.update_animation("Database failed to start",
+                        status=Output.ANIMATION_FAIL)
+                    Output.log_error_and_exit(ret)
+
+                Output.update_animation("System checks")
+            else:
+                for name in ("master", "tserver"):
+                    process = self.processes.get(name)
+                    process.remove_error_logs()
+                    if not process.is_running():
                         Output.log(
                             "{} died unexpectedly. Restarting...".format(process.name),
                             logging.ERROR)
-                    if name == "tserver":
-                        self.update_tserver_master_addrs()
-                    process.start()
-                    should_callhome = True
-
-            if is_first_run:
-                if not self.wait_tserver():
-                    Output.update_animation("Database failed to start",
-                        status=Output.ANIMATION_FAIL)
-                    Output.log_error_and_exit("Failed to start tserver {}".format(SCRIPT_NAME))
-
-                if not self.setup_master():
-                    Output.update_animation("Database failed to start",
-                        status=Output.ANIMATION_FAIL)
-                    Output.log_error_and_exit("Failed to start master {}".format(SCRIPT_NAME))
-
-                universe_uuid = YBAdminProxy.get_cluster_uuid(master_addresses)
-                if universe_uuid and universe_uuid != self.configs.saved_data["universe_uuid"]:
-                    self.configs.saved_data["universe_uuid"] = universe_uuid
-                    self.configs.save_configs()
-
-                Output.update_animation("System checks")
+                        if name == "tserver":
+                            self.update_tserver_master_addrs()
+                        process.start()
+                        should_callhome = True
 
             if self.configs.temp_data.get("ui"):
                 (_, was_started) = self.maybe_start_yw(is_first_run, is_first_install)
@@ -770,9 +816,8 @@ class ControlScript(object):
         master_addr = "{}:{}".format(master_ip,
                                      self.configs.saved_data.get("master_rpc_port"))
 
-        if (not self.processes.get("master").is_running()
-                or not self.processes.get("tserver").is_running()):
-            Output.log("Failed waiting for yb-master/tserver... process died.", logging.ERROR)
+        if (not self.processes.get("master").is_running()):
+            Output.log("Failed waiting for yb-master... process died.", logging.ERROR)
             raise RuntimeError("process died unexpectedly.")
 
         cur_master_uuids = [ m[0] for m in YBAdminProxy.get_masters(master_addr) ]
@@ -814,20 +859,30 @@ class ControlScript(object):
     # If not, set it up appropriately.
     def setup_master(self, timeout=180):
         Output.log("Waiting for master")
+        join_ip = self.configs.saved_data.get("join")
         try:
             if retry_op(self.wait_master, timeout):
                 return True
+            # If wait_master returns False, it means the master is
+            # not part of the current set of masters. If we have a
+            # join_ip, let's try to add ourselves to it, otherwise
+            # it is a hard failure.
+            if not join_ip:
+                return False
         except RuntimeError:
             Output.log_error_and_exit("Failed to setup master. Exception: {}".format(
                 traceback.format_exc()))
             return False
 
         # The master was not in the current list of masters
-        join_ip = self.configs.saved_data.get("join")
-        bind_ip = self.configs.saved_data.get("bind_ip")
+        # and we have a valid join_ip
+        bind_ip = self.configs.saved_data.get("listen")
         master_addrs = "{}:{}".format(join_ip,
                     self.configs.saved_data.get("master_rpc_port"))
         master_uuids = [ m[0] for m in YBAdminProxy.get_masters(master_addrs) ]
+        if len(master_uuids) >= 3:
+            # this is going to be a standalone shell master
+            return True
         if not YBAdminProxy.add_master(master_addrs, bind_ip):
             Output.log_error_and_exit("Unable to add master {} to existing cluster at {}.".format(
                 bind_ip, join_ip))
@@ -883,6 +938,9 @@ class ControlScript(object):
         Output.log("Failed to wait for tserver.")
         return False
 
+    # In a multi-node cluster, the tserver initially knows just about its own master and the
+    # master it is joining. After the cluster is formed, this method will attempt to
+    # refresh the full list of masters so that the tserver can become aware of other masters.
     def update_tserver_master_addrs(self):
         tserver_cmd = self.processes["tserver"].cmd
         master_flag = [ flag for flag in tserver_cmd if flag.find(TS_MASTER_ADDRS_FLAG) >= 0 ]
@@ -954,14 +1012,18 @@ class ControlScript(object):
 
         yw_status = "http://{}:{}".format(advertise_ip,
                                           self.configs.saved_data.get("webserver_port"))
+        yb_master_status = "http://{}:{}".format(advertise_ip,
+                                          self.configs.saved_data.get("master_webserver_port"))
 
         status_info = [
             (Output.make_yellow("Status"), status),
         ]
+        console_desc = "Web console"
         if self.configs.temp_data.get("ui"):
-            status_info += [
-            (Output.make_yellow("Webserver UI"), yw_status),
-        ]
+            status_info += [ (Output.make_yellow(console_desc), yw_status), ]
+        else:
+            status_info += [ (Output.make_yellow(console_desc), yb_master_status), ]
+
         status_info += [
             (Output.make_yellow("JDBC"),
                "jdbc:postgresql://{}:{}/yugabyte?user=yugabyte&password=yugabyte".format(
@@ -1130,6 +1192,7 @@ class ControlScript(object):
         for cmd, description in (
                 ("start", "Start {}.".format(SCRIPT_NAME)),
                 ("stop", "Stop running {}.".format(SCRIPT_NAME)),
+                ("destroy", "Destroy {} cluster and remove data.".format(SCRIPT_NAME)),
                 ("status", "Print status of {}.".format(SCRIPT_NAME)),
                 ("version", "Version of {}.".format(SCRIPT_NAME)),
                 ("collect_logs", "Collect and package logs for troubleshooting.")):
@@ -1185,7 +1248,8 @@ class ControlScript(object):
             cur_parser.add_argument(
                 "--webserver_port", help="Port on which main webserver will run.")
             cur_parser.add_argument(
-                "--bind_ip", help="IP address to which {} processes will bind.".format(SCRIPT_NAME))
+                "--listen",
+                help="IP address or local hostname on which {} will listen.".format(SCRIPT_NAME))
             cur_parser.add_argument(
                 "--join", help="IP address to which this process will join".format(SCRIPT_NAME))
             cur_parser.add_argument(
@@ -1197,8 +1261,8 @@ class ControlScript(object):
                 help="Enable or disable callhome feature that sends analytics data to Yugabyte. "
                      "Default true.")
             cur_parser.add_argument(
-                "--ui", choices=BOOL_CHOICES, default="true", metavar="BOOL",
-                help="Toggle enabling or disabling webserver UI. Default true.")
+                "--ui", choices=BOOL_CHOICES, default="false", metavar="BOOL",
+                help="Toggle enabling or disabling webserver UI. Default false.")
 
             # Hidden commands for development/advanced users
             cur_parser.add_argument(
@@ -1240,7 +1304,7 @@ class ControlScript(object):
             Output.log_error_and_exit(traceback.format_exc())
 
     def advertise_ip(self):
-        bind_ip = self.configs.saved_data.get("bind_ip")
+        bind_ip = self.configs.saved_data.get("listen")
         return bind_ip if bind_ip != IP_ANY else IP_LOCALHOST
 
     def master_port(self):
@@ -1257,7 +1321,7 @@ class Configs(object):
             "tserver_webserver_port": DEFAULT_TSERVER_WEBSERVER_PORT,
             "ysql_port": DEFAULT_YSQL_PORT,
             "ycql_port": DEFAULT_YCQL_PORT,
-            "bind_ip": DEFAULT_BIND_IP,
+            "listen": DEFAULT_BIND_IP,
             "webserver_port": DEFAULT_WEBSERVER_PORT,
             "universe_uuid": str(uuid.uuid4()),
             "node_uuid": str(uuid.uuid4()),
@@ -1273,7 +1337,7 @@ class Configs(object):
         self.temp_data = {
             "demo_db": DEFAULT_DEMO_DATABASE,
             "daemon": True,
-            "ui": True,
+            "ui": False,
         }
         self.config_file = config_file
 
@@ -1413,6 +1477,8 @@ class ProcessManager(object):
 
     # Kills self.process if it exists.
     def kill(self):
+        err = None
+        pid = None
         if self.process:
             self.process.kill()
         else:
@@ -1421,8 +1487,24 @@ class ProcessManager(object):
                 try:
                     os.kill(pid, SIGTERM)
                 except OSError as e:
-                    return e
+                    return (e, pid)
         self.delete_pidfile()
+        return (err, pid)
+
+    # Raise RetryableError if pidfile still exists.
+    def is_proc_running(self, pid):
+        if (os.path.exists(self.pidfile) or ProcessManager.get_command(pid) != ""):
+            raise RetryableError()
+        else:
+            return True
+
+    # Function that waits until pidfile no longer exists.
+    def wait_until_stop(self, pid):
+        def temp_func():
+            return self.is_proc_running(pid)
+        retry_op(temp_func, timeout=60)
+        time.sleep(2)
+        return
 
     # Delete corresponding pidfile for this process.
     def delete_pidfile(self):
@@ -1520,7 +1602,12 @@ class ScriptProcessManager(ProcessManager):
         return
 
     def is_running(self):
-        return self.get_pid() is not None
+        pid = self.get_pid()
+        # In certain scenarios like docker, the pid of a previously crashed docker run
+        # is going to be 1, which is the same as ours and looks like the previous run is
+        # still ongoing. The getpid check below covers that case.
+        # In the long run, the plan is to move to something like flock instead.
+        return pid is not None and pid != os.getpid()
 
 
 class YBProcessManager(ProcessManager):
@@ -1601,7 +1688,7 @@ class Diagnostics(object):
             if p.start_time:
                 payload["{}_start_time".format(p.name)] = p.start_time
 
-        bind_ip = self.configs.saved_data.get("bind_ip")
+        bind_ip = self.configs.saved_data.get("listen")
         advertise_ip = bind_ip if bind_ip != IP_ANY else IP_LOCALHOST
 
         master_addrs = "{}:{}".format(
@@ -1672,10 +1759,10 @@ class YBAdminProxy(object):
         out, err, ret_code = run_process(cmd)
         if ret_code:
             return None
-        for line in out.splitlines():
-            if "cluster_uuid: " in line:
-                return line.split("cluster_uuid: ")[1].replace('"', '')
-        return None
+        try:
+            return json.loads(out)['clusterUuid']
+        except Exception:
+            return None
 
     # Returns node_uuid by finding the UUID corresponding to current master's IP
     @staticmethod

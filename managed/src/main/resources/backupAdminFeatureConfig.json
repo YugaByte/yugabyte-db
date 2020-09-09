@@ -1,0 +1,29 @@
+{
+  "universe": {
+    "import": "disabled",
+    "create": "disabled"
+  },
+  "config": {
+    "infra": "disabled",
+    "backup": "disabled"
+  },
+  "menu": {
+    "config": "disabled"
+  },
+  "universes": {
+    "details": {
+      "overview": {
+        "upgradeSoftware": "hidden",
+        "editGFlags": "hidden",
+        "editUniverse": "hidden",
+        "readReplica": "hidden",
+        "manageEncryption": "hidden",
+        "deleteUniverse": "hidden",
+        "costs": "hidden"
+      }
+    }
+  },
+  "main": {
+    "stats": "hidden"
+  }
+}

@@ -50,7 +50,7 @@ To set up a Prisma project, named `prisma-yb`, run the following command.
 prisma init prisma-yb
 ```
 
-In order to quickly explore using Prisma with YugabyteDB, we will use the default database and user in the PostgreSQL-compatible YugabyteDB.
+In order to quickly explore using Prisma with YugabyteDB, you will use the default database and user in the PostgreSQL-compatible YugabyteDB.
 
 When prompted, enter or select the following values:
 
@@ -270,7 +270,7 @@ touch index.js
 ```js
 const { prisma } = require('./generated/prisma-client')
 
-// A `main` function so that we can use async/await
+// A `main` function so that you can use async/await
 async function main() {
 
   // Create a new user called `Alice`

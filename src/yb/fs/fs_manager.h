@@ -47,6 +47,7 @@
 #include "yb/util/path_util.h"
 #include "yb/util/metrics.h"
 #include "yb/util/result.h"
+#include "yb/util/strongly_typed_bool.h"
 
 DECLARE_bool(enable_data_block_fsync);
 
@@ -66,6 +67,8 @@ class ExternalMiniClusterFsInspector;
 }
 
 class InstanceMetadataPB;
+
+YB_STRONGLY_TYPED_BOOL(ShouldDeleteLogs);
 
 struct FsManagerOpts {
   FsManagerOpts();
@@ -134,9 +137,10 @@ class FsManager {
   CHECKED_STATUS CreateInitialFileSystemLayout(bool delete_fs_if_lock_found = false);
 
   // Deletes the yb-data directory contents for data/wal. "logs" subdirectory deletion is skipped
-  // when 'delete_logs_also' is set to false.
+  // when 'also_delete_logs' is set to false.
   // Needed for a master shell process to be stoppable and restartable correctly in shell mode.
-  CHECKED_STATUS DeleteFileSystemLayout(bool delete_logs_also = false);
+  CHECKED_STATUS DeleteFileSystemLayout(
+      ShouldDeleteLogs also_delete_logs = ShouldDeleteLogs::kFalse);
 
   // Check if a lock file is present.
   bool HasAnyLockFiles();

@@ -235,6 +235,30 @@ CHECKED_STATUS PGConn::RollbackTransaction() {
   return Execute("ROLLBACK");
 }
 
+Result<bool> PGConn::HasIndexScan(const std::string& query) {
+  constexpr int kExpectedColumns = 1;
+  auto res = VERIFY_RESULT(FetchFormat("EXPLAIN $0", query));
+
+  {
+    int fetched_columns = PQnfields(res.get());
+    if (fetched_columns != kExpectedColumns) {
+      return STATUS_FORMAT(
+          InternalError, "Fetched $0 columns, expected $1", fetched_columns, kExpectedColumns);
+    }
+  }
+
+  for (int line = 0; line < PQntuples(res.get()); ++line) {
+    std::string value = VERIFY_RESULT(GetString(res.get(), line, 0));
+    if (value.find("Index Scan") != std::string::npos) {
+      return true;
+    } else if (value.find("Index Only Scan") != std::string::npos) {
+      return true;
+    }
+  }
+  return false;
+}
+
+
 Status PGConn::CopyBegin(const std::string& command) {
   auto result = VERIFY_RESULT(CheckResult(
       PGResultPtr(

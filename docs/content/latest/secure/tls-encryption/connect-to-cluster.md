@@ -95,15 +95,11 @@ To enable `ycqlsh` to connect to a YugabyteDB cluster with encryption enabled, y
 Variable       | Description                  |
 ---------------|------------------------------|
 `SSL_CERTFILE` | The root certificate file (`ca.crt`). |
-`SSL_USERCERT` | The user certificate file  (`node.<name>.crt`). |
-`SSL_USERKEY`  | The user key file (`node.<name>.key`).  |
 
 To set the environment variables, use the following `export` commands:
 
 ```sh
 $ export SSL_CERTFILE=<path to file>/ca.crt
-$ export SSL_USERCERT=<path to file>/node.<name>.crt
-$ export SSL_USERKEY=<path to file>/node.<name>.key
 ```
 
 Next connect using the `--ssl` flag.

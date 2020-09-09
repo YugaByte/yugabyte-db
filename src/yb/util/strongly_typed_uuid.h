@@ -14,6 +14,8 @@
 #ifndef YB_UTIL_STRONGLY_TYPED_UUID_H
 #define YB_UTIL_STRONGLY_TYPED_UUID_H
 
+#include <random>
+
 #include <boost/optional.hpp>
 
 #include <boost/uuid/uuid.hpp>
@@ -117,6 +119,10 @@ class StronglyTypedUuid {
   // Generate a random StronglyTypedUuid.
   static StronglyTypedUuid<Tag> GenerateRandom() {
     return StronglyTypedUuid(boost::uuids::random_generator()());
+  }
+
+  static StronglyTypedUuid<Tag> GenerateRandom(std::mt19937_64* rng) {
+    return StronglyTypedUuid(boost::uuids::basic_random_generator<std::mt19937_64>(rng)());
   }
 
   uint8_t* data() {

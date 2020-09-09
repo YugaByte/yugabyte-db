@@ -14,24 +14,18 @@
 
 package com.yugabyte.yw.controllers;
 
-import static com.yugabyte.yw.common.SwamperHelper.TargetType;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.inject.Inject;
 
-import com.yugabyte.yw.commissioner.Common;
-import com.yugabyte.yw.commissioner.Common.CloudType;
 import com.yugabyte.yw.commissioner.ITask;
-import com.yugabyte.yw.commissioner.SubTaskGroup;
 import com.yugabyte.yw.commissioner.SubTaskGroupQueue;
 import com.yugabyte.yw.commissioner.tasks.UniverseDefinitionTaskBase;
 import com.yugabyte.yw.common.ApiHelper;
 import com.yugabyte.yw.common.ApiResponse;
 import com.yugabyte.yw.common.ConfigHelper;
-import com.yugabyte.yw.common.PlacementInfoUtil;
 import com.yugabyte.yw.common.Util;
 import com.yugabyte.yw.common.services.YBClientService;
 import com.yugabyte.yw.forms.ImportUniverseFormData;
@@ -40,6 +34,7 @@ import com.yugabyte.yw.forms.ImportUniverseFormData.State;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.ImportedState;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Capability;
+import com.yugabyte.yw.forms.UniverseTaskParams;
 import com.yugabyte.yw.models.Audit;
 import com.yugabyte.yw.models.AvailabilityZone;
 import com.yugabyte.yw.models.Customer;
@@ -57,10 +52,8 @@ import com.yugabyte.yw.models.helpers.PlacementInfo.PlacementRegion;
 import com.yugabyte.yw.models.helpers.PlacementInfo.PlacementAZ;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -557,7 +550,8 @@ public class ImportController extends AuthenticatedController {
     Map<String, String> nodeExporterIPsToError = new HashMap<String, String>();
     for (NodeDetails node : universe.getTServers()) {
       String nodeIP = node.cloudInfo.private_ip;
-      String basePage = "http://" + nodeIP + ":" + TargetType.NODE_EXPORT.getPort();
+      int nodeExporterPort = universe.getUniverseDetails().communicationPorts.nodeExporterPort;
+      String basePage = "http://" + nodeIP + ":" + nodeExporterPort;
       ObjectNode resp = apiHelper.getHeaderStatus(basePage + "/metrics");
       if (resp.isNull() || !resp.get("status").asText().equals("OK")) {
         nodeExporterIPsToError.put(nodeIP,
@@ -629,6 +623,10 @@ public class ImportController extends AuthenticatedController {
 
             node.isMaster = isMaster;
           }
+
+          UniverseTaskParams.CommunicationPorts
+            .setCommunicationPorts(universeDetails.communicationPorts, node);
+
           node.isTserver = !isMaster;
           if (isMaster) {
             node.masterRpcPort = entry.getValue();
@@ -799,6 +797,7 @@ public class ImportController extends AuthenticatedController {
     return Universe.create(taskParams, customer.getCustomerId());
   }
 
+  // TODO: (Daniel) - Do I need to add communictionPorts here?
   // Create a new node with the given placement information.
   private NodeDetails createAndAddNode(UniverseDefinitionTaskParams taskParams, String nodeIP,
                                        Provider provider, Region region, AvailabilityZone zone,

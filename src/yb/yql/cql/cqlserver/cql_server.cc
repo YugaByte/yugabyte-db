@@ -15,6 +15,7 @@
 #include "yb/yql/cql/cqlserver/cql_server.h"
 
 #include "yb/util/flag_tags.h"
+#include "yb/util/net/dns_resolver.h"
 #include "yb/util/size_literals.h"
 #include "yb/gutil/strings/substitute.h"
 #include "yb/yql/cql/cqlserver/cql_service.h"
@@ -114,6 +115,7 @@ void CQLServer::CQLNodeListRefresh(const boost::system::error_code &ec) {
   }
 
   auto cqlserver_event_list = std::make_shared<CQLServerEventList>();
+  auto& resolver = tserver_->client()->messenger()->resolver();
   if (tserver_ != nullptr) {
     // Get all live tservers.
     std::vector<master::TSInformationPB> live_tservers;
@@ -134,9 +136,9 @@ void CQLServer::CQLNodeListRefresh(const boost::system::error_code &ec) {
       }
 
       // Use only the first rpc address.
-      InetAddress addr;
-      if (PREDICT_FALSE(!addr.FromString(hostport_pb.host()).ok())) {
-        LOG(WARNING) << strings::Substitute("Couldn't parse host $0", hostport_pb.host());
+      auto addr = resolver.Resolve(hostport_pb.host());
+      if (PREDICT_FALSE(!addr.ok())) {
+        LOG(WARNING) << Format("Couldn't result host $0: $1", hostport_pb.host(), addr.status());
         continue;
       }
 
@@ -151,7 +153,7 @@ void CQLServer::CQLNodeListRefresh(const boost::system::error_code &ec) {
       //       https://github.com/yugabyte/yugabyte-db/issues/3090
       cqlserver_event_list->AddEvent(
           BuildTopologyChangeEvent(TopologyChangeEventResponse::kNewNode,
-                                   Endpoint(addr.address(), cql_port)));
+                                   Endpoint(*addr, cql_port)));
     }
   }
 

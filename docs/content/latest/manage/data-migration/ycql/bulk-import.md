@@ -100,7 +100,7 @@ INTO OUTFILE '/path/to/sample.csv' FIELDS TERMINATED BY ',';
 
 ## Import data
 
-These instructions are organized by the size of the input datasets, ranging from small (few MB of data), to medium (GB) to large (TB or larger) datasets. 
+These instructions are organized by the size of the input datasets, ranging from small (MBs of data) to larger datasets (GBs of data). 
 
 ### Small datasets (MBs)
 
@@ -116,7 +116,7 @@ By default, `COPY` exports timestamps in `yyyy-MM-dd HH:mm:ss.SSSZ` format.
 
 {{< /note >}}
 
-### Medium datasets (GBs)
+### Large datasets (GBs)
 
 [`cassandra-loader`](https://github.com/brianmhess/cassandra-loader) is a general purpose bulk loader for CQL that supports various types of delimited files (particularly CSV files). For more details, review the README of the [YugabyteDB cassandra-loader fork](https://github.com/yugabyte/cassandra-loader/). Note that cassandra-loader requires quotes for collection types (for example, “[1,2,3]” rather than [1,2,3] for lists).
 
@@ -143,7 +143,3 @@ time ./cassandra-loader \
 ```
 
 For additional options, refer to the [cassandra-loader options](https://github.com/yugabyte/cassandra-loader#options).
-
-### Large datasets (TBs or larger)
-
-For large datasets that are in the order of terabytes, YugabyteDB's bulk-importer is the tool to be used. Currently, it is supported only for AWS based deployments. Further documentation on this topic will be added soon. Meanwhile, reach out to [support@yugabyte.com](mailto:support@yugabyte.com) for more details.

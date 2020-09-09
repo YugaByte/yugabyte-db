@@ -164,6 +164,7 @@ typedef ArrayType Acl;
 #define ACL_ALL_RIGHTS_LANGUAGE		(ACL_USAGE)
 #define ACL_ALL_RIGHTS_LARGEOBJECT	(ACL_SELECT|ACL_UPDATE)
 #define ACL_ALL_RIGHTS_SCHEMA		(ACL_USAGE|ACL_CREATE)
+#define ACL_ALL_RIGHTS_TABLEGROUP	(ACL_CREATE)
 #define ACL_ALL_RIGHTS_TABLESPACE	(ACL_CREATE)
 #define ACL_ALL_RIGHTS_TYPE			(ACL_USAGE)
 
@@ -247,6 +248,8 @@ extern AclMode pg_largeobject_aclmask_snapshot(Oid lobj_oid, Oid roleid,
 								AclMode mask, AclMaskHow how, Snapshot snapshot);
 extern AclMode pg_namespace_aclmask(Oid nsp_oid, Oid roleid,
 					 AclMode mask, AclMaskHow how);
+extern AclMode pg_tablegroup_aclmask(Oid grp_oid, Oid roleid,
+					  AclMode mask, AclMaskHow how);
 extern AclMode pg_tablespace_aclmask(Oid spc_oid, Oid roleid,
 					  AclMode mask, AclMaskHow how);
 extern AclMode pg_foreign_data_wrapper_aclmask(Oid fdw_oid, Oid roleid,
@@ -267,6 +270,7 @@ extern AclResult pg_language_aclcheck(Oid lang_oid, Oid roleid, AclMode mode);
 extern AclResult pg_largeobject_aclcheck_snapshot(Oid lang_oid, Oid roleid,
 								 AclMode mode, Snapshot snapshot);
 extern AclResult pg_namespace_aclcheck(Oid nsp_oid, Oid roleid, AclMode mode);
+extern AclResult pg_tablegroup_aclcheck(Oid grp_oid, Oid roleid, AclMode mode);
 extern AclResult pg_tablespace_aclcheck(Oid spc_oid, Oid roleid, AclMode mode);
 extern AclResult pg_foreign_data_wrapper_aclcheck(Oid fdw_oid, Oid roleid, AclMode mode);
 extern AclResult pg_foreign_server_aclcheck(Oid srv_oid, Oid roleid, AclMode mode);
@@ -292,6 +296,7 @@ extern bool pg_proc_ownercheck(Oid proc_oid, Oid roleid);
 extern bool pg_language_ownercheck(Oid lan_oid, Oid roleid);
 extern bool pg_largeobject_ownercheck(Oid lobj_oid, Oid roleid);
 extern bool pg_namespace_ownercheck(Oid nsp_oid, Oid roleid);
+extern bool pg_tablegroup_ownercheck(Oid grp_oid, Oid roleid);
 extern bool pg_tablespace_ownercheck(Oid spc_oid, Oid roleid);
 extern bool pg_opclass_ownercheck(Oid opc_oid, Oid roleid);
 extern bool pg_opfamily_ownercheck(Oid opf_oid, Oid roleid);

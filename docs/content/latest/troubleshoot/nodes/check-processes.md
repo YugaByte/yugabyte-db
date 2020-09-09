@@ -1,8 +1,8 @@
 ---
-title: Check processes
-linkTitle: Check processes
-headerTitle: Check YugabyteDB processes
-description: How to check if your YugabyteDB processes are running
+title: Check servers
+linkTitle: Check servers
+headerTitle: Check YugabyteDB servers
+description: How to check if your YugabyteDB servers are running
 aliases:
   - /troubleshoot/nodes/check-processes/
 menu:
@@ -13,7 +13,7 @@ isTocNested: true
 showAsideToc: true
 ---
 
-## 1. Are the YugabyteDB processes running?
+## 1. Are the YugabyteDB servers running?
 
 Connect to the local node where YugabyteDB is running. 
 
@@ -23,19 +23,19 @@ On the local setup, this is your local machine (or a Docker instance running on 
 $ ps aux | grep yb-tserver
 ```
 
-If you are expecting a master process on this node, you can also do the following.
+If you are expecting a yb-master servers on this node, you can also do the following.
 
 ```sh
 $ ps aux | grep yb-master
 ```
 
-If the processes are not running you can start them with:
+If the servers are not running you can start them with:
 
 - `yb-ctl` when using a local cluster.
 
 - `bin/yb-tserver` and `bin/yb-master` servers when using a multi-node cluster.
 
-Once the processes are running, if they are not accessible from your client machine this may be a network issue (see below).
+Once the servers are running, if they are not accessible from your client machine this may be a network issue (see below).
 
 ## 2. Are the yb-master and yb-tserver endpoints accessible?
 

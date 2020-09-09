@@ -2,7 +2,7 @@
 title: Build a Java application that uses YCQL
 headerTitle: Build a Java application
 linkTitle: Java
-description: Build a Java application that uses YCQL.
+description: Build a sample Java application with the Yugabyte Java Driver for YCQL.
 menu:
   latest:
     parent: build-apps
@@ -33,32 +33,41 @@ showAsideToc: true
       YCQL
     </a>
   </li>
+  <li>
+    <a href="/latest/quick-start/build-apps/java/ycql-4.6" class="nav-link">
+      <i class="icon-cassandra" aria-hidden="true"></i>
+      YCQL (4.6)
+    </a>
+  </li>
 </ul>
 
 ## Maven
 
-To build your Java application using the YugabyteDB Cassandra driver, add the following Maven dependency to your application:
+To build a sample Java application with the [Yugabyte Java Driver for YCQL](https://github.com/yugabyte/cassandra-java-driver), add the following Maven dependency to your application:
 
 ```mvn
-<dependency>
-  <groupId>com.yugabyte</groupId>
-  <artifactId>cassandra-driver-core</artifactId>
-  <version>3.2.0-yb-18</version>
-</dependency>
+   <dependencies>
+    <dependency>
+      <groupId>com.yugabyte</groupId>
+      <artifactId>cassandra-driver-core</artifactId>
+      <version>3.8.0-yb-5</version>
+    </dependency>
+  </dependencies>
 ```
 
-## Working Example
+## Create the sample Java application
 
 ### Prerequisites
 
 This tutorial assumes that you have:
 
-- installed YugabyteDB, created a universe and are able to interact with it using the YCQL shell. If not, please follow these steps in the [quick start guide](../../../../api/ycql/quick-start/).
-- installed JDK version 1.8+ and maven 3.3+
+- installed YugabyteDB, created a universe, and are able to interact with it using the YCQL shell. If not, follow the steps in [Quick start YCQL](../../../../api/ycql/quick-start/).
+- installed JDK version 1.8 or later.
+- installed Maven 3.3 or later.
 
-### Create the Maven build file
+### Create the project's POM
 
-Create a maven build file `pom.xml` and add the following content into it.
+Create a file, named `pom.xml`, and then copy the following content into it. The Project Object Model (POM) includes configuration information required to build the project.
 
 ```mvn
 <?xml version="1.0"?>
@@ -77,7 +86,7 @@ Create a maven build file `pom.xml` and add the following content into it.
     <dependency>
       <groupId>com.yugabyte</groupId>
       <artifactId>cassandra-driver-core</artifactId>
-      <version>3.2.0-yb-18</version>
+      <version>3.8.0-yb-5</version>
     </dependency>
   </dependencies>
 
@@ -108,7 +117,7 @@ Create a maven build file `pom.xml` and add the following content into it.
 </project>
 ```
 
-### Write a sample application
+### Write a sample Java application
 
 Create the appropriate directory structure as expected by Maven.
 
@@ -175,15 +184,19 @@ public class YBCqlHelloWorld {
 }
 ```
 
-### Build and run the application
+### Build the project
 
-To build the application, just run the following command.
+To build the project, run the following `mvn package` command.
 
 ```sh
 $ mvn package
 ```
 
-To run the program, run the following command.
+You should see a `BUILD SUCCESS` message.
+
+### Run the application
+
+To use the application, run the following command.
 
 ```sh
 $ java -cp "target/hello-world-1.0.jar:target/lib/*" com.yugabyte.sample.apps.YBCqlHelloWorld

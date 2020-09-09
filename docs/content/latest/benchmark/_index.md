@@ -5,13 +5,13 @@ linkTitle: Benchmark
 description: Benchmark YugabyteDB using TPC-C, sysbench, YCSB and more.
 image: /images/section_icons/explore/high_performance.png
 headcontent:
-section: USER GUIDES
+section: YUGABYTEDB CORE
 menu:
   latest:
     identifier: benchmark
     weight: 685
 aliases:
-- /latest/benchmark/performance/
+ - /latest/benchmark/performance/
 
 ---
 

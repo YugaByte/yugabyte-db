@@ -17,7 +17,7 @@ Suppose you have a cluster running and now a tserver or master process/node has 
 Here are the steps to take to get the cluster back to shape:
 
 {{< note title="Note" >}}
-In this scenario we have a N-node setup, with replication factor (RF)=3.
+In this scenario you have a N-node setup, with replication factor (RF)=3.
 {{< /note >}}
 
 

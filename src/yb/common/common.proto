@@ -226,6 +226,16 @@ message ColumnSchemaPB {
   repeated QLJsonOperationPB OBSOLETE_json_operations = 13;
 }
 
+message ColocatedTableIdentifierPB {
+  // Note: an absent value means NULL.
+  oneof value {
+    // Colocated YSQL user tables use 4-byte PG table ID.
+    uint32 pgtable_id = 1;
+    // Colocated YSQL system tables use 16-byte UUID.
+    bytes cotable_id = 2;
+  }
+}
+
 message TablePropertiesPB {
   optional uint64 default_time_to_live = 1;
   optional bool contain_counters = 2;
@@ -257,6 +267,7 @@ message TablePropertiesPB {
 message SchemaPB {
   repeated ColumnSchemaPB columns = 1;
   optional TablePropertiesPB table_properties = 2;
+  optional ColocatedTableIdentifierPB colocated_table_id = 3;
 }
 
 // This message contains the metadata of a secondary index of a table.

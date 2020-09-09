@@ -2617,6 +2617,8 @@ yb_single_row_update_or_delete_path(PlannerInfo *root,
 		 */
 		index_path = (IndexPath *) projection_path->subpath;
 
+		Bitmapset *primary_key_attrs = YBGetTablePrimaryKeyBms(relation);
+
 		/*
 		 * Iterate through projection_path tlist, identify true user write columns from unspecified
 		 * columns. If true user write expression is not a supported single row write expression
@@ -2653,9 +2655,18 @@ yb_single_row_update_or_delete_path(PlannerInfo *root,
 				return false;
 			}
 
+			/* Updates involving primary key columns are not single-row. */
+			if (bms_is_member(tle->resno - attr_offset, primary_key_attrs))
+			{
+				RelationClose(relation);
+				return false;
+			}
+
+
 			if (needs_pushdown)
 			{
-				pushdown_update_attrs = bms_add_member(pushdown_update_attrs, tle->resno);
+				pushdown_update_attrs = bms_add_member(
+				    pushdown_update_attrs, tle->resno - attr_offset);
 			}
 
 			subpath_tlist = lappend(subpath_tlist, tle);
@@ -2686,13 +2697,10 @@ yb_single_row_update_or_delete_path(PlannerInfo *root,
 		return false;
 	}
 
-	/* Close the relation now in case we return early. */
-	RelationClose(relation);
-	relation = NULL;
-
 	/* Ensure the subpath is an index path. */
 	if (!IsA(index_path, IndexPath))
 	{
+		RelationClose(relation);
 		return false;
 	}
 
@@ -2703,6 +2711,7 @@ yb_single_row_update_or_delete_path(PlannerInfo *root,
 
 		if (!list_member_ptr(index_path->indexquals, rinfo))
 		{
+			RelationClose(relation);
 			return false;
 		}
 	}
@@ -2720,17 +2729,24 @@ yb_single_row_update_or_delete_path(PlannerInfo *root,
 		int			op_strategy;
 
 		if (!IsA(clause, OpExpr))
+		{
+			RelationClose(relation);
 			return false;
+		}
 
 		clause_op = qinfo->clause_op;
 		if (!OidIsValid(clause_op))
+		{
+			RelationClose(relation);
 			return false;
+		}
 
 		op_strategy = get_op_opfamily_strategy(clause_op, index_path->indexinfo->opfamily[qinfo->indexcol]);
 		Assert(op_strategy != 0);  /* not a member of opfamily?? */
 		/* Only pushdown equal operators. */
 		if (op_strategy != BTEqualStrategyNumber)
 		{
+			RelationClose(relation);
 			return false;
 		}
 	}
@@ -2755,7 +2771,10 @@ yb_single_row_update_or_delete_path(PlannerInfo *root,
 
 		/* Make sure we're an operator expression. */
 		if (!IsA(clause, OpExpr))
+		{
+			RelationClose(relation);
 			return false;
+		}
 
 		expr = (Expr *) get_rightop(clause);
 		var = castNode(Var, get_leftop(clause));
@@ -2763,6 +2782,7 @@ yb_single_row_update_or_delete_path(PlannerInfo *root,
 		/* Verify expression is supported. */
 		if (!YBCIsSupportedSingleRowModifyWhereExpr(expr))
 		{
+			RelationClose(relation);
 			return false;
 		}
 
@@ -2788,28 +2808,35 @@ yb_single_row_update_or_delete_path(PlannerInfo *root,
 		tle->resno = var->varoattno;
 		tle->resorigcol = 0;
 		indexquals[tle->resno - 1] = tle;
-		primary_key_attrs = bms_add_member(primary_key_attrs, tle->resno);
+		primary_key_attrs = bms_add_member(primary_key_attrs, tle->resno - attr_offset);
 	}
 
-	/* Verify RETURNING columns are either primary key columns or UPDATE's SET columns. */
+	/*
+	 * Verify RETURNING columns are either primary key or
+	 * UPDATE's SET and not pushed down columns.
+	 * TODO(dmitry): Remove restriction for pushed down columns on #5392 completion.
+	 */
 	if (list_length(path->returningLists) > 0)
 	{
 		foreach(values, linitial(path->returningLists))
 		{
-			TargetEntry *tle;
-
-			tle = lfirst_node(TargetEntry, values);
-			if (!bms_is_member(tle->resorigcol - attr_offset, update_attrs) &&
-				!bms_is_member(tle->resorigcol, primary_key_attrs))
+			int attr = lfirst_node(TargetEntry, values)->resorigcol - attr_offset;
+			if ((!bms_is_member(attr, update_attrs) &&
+				!bms_is_member(attr, primary_key_attrs)) ||
+				bms_is_member(attr, pushdown_update_attrs))
+			{
+				RelationClose(relation);
 				return false;
+			}
 		}
 	}
 
 	/*
 	 * Verify all YB primary keys are specified in the WHERE clause.
 	 */
-	if (!YBCAllPrimaryKeysProvided(relid, primary_key_attrs))
+	if (!YBCAllPrimaryKeysProvided(relation, primary_key_attrs))
 	{
+		RelationClose(relation);
 		return false;
 	}
 
@@ -2844,7 +2871,7 @@ yb_single_row_update_or_delete_path(PlannerInfo *root,
 		}
 		else if (subpath_tlist_values && subpath_tlist_tle->resno == attr_num)
 		{
-			if (bms_is_member(subpath_tlist_tle->resno, pushdown_update_attrs))
+			if (bms_is_member(subpath_tlist_tle->resno  - attr_offset, pushdown_update_attrs))
 			{
 				/*
 				 * If the expr needs pushdown bypass query-layer evaluation.
@@ -2878,6 +2905,7 @@ yb_single_row_update_or_delete_path(PlannerInfo *root,
 		}
 	}
 
+	RelationClose(relation);
 	return true;
 }
 

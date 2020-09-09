@@ -39,7 +39,7 @@ public class TestPgIndex extends BasePgSQLTest {
       final int recordCount = 500;
       Worker[] workers = new Worker[3];
       for (int i = 0; i < workers.length; ++i) {
-        workers[i] = new Worker(createConnection(), i, recordCount);
+        workers[i] = new Worker(getConnectionBuilder(), i, recordCount);
       }
       LOG.info("Starting workers");
       Arrays.stream(workers).forEach(Worker::start);
@@ -57,56 +57,56 @@ public class TestPgIndex extends BasePgSQLTest {
       }
 
       assertTrue(groupCount > 1);
-      assertOneRow("SELECT COUNT(*) FROM t", (long) recordCount);
+      assertOneRow(statement, "SELECT COUNT(*) FROM t", (long) recordCount);
     }
   }
 
   private static class Worker implements Runnable {
-    private volatile int insertedCount_ = 0;
-    final private Connection connection_;
-    final private int idx_;
-    final private int count_;
-    final private Thread thread_ = new Thread(this);
+    private volatile int insertedCount = 0;
+    final private ConnectionBuilder connBldr;
+    final private int idx;
+    final private int count;
+    final private Thread thread = new Thread(this);
 
-    Worker(Connection connection, int idx, int count) {
-      connection_ = connection;
-      idx_ = idx;
-      count_ = count;
+    Worker(ConnectionBuilder connBldr, int idx, int count) {
+      this.connBldr = connBldr;
+      this.idx = idx;
+      this.count = count;
     }
 
     void start() {
-      thread_.start();
+      thread.start();
     }
 
     int result() {
       try {
-        thread_.join();
+        thread.join();
       } catch (InterruptedException e) {
         LOG.error("Exception", e);
       }
-      LOG.info("Worker {} finished with {} items", idx_, insertedCount_);
-      return insertedCount_;
+      LOG.info("Worker {} finished with {} items", idx, insertedCount);
+      return insertedCount;
     }
 
     @Override
     public void run() {
-      LOG.info("Worker {} started", idx_);
-      int inserted = 0;
-      try (Statement statement = connection_.createStatement()) {
-        for (int i = 0; i < count_; ++i) {
+      LOG.info("Worker {} started", idx);
+      int insertedCount = 0;
+      try (Connection conn = connBldr.connect();
+          Statement statement = conn.createStatement()) {
+        for (int i = 0; i < count; ++i) {
           try {
-            statement.execute(String.format("INSERT INTO t values(%d, %d)", i, idx_));
-            ++inserted;
+            statement.execute(String.format("INSERT INTO t values(%d, %d)", i, idx));
+            ++insertedCount;
             Thread.sleep(1);
           } catch (SQLException e) {
-            LOG.info("Insert by worker#{} expectedly failed due to {}",
-                idx_, e.getMessage());
+            LOG.info("Insert by worker#{} expectedly failed due to {}", idx, e.getMessage());
           }
         }
       } catch (Exception e) {
         LOG.error("Exception", e);
       }
-      insertedCount_ = inserted;
+      this.insertedCount = insertedCount;
     }
   }
 

@@ -37,15 +37,15 @@ showAsideToc: true
 
 [Change data capture (CDC)](../../../architecture/cdc-architecture) can be used to asynchronously stream data changes from a YugabyteDB cluster to external systems like message queues and OLAP warehouses. The data changes in YugabyteDB are detected, captured, and then output to the specified target.  In the steps below, you will use a local YugabyteDB cluster to stream data changes to `stdout` using the CDC API.
 
-If you haven't installed YugabyteDB yet, do so first by following the [Quick Start](../../../quick-start/install/) guide.
+This tutorial uses the [yb-ctl](../../../admin/yb-ctl) local cluster management utility.
 
-## Prerequisites
+## 1. Create a universe
 
-### Java
+```sh
+$ ./bin/yb-ctl create
+```
 
-A JRE (or JDK), for Java 8 or later, is installed. 
-
-## 1. Add a database table
+## 2. Add a database table
 
 Start your local YugabyteDB cluster and run `ysqlsh` to connect to the service.
 
@@ -69,7 +69,7 @@ CREATE TABLE products(
 );
 ```
 
-## 2. Download the CDC Connector for stdout
+## 3. Download the CDC Connector for stdout
 
 Download the stdout CDC Connector JAR file.
 
@@ -77,7 +77,7 @@ Download the stdout CDC Connector JAR file.
 $ wget https://downloads.yugabyte.com/yb-cdc-connector.jar
 ```
 
-## 3. Stream the log output stream to stdout
+## 4. Stream the log output stream to stdout
 
 Run the command below to to start logging an output stream of data changes from the YugabyteDB `cdc` table to `stdout`.
 
@@ -90,7 +90,7 @@ The example above uses the following parameters:
 - `--table_name` — Specifies the namespace and table, where namespace is the database (YSQL) or keyspace (YCQL).
 - `--master_addrs` — Specifies the IP addresses for all of the YB-Master servers that are producing or consuming. Default value is `127.0.0.1:7100`. If you are using a 3-node local cluster, then you need to specify a comma-delimited list of the addresses for all of your YB-Master servers.
 
-## 4. Insert values and observe
+## 5. Insert values and observe
 
 In another terminal shell, write some values to the table and observe the values on your `stdout` output stream.
 

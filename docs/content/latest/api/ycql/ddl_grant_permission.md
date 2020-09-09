@@ -2,7 +2,6 @@
 title: GRANT PERMISSION statement [YCQL]
 headerTitle: GRANT PERMISSION
 linkTitle: GRANT PERMISSION
-summary: Grant a permission to a role
 description: Use the GRANT PERMISSION statement to grant a permission (or all the available permissions) to a role.
 menu:
   latest:

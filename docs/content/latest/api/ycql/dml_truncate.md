@@ -2,7 +2,6 @@
 title: TRUNCATE statement [YCQL]
 headerTitle: TRUNCATE
 linkTitle: TRUNCATE
-summary: Removes all rows from a table.
 description: Use the TRUNCATE statement to remove all rows from a specified table.
 menu:
   latest:

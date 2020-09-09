@@ -7,7 +7,7 @@ image: /images/section_icons/quick_start/sample_apps.png
 headcontent:
 aliases:
   - /latest/manage/
-section: USER GUIDES
+section: YUGABYTEDB CORE
 menu:
   latest:
     identifier: manage
@@ -71,19 +71,6 @@ menu:
       </div>
       <div class="body">
         Configure collection and reporting of diagnostics data.
-      </div>
-    </a>
-  </div>
-
-  <div class="col-12 col-md-6 col-lg-12 col-xl-6">
-    <a class="section-link icon-offset" href="enterprise-edition/">
-      <div class="head">
-        <img class="icon" src="/images/section_icons/manage/enterprise.png" aria-hidden="true" />
-        <div class="articles">11 articles</div>
-        <div class="title">Yugabyte Platform</div>
-      </div>
-      <div class="body">
-        Use Yugabyte Platform's orchestration and monitoring to manage YugabyteDB universes.
       </div>
     </a>
   </div>

@@ -36,7 +36,7 @@ YugabyteDB uses **Hybrid Logical Clocks** or HLC’s solve the problem by combin
 
 Each node in a YugabyteDB cluster first computes its HLC. HLC is represented as a (physical time component, logical component) tuple. HLCs generated on any node are strictly monotonic, and are compared as a tuple. When comparing two HLCs, the physical time component takes precedence over the logical component.
 
-* **Physical time component:** YugaByte DB uses the physical clock (`CLOCK_REALTIME` in Linux) of a node to initialize the physical time component of its HLC. Once initialized, the physical time component can only get updated to a higher value. A monotonic clock is used since it represents the time elapsed since some arbitrary, fixed point in the past and guarantees that the time source is strictly linearly increasing.
+* **Physical time component:** YugabyteDB uses the physical clock (`CLOCK_REALTIME` in Linux) of a node to initialize the physical time component of its HLC. Once initialized, the physical time component can only get updated to a higher value. A monotonic clock is used since it represents the time elapsed since some arbitrary, fixed point in the past and guarantees that the time source is strictly linearly increasing.
 
 * **Logical component:** For a given physical time component, the logical component of the HLC is a monotonically increasing number that provides ordering of events happening within that same physical time. This is initially set to 0. If the physical time component gets updated at any point, the logical component is reset to 0.
 
@@ -71,7 +71,7 @@ The timestamp that we are using for MVCC comes from the [Hybrid Time](http://use
   transactional reads across multiple tablets. This condition becomes easier to satisfy due to the
   fact that the read timestamp is chosen as the current hybrid time on the YB-TServer processing the
   read request, so hybrid time on the leader of the tablet we're reading from immediately gets
-  updated to a value that is at least as high as than the read timestamp.  Then the read request
+  updated to a value that is at least as high as the read timestamp.  Then the read request
   only has to wait for any relevant entries in the Raft queue with timestamps lower than the read
   timestamp to get replicated and applied to RocksDB, and it can proceed with processing the read
   request after that.

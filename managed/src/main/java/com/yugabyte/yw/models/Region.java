@@ -14,8 +14,8 @@ import javax.persistence.Id;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 
-import com.avaje.ebean.*;
-import com.avaje.ebean.annotation.DbJson;
+import io.ebean.*;
+import io.ebean.annotation.DbJson;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -24,14 +24,15 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import play.data.validation.Constraints;
 import play.libs.Json;
 
-import static com.avaje.ebean.Ebean.beginTransaction;
-import static com.avaje.ebean.Ebean.commitTransaction;
-import static com.avaje.ebean.Ebean.endTransaction;
+import static io.ebean.Ebean.beginTransaction;
+import static io.ebean.Ebean.commitTransaction;
+import static io.ebean.Ebean.endTransaction;
 import static com.yugabyte.yw.models.helpers.CommonUtils.maskConfig;
 
 @Entity
 public class Region extends Model {
   private static final String SECURITY_GROUP_KEY = "sg_id";
+  private static final String VNET_KEY = "vnet";
 
   @Id
   public UUID uuid;
@@ -100,6 +101,22 @@ public class Region extends Model {
     return null;
   }
 
+  public void setVnetName(String vnetName) {
+    if (details == null) {
+      details = Json.newObject();
+    }
+    ((ObjectNode) details).put(VNET_KEY, vnetName);
+    save();
+  }
+
+  public String getVnetName() {
+    if (details != null) {
+      JsonNode vnetNode = details.get(VNET_KEY);
+      return vnetNode == null || vnetNode.isNull() ? null : vnetNode.asText();
+    }
+    return null;
+  }
+
   @DbJson
   @Column(columnDefinition = "TEXT")
   public JsonNode config;
@@ -134,7 +151,7 @@ public class Region extends Model {
   /**
    * Query Helper for PlacementRegion with region code
    */
-  public static final Find<UUID, Region> find = new Find<UUID, Region>(){};
+  public static final Finder<UUID, Region> find = new Finder<UUID, Region>(Region.class){};
 
   /**
    * Create new instance of PlacementRegion
@@ -169,15 +186,15 @@ public class Region extends Model {
   }
 
   public static Region get(UUID regionUUID) {
-    return find.fetch("provider").where().idEq(regionUUID).findUnique();
+    return find.query().fetch("provider").where().idEq(regionUUID).findOne();
   }
 
   public static Region getByCode(Provider provider, String code) {
-    return find.where().eq("provider_uuid", provider.uuid).eq("code", code).findUnique();
+    return find.query().where().eq("provider_uuid", provider.uuid).eq("code", code).findOne();
   }
 
   public static List<Region> getByProvider(UUID providerUUID) {
-    return find.where().eq("provider_uuid", providerUUID).findList();
+    return find.query().where().eq("provider_uuid", providerUUID).findList();
   }
 
   public static Region get(UUID customerUUID, UUID providerUUID, UUID regionUUID) {
@@ -192,7 +209,7 @@ public class Region extends Model {
     query.setParameter("r_uuid", regionUUID);
     query.setParameter("p_uuid", providerUUID);
     query.setParameter("c_uuid", customerUUID);
-    return query.findUnique();
+    return query.findOne();
   }
 
   /**

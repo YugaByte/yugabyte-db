@@ -111,14 +111,6 @@ void YBSession::SetTimeout(MonoDelta timeout) {
   }
 }
 
-void YBSession::SetSingleRpcTimeout(MonoDelta timeout) {
-  CHECK_GE(timeout, MonoDelta::kZero);
-  single_rpc_timeout_ = timeout;
-  if (batcher_) {
-    batcher_->SetSingleRpcTimeout(timeout);
-  }
-}
-
 Status YBSession::Flush() {
   Synchronizer s;
   FlushAsync(s.AsStatusFunctor());
@@ -194,7 +186,7 @@ ConsistentReadPoint* YBSession::read_point() {
   return transaction_ ? &transaction_->read_point() : read_point_.get();
 }
 
-void YBSession::SetHybridTimeForWrite(HybridTime ht) {
+void YBSession::SetHybridTimeForWrite(const HybridTime ht) {
   hybrid_time_for_write_ = ht;
   if (batcher_) {
     batcher_->SetHybridTimeForWrite(hybrid_time_for_write_);
@@ -208,9 +200,6 @@ internal::Batcher& YBSession::Batcher() {
         force_consistent_read_));
     if (timeout_.Initialized()) {
       batcher_->SetTimeout(timeout_);
-    }
-    if (single_rpc_timeout_.Initialized()) {
-      batcher_->SetSingleRpcTimeout(single_rpc_timeout_);
     }
     batcher_->SetRejectionScoreSource(rejection_score_source_);
     if (hybrid_time_for_write_.is_valid()) {

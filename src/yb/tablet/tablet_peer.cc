@@ -61,6 +61,7 @@
 #include "yb/rocksdb/db/memtable.h"
 
 #include "yb/rpc/messenger.h"
+#include "yb/rpc/strand.h"
 #include "yb/rpc/thread_pool.h"
 
 #include "yb/tablet/tablet.h"
@@ -132,7 +133,6 @@ using consensus::ConsensusOptions;
 using consensus::ConsensusRound;
 using consensus::StateChangeContext;
 using consensus::StateChangeReason;
-using consensus::OpId;
 using consensus::RaftConfigPB;
 using consensus::RaftPeerPB;
 using consensus::RaftConsensus;
@@ -154,7 +154,8 @@ TabletPeer::TabletPeer(
     const std::string& permanent_uuid,
     Callback<void(std::shared_ptr<StateChangeContext> context)> mark_dirty_clbk,
     MetricRegistry* metric_registry,
-    TabletSplitter* tablet_splitter)
+    TabletSplitter* tablet_splitter,
+    const std::shared_future<client::YBClient*>& client_future)
     : meta_(meta),
       tablet_id_(meta->raft_group_id()),
       local_peer_pb_(local_peer_pb),
@@ -167,7 +168,8 @@ TabletPeer::TabletPeer(
       permanent_uuid_(permanent_uuid),
       preparing_operations_counter_(operation_tracker_.LogPrefix()),
       metric_registry_(metric_registry),
-      tablet_splitter_(tablet_splitter) {}
+      tablet_splitter_(tablet_splitter),
+      client_future_(client_future) {}
 
 TabletPeer::~TabletPeer() {
   std::lock_guard<simple_spinlock> lock(lock_);
@@ -178,7 +180,6 @@ TabletPeer::~TabletPeer() {
 
 Status TabletPeer::InitTabletPeer(
     const TabletPtr& tablet,
-    const std::shared_future<client::YBClient*>& client_future,
     const std::shared_ptr<MemTracker>& server_mem_tracker,
     Messenger* messenger,
     rpc::ProxyCache* proxy_cache,
@@ -203,12 +204,12 @@ Status TabletPeer::InitTabletPeer(
           IllegalState, "Invalid tablet state for init: $0", RaftGroupStatePB_Name(state));
     }
     tablet_ = tablet;
-    client_future_ = client_future;
     proxy_cache_ = proxy_cache;
     log_ = log;
     // "Publish" the log pointer so it can be retrieved using the log() accessor.
     log_atomic_ = log.get();
     service_thread_pool_ = &messenger->ThreadPool();
+    strand_.reset(new rpc::Strand(&messenger->ThreadPool()));
 
     tablet->SetMemTableFlushFilterFactory([log] {
       auto index = log->GetLatestEntryOpId().index;
@@ -652,18 +653,20 @@ std::unique_ptr<UpdateTxnOperationState> TabletPeer::CreateUpdateTransactionStat
   return result;
 }
 
-void TabletPeer::GetTabletStatusPB(TabletStatusPB* status_pb_out) const {
+void TabletPeer::GetTabletStatusPB(TabletStatusPB* status_pb_out) {
   std::lock_guard<simple_spinlock> lock(lock_);
   DCHECK(status_pb_out != nullptr);
   DCHECK(status_listener_.get() != nullptr);
+  const auto disk_size_info = GetOnDiskSizeInfo();
   status_pb_out->set_tablet_id(status_listener_->tablet_id());
+  status_pb_out->set_namespace_name(status_listener_->namespace_name());
   status_pb_out->set_table_name(status_listener_->table_name());
   status_pb_out->set_table_id(status_listener_->table_id());
   status_pb_out->set_last_status(status_listener_->last_status());
   status_listener_->partition()->ToPB(status_pb_out->mutable_partition());
   status_pb_out->set_state(state_);
   status_pb_out->set_tablet_data_state(meta_->tablet_data_state());
-  status_pb_out->set_estimated_on_disk_size(OnDiskSize());
+  disk_size_info.ToPB(status_pb_out);
 }
 
 Status TabletPeer::RunLogGC() {
@@ -1110,23 +1113,25 @@ void TabletPeer::UnregisterMaintenanceOps() {
   STLDeleteElements(&maintenance_ops_);
 }
 
-uint64_t TabletPeer::OnDiskSize() const {
-  uint64_t ret = 0;
+TabletOnDiskSizeInfo TabletPeer::GetOnDiskSizeInfo() const {
+  TabletOnDiskSizeInfo info;
 
   if (consensus_) {
-    ret += consensus_->OnDiskSize();
+    info.consensus_metadata_disk_size = consensus_->OnDiskSize();
   }
 
   if (tablet_) {
-    // TODO: consider updating this to include all on-disk SST files.
-    ret += tablet_->GetCurrentVersionSstFilesSize();
+    info.sst_files_disk_size = tablet_->GetCurrentVersionSstFilesSize();
+    info.uncompressed_sst_files_disk_size =
+        tablet_->GetCurrentVersionSstFilesUncompressedSize();
   }
 
   if (log_) {
-    ret += log_->OnDiskSize();
+    info.wal_files_disk_size = log_->OnDiskSize();
   }
 
-  return ret;
+  info.RecomputeTotalSize();
+  return info;
 }
 
 int TabletPeer::GetNumLogSegments() const {
@@ -1204,14 +1209,24 @@ Status TabletPeer::UpdateState(RaftGroupStatePB expected, RaftGroupStatePB new_s
   return Status::OK();
 }
 
-bool TabletPeer::Enqueue(rpc::ThreadPoolTask* task) {
+void TabletPeer::Enqueue(rpc::ThreadPoolTask* task) {
   rpc::ThreadPool* thread_pool = service_thread_pool_.load(std::memory_order_acquire);
   if (!thread_pool) {
     task->Done(STATUS(Aborted, "Thread pool not ready"));
-    return false;
+    return;
   }
 
-  return thread_pool->Enqueue(task);
+  thread_pool->Enqueue(task);
+}
+
+void TabletPeer::StrandEnqueue(rpc::StrandTask* task) {
+  rpc::Strand* strand = strand_.get();
+  if (!strand) {
+    task->Done(STATUS(Aborted, "Thread pool not ready"));
+    return;
+  }
+
+  strand->Enqueue(task);
 }
 
 }  // namespace tablet

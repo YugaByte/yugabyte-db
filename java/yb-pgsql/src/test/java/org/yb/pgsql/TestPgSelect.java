@@ -47,7 +47,7 @@ public class TestPgSelect extends BasePgSQLTest {
       try (ResultSet rs = statement.executeQuery(query)) {
         assertEquals(allRows, getSortedRowList(rs));
       }
-      assertFalse(useIndex(query, PRIMARY_KEY));
+      assertFalse(isIndexScan(statement, query, PRIMARY_KEY));
 
       // Test fixed hash key.
       query = "SELECT * FROM test_where WHERE h = 2";
@@ -58,7 +58,7 @@ public class TestPgSelect extends BasePgSQLTest {
         assertEquals(10, expectedRows.size());
         assertEquals(expectedRows, getSortedRowList(rs));
       }
-      assertTrue(useIndex(query, PRIMARY_KEY));
+      assertTrue(isIndexScan(statement, query, PRIMARY_KEY));
 
       // Test fixed primary key.
       query = "SELECT * FROM test_where WHERE h = 2 AND r = 3.5";
@@ -70,7 +70,7 @@ public class TestPgSelect extends BasePgSQLTest {
         assertEquals(1, expectedRows.size());
         assertEquals(expectedRows, getSortedRowList(rs));
       }
-      assertTrue(useIndex(query, PRIMARY_KEY));
+      assertTrue(isIndexScan(statement, query, PRIMARY_KEY));
 
       // Test fixed range key without fixed hash key.
       query = "SELECT * FROM test_where WHERE r = 6.5";
@@ -81,7 +81,7 @@ public class TestPgSelect extends BasePgSQLTest {
         assertEquals(10, expectedRows.size());
         assertEquals(expectedRows, getSortedRowList(rs));
       }
-      assertFalse(useIndex(query, PRIMARY_KEY));
+      assertFalse(isIndexScan(statement, query, PRIMARY_KEY));
 
       // Test range scan.
       query = "SELECT * FROM test_where WHERE h = 2 AND r >= 3.5 AND r < 8.5";
@@ -94,7 +94,7 @@ public class TestPgSelect extends BasePgSQLTest {
         assertEquals(5, expectedRows.size());
         assertEquals(expectedRows, getSortedRowList(rs));
       }
-      assertTrue(useIndex(query, PRIMARY_KEY));
+      assertTrue(isIndexScan(statement, query, PRIMARY_KEY));
 
       // Test conditions on regular (non-primary-key) columns.
       query = "SELECT * FROM test_where WHERE vi < 14 AND vs != 'v09'";
@@ -107,7 +107,7 @@ public class TestPgSelect extends BasePgSQLTest {
         assertEquals(13, expectedRows.size());
         assertEquals(expectedRows, getSortedRowList(rs));
       }
-      assertFalse(useIndex(query, PRIMARY_KEY));
+      assertFalse(isIndexScan(statement, query, PRIMARY_KEY));
 
       // Test other WHERE operators (IN, OR, LIKE).
       query = "SELECT * FROM test_where WHERE h = 2 OR h = 3 OR vs LIKE 'v_2'";
@@ -121,7 +121,7 @@ public class TestPgSelect extends BasePgSQLTest {
         assertEquals(28, expectedRows.size());
         assertEquals(expectedRows, getSortedRowList(rs));
       }
-      assertFalse(useIndex(query, PRIMARY_KEY));
+      assertFalse(isIndexScan(statement, query, PRIMARY_KEY));
     }
   }
 
@@ -147,9 +147,9 @@ public class TestPgSelect extends BasePgSQLTest {
     }
 
     // Test aggregates.
-    assertOneRow("SELECT avg(r) FROM test_target", 5.0D);
-    assertOneRow("SELECT count(*) FROM test_target", 100L);
-    assertOneRow("SELECT count(test_target.*) FROM test_target", 100L);
+    assertOneRow(statement, "SELECT avg(r) FROM test_target", 5.0D);
+    assertOneRow(statement, "SELECT count(*) FROM test_target", 100L);
+    assertOneRow(statement, "SELECT count(test_target.*) FROM test_target", 100L);
 
     // Test distinct.
     try (ResultSet rs = statement.executeQuery("SELECT distinct(h) FROM test_target")) {
@@ -161,19 +161,19 @@ public class TestPgSelect extends BasePgSQLTest {
     }
 
     // Test selecting non-existent column.
-    runInvalidQuery(statement, "SELECT v FROM test_target");
+    runInvalidQuery(statement, "SELECT v FROM test_target", "column \"v\" does not exist");
 
     // Test mistyped function.
-    runInvalidQuery(statement, "SELECT vs * r FROM test_target");
+    runInvalidQuery(statement, "SELECT vs * r FROM test_target", "operator does not exist");
 
     // Test aggregates from table without primary key.
     statement.execute("CREATE TABLE test_target_no_pkey(v1 int, v2 int)");
     statement.execute("INSERT INTO test_target_no_pkey(v1, v2) VALUES (1,2)");
     statement.execute("INSERT INTO test_target_no_pkey(v1, v2) VALUES (2,3)");
     statement.execute("INSERT INTO test_target_no_pkey(v1, v2) VALUES (3,4)");
-    assertOneRow("SELECT sum(v1) FROM test_target_no_pkey", 6L);
-    assertOneRow("SELECT count(*) FROM test_target_no_pkey", 3L);
-    assertOneRow("SELECT sum(test_target_no_pkey.v2) FROM test_target_no_pkey", 9L);
+    assertOneRow(statement, "SELECT sum(v1) FROM test_target_no_pkey", 6L);
+    assertOneRow(statement, "SELECT count(*) FROM test_target_no_pkey", 3L);
+    assertOneRow(statement, "SELECT sum(test_target_no_pkey.v2) FROM test_target_no_pkey", 9L);
   }
 
   @Test
@@ -201,7 +201,8 @@ public class TestPgSelect extends BasePgSQLTest {
     }
 
     // Test WITH clause (with RECURSIVE modifier).
-    assertOneRow("WITH RECURSIVE t(n) AS (" +
+    assertOneRow(statement,
+                 "WITH RECURSIVE t(n) AS (" +
                      "    VALUES (1)" +
                      "  UNION ALL" +
                      "    SELECT n+1 FROM t WHERE n < 100" +
@@ -243,7 +244,7 @@ public class TestPgSelect extends BasePgSQLTest {
 
       // Test views from join.
       statement.execute("CREATE VIEW t1_and_t2 AS " + joinStmt);
-      assertOneRow("SELECT * FROM t1_and_t2 WHERE r > 3", 1L, 3.5D, "def", null);
+      assertOneRow(statement, "SELECT * FROM t1_and_t2 WHERE r > 3", 1L, 3.5D, "def", null);
     }
   }
 
@@ -285,14 +286,16 @@ public class TestPgSelect extends BasePgSQLTest {
 
       // Insert a sample row: Row[2, 3.0, 4, 'abc'].
       statement.execute("INSERT INTO test_expr(h, r, vi, vs) VALUES (2, 3.0, 4, 'abc')");
-      assertOneRow("SELECT * FROM test_expr", 2L, 3.0D, 4, "abc");
+      assertOneRow(statement, "SELECT * FROM test_expr", 2L, 3.0D, 4, "abc");
 
       // Test expressions in SELECT targets.
-      assertOneRow("SELECT h + 1.5, pow(r, 2), vi * h, 7 FROM test_expr WHERE h = 2",
+      assertOneRow(statement,
+                   "SELECT h + 1.5, pow(r, 2), vi * h, 7 FROM test_expr WHERE h = 2",
                    new BigDecimal(3.5), 9.0D, 8L, 7);
 
       // Test expressions in SELECT WHERE clause.
-      assertOneRow("SELECT * FROM test_expr WHERE h + r <= 10 AND substring(vs from 2) = 'bc'",
+      assertOneRow(statement,
+                   "SELECT * FROM test_expr WHERE h + r <= 10 AND substring(vs from 2) = 'bc'",
                    2L, 3.0D, 4, "abc");
     }
   }

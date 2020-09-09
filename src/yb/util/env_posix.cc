@@ -37,6 +37,7 @@
 
 #include <set>
 #include <vector>
+#include "yb/util/status.h"
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
@@ -1417,6 +1418,35 @@ class PosixEnv : public Env {
     }
     if (soft_limit != NULL) *soft_limit = lim.rlim_cur;
     if (hard_limit != NULL) *hard_limit = lim.rlim_max;
+    return Status::OK();
+  }
+
+  Status SetUlimit(int resource, int64_t value) override {
+    return SetUlimit(resource, value, strings::Substitute("resource no. $0", resource));
+  }
+
+  Status SetUlimit(int resource, int64_t value, const std::string& resource_name) override {
+    int64_t soft_limit = 0, hard_limit = 0;
+    RETURN_NOT_OK(GetUlimit(resource, &soft_limit, &hard_limit));
+    if (soft_limit == value) {
+      return Status::OK();
+    }
+    if (hard_limit != RLIM_INFINITY && hard_limit < value) {
+      return STATUS_FORMAT(
+        InvalidArgument,
+        "Resource limit value $0 for resource $1 greater than hard limit $2",
+        value, resource, hard_limit);
+    }
+    struct rlimit lim;
+    lim.rlim_cur = value;
+    lim.rlim_max = hard_limit;
+    LOG(INFO)
+        << "Modifying limit for " << resource_name
+        << " from " << soft_limit
+        << " to " << value;
+    if (setrlimit(resource, &lim) != 0) {
+      return STATUS(RuntimeError, "Unable to set rlimit", Errno(errno));
+    }
     return Status::OK();
   }
 

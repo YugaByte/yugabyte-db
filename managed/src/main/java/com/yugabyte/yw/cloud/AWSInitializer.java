@@ -170,10 +170,10 @@ public class AWSInitializer extends AbstractInitializer {
         }
         continue;
       }
-      Region region = Region.find.where()
+      Region region = Region.find.query().where()
           .eq("provider_uuid", provider.uuid)
           .eq("name", regionJson.textValue())
-          .findUnique();
+          .findOne();
       if (region == null) {
         if (enableVerboseLogging) {
           LOG.error("No region " + regionJson.textValue() + " available");
@@ -322,8 +322,10 @@ public class AWSInitializer extends AbstractInitializer {
                                            JsonNode onDemandJson) {
 
     // First check that region exists
-    Region region = Region.find.where().eq("provider_uuid", provider.uuid).eq("name", regionName)
-        .findUnique();
+    Region region = Region.find.query().where()
+      .eq("provider_uuid", provider.uuid)
+      .eq("name", regionName)
+      .findOne();
     if (region == null) {
       LOG.error("Region " + regionName + " not found. Skipping.");
       return;

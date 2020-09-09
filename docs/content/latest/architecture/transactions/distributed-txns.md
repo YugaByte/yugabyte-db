@@ -29,19 +29,18 @@ responsible for the keys the transaction is trying to modify. We call them "prov
 to "regular" ("permanent") records, because they are invisible to readers until the transaction
 commits.
 
-Provisional records are stored in a separate part of the RocksDB key space in the same RocksDB /
-DocDB instance as regular records, but with a separate prefix that puts all provisional records'
-RocksDB keys before those of regular records. Compared to other possible design options, such as
-storing provisional records inline with the regular records or putting them in a separate RocksDB
-instance altogether, the approach we have chosen has the following benefits:
+Provisional records are stored are stored in a separate RocksDB instance in the same tablet peer.
+Compared to other possible design options, such as storing provisional records inline with the
+regular records or putting them in the same RocksDB instance altogether with regular records, the
+approach we have chosen has the following benefits:
 
 - It is easy to scan all provisional records. As we will see, this is very helpful in cleaning up
     aborted / abandoned transactions.
 - During the read path, we need to handle provisional records very differently compared to regular
     records, and putting them in a separate section of the RocksDB key space allows to simplify the
     read path.
-- Storing provisional records in the same RocksDB instance allows to atomically delete provisional
-    records and write regular records as one RocksDB operation after the transaction is committed.
+- Storing provisional records in a separate RocksDB instance allows us to have different storage,
+ compaction, and flush strategies for them.
 
 ### Encoding details of provisional records
 
@@ -72,7 +71,7 @@ the one-byte prefix that puts these records before all regular records in RocksD
 
   As an example, suppose a snapshot isolation transaction is setting column `col1` in row `row1` to
   `value1`. Then `DocumentKey` is `row1` and `SubKey1` is `col1`. Suppose the provisional record was
-  written into the tablet with hybrid `1516847525206000`, and the transaction ID is
+  written into the tablet with hybrid timestamp `1516847525206000`, and the transaction ID is
   `7c98406e-2373-499d-88c2-25d72a4a178c`. In that case we will end up with the following provisional
   record values in RocksDB:
 
@@ -96,32 +95,37 @@ the one-byte prefix that puts these records before all regular records in RocksD
     explicitly passed to all components handling a particular transaction.
   - `Isolation Level` [Snapshot Isolation](https://en.wikipedia.org/wiki/Snapshot_isolation) or
     [Serializable Isolation](https://en.wikipedia.org/wiki/Serializability).
-  - `Priority` This priority is assigned randomly during transaction creation. When a conflict
-    is detected between two transactions, the transaction with lower priority is
-    aborted and restarted.
+  - `Priority` This priority is assigned randomly during transaction creation, when optimistic concurrency control is used. For a transaction running under pessimistic concurrency control, this priority is assigned a very high value. When a conflict is detected between two transactions, the transaction with lower priority is aborted and restarted.
+    For details about concurrency control, see [Explicit locking](../explicit-locking).
 
-#### 3. Provisional record keys indexed by transaction ID** ("reverse index")
+#### 3. Provisional record keys indexed by transaction ID ("reverse index")
 
 ```
 TxnId, HybridTime -> primary provisional record key
 ```
 
-  This mapping allows us to find all RocksDB records belonging to a particular transaction.  This is
-  being used when cleaning up committed or aborted transactions. Note that because multiple RocksDB
-  key-value pairs belonging to primary provisional records can we written for the same transaction
-  with the same hybrid time, we need to use an increasing counter (which we call a *write id*) at
-  the end of the encoded representation of hybrid time in order to obtain unique RocksDB keys for
-  this reverse index. This write ID is shown as `.0`, `.1`, etc. in `T130.0`, `T130.1` in the figure
-  above.
+  This mapping allows us to find all provisional RocksDB records belonging to a particular
+  transaction. This is used when cleaning up committed or aborted transactions. Note that
+  because multiple RocksDB key-value pairs belonging to primary provisional records can we written
+  for the same transaction with the same hybrid timestamp, we need to use an increasing counter 
+  (which we call a *write ID*) at the end of the encoded representation of hybrid time in order to 
+  obtain unique RocksDB keys for this reverse index. This write ID is shown as `.0`, `.1`, etc. in
+  `T130.0`, `T130.1` in the figure above.
 
 ## Transaction status tracking
 
 Atomicity (the "A" in "ACID") means that either all values written by a transaction are visible, or
 none are visible at all. YugabyteDB already provides atomicity of single-shard updates by
 replicating them via Raft and applying them as one write batch to the underlying RocksDB / DocDB
-storage engine. The same approach could be reused to make *transaction status* changes atomic.  The status of transactions is tracked in a "transaction status" table. This table, under the covers, is just another elastic/sharded table in the system. The transaction id (a globally unique id) serves as the key in the table, and updates to a transaction's status are simple single-shard ACID operations. This allows us to atomically make all values written as part of that transaction visible by setting the status to "committed" in that transaction's status record in the table.
+storage engine. The same approach could be reused to make *transaction status* changes atomic.
+The status of transactions is tracked in a "transaction status" table. This table, under the covers,
+is just another sharded table in the system, although it does not use RocksDB and instead stores all
+its data in memory, backed by the Raft WAL. The transaction ID (a globally unique ID) serves as the
+key in the table, and updates to a transaction's status are simple single-shard ACID operations. 
+By setting the status to `committed` in that transaction's status record in the table, all values 
+written as part of that transaction become atomically visible.
 
-A transaction status record contains the following fields for a particular transaction id:
+A transaction status record contains the following fields for a particular transaction ID:
 
 - **Status** (*pending*, *committed*, or *aborted*).
   All transactions start in the "pending" status, and progress to "committed" or "aborted" status,

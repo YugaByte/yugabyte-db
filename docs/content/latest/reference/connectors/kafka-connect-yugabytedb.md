@@ -21,7 +21,7 @@ There are two approaches of integrating [YugabyteDB](https://github.com/yugabyte
 
 The Kafka Connect YugabyteDB source connector streams table updates in YugabyteDB to Kafka topics. It is based on YugabyteDB's Change Data Capture (CDC) feature. CDC allows the connector to simply subscribe to these table changes and then publish the changes to selected Kafka topics.
 
-You can see the source connector in action in the [CDC to Kafka](../../../deploy/cdc/cdc-to-kafka/) page.
+For an example of the source connector in action, see [CDC to Kafka](../../../deploy/cdc/cdc-to-kafka/) page.
 
 ## Kafka Connect YugabyteDB Sink Connector
 
@@ -31,56 +31,58 @@ The Kafka Connect YugabyteDB Sink Connector delivers data from Kafka topics into
 
 For building and using this project, the following tools must be installed on your system.
 
-- JDK - 1.8+
-- Maven - 3.3+
-- Clone this repo into `~/yb-kafka/yb-kafka-connector/` directory.
+- JDK 1.8 or later.
+- Maven 3.3 or later.
+- Clone this repository into `~/yb-kafka/yb-kafka-connector/` directory.
 
 ### Setup and use
 
-1. Set up and start Kafka
+1. Set up and start Kafka.
 
 Download the Apache Kafka `tar` file.
 
     ```sh
     mkdir -p ~/yb-kafka
     cd ~/yb-kafka
-    wget http://apache.cs.utah.edu/kafka/2.0.0/kafka_2.11-2.0.0.tgz
-    tar -xzf kafka_2.11-2.0.0.tgz
+    wget http://apache.cs.utah.edu/kafka/2.5.0/kafka_2.12-2.5.0.tgz
+    tar -xzf kafka_2.12-2.5.0.tgz
     ```
 Any latest version can be used — this is an example.
 
-2. Start Zookeeper and Kafka server
+2. Start Zookeeper and Kafka server.
 
     ```sh
-    ~/yb-kafka/kafka_2.11-2.0.0/bin/zookeeper-server-start.sh config/zookeeper.properties &
-    ~/yb-kafka/kafka_2.11-2.0.0/bin/kafka-server-start.sh config/server.properties &
+    ~/yb-kafka/kafka_2.12-2.5.0/bin/zookeeper-server-start.sh config/zookeeper.properties &
+    ~/yb-kafka/kafka_2.12-2.5.0/bin/kafka-server-start.sh config/server.properties &
     ```
 
 3. Create a Kafka topic.
 
+    ```sh
+    $ ~/yb-kafka/kafka_2.12-2.5.0/bin/kafka-topics.sh --create --zookeeper localhost:2181--replication-factor 1 --partitions 1 --topic test
     ```
-    $ ~/yb-kafka/kafka_2.11-2.0.0/bin/kafka-topics.sh --create --zookeeper localhost:2181--replication-factor 1 --partitions 1 --topic test
-    ```
+
     This needs to be done only once.
-     
+
 4. Run the following to produce data in that topic:
 
     ```sh
-    $ ~/yb-kafka/kafka_2.11-2.0.0/bin/kafka-console-producer.sh --broker-list localhost:9092--topic test_topic
+    $ ~/yb-kafka/kafka_2.12-2.5.0/bin/kafka-console-producer.sh --broker-list localhost:9092--topic test_topic
     ```
 
 5. Just cut-and-paste the following lines at the prompt:
-     
+
      ```
      {"key" : "A", "value" : 1, "ts" : 1541559411000}
      {"key" : "B", "value" : 2, "ts" : 1541559412000}
      {"key" : "C", "value" : 3, "ts" : 1541559413000}
      ```
+
      Feel free to `Ctrl-C` this process or switch to a different shell as more values can be added later as well to the same topic.
 
 2. Install YugabyteDB and create the database table.
 
-    [Install YugabyteDB and start a local cluster](https://docs.yugabyte.com/quick-start/install/).
+    [Install YugabyteDB and start a local cluster](../../../quick-start/install/).
     Create a database and table by running the following command. You can find `ycqlsh` in the `bin`  subdirectory located inside the YugabyteDB installation folder.
 
     ```postgresql
@@ -89,24 +91,24 @@ Any latest version can be used — this is an example.
     demo=# CREATE TABLE demo.test_table (key text, value bigint, ts timestamp, PRIMARY KEY (key));
     ```
 
-3. Set up and run the Kafka Connect Sink
+3. Set up and run the Kafka Connect Sink.
 
-    Setup the required jars needed by connect
+    Set up the JAR files required by Kafka Connect.
 
     ```sh
     $ cd ~/yb-kafka/yb-kafka-connector/
     mvn clean install -DskipTests
-    $ cp  ~/yb-kafka/yb-kafka-connector/target/yb-kafka-connnector-1.0.0.jar ~/yb-kafkakafka_2.11-2.0.0/libs/
-    $ cd ~/yb-kafka/kafka_2.11-2.0.0/libs/
-    $ wget http://central.maven.org/maven2/io/netty/netty-all/4.1.25.Finalnetty-all-4.1.25.Final.jar
-    $ wget http://central.maven.org/maven2/com/yugabyte/cassandra-driver-core/3.2.0-yb-18cassandra-driver-core-3.2.0-yb-18.jar
-    $ wget http://central.maven.org/maven2/com/codahale/metrics/metrics-core/3.0.1metrics-core-3.0.1.jar
+    $ cp  
+    $ cd ~/yb-kafka/kafka_2.12-2.5.0/libs/
+    $ wget https://repo1.maven.org/maven2/io/netty/netty-all/4.1.51.Final/netty-all-4.1.51.Final.jar
+    $ wget https://repo1.maven.org/maven2/com/yugabyte/cassandra-driver-core/3.8.0-yb-5/cassandra-driver-core-3.8.0-yb-5.jar
+    $ wget https://repo1.maven.org/maven2/io/dropwizard/metrics/metrics-core/4.1.11/metrics-core-4.1.11.jar
     ```
 
     Finally, run the Kafka Connect YugabyteDB Sink Connector in standalone mode:
 
     ```sh
-    $ ~/yb-kafka/kafka_2.11-2.0.0/bin/connect-standalone.sh ~/yb-kafka/yb-kafka-connector/resourcesexamples/kafka.connect.properties ~/yb-kafka/yb-kafka-connector/resources/examplesyugabyte.sink.properties 
+    $ ~/yb-kafka/kafka_2.12-2.5.0/bin/connect-standalone.sh ~/yb-kafka/yb-kafka-connector/resourcesexamples/kafka.connect.properties ~/yb-kafka/yb-kafka-connector/resources/examplesyugabyte.sink.properties
     ```
 
     *Notes*:
@@ -135,6 +137,7 @@ Any latest version can be used — this is an example.
    ```postgresql
    demo=# select * from demo.test_table;
    ```
+
    ```
    key | value | ts
    ----+-------+---------------------------------
@@ -143,4 +146,4 @@ Any latest version can be used — this is an example.
      B |     2 | 2018-11-07 02:56:52.000000+0000
    ```
 
-   Note that the timestamp value gets printed as a human-readable date format automatically.
+   Note that timestamp values are printed in human-readable date format.

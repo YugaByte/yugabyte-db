@@ -166,6 +166,7 @@ set(TSERVER_SRCS
   tablet_server.cc
   tablet_server_options.cc
   tablet_service.cc
+  tablet_split_heartbeat_data_provider.cc
   ts_tablet_manager.cc
   tserver-path-handlers.cc
   tserver_metrics_heartbeat_data_provider.cc
@@ -236,7 +237,7 @@ ADD_YB_TEST(ts_tablet_manager-test)
 ADD_YB_TEST(header_manager_impl-test)
 
 ADD_YB_TEST(encrypted_sstable-test)
-target_link_libraries(encrypted_sstable-test encryption_test_util tserver_test_util tserver)
+YB_TEST_TARGET_LINK_LIBRARIES(encrypted_sstable-test encryption_test_util tserver_test_util tserver)
 
 # -------------------------------------------------------------------------------------------------
 # Tests in the "ent" directory

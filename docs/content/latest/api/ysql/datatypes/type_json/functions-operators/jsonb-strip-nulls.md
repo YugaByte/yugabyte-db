@@ -6,7 +6,7 @@ description: Find all key-value pairs in the hierarchy of the supplied JSON comp
 menu:
   latest:
     identifier: jsonb-strip-nulls
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 220
 isTocNested: true
 showAsideToc: true
@@ -23,7 +23,7 @@ return value:      jsonb
 
 **Notes:** By definition, these functions leave _null_ values within _arrays_ untouched.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb :=

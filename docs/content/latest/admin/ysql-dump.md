@@ -217,9 +217,9 @@ Only dump the named section. The section name can be pre-data, data, or post-dat
 
 The data section contains actual table data, large-object contents, and sequence values. Post-data items include definitions of indexes, triggers, rules, and constraints other than validated check constraints. Pre-data items include all other data definition items.
 
-#### --serializable-deferrable
+#### --no-serializable-deferrable
 
-Use a `serializable` transaction for the dump to ensure that the snapshot used is consistent with later database states by waiting for a point in the transaction stream at which no anomalies can be present, so that there is no risk of the dump failing or causing other transactions to roll back with a `serialization_failure`.
+Use the `--no-serializable-deferrable` flag to disable the default `serializable-deferrable` transaction mode. The `serializable-deferrable` mode ensures that the snapshot used is consistent with later database states by waiting for a point in the transaction stream at which no anomalies can be present, so that there is no risk of the dump failing or causing other transactions to roll back with a `serialization_failure`.
 
 If there are active read-write transactions, the maximum wait time until the start of the dump will be `50ms` (based on the default [`--max_clock_skew_usec`](../../reference/configuration/yb-tserver/#max-clock-skew-usec) for YB-TServer and YB-Master servers.) If there are no active read-write transactions when `ysql_dump` is started, this option will not make any difference. Once running, performance with or without the option is the same.
 

@@ -55,7 +55,8 @@ public class CloudAccessKeySetup extends CloudTaskBase {
       String sanitizedProviderName = getProvider().name.replaceAll("\\s+", "-").toLowerCase();
       String accessKeyCode = String.format(
           "yb-%s-%s-key", Customer.get(getProvider().customerUUID).code, sanitizedProviderName);
-      accessManager.addKey(region.uuid, accessKeyCode, sshPort, airGapInstall);
+      accessManager.addKey(
+          region.uuid, accessKeyCode, null, taskParams().sshUser, sshPort, airGapInstall);
     } else {
       // Create temp file and fill with content.
       AccessManager.KeyType keyType = AccessManager.KeyType.PRIVATE;

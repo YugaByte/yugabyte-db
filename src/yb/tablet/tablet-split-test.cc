@@ -19,6 +19,7 @@
 #include "yb/common/ql_value.h"
 
 #include "yb/docdb/docdb.h"
+#include "yb/docdb/docdb_debug.h"
 
 #include "yb/tablet/tablet-test-util.h"
 #include "yb/tablet/tablet.h"
@@ -70,8 +71,26 @@ class TabletSplitTest : public YBTabletTest {
     return CreateRowBlock(QLClient::YQL_CLIENT_CQL, schema_, result.rows_data)->rows();
   }
 
+  docdb::DocKeyHash GetRowHashCode(const QLRow& row) {
+    std::string tmp;
+    AppendToKey(row.column(0).value(), &tmp);
+    return YBPartition::HashColumnCompoundValue(tmp);
+  }
+
   std::unique_ptr<LocalTabletWriter> writer_;
 };
+
+namespace {
+
+boost::optional<docdb::DocKeyHash> PartitionKeyToHash(const std::string& partition_key) {
+  if (partition_key.empty()) {
+    return boost::none;
+  } else {
+    return PartitionSchema::DecodeMultiColumnHashValue(partition_key);
+  }
+}
+
+} // namespace
 
 TEST_F(TabletSplitTest, SplitTablet) {
   constexpr auto kNumRows = 10000;
@@ -150,7 +169,18 @@ TEST_F(TabletSplitTest, SplitTablet) {
     ASSERT_EQ(source_docdb_dump_str, split_docdb_dump_str);
 
     // But split tablets should only return relevant data without overlap and no unexpected data.
+    const auto& split_partition = split_tablet->metadata()->partition();
+    const auto start_hash = PartitionKeyToHash(split_partition->partition_key_start());
+    const auto end_hash = PartitionKeyToHash(split_partition->partition_key_end());
+
     for (const auto& row : ASSERT_RESULT(SelectAll(split_tablet.get()))) {
+      const auto hash_code = GetRowHashCode(row);
+      if (start_hash) {
+        ASSERT_GE(hash_code, *start_hash);
+      }
+      if (end_hash) {
+        ASSERT_LT(hash_code, *end_hash);
+      }
       ASSERT_EQ(source_rows.erase(row.ToString()), 1);
     }
 

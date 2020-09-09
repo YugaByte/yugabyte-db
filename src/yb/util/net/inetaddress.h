@@ -37,12 +37,6 @@ class InetAddress {
 
   InetAddress(const InetAddress& other);
 
-  // Resolves the given host and populates addresses with a list of IP addresses for the host.
-  static CHECKED_STATUS Resolve(const std::string& host, std::vector<InetAddress>* addresses);
-
-  // Builds an InetAddress object given a string representation of an IPv4 or IPv6 address.
-  CHECKED_STATUS FromString(const std::string& strval);
-
   // Fills in strval with the string representation of an IPv4 or IPv6 address.
   CHECKED_STATUS ToString(std::string* strval) const;
 
@@ -66,12 +60,12 @@ class InetAddress {
   }
 
   bool isV4() const {
-    CHECK(!boost_addr_.is_unspecified());
+    DCHECK(!boost_addr_.is_unspecified());
     return boost_addr_.is_v4();
   }
 
   bool isV6() const {
-    CHECK(!boost_addr_.is_unspecified());
+    DCHECK(!boost_addr_.is_unspecified());
     return boost_addr_.is_v6();
   }
 
@@ -111,6 +105,9 @@ class InetAddress {
  private:
   boost::asio::ip::address boost_addr_;
 };
+
+void FilterAddresses(const string &transform_spec,
+                     vector<boost::asio::ip::address> *addresses);
 
 } // namespace yb
 

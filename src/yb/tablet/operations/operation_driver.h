@@ -167,7 +167,7 @@ class OperationDriver : public RefCountedThreadSafe<OperationDriver>,
 
   Trace* trace() { return trace_.get(); }
 
-  void HandleConsensusAppend() override;
+  void HandleConsensusAppend(const yb::OpId& op_id, const yb::OpId& committed_op_id) override;
 
   bool is_leader_side() {
     // TODO: switch state to an atomic.

@@ -101,16 +101,16 @@ message LogSegmentFooterPB {
 
   // The minimum and maximum index of a REPLICATE message in this segment.
   // NOTE: because of log truncation, the min/max are not necessarily the first/last!  For example,
-  // a log segment may contain entries "1.5, 1.6, 3.3, 2.3" due to multiple term changes.
+  // a log segment may contain entries "1.5, 1.6, 2.3, 3.3" due to multiple term changes.
   //
-  // Because it's possible for a segment to have no replicate messages in it (TODO: is this still
-  // true after we removed COMMIT messages?), these are optional. We set the default to -1 to avoid
-  // accidentally reading 0, which might look like a real log index.
+  // Because it's possible for a segment to have no REPLICATE messages in it, we set the default
+  // to -1 for these fields to avoid accidentally reading 0, which might look like a real log index.
   optional int64 min_replicate_index = 2 [ default = -1 ];
   optional int64 max_replicate_index = 3 [ default = -1 ];
 
   // The time (microseconds since epoch) when this segment was closed.
-  // NOTE: since log segments are rewritten during bootstrap, these will all be reset to the time of
-  // the bootstrap on a newly-restarted server, rather than copied over from the old log segments.
+  // NOTE: in configurations where --skip_wal_rewrite=false is specified, log segments are rewritten
+  // during bootstrap, so this field will be reset to the time of the bootstrap in each log segment
+  // on a newly-restarted server, rather than copied over from the old log segments.
   optional int64 close_timestamp_micros = 4;
 }

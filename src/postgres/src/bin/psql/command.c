@@ -745,8 +745,17 @@ exec_command_d(PsqlScanState scan_state, bool active_branch, const char *cmd)
 				}
 				break;
 			case 'g':
-				/* no longer distinct from \du */
-				success = describeRoles(pattern, show_verbose, show_system);
+				if (strncmp(cmd, "dgrt", 4) == 0)
+					success = listTablegroups(pattern, show_verbose, true);
+				else if (strncmp(cmd, "dgr", 3) == 0)
+				{
+					success = listTablegroups(pattern, show_verbose, false);
+				}
+				else
+				{
+					/* no longer distinct from \du */
+					success = describeRoles(pattern, show_verbose, show_system);
+				}
 				break;
 			case 'l':
 				success = do_lo_list();

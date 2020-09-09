@@ -539,11 +539,14 @@ ExecDeleteIndexTuples(Datum ybctid, HeapTuple tuple, EState *estate)
 		 * If the index is not ready for deletes and index backfill is enabled,
 		 * ignore it
 		 */
-		if (YBCGetDisableIndexBackfill()
+		if (!YBCGetDisableIndexBackfill()
 				&& !indexRelation->rd_index->indislive)
 			continue;
-		/* If the index is marked as read-only, ignore it */
-		if (!indexRelation->rd_index->indislive)
+		/*
+		 * If the index is marked as read-only and index backfill is disabled,
+		 * ignore it
+		 */
+		if (YBCGetDisableIndexBackfill() && !indexInfo->ii_ReadyForInserts)
 			continue;
 
 		/* Check for partial index */

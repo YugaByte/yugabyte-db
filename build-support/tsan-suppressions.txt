@@ -53,8 +53,8 @@ race:boost::uuids::detail::seed_rng::sha1_random_digest_
 # suppression.
 # ------------------------------------------------------------
 
-# KUDU-1283: TSAN warning from consensus OpId
-race:yb::consensus::OpId::CopyFrom
+# KUDU-1283: TSAN warning from consensus OpIdPB
+race:yb::OpIdPB::CopyFrom
 
 # KUDU-186: sketchy synchronization in catalog manager
 race:yb::master::CatalogManager::Shutdown

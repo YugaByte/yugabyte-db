@@ -49,6 +49,10 @@ DEFINE_int32(catalog_manager_bg_task_wait_ms, 1000,
              "between runs");
 TAG_FLAG(catalog_manager_bg_task_wait_ms, hidden);
 
+DEFINE_int32(load_balancer_initial_delay_secs, 120,
+             "Amount of time to wait between becoming master leader and enabling the load "
+             "balancer.");
+
 namespace yb {
 namespace master {
 
@@ -139,7 +143,10 @@ void CatalogManagerBgTasks::Run() {
                      << s.ToString();
         }
       } else {
-        catalog_manager_->load_balance_policy_->RunLoadBalancer();
+        if (catalog_manager_->TimeSinceElectedLeader() >
+            MonoDelta::FromSeconds(FLAGS_load_balancer_initial_delay_secs)) {
+          catalog_manager_->load_balance_policy_->RunLoadBalancer();
+        }
       }
 
       if (!to_delete.empty() || catalog_manager_->AreTablesDeleting()) {

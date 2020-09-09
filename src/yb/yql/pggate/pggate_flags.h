@@ -29,16 +29,15 @@ DECLARE_double(ysql_backward_prefetch_scale_factor);
 DECLARE_int32(ysql_session_max_batch_size);
 DECLARE_bool(ysql_non_txn_copy);
 DECLARE_int32(ysql_max_read_restart_attempts);
+DECLARE_bool(TEST_ysql_disable_transparent_cache_refresh_retry);
 DECLARE_int32(ysql_output_buffer_size);
 DECLARE_int32(ysql_select_parallelism);
 
 DECLARE_bool(ysql_suppress_unsupported_error);
 
 DECLARE_bool(ysql_beta_features);
-DECLARE_bool(ysql_beta_feature_function);
-DECLARE_bool(ysql_beta_feature_trigger);
-DECLARE_bool(ysql_beta_feature_roles);
 DECLARE_bool(ysql_beta_feature_extension);
+DECLARE_bool(ysql_beta_feature_tablegroup);
 DECLARE_bool(ysql_enable_manual_sys_table_txn_ctl);
 DECLARE_bool(ysql_serializable_isolation_for_ddl_txn);
 

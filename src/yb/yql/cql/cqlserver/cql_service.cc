@@ -13,8 +13,12 @@
 
 #include "yb/yql/cql/cqlserver/cql_service.h"
 
+#include <openssl/sha.h>
+
 #include <mutex>
 #include <thread>
+
+#include <boost/compute/detail/lru_cache.hpp>
 
 #include "yb/client/meta_data_cache.h"
 #include "yb/client/transaction_pool.h"
@@ -24,6 +28,7 @@
 #include "yb/yql/cql/cqlserver/cql_processor.h"
 #include "yb/yql/cql/cqlserver/cql_rpc.h"
 #include "yb/yql/cql/cqlserver/cql_server.h"
+#include "yb/yql/cql/cqlserver/system_query_cache.h"
 
 #include "yb/gutil/strings/substitute.h"
 #include "yb/rpc/messenger.h"
@@ -31,12 +36,15 @@
 #include "yb/tserver/tablet_server.h"
 
 #include "yb/util/bytes_formatter.h"
+#include "yb/util/crypt.h"
+
 #include "yb/util/mem_tracker.h"
 
 using namespace std::placeholders;
 using namespace yb::size_literals;
 
 DECLARE_bool(use_cassandra_authentication);
+DECLARE_int32(cql_update_system_query_cache_msecs);
 
 DEFINE_int64(cql_service_max_prepared_statement_size_bytes, 128_MB,
              "The maximum amount of memory the CQL proxy should use to maintain prepared "
@@ -44,6 +52,12 @@ DEFINE_int64(cql_service_max_prepared_statement_size_bytes, 128_MB,
 DEFINE_int32(cql_ybclient_reactor_threads, 24,
              "The number of reactor threads to be used for processing ybclient "
              "requests originating in the cql layer");
+DEFINE_int32(password_hash_cache_size, 64, "Number of password hashes to cache. 0 or "
+             "negative disables caching.");
+DEFINE_int64(cql_processors_limit, -4000,
+             "Limit number of CQL processors. Positive means absolute limit. "
+             "Negative means number of processors per 1GB of root mem tracker memory limit. "
+             "0 - unlimited.");
 
 namespace yb {
 namespace cqlserver {
@@ -61,13 +75,53 @@ using yb::client::YBSession;
 using yb::client::YBMetaDataCache;
 using yb::rpc::InboundCall;
 
+class ParserFactory {
+ public:
+  explicit ParserFactory(CQLMetrics* metrics) : metrics_(metrics) {}
+
+  ql::Parser* operator()() const {
+    metrics_->parsers_created_->Increment();
+    metrics_->parsers_alive_->Increment();
+    return new ql::Parser;
+  }
+
+ private:
+  CQLMetrics* metrics_;
+};
+
+class ParserDeleter {
+ public:
+  explicit ParserDeleter(CQLMetrics* metrics) : metrics_(metrics) {}
+
+  void operator()(ql::Parser* parser) const {
+    metrics_->parsers_alive_->Decrement();
+    delete parser;
+  }
+
+ private:
+  CQLMetrics* metrics_;
+};
+
+int64_t CQLProcessorsLimit() {
+  auto value = FLAGS_cql_processors_limit;
+  if (value > 0) {
+    return value;
+  }
+  if (value == 0) {
+    return std::numeric_limits<int64_t>::max();
+  }
+  return (-value * MemTracker::GetRootTracker()->limit()) >> 30;
+}
+
 CQLServiceImpl::CQLServiceImpl(CQLServer* server, const CQLServerOptions& opts)
     : CQLServerServiceIf(server->metric_entity()),
       server_(server),
       next_available_processor_(processors_.end()),
+      password_cache_(FLAGS_password_hash_cache_size),
+      // TODO(ENG-446): Handle metrics for all the methods individually.
+      cql_metrics_(std::make_shared<CQLMetrics>(server->metric_entity())),
+      parser_pool_(ParserFactory(cql_metrics_.get()), ParserDeleter(cql_metrics_.get())),
       messenger_(server->messenger()) {
-  // TODO(ENG-446): Handle metrics for all the methods individually.
-  cql_metrics_ = std::make_shared<CQLMetrics>(server->metric_entity());
 
   // Setup prepared statements' memory tracker. Add garbage-collect function to delete least
   // recently used statements when limit is hit.
@@ -76,10 +130,20 @@ CQLServiceImpl::CQLServiceImpl(CQLServer* server, const CQLServerOptions& opts)
       FLAGS_cql_service_max_prepared_statement_size_bytes : -1,
       "CQL prepared statements", server->mem_tracker());
 
+  LOG(INFO) << "CQL processors limit: " << CQLProcessorsLimit();
+
+  processors_mem_tracker_ = MemTracker::CreateTracker("CQL processors", server->mem_tracker());
+
   auth_prepared_stmt_ = std::make_shared<ql::Statement>(
       "",
       Substitute("SELECT $0, $1 FROM system_auth.roles WHERE role = ?",
                  kRoleColumnNameSaltedHash, kRoleColumnNameCanLogin));
+
+  if (FLAGS_cql_update_system_query_cache_msecs > 0) {
+    system_cache_ = std::make_shared<SystemQueryCache>(this);
+  } else {
+    VLOG(1) << "System query cache disabled.";
+  }
 }
 
 CQLServiceImpl::~CQLServiceImpl() {
@@ -133,27 +197,39 @@ void CQLServiceImpl::Handle(yb::rpc::InboundCallPtr inbound_call) {
 
   // Process the call.
   MonoTime start = MonoTime::Now();
-  CQLProcessor *processor = GetProcessor();
-  CHECK(processor != nullptr);
+
+  Result<CQLProcessor*> processor = GetProcessor();
+  if (!processor.ok()) {
+    inbound_call->RespondFailure(rpc::ErrorStatusPB::ERROR_SERVER_TOO_BUSY, processor.status());
+    return;
+  }
   MonoTime got_processor = MonoTime::Now();
   cql_metrics_->time_to_get_cql_processor_->Increment(
       got_processor.GetDeltaSince(start).ToMicroseconds());
-  processor->ProcessCall(std::move(inbound_call));
+  (**processor).ProcessCall(std::move(inbound_call));
 }
 
-CQLProcessor *CQLServiceImpl::GetProcessor() {
+Result<CQLProcessor*> CQLServiceImpl::GetProcessor() {
   CQLProcessorListPos pos;
   {
     // Retrieve the next available processor. If none is available, allocate a new slot in the list.
     // Then create the processor outside the mutex below.
     std::lock_guard<std::mutex> guard(processors_mutex_);
-    pos = (next_available_processor_ != processors_.end() ?
-           next_available_processor_++ : processors_.emplace(processors_.end()));
+    if (next_available_processor_ != processors_.end()) {
+      return (next_available_processor_++)->get();
+    }
+
+    auto limit = CQLProcessorsLimit();
+    if (num_allocated_processors_ >= limit) {
+      return STATUS_FORMAT(ServiceUnavailable,
+                           "Unable to allocate CQL processor, already allocated $0 of $1",
+                           num_allocated_processors_, limit);
+    }
+    ++num_allocated_processors_;
+    pos = processors_.emplace(processors_.end());
   }
 
-  if (pos->get() == nullptr) {
-    pos->reset(new CQLProcessor(this, pos));
-  }
+  *pos = std::make_unique<CQLProcessor>(this, pos);
   return pos->get();
 }
 
@@ -227,6 +303,45 @@ void CQLServiceImpl::DeletePreparedStatement(const shared_ptr<const CQLStatement
   VLOG(1) << "DeletePreparedStatement: CQL prepared statement cache count = "
           << prepared_stmts_map_.size() << "/" << prepared_stmts_list_.size()
           << ", memory usage = " << prepared_stmts_mem_tracker_->consumption();
+}
+
+bool CQLServiceImpl::CheckPassword(
+    const std::string plain,
+    const std::string expected_bcrypt_hash) {
+  if (FLAGS_password_hash_cache_size <= 0) {
+    return util::bcrypt_checkpw(plain.c_str(), expected_bcrypt_hash.c_str()) == 0;
+  }
+
+  std::string sha_hash(SHA256_DIGEST_LENGTH, '\0');
+  {
+    SHA256_CTX ctx;
+    SHA256_Init(&ctx);
+    SHA256_Update(&ctx, plain.c_str(), plain.length());
+    SHA256_Final((unsigned char*) &sha_hash[0], &ctx);
+  }
+  // bcrypt can generate multiple hashes from a single key, since a salt is
+  // randomly generated each time a password is set. Using a compound key allows
+  // the same plaintext to be associated with different hashes.
+  std::string key = sha_hash + ":" + expected_bcrypt_hash;
+
+  {
+    std::lock_guard<std::mutex> guard(password_cache_mutex_);
+    auto entry = password_cache_.get(key);
+    if (entry) {
+      return true;
+    }
+  }
+
+  // bcrypt_checkpw has stringcmp semantics.
+  bool correct = util::bcrypt_checkpw(plain.c_str(), expected_bcrypt_hash.c_str()) == 0;
+  if (correct) {
+    std::lock_guard<std::mutex> guard(password_cache_mutex_);
+    // Boost's LRU cache interprets insertion of a duplicate key as a no-op, so
+    // even if two threads successfully log in to the same account, there should
+    // not be a race condition here.
+    password_cache_.insert(key, true);
+  }
+  return correct;
 }
 
 void CQLServiceImpl::InsertLruPreparedStatementUnlocked(const shared_ptr<CQLStatement>& stmt) {

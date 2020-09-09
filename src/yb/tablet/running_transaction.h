@@ -16,6 +16,9 @@
 
 #include <memory>
 
+#include "yb/docdb/docdb.h"
+
+#include "yb/tablet/apply_intents_task.h"
 #include "yb/tablet/remove_intents_task.h"
 #include "yb/tablet/transaction_participant.h"
 
@@ -81,6 +84,16 @@ class RunningTransaction : public std::enable_shared_from_this<RunningTransactio
   std::string ToString() const;
   void ScheduleRemoveIntents(const RunningTransactionPtr& shared_self);
 
+  // Sets apply state for this transaction.
+  // If data is not null, then apply intents task will be initiated if was not previously started.
+  void SetApplyData(const docdb::ApplyTransactionState& apply_state,
+                    const TransactionApplyData* data = nullptr);
+
+  // Whether this transactions is currently applying intents.
+  bool ProcessingApply() const;
+
+  std::string LogPrefix() const;
+
  private:
   static boost::optional<TransactionStatus> GetStatusAt(
       HybridTime time,
@@ -117,8 +130,6 @@ class RunningTransaction : public std::enable_shared_from_this<RunningTransactio
                      const tserver::AbortTransactionResponsePB& response,
                      const RunningTransactionPtr& shared_self);
 
-  std::string LogPrefix() const;
-
   TransactionMetadata metadata_;
   TransactionalBatchData last_batch_data_;
   OneWayBitmap replicated_batches_;
@@ -132,6 +143,10 @@ class RunningTransaction : public std::enable_shared_from_this<RunningTransactio
   rpc::Rpcs::Handle get_status_handle_;
   rpc::Rpcs::Handle abort_handle_;
   std::vector<TransactionStatusCallback> abort_waiters_;
+
+  TransactionApplyData apply_data_;
+  docdb::ApplyTransactionState apply_state_;
+  ApplyIntentsTask apply_intents_task_;
 };
 
 CHECKED_STATUS MakeAbortedStatus(const TransactionId& id);

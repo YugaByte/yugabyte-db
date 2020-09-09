@@ -11,6 +11,8 @@ export { default as TableDetailContainer } from './TableDetail/TableDetailContai
 export { default as TableSchema} from './TableSchema/TableSchema';
 export { default as ListBackups } from './ListBackups/ListBackups';
 export { default as ListBackupsContainer } from './ListBackups/ListBackupsContainer';
+export { default as Replication } from './Replication/Replication';
+export { default as ReplicationContainer } from './Replication/ReplicationContainer';
 export { default as TableAction } from './TableAction/TableAction';
 export { default as CreateBackup } from './CreateBackup/CreateBackup';
 export { default as CreateBackupContainer } from './CreateBackup/CreateBackupContainer';

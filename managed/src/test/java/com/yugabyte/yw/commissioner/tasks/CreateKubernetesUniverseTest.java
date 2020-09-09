@@ -36,10 +36,16 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static com.yugabyte.yw.commissioner.tasks.subtasks.KubernetesCommandExecutor.CommandType.CREATE_NAMESPACE;
-import static com.yugabyte.yw.commissioner.tasks.subtasks.KubernetesCommandExecutor.CommandType.APPLY_SECRET;
-import static com.yugabyte.yw.commissioner.tasks.subtasks.KubernetesCommandExecutor.CommandType.HELM_INSTALL;
-import static com.yugabyte.yw.commissioner.tasks.subtasks.KubernetesCommandExecutor.CommandType.POD_INFO;
+import static com.yugabyte.yw.commissioner.tasks.subtasks
+                 .KubernetesCommandExecutor.CommandType.CREATE_NAMESPACE;
+import static com.yugabyte.yw.commissioner.tasks.subtasks
+                 .KubernetesCommandExecutor.CommandType.APPLY_SECRET;
+import static com.yugabyte.yw.commissioner.tasks.subtasks
+                 .KubernetesCommandExecutor.CommandType.HELM_INSTALL;
+import static com.yugabyte.yw.commissioner.tasks.subtasks
+                 .KubernetesCommandExecutor.CommandType.POD_INFO;
+import static com.yugabyte.yw.commissioner.tasks.subtasks
+                 .KubernetesCheckNumPod.CommandType.WAIT_FOR_PODS;
 import static com.yugabyte.yw.commissioner.tasks.subtasks.UpdatePlacementInfo.ModifyUniverseConfig;
 import static com.yugabyte.yw.common.ApiUtils.getTestUserIntent;
 import static com.yugabyte.yw.common.AssertHelper.assertJsonEqual;
@@ -117,15 +123,21 @@ public class CreateKubernetesUniverseTest extends CommissionerBaseTest {
     defaultProvider.save();
     ShellProcessHandler.ShellResponse response = new ShellProcessHandler.ShellResponse();
     when(mockKubernetesManager.createNamespace(anyMap(), any())).thenReturn(response);
-    when(mockKubernetesManager.applySecret(anyMap(), any(), any())).thenReturn(response);
     when(mockKubernetesManager.helmInstall(anyMap(), any(), any(), any())).thenReturn(response);
     // Table RPCs.
     mockClient = mock(YBClient.class);
+    // WaitForTServerHeartBeats mock.
+    ListTabletServersResponse mockResponse = mock(ListTabletServersResponse.class);
+    when(mockResponse.getTabletServersCount()).thenReturn(3);
+    when(mockClient.waitForServer(any(), anyLong())).thenReturn(true);
     when(mockYBClient.getClient(any(), any())).thenReturn(mockClient);
     YBTable mockTable = mock(YBTable.class);
     when(mockTable.getName()).thenReturn("redis");
     when(mockTable.getTableType()).thenReturn(Common.TableType.REDIS_TABLE_TYPE);
+    ChangeMasterClusterConfigResponse ccr = new ChangeMasterClusterConfigResponse(1111, "", null);
     try {
+      when(mockClient.changeMasterClusterConfig(any())).thenReturn(ccr);
+      when(mockClient.listTabletServers()).thenReturn(mockResponse);
       when(mockClient.createRedisTable(any())).thenReturn(mockTable);
     } catch (Exception e) {}
     // WaitForServer mock.
@@ -136,6 +148,7 @@ public class CreateKubernetesUniverseTest extends CommissionerBaseTest {
       TaskType.KubernetesCommandExecutor,
       TaskType.KubernetesCommandExecutor,
       TaskType.KubernetesCommandExecutor,
+      TaskType.KubernetesCheckNumPod,
       TaskType.KubernetesCommandExecutor,
       TaskType.WaitForServer,
       TaskType.WaitForMasterLeader,
@@ -151,6 +164,7 @@ public class CreateKubernetesUniverseTest extends CommissionerBaseTest {
       Json.toJson(ImmutableMap.of("commandType", CREATE_NAMESPACE.name())),
       Json.toJson(ImmutableMap.of("commandType", APPLY_SECRET.name())),
       Json.toJson(ImmutableMap.of("commandType", HELM_INSTALL.name())),
+      Json.toJson(ImmutableMap.of("commandType", WAIT_FOR_PODS.name())),
       Json.toJson(ImmutableMap.of("commandType", POD_INFO.name())),
       Json.toJson(ImmutableMap.of()),
       Json.toJson(ImmutableMap.of()),
@@ -167,6 +181,10 @@ public class CreateKubernetesUniverseTest extends CommissionerBaseTest {
     int position = 0;
     for (TaskType taskType: KUBERNETES_CREATE_UNIVERSE_TASKS) {
       List<TaskInfo> tasks = subTasksByPosition.get(position);
+      if (taskType == TaskType.KubernetesCheckNumPod) {
+        position++;
+        continue;
+      }
       JsonNode expectedResults =
           getExpectedCreateUniverseTaskResults().get(position);
       List<JsonNode> taskDetails = tasks.stream()
@@ -177,7 +195,7 @@ public class CreateKubernetesUniverseTest extends CommissionerBaseTest {
         Json.toJson(ImmutableMap.of("commandType", APPLY_SECRET.name())),
         Json.toJson(ImmutableMap.of("commandType", HELM_INSTALL.name())));
       if (parallelTasks.contains(expectedResults)) {
-        assertEquals(numTasks, tasks.size());  
+        assertEquals(numTasks, tasks.size());
       } else if (taskType == TaskType.WaitForServer) {
         assertEquals(3, tasks.size());
       } else {
@@ -225,26 +243,26 @@ public class CreateKubernetesUniverseTest extends CommissionerBaseTest {
     ArgumentCaptor<HashMap> expectedConfig = ArgumentCaptor.forClass(HashMap.class);
     UniverseDefinitionTaskParams taskParams = new UniverseDefinitionTaskParams();
     TaskInfo taskInfo = submitTask(taskParams);
-    
+
     verify(mockKubernetesManager, times(3)).createNamespace(expectedConfig.capture(),
         String.format("%s-%s", expectedNodePrefix.capture(), "az-1"));
     verify(mockKubernetesManager, times(3)).createNamespace(expectedConfig.capture(),
         String.format("%s-%s", expectedNodePrefix.capture(), "az-2"));
     verify(mockKubernetesManager, times(3)).createNamespace(expectedConfig.capture(),
         String.format("%s-%s", expectedNodePrefix.capture(), "az-3"));
-    
+
     verify(mockKubernetesManager, times(3)).helmInstall(expectedConfig.capture(), expectedUniverseUUID.capture(),
         String.format("%s-%s", expectedNodePrefix.capture(), "az-1"), expectedOverrideFile.capture());
     verify(mockKubernetesManager, times(3)).helmInstall(expectedConfig.capture(), expectedUniverseUUID.capture(),
         String.format("%s-%s", expectedNodePrefix.capture(), "az-2"), expectedOverrideFile.capture());
     verify(mockKubernetesManager, times(3)).helmInstall(expectedConfig.capture(), expectedUniverseUUID.capture(),
         String.format("%s-%s", expectedNodePrefix.capture(), "az-3"), expectedOverrideFile.capture());
-    
+
     assertEquals(defaultProvider.uuid, expectedUniverseUUID.getValue());
     assertTrue(expectedNodePrefix.getValue().contains(nodePrefix));
     String overrideFileRegex = "(.*)" + defaultUniverse.universeUUID + "(.*).yml";
     assertThat(expectedOverrideFile.getValue(), RegexMatcher.matchesRegex(overrideFileRegex));
-    
+
     verify(mockKubernetesManager, times(3)).getPodInfos(expectedConfig.capture(),
         String.format("%s-%s", expectedNodePrefix.capture(), "az-1"));
     verify(mockKubernetesManager, times(3)).getPodInfos(expectedConfig.capture(),
@@ -288,13 +306,14 @@ public class CreateKubernetesUniverseTest extends CommissionerBaseTest {
 
     UniverseDefinitionTaskParams taskParams = new UniverseDefinitionTaskParams();
     TaskInfo taskInfo = submitTask(taskParams);
-    
+
     verify(mockKubernetesManager, times(1)).createNamespace(expectedConfig.capture(),
         expectedNodePrefix.capture());
-    
-    verify(mockKubernetesManager, times(1)).helmInstall(expectedConfig.capture(), expectedUniverseUUID.capture(),
+
+    verify(mockKubernetesManager, times(1)).helmInstall(expectedConfig.capture(),
+        expectedUniverseUUID.capture(),
         expectedNodePrefix.capture(), expectedOverrideFile.capture());
-    
+
     assertEquals(defaultProvider.uuid, expectedUniverseUUID.getValue());
     assertEquals(expectedNodePrefix.getValue(), nodePrefix);
     String overrideFileRegex = "(.*)" + defaultUniverse.universeUUID + "(.*).yml";

@@ -105,14 +105,14 @@ class Certificates extends Component {
     const payload = {
       name: row.name,
       uuid: row.uuid,
-      certStart: moment(row.creationTime).unix(),
-      certExpiry: moment(row.expiryDate).unix(),
+      certStart: moment(row.creationTime).valueOf(),
+      certExpiry: moment(row.expiryDate).valueOf(),
     };
     return (
       <a onClick={() => {
-          this.setState({selectedCert: payload})
-          this.props.showDownloadCertificateModal()
-        }}
+        this.setState({selectedCert: payload});
+        this.props.showDownloadCertificateModal();
+      }}
         className="btn-orange"
         style={{padding: '8px 15px', borderRadius: '7px', background: '#7a6f6f', cursor: 'pointer'}}
       >

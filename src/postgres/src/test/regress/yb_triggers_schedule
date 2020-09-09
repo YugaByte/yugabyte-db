@@ -1,0 +1,10 @@
+# src/test/regress/yb_triggers_schedule
+#
+####################################################################################################
+# Triggers Testsuites
+####################################################################################################
+# Dependency for `yb_pg_triggers`
+test: yb_pg_create_function_1
+
+test: yb_pg_triggers
+test: yb_triggers

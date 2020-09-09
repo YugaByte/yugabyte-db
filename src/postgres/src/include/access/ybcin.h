@@ -34,6 +34,11 @@ extern bool ybcininsert(Relation rel, Datum *values, bool *isnull, Datum ybctid,
 						IndexUniqueCheck checkUnique, struct IndexInfo *indexInfo);
 extern void ybcindelete(Relation rel, Datum *values, bool *isnull, Datum ybctid, Relation heapRel,
 						struct IndexInfo *indexInfo);
+extern IndexBuildResult *ybcinbackfill(Relation heap,
+									   Relation index,
+									   struct IndexInfo *indexInfo,
+									   uint64_t *read_time,
+									   RowBounds *row_bounds);
 extern IndexBulkDeleteResult *ybcinbulkdelete(IndexVacuumInfo *info,
 											  IndexBulkDeleteResult *stats,
 											  IndexBulkDeleteCallback callback,

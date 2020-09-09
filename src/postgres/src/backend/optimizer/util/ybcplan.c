@@ -442,8 +442,12 @@ static bool ModifyTableIsSingleRowWrite(ModifyTable *modifyTable)
 		{
 			/*
 			 * Simple values clause: multiple valueset (multi-row).
-			 * TODO Eventually we could inspect hash key values to check
-			 * if single shard and optimize that.
+			 * TODO: Eventually we could inspect hash key values to check
+			 *       if single shard and optimize that.
+			 *       ---
+			 *       In this case we'd need some other way to explicitly filter out
+			 *       updates involving primary key - right now we simply rely on
+			 *       planner not setting the node to Result.
 			 */
 			return false;
 
@@ -495,8 +499,9 @@ bool YBCIsSingleRowUpdateOrDelete(ModifyTable *modifyTable)
 /*
  * Returns true if provided Bitmapset of attribute numbers
  * matches the primary key attribute numbers of the relation.
+ * Expects YBGetFirstLowInvalidAttributeNumber to be subtracted from attribute numbers.
  */
-bool YBCAllPrimaryKeysProvided(Oid relid, Bitmapset *attrs)
+bool YBCAllPrimaryKeysProvided(Relation rel, Bitmapset *attrs)
 {
 	if (bms_is_empty(attrs))
 	{
@@ -512,30 +517,7 @@ bool YBCAllPrimaryKeysProvided(Oid relid, Bitmapset *attrs)
 		return false;
 	}
 
-	Relation        rel                = RelationIdGetRelation(relid);
-	Oid             dboid              = YBCGetDatabaseOid(rel);
-	AttrNumber      natts              = RelationGetNumberOfAttributes(rel);
-	YBCPgTableDesc  ybc_tabledesc      = NULL;
-	Bitmapset      *primary_key_attrs  = NULL;
-
-	/* Get primary key columns from YB table desc. */
-	HandleYBStatus(YBCPgGetTableDesc(dboid, relid, &ybc_tabledesc));
-	for (AttrNumber attnum = 1; attnum <= natts; attnum++)
-	{
-		bool is_primary = false;
-		bool is_hash    = false;
-		HandleYBTableDescStatus(YBCPgGetColumnInfo(ybc_tabledesc,
-		                                           attnum,
-		                                           &is_primary,
-		                                           &is_hash), ybc_tabledesc);
-
-		if (is_primary)
-		{
-			primary_key_attrs = bms_add_member(primary_key_attrs, attnum);
-		}
-	}
-
-	RelationClose(rel);
+	Bitmapset *primary_key_attrs = YBGetTablePrimaryKeyBms(rel);
 
 	/* Verify the sets are the same. */
 	return bms_equal(attrs, primary_key_attrs);

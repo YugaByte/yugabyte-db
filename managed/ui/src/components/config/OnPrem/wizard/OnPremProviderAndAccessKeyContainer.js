@@ -5,6 +5,7 @@ import { reduxForm } from 'redux-form';
 import {OnPremProviderAndAccessKey} from '../../../config';
 import {setOnPremConfigData} from '../../../../actions/cloud';
 import {isDefinedNotNull, isNonEmptyObject, isNonEmptyArray} from '../../../../utils/ObjectUtils';
+import _ from 'lodash';
 
 const mapDispatchToProps = (dispatch, ownProps) => {
   return {
@@ -14,7 +15,7 @@ const mapDispatchToProps = (dispatch, ownProps) => {
         const formSubmitVals = {
           provider: {
             name: formData.name,
-            config: { YB_HOME_DIR: formData.homeDir }
+            config: { YB_HOME_DIR: formData.homeDir, USE_HOSTNAME: _.get(formData, "useHostnames", false).toString() }
           },
           key: {
             code: formData.name.toLowerCase().replace(/ /g, "-") + "-key",
@@ -36,7 +37,8 @@ const mapStateToProps = (state, ownProps) => {
   let initialFormValues = {
     sshPort: 54422,
     passwordlessSudoAccess: true,
-    airGapInstall: false
+    airGapInstall: false,
+    useHostnames: false
   };
   const {cloud: {onPremJsonFormData}} = state;
   if (ownProps.isEditProvider && isNonEmptyObject(onPremJsonFormData)) {
@@ -48,6 +50,8 @@ const mapStateToProps = (state, ownProps) => {
       sshPort: onPremJsonFormData.key.sshPort,
       passwordlessSudoAccess: onPremJsonFormData.key.passwordlessSudoAccess,
       airGapInstall: onPremJsonFormData.key.airGapInstall,
+      useHostnames: _.get(onPremJsonFormData, "provider.config.USE_HOSTNAME", "false") === "true",
+      homeDir: _.get(onPremJsonFormData, "provider.config.YB_HOME_DIR", ""),
       machineTypeList : onPremJsonFormData.instanceTypes.map(function (item) {
         return {
           code: item.instanceTypeCode,
@@ -91,7 +95,7 @@ const validate = values => {
 
 const onPremProviderConfigForm = reduxForm({
   form: 'onPremConfigForm',
-  fields: ['name', 'sshUser', 'sshPort', 'privateKeyContent', 'passwordlessSudoAccess', 'airGapInstall'],
+  fields: ['name', 'sshUser', 'sshPort', 'privateKeyContent', 'passwordlessSudoAccess', 'airGapInstall', 'useHostnames', 'homeDir'],
   validate,
   destroyOnUnmount: false,
   enableReinitialize: true,

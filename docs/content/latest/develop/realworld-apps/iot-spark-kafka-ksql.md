@@ -238,7 +238,7 @@ It computes the following:
 
 This is a [Spring Boot](http://projects.spring.io/spring-boot/) application which queries the data from YugabyteDB and pushes the data to the webpage using [Web Sockets](http://docs.spring.io/spring/docs/current/spring-framework-reference/html/websocket.html#websocket-intro) and [jQuery](https://jquery.com/). The data is pushed to the web page in fixed intervals so data will be refreshed automatically. Dashboard displays data in charts and tables. This web page uses [bootstrap.js](http://getbootstrap.com/) to display the dashboard containing charts and tables.
 
-We create entity classes for the three tables `Total_Traffic`, `Window_Traffic` and `Poi_Traffic`, and DAO interfaces for all the entities extending `CassandraRepository`. For example, we create the DAO class for `TotalTrafficData` entity as follows.
+We create entity classes for the three tables `Total_Traffic`, `Window_Traffic` and `Poi_Traffic`, and DAO interfaces for all the entities extending `CassandraRepository`. For example, you create the DAO class for `TotalTrafficData` entity as follows.
 
 ```java
 @Repository
@@ -248,7 +248,7 @@ public interface TotalTrafficDataRepository extends CassandraRepository<TotalTra
 }
 ```
 
-In order to connect to YugabyteDB cluster and get connection for database operations, we write the assandraConfig class. This is done as follows:
+In order to connect to YugabyteDB cluster and get connection for database operations, you write the assandraConfig class. This is done as follows:
 
 ```java
 public class CassandraConfig extends AbstractCassandraConfiguration {

@@ -1755,7 +1755,7 @@ public class AsyncYBClient implements AutoCloseable {
    * @return A live and initialized client for the specified master server.
    */
   TabletClient newMasterClient(HostAndPort masterHostPort) {
-    String ip = getIP(masterHostPort.getHostText());
+    String ip = getIP(masterHostPort.getHost());
     if (ip == null) {
       return null;
     }
@@ -1772,7 +1772,7 @@ public class AsyncYBClient implements AutoCloseable {
   // clients that are not explicitly bound to tablets, but tservers/masters for admin-style ops.
   TabletClient newSimpleClient(final HostAndPort hp) {
     String uuid = "fakeUUID -> " + hp.toString();
-    return newClient(uuid, hp.getHostText(), hp.getPort());
+    return newClient(uuid, hp.getHost(), hp.getPort());
   }
 
   TabletClient newClient(String uuid, final String host, final int port) {
@@ -1808,6 +1808,7 @@ public class AsyncYBClient implements AutoCloseable {
    */
   @Override
   public void close() throws Exception {
+    if (closed) return;
     shutdown().join(defaultAdminOperationTimeoutMs);
   }
 

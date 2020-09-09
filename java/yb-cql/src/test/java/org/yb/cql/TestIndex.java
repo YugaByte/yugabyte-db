@@ -49,6 +49,10 @@ public class TestIndex extends BaseCQLTest {
   @BeforeClass
   public static void SetUpBeforeClass() throws Exception {
     BaseMiniClusterTest.tserverArgs.add("--allow_index_table_read_write");
+    BaseMiniClusterTest.tserverArgs.add(
+        "--index_backfill_upperbound_for_user_enforced_txn_duration_ms=1000");
+    BaseMiniClusterTest.tserverArgs.add(
+        "--index_backfill_wait_for_old_txns_ms=100");
     BaseCQLTest.setUpBeforeClass();
   }
 
@@ -107,6 +111,8 @@ public class TestIndex extends BaseCQLTest {
 
     // Test retrieving non-existent index.
     assertNull(table.getIndex("i3"));
+
+    runInvalidStmt("CREATE INDEX i1 ON cql_test_keyspace.test_create_index (r1) where r1 = 5;");
 
     // Test create index with duplicate name.
     try {
@@ -613,6 +619,27 @@ public class TestIndex extends BaseCQLTest {
                            Arrays.asList("i5.c2"),
                            new Object[] {"c"},
                            "Row[1, a, 2, b, 3, c]");
+  }
+
+  @Test
+  public void testCreateIndexWithWhereClause() throws Exception {
+    LOG.info("Start test: " + getCurrentTestMethodName());
+    destroyMiniCluster();
+    BaseMiniClusterTest.tserverArgs.add("--cql_raise_index_where_clause_error=false");
+    createMiniCluster();
+    setUpCqlClient();
+
+    // Create test table.
+    LOG.info("create test table");
+    session.execute("create table test_create_index " +
+                    "(h1 int, h2 text, r1 int, r2 text, " +
+                    "c1 int, c2 text, c3 decimal, c4 timestamp, c5 boolean, " +
+                    "primary key ((h1, h2), r1, r2)) " +
+                    "with transactions = {'enabled' : true};");
+    LOG.info("create test index");
+    session.execute("CREATE INDEX i1 ON test_create_index (r1) where r1 = 5;");
+    BaseMiniClusterTest.tserverArgs.remove("--cql_raise_index_where_clause_error=false");
+    LOG.info("End test: " + getCurrentTestMethodName());
   }
 
   @Test
@@ -1220,5 +1247,63 @@ public class TestIndex extends BaseCQLTest {
     session.execute("drop table test_reg_tbl;");
 
     LOG.info("End test: " + getCurrentTestMethodName());
+  }
+
+  @Test
+  public void testCreateInvalidOrderBy() throws Exception {
+    // This test makes sure that server does not crash for invalid query such as those with
+    // invalid ORDER BY expression.
+    LOG.info("Start test: " + getCurrentTestMethodName());
+
+    // Test scalar index against ORDER BY non existing column.
+    session.execute("CREATE TABLE test_order_by(a INT PRIMARY KEY, b INT, c INT) " +
+                    "WITH TRANSACTIONS = {'enabled' : true};");
+    session.execute("CREATE INDEX test_order_by_idx ON test_order_by(b, c);");
+    // Run one valid query to make sure the setup is correct.
+    runValidSelect("SELECT * FROM test_order_by WHERE b = 3 ORDER BY c;");
+    // Test invalid ORDER BY.
+    runInvalidQuery("SELECT * FROM test_order_by WHERE b = 3 ORDER BY non_existent_column;");
+
+    // Test jsonb index against ORDER BY non existing field.
+    session.execute("CREATE TABLE test_jsonb_order_by(i INT, j JSONB, k INT, PRIMARY KEY (i, k))" +
+                    "  WITH TRANSACTIONS = { 'enabled' : true };");
+    session.execute("CREATE INDEX test_jsonb_order_by_idx ON test_jsonb_order_by(k, j->>'x');");
+    // Run one valid query to make sure the setup is correct.
+    runValidSelect("SELECT * FROM test_jsonb_order_by WHERE k = 1 ORDER BY j->>'x';");
+    // Test invalid ORDER BY.
+    runInvalidQuery("SELECT * FROM test_jsonb_order_by WHERE k = 1 ORDER BY j->>'y';");
+  }
+
+  @Test
+  public void testColumnCoverage() throws Exception {
+    // Create test table.
+    session.execute("CREATE TABLE test_coverage" +
+                    "  ( h INT, r INT, v INT, vv INT, PRIMARY KEY (h, r) )" +
+                    "  WITH transactions = {'enabled' : true};");
+
+    // Create test index.
+    session.execute("CREATE INDEX vidx ON test_coverage (v);");
+    assertIndexOptions("test_coverage", "vidx", "v, h, r", null);
+
+    // Use INSERT & SELECT to check for coverage.
+    int h = 7;
+    int r = h * 2;
+    int v = h * 3;
+    int vv = h * 4;
+    String stmt = String.format("INSERT INTO test_coverage(h, r, v, vv)" +
+                                "  VALUES (%d, %d, %d, %d);", h, r, v, vv);
+    session.execute(stmt);
+
+    String query = String.format("SELECT vv FROM test_coverage WHERE v = %d;", v);
+    assertEquals(1, session.execute(query).all().size());
+
+    query = String.format("SELECT * FROM test_coverage WHERE v = %d;", v);
+    assertEquals(1, session.execute(query).all().size());
+
+    query = String.format("SELECT h FROM test_coverage WHERE v = %d AND vv = %d;", v, vv);
+    assertEquals(1, session.execute(query).all().size());
+
+    query = String.format("SELECT * FROM test_coverage WHERE v = %d AND vv = %d;", v, vv);
+    assertEquals(1, session.execute(query).all().size());
   }
 }

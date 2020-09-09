@@ -6,7 +6,7 @@ description: Read a JSON value at a specified path.
 menu:
   latest:
     identifier: subvalue-operators
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 12
 isTocNested: true
 showAsideToc: true
@@ -29,7 +29,7 @@ return value:       jsonb
 
 Reading a key value:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j  constant jsonb := '{"a": 1, "b": {"x": 1, "y": 19}, "c": true}';
@@ -45,7 +45,7 @@ $body$;
 
 Reading an _array_ value. (The first value in an _array_ has the index `0`.)
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j  constant jsonb := '["a", "b", "c", "d"]';
@@ -118,7 +118,7 @@ Notice that with the `->` operator, integers must be presented as such (so that 
 
 The PL/pgSQL `ASSERT` confirms that both the `->` path specification and the `#>` path specification produce the same result, thus:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb := '
@@ -183,7 +183,7 @@ The difference in semantics between the `->` operator and the `->>` operator is 
 ```
 from the JSON value in which it is embedded. For example, here it is the value of the key _"a"_ in a JSON _object_:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j constant jsonb := '{"a": "\"First line\"\n\"second line\""}'::jsonb;
@@ -218,7 +218,7 @@ The `>>` variant (both for `->` _vs_ `->>` and for `#>` _vs_ `#>>`) is interesti
 
 The following `ASSERT` tests all these rules:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   ta constant text     := 'a';

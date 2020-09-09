@@ -1,0 +1,51 @@
+$YB_PAGE_BACKGROUND: #FFF;
+$YB_FORM_BACKGROUND: #EEF1FA;
+$YB_WIZARD_SUMMARY_BACKGROUND: #F1F8F3;
+$YB_BORDER_1: #C5C6CE;
+$YB_BORDER_2: #707070; // button frame
+$YB_TEXT_1: #546371;
+$YB_TEXT_2: #35414C;
+$YB_WIZARD_TABS: #4979CC;
+$YB_CTA: #FF6E42;
+$YB_INPUT_NUMBERS_BG: #DDE4F4;
+
+$INPUT_HEIGHT: 44px;
+$YB_FONT_FAMILY: 'Source Sans Pro', sans-serif;
+
+@mixin input-wrapper() {
+  border: 1px solid $YB_BORDER_1;
+  border-radius: 29px;
+  position: relative;
+  overflow: hidden;
+  height: $INPUT_HEIGHT;
+}
+
+@mixin input-control() {
+  width: 100%;
+  height: 100%;
+  border: none;
+  padding: 0 20px;
+  font-size: 16px;
+  font-weight: 400;
+  font-family: $YB_FONT_FAMILY;
+  color: $YB_TEXT_1;
+  &::placeholder {
+    color: rgba($YB_TEXT_1, 0.5);
+  }
+}
+
+@mixin chevron-up() {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 7px solid rgba($YB_TEXT_1, 0.5);
+}
+
+@mixin chevron-down() {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid rgba($YB_TEXT_1, 0.5);
+}

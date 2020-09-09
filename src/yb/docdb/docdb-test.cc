@@ -23,6 +23,8 @@
 #include "yb/rocksdb/util/statistics.h"
 
 #include "yb/common/hybrid_time.h"
+#include "yb/docdb/doc_reader.h"
+#include "yb/docdb/docdb_debug.h"
 #include "yb/docdb/docdb-internal.h"
 #include "yb/docdb/docdb_compaction_filter.h"
 #include "yb/docdb/docdb_test_base.h"
@@ -38,6 +40,7 @@
 #include "yb/docdb/docdb_rocksdb_util.h"
 
 #include "yb/util/minmax.h"
+#include "yb/util/net/net_util.h"
 #include "yb/util/path_util.h"
 #include "yb/util/random_util.h"
 #include "yb/util/size_literals.h"
@@ -268,9 +271,7 @@ SubDocKey(DocKey([], ["mydockey", 123456]), ["subkey_b", "subkey_d"; HT{ physica
   }
 
   InetAddress GetInetAddress(const std::string &strval) {
-    InetAddress addr;
-    CHECK_OK(addr.FromString(strval));
-    return addr;
+    return InetAddress(CHECK_RESULT(ParseIpAddress(strval)));
   }
 
   void InsertInet(const std::string strval) {

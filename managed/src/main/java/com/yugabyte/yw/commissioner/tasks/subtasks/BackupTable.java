@@ -54,15 +54,29 @@ public class BackupTable extends AbstractTaskBase {
       Universe universe = Universe.get(taskParams().universeUUID);
       Map<String, String> config = universe.getConfig();
       if (config.isEmpty() || config.getOrDefault(Universe.TAKE_BACKUPS, "true").equals("true")) {
-        ShellProcessHandler.ShellResponse response = tableManager.createBackup(taskParams());
-        JsonNode jsonNode = Json.parse(response.message);
-        if (response.code != 0 || jsonNode.has("error")) {
-          LOG.error("Response code={}, hasError={}.", response.code, jsonNode.has("error"));
-          backup.transitionState(Backup.BackupState.Failed);
-          throw new RuntimeException(response.message);
-        } else {
-          LOG.info("[" + getName() + "] STDOUT: " + response.message);
+        if (taskParams().backupList != null) {
+          for (BackupTableParams backupParams : taskParams().backupList) {
+            ShellProcessHandler.ShellResponse response = tableManager.createBackup(backupParams);
+            JsonNode jsonNode = Json.parse(response.message);
+            if (response.code != 0 || jsonNode.has("error")) {
+              LOG.error("Response code={}, hasError={}.", response.code, jsonNode.has("error"));
+              throw new RuntimeException(response.message);
+            } else {
+              LOG.info("[" + getName() + "] STDOUT: " + response.message);
+            }
+          }
           backup.transitionState(Backup.BackupState.Completed);
+        } else {
+          ShellProcessHandler.ShellResponse response = tableManager.createBackup(taskParams());
+          JsonNode jsonNode = Json.parse(response.message);
+          if (response.code != 0 || jsonNode.has("error")) {
+            LOG.error("Response code={}, hasError={}.", response.code, jsonNode.has("error"));
+            backup.transitionState(Backup.BackupState.Failed);
+            throw new RuntimeException(response.message);
+          } else {
+            LOG.info("[" + getName() + "] STDOUT: " + response.message);
+            backup.transitionState(Backup.BackupState.Completed);
+          }
         }
       } else {
         LOG.info("Skipping table {}:{}", taskParams().keyspace, taskParams().tableName);

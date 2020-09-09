@@ -71,6 +71,8 @@ class RunningTransactionContext {
     return delayer_;
   }
 
+  virtual bool Closing() const = 0;
+
  protected:
   friend class RunningTransaction;
 

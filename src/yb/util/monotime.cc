@@ -176,7 +176,8 @@ MonoDelta& MonoDelta::operator-=(const MonoDelta& rhs) {
 
 MonoDelta& MonoDelta::operator*=(int64_t mul) {
   DCHECK(Initialized());
-  DCHECK_EQ(nano_delta_ * mul / mul, nano_delta_); // Check for overflow
+  DCHECK(mul == 0 || (nano_delta_ * mul / mul == nano_delta_)) // Check for overflow
+      << "Mul: " << mul << ", nano_delta_: " << nano_delta_;
   DCHECK(nano_delta_ * mul != kUninitialized);
   nano_delta_ *= mul;
   return *this;

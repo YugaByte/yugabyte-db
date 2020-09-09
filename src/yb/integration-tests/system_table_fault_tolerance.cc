@@ -63,14 +63,17 @@ class SystemTableFaultTolerance : public YBTest {
 };
 
 TEST_F(SystemTableFaultTolerance, TestFaultTolerance) {
+  LOG(INFO) << "Start failure";
   SetupCluster(0, {"--TEST_catalog_manager_simulate_system_table_create_failure=true"});
   // Startup should fail due to injected failure.
   ASSERT_NOK(cluster_->Start());
   uint64_t rpc_port = cluster_->master()->bound_rpc_hostport().port();
+  LOG(INFO) << "Shutdown";
   cluster_->Shutdown();
 
   // Now startup cluster without any failures.
   SetupCluster(rpc_port);
+  LOG(INFO) << "Start normal";
   ASSERT_OK(cluster_->Start());
 
   // Check the system tables.
@@ -80,12 +83,14 @@ TEST_F(SystemTableFaultTolerance, TestFaultTolerance) {
     .default_admin_operation_timeout(MonoDelta::FromSeconds(10));
   auto client = ASSERT_RESULT(builder.Build());
 
+  LOG(INFO) << "Read";
   auto metadata_cache = std::make_shared<client::YBMetaDataCache>(client.get(),
       false /* Update roles' permissions cache */);
   server::ClockPtr clock(new server::HybridClock());
   ASSERT_OK(clock->Init());
-  auto processor = std::make_unique<ql::QLProcessor>(client.get(), metadata_cache, nullptr, clock,
-                                                     ql::TransactionPoolProvider());
+  auto processor = std::make_unique<ql::QLProcessor>(
+      client.get(), metadata_cache, /* ql_metrics= */ nullptr,
+      /* parser_pool= */ nullptr, clock, ql::TransactionPoolProvider());
   Synchronizer s;
   ql::StatementParameters statement_parameters;
   processor->RunAsync("SELECT * from system.peers", statement_parameters,

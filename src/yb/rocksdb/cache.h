@@ -149,10 +149,6 @@ class Cache {
 
   // Set whether to return error on insertion when cache reaches its full
   // capacity.
-  virtual void SetStrictCapacityLimit(bool strict_capacity_limit) = 0;
-
-  // Set whether to return error on insertion when cache reaches its full
-  // capacity.
   virtual bool HasStrictCapacityLimit() const = 0;
 
   // returns the maximum configured capacity of the cache
@@ -192,6 +188,9 @@ class Cache {
 
   // Tries to evict specified amount of bytes from cache.
   virtual size_t Evict(size_t required) { return 0; }
+
+  // Returns the single-touch and multi-touch cache usages for each of the shard.
+  virtual std::vector<std::pair<size_t, size_t>> TEST_GetIndividualUsages() = 0;
 
  private:
   void LRU_Remove(Handle* e);

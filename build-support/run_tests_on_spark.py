@@ -19,17 +19,34 @@ Run YugaByte tests on Spark using PySpark.
 Example (mostly useful during testing this script):
 
 cd ~/code/yugabyte
-spark-submit --driver-cores 8 \
-  build-support/run_tests_on_spark.py \
-  --build-root build/debug-gcc-dynamic-community \
-  --cpp \
-  --verbose \
-  --reports-dir /tmp \
-  --cpp_test_program_regexp '.*redisserver.*' \
-  --write_report \
-  --save_report_to_build_dir
 
-Also adding --spark-master-url=local helps with local debugging.
+Run all C++ tests:
+
+"$SPARK_INSTALLATION_DIR/bin/spark-submit" \
+    build-support/run_tests_on_spark.py \
+    --spark-master-url=spark://$SPARK_HOST:$SPARK_PORT \
+    --build-root "$PWD/build/release-gcc-dynamic-ninja" \
+    --verbose \
+    --reports-dir /tmp \
+    --write_report \
+    --save_report_to_build_dir \
+    --cpp \
+    --recreate_archive_for_workers
+
+Run Java tests satisfying a particular regex:
+
+"$SPARK_INSTALLATION_DIR/bin/spark-submit" \
+    build-support/run_tests_on_spark.py \
+    --spark-master-url=spark://$SPARK_HOST:$SPARK_PORT \
+    --build-root "$PWD/build/release-gcc-dynamic-ninja" \
+    --verbose \
+    --reports-dir=/tmp \
+    --write_report \
+    --save_report_to_build_dir \
+    --java \
+    --test_filter_re=org[.]yb[.].*Pg.* \
+    --send_archive_to_workers \
+    --recreate_archive_for_workers
 """
 
 import argparse
@@ -50,7 +67,10 @@ import traceback
 import tempfile
 import errno
 import signal
+
 from collections import defaultdict
+
+from typing import List
 
 BUILD_SUPPORT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -94,7 +114,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'python'))
 from yb import yb_dist_tests  # noqa
 from yb import command_util  # noqa
 from yb.common_util import set_to_comma_sep_str, get_bool_env_var, is_macos  # noqa
-
+from yb.yb_dist_tests import TestDescriptor  # noqa
 
 # Special Jenkins environment variables. They are propagated to tasks running in a distributed way
 # on Spark.
@@ -418,7 +438,7 @@ def parallel_run_test(test_descriptor_str):
                     logging.info("Copying %s to %s", artifact_path, dest_path)
                     try:
                         subprocess.check_call(['cp', '-f', artifact_path, dest_path])
-                    except CalledProcessError as ex:
+                    except subprocess.CalledProcessError as ex:
                         logging.error("Error copying %s to %s: %s", artifact_path, dest_path, ex)
                         num_errors_copying_artifacts = 1
 
@@ -460,6 +480,8 @@ def initialize_remote_task():
     from pyspark import SparkFiles
     archive_name = os.path.basename(SparkFiles.get(global_conf.archive_for_workers))
     expected_archive_sha256sum = global_conf.archive_sha256sum
+    assert expected_archive_sha256sum is not None
+
     worker_tmp_dir = os.path.abspath(SparkFiles.getRootDirectory())
     archive_path = os.path.join(worker_tmp_dir, archive_name)
     if not os.path.exists(archive_path):
@@ -485,6 +507,8 @@ def initialize_remote_task():
         with open(untar_script_path, 'w') as untar_script_file:
             # Do the locking using the flock command in Bash -- file locking in Python is painful.
             # Some curly braces in the script template are escaped as "{{" and }}".
+
+            # TODO: rewrite this shell script in Python, except for the flock part.
             untar_script_file.write("""#!{bash_shebang}
 set -euo pipefail
 (
@@ -767,13 +791,10 @@ def is_one_shot_test(rel_binary_path):
     return False
 
 
-def collect_cpp_tests(max_tests, cpp_test_program_filter, cpp_test_program_re_str):
+def collect_cpp_tests(cpp_test_program_filter: List[str]) -> List[yb_dist_tests.TestDescriptor]:
     """
     Collect C++ test programs to run.
-    @param max_tests: maximum number of tests to run. Used in debugging.
-    @param cpp_test_program_filter: a collection of C++ test program names to be used as a filter
-    @param cpp_test_program_re_str: a regular expression string to be used as a filter for the set
-                                    of C++ test programs.
+    @param cpp_test_program_filter: a list of C++ test program names to be used as a filter
     """
 
     global_conf = yb_dist_tests.global_conf
@@ -807,13 +828,6 @@ def collect_cpp_tests(max_tests, cpp_test_program_filter, cpp_test_program_re_st
     logging.info("Collected %d test programs in %.2f sec" % (
         len(test_programs), elapsed_time_sec))
 
-    if cpp_test_program_re_str:
-        cpp_test_program_re = re.compile(cpp_test_program_re_str)
-        test_programs = [test_program for test_program in test_programs
-                         if cpp_test_program_re.search(test_program)]
-        logging.info("Filtered down to %d test programs using regular expression '%s'" %
-                     (len(test_programs), cpp_test_program_re_str))
-
     if cpp_test_program_filter:
         cpp_test_program_filter = set(cpp_test_program_filter)
         unfiltered_test_programs = test_programs
@@ -834,12 +848,6 @@ def collect_cpp_tests(max_tests, cpp_test_program_filter, cpp_test_program_re_st
                      "collected from ctest before filtering: {}").format(
                          set_to_comma_sep_str(cpp_test_program_filter),
                          set_to_comma_sep_str(unfiltered_test_programs)))
-
-    if max_tests and len(test_programs) > max_tests:
-        logging.info("Randomly selecting {} test programs out of {} possible".format(
-                max_tests, len(test_programs)))
-        random.shuffle(test_programs)
-        test_programs = test_programs[:max_tests]
 
     if not test_programs:
         logging.info("Found no test programs")
@@ -904,26 +912,27 @@ def fatal_error(msg):
     raise RuntimeError(msg)
 
 
-def collect_java_tests():
+def get_java_test_descriptors():
     java_test_list_path = os.path.join(yb_dist_tests.global_conf.build_root, 'java_test_list.txt')
     if not os.path.exists(java_test_list_path):
-        raise IOError("Java test list not found at '%s'" % java_test_list_path)
+        raise IOError(
+            "Java test list not found at '%s'. Please run ./yb_build.sh --collect-java-tests to "
+            "generate the test list file." % java_test_list_path)
     with open(java_test_list_path) as java_test_list_file:
-        java_test_descriptors = [
-            yb_dist_tests.TestDescriptor(java_test_str.strip())
-            for java_test_str in java_test_list_file.read().split("\n")
-            if java_test_str.strip()
-        ]
+        java_test_descriptors = []
+        for line in java_test_list_file:
+            line = line.strip()
+            if not line:
+                continue
+            java_test_descriptors.append(yb_dist_tests.TestDescriptor(line))
     if not java_test_descriptors:
-        raise RuntimeError("Could not find any Java tests listed in '%s'" % java_test_list_path)
+        raise RuntimeError("Could not find any Java tests in '%s'" % java_test_list_path)
+
+    logging.info("Found %d Java tests", len(java_test_descriptors))
     return java_test_descriptors
 
 
 def collect_tests(args):
-    if args.cpp_test_program_regexp and args.test_conf:
-        raise RuntimeException(
-            "--cpp_test_program_regexp and --test_conf cannot both be specified at the same time.")
-
     test_conf = {}
     if args.test_conf:
         with open(args.test_conf) as test_conf_file:
@@ -931,37 +940,49 @@ def collect_tests(args):
         if args.run_cpp_tests and not test_conf['run_cpp_tests']:
             logging.info("The test configuration file says that C++ tests should be skipped")
             args.run_cpp_tests = False
-        if not test_conf['run_java_tests']:
-            logging.info("The test configuration file says that Java tests should be skipped")
+        if args.run_java_tests and not test_conf['run_java_tests']:
+            logging.info(
+                "The test configuration file says that Java tests should be skipped")
             args.run_java_tests = False
+        if 'test_filter_re' in test_conf:
+            args.test_filter_re = test_conf['test_filter_re']
 
     cpp_test_descriptors = []
     if args.run_cpp_tests:
         cpp_test_programs = test_conf.get('cpp_test_programs')
-        if args.cpp_test_program_regexp and cpp_test_programs:
-            logging.warning(
-                    ("Ignoring the C++ test program regular expression specified on the "
-                     "command line: {}").format(args.cpp_test_program_regexp))
-
-        cpp_test_descriptors = collect_cpp_tests(
-                args.max_tests,
-                cpp_test_programs,
-                args.cpp_test_program_regexp)
+        cpp_test_descriptors = collect_cpp_tests(cpp_test_programs)
 
     java_test_descriptors = []
     if args.run_java_tests:
-        java_test_descriptors = collect_java_tests()
-        logging.info("Found %d Java tests", len(java_test_descriptors))
-    return sorted(java_test_descriptors) + sorted(cpp_test_descriptors)
+        java_test_descriptors = get_java_test_descriptors()
+
+    test_descriptors = sorted(java_test_descriptors) + sorted(cpp_test_descriptors)
+
+    if args.test_filter_re:
+        test_filter_re_compiled = re.compile(args.test_filter_re)
+        num_tests_before_filtering = len(test_descriptors)
+        test_descriptors = [
+            test_descriptor for test_descriptor in test_descriptors
+            if test_filter_re_compiled.match(test_descriptor.descriptor_str_without_attempt_index)
+        ]
+        logging.info(
+            "Filtered %d tests using regular expression %s to %d tests",
+            num_tests_before_filtering,
+            args.test_filter_re,
+            len(test_descriptors)
+        )
+
+    return test_descriptors
 
 
 def load_test_list(test_list_path):
+    logging.info("Loading the list of tests to run from %s", test_list_path)
     test_descriptors = []
     with open(test_list_path, 'r') as input_file:
         for line in input_file:
             line = line.strip()
             if line:
-                test_descriptors.append(yb_dist_tests.TestDescriptor())
+                test_descriptors.append(yb_dist_tests.TestDescriptor(line))
     return test_descriptors
 
 
@@ -1026,8 +1047,8 @@ def main():
                         help='Save a test report to the build directory directly, in addition '
                              'to any reports saved in the common reports directory. This should '
                              'work even if neither --reports-dir or --write_report are specified.')
-    parser.add_argument('--cpp_test_program_regexp',
-                        help='A regular expression to filter C++ test program names on.')
+    parser.add_argument('--test_filter_re',
+                        help='A regular expression to filter tests')
     parser.add_argument('--test_conf',
                         help='A file with a JSON configuration describing what tests to run, '
                              'produced by dependency_graph.py')
@@ -1100,9 +1121,6 @@ def main():
         fatal_error("File specified by --test_list does not exist or is not a file: '{}'".format(
             test_list_path))
 
-    if not args.send_archive_to_workers and args.recreate_archive_for_workers:
-        fatal_error("Specify --send_archive_to_workers to use --recreate_archive_for_workers")
-
     if ('YB_MVN_LOCAL_REPO' not in os.environ and
             args.run_java_tests and
             args.send_archive_to_workers):
@@ -1111,7 +1129,12 @@ def main():
         logging.info("Automatically setting YB_MVN_LOCAL_REPO to %s",
                      os.environ['YB_MVN_LOCAL_REPO'])
 
+    if not args.send_archive_to_workers and args.recreate_archive_for_workers:
+        fatal_error("Specify --send_archive_to_workers to use --recreate_archive_for_workers")
+
+    # ---------------------------------------------------------------------------------------------
     # End of argument validation.
+    # ---------------------------------------------------------------------------------------------
 
     os.environ['YB_BUILD_HOST'] = socket.gethostname()
 
@@ -1122,8 +1145,8 @@ def main():
     # This needs to be done before Spark context initialization, which will happen as we try to
     # collect all gtest tests in all C++ test programs.
     if args.send_archive_to_workers:
-        if (args.recreate_archive_for_workers or
-                not os.path.exists(yb_dist_tests.global_conf.archive_for_workers)):
+        archive_exists = os.path.exists(yb_dist_tests.global_conf.archive_for_workers)
+        if args.recreate_archive_for_workers or not archive_exists:
             archive_sha_path = os.path.join(yb_dist_tests.global_conf.yb_src_root,
                                             'extracted_from_archive.sha256')
             if os.path.exists(archive_sha_path):
@@ -1136,6 +1159,8 @@ def main():
             # Local host may also be worker, so leave expected checksum here after archive created.
             with open(archive_sha_path, 'w') as archive_sha:
                 archive_sha.write(yb_dist_tests.global_conf.archive_sha256sum)
+        else:
+            yb_dist_tests.compute_archive_sha256sum()
 
     if test_list_path:
         test_descriptors = load_test_list(test_list_path)

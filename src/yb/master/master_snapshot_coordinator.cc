@@ -48,6 +48,9 @@ DECLARE_int32(sys_catalog_write_timeout_ms);
 DEFINE_uint64(snapshot_coordinator_poll_interval_ms, 5000,
               "Poll interval for snapshot coordinator in milliseconds.");
 
+DEFINE_uint64(snapshot_coordinator_cleanup_delay_ms, 30000,
+              "Delay for snapshot cleanup after deletion.");
+
 namespace yb {
 namespace master {
 
@@ -90,6 +93,28 @@ struct TabletSnapshotOperation {
   }
 };
 
+Result<docdb::KeyBytes> EncodedSnapshotKey(
+    const TxnSnapshotId& id, SnapshotCoordinatorContext* context) {
+  docdb::DocKey doc_key({ docdb::PrimitiveValue::Int32(SysRowEntry::SNAPSHOT),
+                          docdb::PrimitiveValue(id.AsSlice().ToBuffer()) });
+  docdb::SubDocKey sub_doc_key(
+      doc_key, docdb::PrimitiveValue(VERIFY_RESULT(MetadataColumnId(context))));
+  return sub_doc_key.Encode();
+}
+
+void SubmitWrite(
+    docdb::KeyValueWriteBatchPB&& write_batch, SnapshotCoordinatorContext* context) {
+  tserver::WriteRequestPB empty_write_request;
+  auto state = std::make_unique<tablet::WriteOperationState>(
+      /* tablet= */ nullptr, &empty_write_request);
+  auto& request = *state->mutable_request();
+  *request.mutable_write_batch() = std::move(write_batch);
+  auto operation = std::make_unique<tablet::WriteOperation>(
+      std::move(state), yb::OpId::kUnknownTerm, ScopedOperation(),
+      CoarseMonoClock::now() + FLAGS_sys_catalog_write_timeout_ms * 1ms, /* context */ nullptr);
+  context->Submit(std::move(operation));
+}
+
 using TabletSnapshotOperations = std::vector<TabletSnapshotOperation>;
 
 class StateWithTablets {
@@ -107,6 +132,7 @@ class StateWithTablets {
       tablets_.emplace(id, state);
     }
     num_tablets_in_initial_state_ = state == initial_state_ ? tablet_ids.size() : 0;
+    CheckCompleteness();
   }
 
   // Initialize tablet states using tablet ids, i.e. put all tablets in initial state.
@@ -124,6 +150,7 @@ class StateWithTablets {
         ++num_tablets_in_initial_state_;
       }
     }
+    CheckCompleteness();
   }
 
   StateWithTablets(const StateWithTablets&) = delete;
@@ -156,8 +183,21 @@ class StateWithTablets {
     return VERIFY_RESULT(AggregatedState()) != initial_state_;
   }
 
-  bool AllTabletsDone() {
+  bool AllTabletsDone() const {
     return num_tablets_in_initial_state_ == 0;
+  }
+
+  bool PassedSinceCompletion(const MonoDelta& duration) const {
+    if (!AllTabletsDone()) {
+      return false;
+    }
+
+    if (complete_at_ == CoarseTimePoint()) {
+      YB_LOG_EVERY_N_SECS(DFATAL, 30) << "All tablets done but complete done was not set";
+      return false;
+    }
+
+    return CoarseMonoClock::Now() > complete_at_ + duration;
   }
 
   std::vector<TabletId> TabletIdsInState(SysSnapshotEntryPB::State state) {
@@ -183,6 +223,7 @@ class StateWithTablets {
       }
       bool should_run = it->state == initial_state_;
       if (should_run) {
+        VLOG(4) << "Prepare operation for " << it->ToString();
         functor(*it);
 
         // Here we modify indexed value, so iterator could be advanced to the next element.
@@ -246,6 +287,7 @@ class StateWithTablets {
         }
       }
       --num_tablets_in_initial_state_;
+      CheckCompleteness();
     } else {
       LOG(DFATAL) << "Finished " << InitialStateName() << " snapshot at tablet " << tablet_id
                   << " in a wrong state " << state << ": " << status;
@@ -302,15 +344,15 @@ class StateWithTablets {
     TabletData(const TabletId& id_, SysSnapshotEntryPB::State state_)
         : id(id_), state(state_) {
     }
+
+    std::string ToString() const {
+      return YB_STRUCT_TO_STRING(id, state, last_error, running);
+    }
   };
 
- private:
   const std::string& InitialStateName() const {
     return SysSnapshotEntryPB::State_Name(initial_state_);
   }
-
-  SnapshotCoordinatorContext& context_;
-  SysSnapshotEntryPB::State initial_state_;
 
   class RunningTag;
 
@@ -327,9 +369,25 @@ class StateWithTablets {
     >
   > Tablets;
 
+  const Tablets& tablets() const {
+    return tablets_;
+  }
+
+ private:
+  void CheckCompleteness() {
+    if (num_tablets_in_initial_state_ == 0) {
+      complete_at_ = CoarseMonoClock::Now();
+    }
+  }
+
+  SnapshotCoordinatorContext& context_;
+  SysSnapshotEntryPB::State initial_state_;
+
   Tablets tablets_;
 
   size_t num_tablets_in_initial_state_ = 0;
+  // Time when last tablet were transferred from initial state.
+  CoarseTimePoint complete_at_;
 };
 
 class SnapshotState : public StateWithTablets {
@@ -361,6 +419,11 @@ class SnapshotState : public StateWithTablets {
     return snapshot_hybrid_time_;
   }
 
+  std::string ToString() const {
+    return Format("{ id: $0 snapshot_hybrid_time: $1 version: $2 initial_state: $3 tablets: $4 }",
+                  id_, snapshot_hybrid_time_, version_, InitialStateName(), tablets());
+  }
+
   CHECKED_STATUS ToPB(SnapshotInfoPB* out) {
     out->set_id(id_.data(), id_.size());
     return ToEntryPB(out->mutable_entry(), ForClient::kTrue);
@@ -381,11 +444,7 @@ class SnapshotState : public StateWithTablets {
 
   CHECKED_STATUS StoreToWriteBatch(docdb::KeyValueWriteBatchPB* out) {
     ++version_;
-    docdb::DocKey doc_key({ docdb::PrimitiveValue::Int32(SysRowEntry::SNAPSHOT),
-                            docdb::PrimitiveValue(id_.AsSlice().ToBuffer()) });
-    docdb::SubDocKey sub_doc_key(
-        doc_key, docdb::PrimitiveValue(VERIFY_RESULT(MetadataColumnId(&context()))));
-    auto encoded_key = sub_doc_key.Encode();
+    auto encoded_key = VERIFY_RESULT(EncodedSnapshotKey(id_, &context()));
     auto pair = out->add_write_pairs();
     pair->set_key(encoded_key.AsSlice().cdata(), encoded_key.size());
     faststring value;
@@ -421,8 +480,17 @@ class SnapshotState : public StateWithTablets {
     });
   }
 
+  void SetVersion(int value) {
+    version_ = value;
+  }
+
   int version() const {
     return version_;
+  }
+
+  bool NeedCleanup() const {
+    return initial_state() == SysSnapshotEntryPB::DELETING &&
+           PassedSinceCompletion(GetAtomicFlag(&FLAGS_snapshot_coordinator_cleanup_delay_ms) * 1ms);
   }
 
  private:
@@ -547,15 +615,7 @@ auto SnapshotUpdater(SnapshotCoordinatorContext* context) {
       }
       lock->unlock();
 
-      tserver::WriteRequestPB empty_write_request;
-      auto state = std::make_unique<tablet::WriteOperationState>(
-          /* tablet= */ nullptr, &empty_write_request);
-      auto& request = *state->mutable_request();
-      *request.mutable_write_batch() = write_batch;
-      auto operation = std::make_unique<tablet::WriteOperation>(
-          std::move(state), yb::OpId::kUnknownTerm, ScopedOperation(),
-          CoarseMonoClock::now() + FLAGS_sys_catalog_write_timeout_ms * 1ms, /* context */ nullptr);
-      context.Submit(std::move(operation));
+      SubmitWrite(std::move(write_batch), &context);
     }
   };
 
@@ -670,7 +730,22 @@ class MasterSnapshotCoordinator::Impl {
     docdb::Value decoded_value;
     RETURN_NOT_OK(decoded_value.Decode(value));
 
-    if (decoded_value.primitive_value().value_type() != docdb::ValueType::kString) {
+    auto value_type = decoded_value.primitive_value().value_type();
+    const auto& id_str = sub_doc_key.doc_key().range_group()[1].GetString();
+
+    if (value_type == docdb::ValueType::kTombstone) {
+      std::lock_guard<std::mutex> lock(mutex_);
+      auto id = TryFullyDecodeTxnSnapshotId(id_str);
+      if (!id) {
+        LOG(WARNING) << "Unable to decode snapshot id: " << id_str;
+        return Status::OK();
+      }
+      bool erased = snapshots_.erase(id) != 0;
+      LOG_IF(DFATAL, !erased) << "Unknown shapshot tombstoned: " << id;
+      return Status::OK();
+    }
+
+    if (value_type != docdb::ValueType::kString) {
       return STATUS_FORMAT(
           Corruption,
           "Bad value type: $0, expected kString while replaying write for sys catalog",
@@ -678,19 +753,21 @@ class MasterSnapshotCoordinator::Impl {
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
-    return LoadSnapshot(sub_doc_key.doc_key().range_group()[1].GetString(),
-                        decoded_value.primitive_value().GetString());
+    return LoadSnapshot(id_str, decoded_value.primitive_value().GetString());
   }
 
-  CHECKED_STATUS ListSnapshots(const TxnSnapshotId& snapshot_id, ListSnapshotsResponsePB* resp) {
+  CHECKED_STATUS ListSnapshots(
+      const TxnSnapshotId& snapshot_id, bool list_deleted, ListSnapshotsResponsePB* resp) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (snapshot_id.IsNil()) {
       for (const auto& p : snapshots_) {
-        // Do not list deleted snapshots.
-        auto aggreaged_state = p.second->AggregatedState();
-        if (!aggreaged_state.ok() || *aggreaged_state != SysSnapshotEntryPB::DELETED) {
-          RETURN_NOT_OK(p.second->ToPB(resp->add_snapshots()));
+        if (!list_deleted) {
+          auto aggreaged_state = p.second->AggregatedState();
+          if (aggreaged_state.ok() && *aggreaged_state == SysSnapshotEntryPB::DELETED) {
+            continue;
+          }
         }
+        RETURN_NOT_OK(p.second->ToPB(resp->add_snapshots()));
       }
       return Status::OK();
     }
@@ -816,10 +893,19 @@ class MasterSnapshotCoordinator::Impl {
     auto it = snapshots_.find(snapshot_id);
     if (it == snapshots_.end()) {
       snapshots_.emplace(snapshot_id, std::move(snapshot));
-    } else if (it->second->version() < snapshot->version() || it->second->version() == 0) {
-      // If we have several updates for single snapshot, they are loaded in chronological order.
-      // So latest update should be picked.
-      it->second = std::move(snapshot);
+    } else {
+      // Backward compatibility mode
+      if (snapshot->version() == 0) {
+        snapshot->SetVersion(it->second->version() + 1);
+      }
+      if (it->second->version() < snapshot->version()) {
+        // If we have several updates for single snapshot, they are loaded in chronological order.
+        // So latest update should be picked.
+        it->second = std::move(snapshot);
+      } else {
+        LOG(INFO) << __func__ << " ignore because of version check, existing: "
+                  << it->second->ToString() << ", loaded: " << snapshot->ToString();
+      }
     }
 
     return Status::OK();
@@ -885,14 +971,38 @@ class MasterSnapshotCoordinator::Impl {
       return;
     }
     VLOG(4) << __func__ << "()";
+    std::vector<TxnSnapshotId> cleanup_snapshots;
     TabletSnapshotOperations operations;
     {
       std::lock_guard<std::mutex> lock(mutex_);
       for (const auto& p : snapshots_) {
-        p.second->PrepareOperations(&operations);
+        if (p.second->NeedCleanup()) {
+          cleanup_snapshots.push_back(p.first);
+        } else {
+          p.second->PrepareOperations(&operations);
+        }
       }
     }
+    for (const auto& id : cleanup_snapshots) {
+      DeleteSnapshot(id);
+    }
     ExecuteOperations(operations);
+  }
+
+  void DeleteSnapshot(const TxnSnapshotId& snapshot_id) {
+    docdb::KeyValueWriteBatchPB write_batch;
+
+    auto encoded_key = EncodedSnapshotKey(snapshot_id, &context_);
+    if (!encoded_key.ok()) {
+      LOG(DFATAL) << "Failed to encode id for deletion: " << encoded_key.status();
+      return;
+    }
+    auto pair = write_batch.add_write_pairs();
+    pair->set_key(encoded_key->AsSlice().cdata(), encoded_key->size());
+    char value = { docdb::ValueTypeAsChar::kTombstone };
+    pair->set_value(&value, 1);
+
+    SubmitWrite(std::move(write_batch), &context_);
   }
 
   SnapshotCoordinatorContext& context_;
@@ -926,8 +1036,8 @@ Status MasterSnapshotCoordinator::DeleteReplicated(
 }
 
 Status MasterSnapshotCoordinator::ListSnapshots(
-    const TxnSnapshotId& snapshot_id, ListSnapshotsResponsePB* resp) {
-  return impl_->ListSnapshots(snapshot_id, resp);
+    const TxnSnapshotId& snapshot_id, bool list_deleted, ListSnapshotsResponsePB* resp) {
+  return impl_->ListSnapshots(snapshot_id, list_deleted, resp);
 }
 
 Status MasterSnapshotCoordinator::Delete(

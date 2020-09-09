@@ -157,19 +157,13 @@ BlockBasedTableOptions RandomBlockBasedTableOptions(Random* rnd) {
 }
 
 TableFactory* RandomTableFactory(Random* rnd, int pre_defined) {
-#ifndef ROCKSDB_LITE
-  int random_num = pre_defined >= 0 ? pre_defined : rnd->Uniform(4);
+  int random_num = pre_defined >= 0 ? pre_defined : rnd->Uniform(2);
   switch (random_num) {
     case 0:
       return NewPlainTableFactory();
-    case 1:
-      return NewCuckooTableFactory();
     default:
       return NewBlockBasedTableFactory();
   }
-#else
-  return NewBlockBasedTableFactory();
-#endif  // !ROCKSDB_LITE
 }
 
 MergeOperator* RandomMergeOperator(Random* rnd) {

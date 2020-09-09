@@ -439,7 +439,7 @@ yb::Result<Slice> Block::GetMiddleKey() const {
     return STATUS(Incomplete, "Empty block");
   }
 
-  const auto restart_idx = NumRestarts() / 2;
+  const auto restart_idx = (NumRestarts() - 1) / 2;
 
   const auto entry_offset = DecodeFixed32(data_ + restart_offset_ + restart_idx * sizeof(uint32_t));
   uint32_t shared, non_shared, value_length;

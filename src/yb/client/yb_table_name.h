@@ -15,8 +15,10 @@
 #define YB_CLIENT_YB_TABLE_NAME_H_
 
 #include <string>
+#include <boost/optional.hpp>
 
 #include "yb/common/common.pb.h"
+#include "yb/master/master.pb.h"
 
 #ifdef YB_HEADERS_NO_STUBS
 #include "yb/util/logging.h"
@@ -65,11 +67,14 @@ class YBTableName {
               const std::string& namespace_id,
               const std::string& namespace_name,
               const std::string& table_id,
-              const std::string& table_name) : namespace_type_(db_type) {
+              const std::string& table_name,
+              boost::optional<master::RelationType> relation_type = boost::none)
+            : namespace_type_(db_type) {
     set_namespace_id(namespace_id);
     set_namespace_name(namespace_name);
     set_table_id(table_id);
     set_table_name(table_name);
+    set_relation_type(relation_type);
   }
 
   // Simple table name (no namespace provided at the moment of construction).
@@ -121,6 +126,10 @@ class YBTableName {
     return table_id_; // Can be empty
   }
 
+  boost::optional<master::RelationType> relation_type() const {
+    return relation_type_;
+  }
+
   bool is_system() const;
 
   bool is_redis_namespace() const {
@@ -154,6 +163,10 @@ class YBTableName {
     table_id_ = table_id;
   }
 
+  void set_relation_type(boost::optional<master::RelationType> relation_type) {
+    relation_type_ = relation_type;
+  }
+
   // ProtoBuf helpers.
   void SetIntoTableIdentifierPB(master::TableIdentifierPB* id) const;
   void GetFromTableIdentifierPB(const master::TableIdentifierPB& id);
@@ -169,6 +182,8 @@ class YBTableName {
   YQLDatabase namespace_type_; // Can be empty, that means the namespace id will be used.
   std::string table_id_; // Optional. Can be set when client knows the table id also.
   std::string table_name_;
+  // Optional. Can be set when the client knows the table type.
+  boost::optional<master::RelationType> relation_type_;
 };
 
 inline bool operator ==(const YBTableName& lhs, const YBTableName& rhs) {

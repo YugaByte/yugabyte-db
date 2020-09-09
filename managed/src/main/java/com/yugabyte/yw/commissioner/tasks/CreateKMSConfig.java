@@ -10,27 +10,27 @@
 
 package com.yugabyte.yw.commissioner.tasks;
 
-import com.yugabyte.yw.common.kms.services.EncryptionAtRestService;
 import com.yugabyte.yw.models.KmsConfig;
 
 public class CreateKMSConfig extends KMSConfigTaskBase {
-    @Override
-    public void run() {
-        LOG.info("Creating KMS Configuration for customer: " +
-                taskParams().customerUUID.toString());
-        EncryptionAtRestService keyService = kmsManager
-                .getServiceInstance(taskParams().kmsProvider.name());
-        KmsConfig createResult = keyService.createAuthConfig(
-                taskParams().customerUUID,
-                taskParams().kmsConfigName,
-                taskParams().providerConfig
-        );
-        if (createResult == null) {
-            throw new RuntimeException(String.format(
-                    "Error creating KMS Configuration for customer %s and kms provider %s",
-                    taskParams().customerUUID.toString(),
-                    taskParams().kmsProvider
-            ));
-        }
+  @Override
+  public void run() {
+    LOG.info("Creating KMS Configuration for customer: " +
+      taskParams().customerUUID.toString());
+    KmsConfig createResult = kmsManager
+      .getServiceInstance(taskParams().kmsProvider.name())
+      .createAuthConfig(
+        taskParams().customerUUID,
+        taskParams().kmsConfigName,
+        taskParams().providerConfig
+      );
+
+    if (createResult == null) {
+      throw new RuntimeException(String.format(
+        "Error creating KMS Configuration for customer %s and kms provider %s",
+        taskParams().customerUUID.toString(),
+        taskParams().kmsProvider
+      ));
     }
+  }
 }

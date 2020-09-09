@@ -23,7 +23,7 @@ showAsideToc: true
 
 ## Step 2. Start a local cluster
 
-Having built the source, you can start a local cluster.
+Having built the source, you can [start a local cluster](../../quick-start/create-local-cluster).
 
 ## Step 3. Make the change
 

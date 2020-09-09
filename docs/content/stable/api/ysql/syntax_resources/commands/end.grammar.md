@@ -1,0 +1,3 @@
+```
+end ::= END [ TRANSACTION | WORK ]
+```

@@ -13,9 +13,9 @@
 
 package org.yb.pgsql;
 
-import org.junit.After;
-import org.junit.Ignore;
-import org.junit.Test;
+import static org.yb.AssertionWrappers.*;
+
+import org.junit.*;
 import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,10 +27,6 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.HashSet;
 import java.util.Set;
-
-import static org.yb.AssertionWrappers.assertEquals;
-import static org.yb.AssertionWrappers.assertFalse;
-import static org.yb.AssertionWrappers.assertTrue;
 
 @RunWith(value=YBTestRunnerNonTsanOnly.class)
 public class TestPgForeignKey extends BasePgSQLTest {
@@ -101,14 +97,11 @@ public class TestPgForeignKey extends BasePgSQLTest {
         isolationLevel = IsolationLevel.SERIALIZABLE;
       }
 
-      try (Connection connection1 = newConnectionBuilder()
-              .setIsolationLevel(isolationLevel)
-              .setAutoCommit(AutoCommit.DISABLED)
-              .connect();
-           Connection connection2 = newConnectionBuilder()
-                   .setIsolationLevel(isolationLevel)
-                   .setAutoCommit(AutoCommit.DISABLED)
-                   .connect()) {
+      ConnectionBuilder connBldr = getConnectionBuilder()
+          .withIsolationLevel(isolationLevel)
+          .withAutoCommit(AutoCommit.DISABLED);
+      try (Connection connection1 = connBldr.connect();
+           Connection connection2 = connBldr.connect()) {
 
         // Test update/delete conflicts.
         for (int id = 1; id < 20; id += 2) {
@@ -169,7 +162,7 @@ public class TestPgForeignKey extends BasePgSQLTest {
     }
   }
 
-  // Ensure that foreign key caching maintains data correctness and referential integrity.
+  /** Ensure that foreign key caching maintains data correctness and referential integrity. */
   @Test
   public void testForeignKeyCaching() throws Exception {
     Set<Row> expectedPkRows = new HashSet<>();
@@ -217,30 +210,25 @@ public class TestPgForeignKey extends BasePgSQLTest {
       checkRows(statement, "fk_unique", expectedFkUniqueRows);
 
       // Check that deleting referenced row fails the transaction.
-      try {
-        statement.execute("BEGIN");
-        statement.execute("INSERT INTO fk_primary(id, b, a) VALUES(20, 20, 2)");
-        statement.execute("DELETE FROM pk WHERE a=2 AND b=20");
-        statement.execute("COMMIT");
-      } catch (PSQLException e) {
-        assertTrue(e.getMessage().contains("Key (a, b)=(2, 20) is still referenced from table"));
-        statement.execute("ROLLBACK");
-      }
+      statement.execute("BEGIN");
+      statement.execute("INSERT INTO fk_primary(id, b, a) VALUES(20, 20, 2)");
+      runInvalidQuery(statement, "DELETE FROM pk WHERE a=2 AND b=20",
+          "Key (a, b)=(2, 20) is still referenced from table");
+      statement.execute("ROLLBACK");
 
-      // Check that updating referenced row fails the transaction.
-      // TODO: Enable this test case after #3583.
-      if (false) {
-        try {
-          statement.execute("BEGIN");
-          statement.execute("INSERT INTO fk_unique(id, y, x) VALUES(2000, 2000, 200)");
-          statement.execute("UPDATE pk SET x=201, y=2001 WHERE x=200 AND y=2000");
-          statement.execute("COMMIT");
-        } catch (PSQLException e) {
-          assertTrue(
-              e.getMessage().contains("Key (x, y)=(200, 2000) is still referenced from table"));
-          statement.execute("ROLLBACK");
-        }
-      }
+      // Check that updating referenced row fails the transaction, take 1.
+      statement.execute("BEGIN");
+      statement.execute("INSERT INTO fk_primary(id, b, a) VALUES(20, 20, 2)");
+      runInvalidQuery(statement, "UPDATE pk SET a=201, b=2001 WHERE a=2 AND b=20",
+          "Key (a, b)=(2, 20) is still referenced from table");
+      statement.execute("ROLLBACK");
+
+      // Check that updating referenced row fails the transaction, take 2.
+      statement.execute("BEGIN");
+      statement.execute("INSERT INTO fk_unique(id, y, x) VALUES(2000, 2000, 200)");
+      runInvalidQuery(statement, "UPDATE pk SET x=201, y=2001 WHERE x=200 AND y=2000",
+          "Key (x, y)=(200, 2000) is still referenced from table");
+      statement.execute("ROLLBACK");
 
       // Check that deleting unrelated rows in pk table remains unaffected by caching.
       statement.execute("insert into pk(b, a, y, x) values (55, 55, 66, 66)");

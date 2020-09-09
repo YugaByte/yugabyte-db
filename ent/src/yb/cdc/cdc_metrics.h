@@ -64,10 +64,16 @@ class CDCTabletMetrics {
   scoped_refptr<AtomicGauge<int64_t> > last_checkpoint_opid_index;
   scoped_refptr<AtomicGauge<uint64_t> > last_read_hybridtime;
   scoped_refptr<AtomicGauge<uint64_t> > last_read_physicaltime;
+  scoped_refptr<AtomicGauge<uint64_t> > last_checkpoint_physicaltime;
 
   // Info about last majority-replicated OpID by CDC Producer (upon last poll).
   scoped_refptr<AtomicGauge<int64_t> > last_readable_opid_index;
   // For last_committed_hybridtime, use 'hybrid_clock_hybrid_time'.
+
+  // Lag between commit time of last record polled and last record applied on producer.
+  scoped_refptr<AtomicGauge<int64_t> > async_replication_sent_lag_micros;
+  // Lag between last record applied on consumer and producer.
+  scoped_refptr<AtomicGauge<int64_t> > async_replication_committed_lag_micros;
 
  private:
   scoped_refptr<MetricEntity> entity_;

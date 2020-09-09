@@ -1,0 +1,34 @@
+@import "../../../uikit/common";
+
+.wizard-stepper {
+  display: flex;
+
+  &__item {
+    width: 187px;
+    text-align: center;
+    font-family: $YB_FONT_FAMILY;
+    font-weight: 600;
+    font-size: 20px;
+    color: $YB_WIZARD_TABS;
+    background-color: $YB_PAGE_BACKGROUND;
+    user-select: none;
+    padding: 5px 0;
+    border-width: 1px 0 0 1px;
+    border-color: $YB_WIZARD_TABS;
+    border-style: solid;
+
+    &:first-child {
+      border-top-left-radius: 7px;
+    }
+
+    &:last-child {
+      border-top-right-radius: 7px;
+      border-right-width: 1px;
+    }
+
+    &--active {
+      background-color: $YB_WIZARD_TABS;
+      color: $YB_PAGE_BACKGROUND;
+    }
+  }
+}

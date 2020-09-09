@@ -63,6 +63,9 @@ extern bool listAllDbs(const char *pattern, bool verbose);
 /* \dt, \di, \ds, \dS, etc. */
 extern bool listTables(const char *tabtypes, const char *pattern, bool verbose, bool showSystem);
 
+/* \dgr (or \dgrt) */
+extern bool listTablegroups(const char *pattern, bool verbose, bool showRelations);
+
 /* \dD */
 extern bool listDomains(const char *pattern, bool verbose, bool showSystem);
 

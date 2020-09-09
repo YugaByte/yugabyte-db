@@ -7,11 +7,11 @@ headcontent: Get started building applications based on YugabyteDB.
 image: /images/section_icons/index/develop.png
 aliases:
   - /develop/
-section: USER GUIDES
+section: YUGABYTEDB CORE
 menu:
   latest:
     identifier: develop
-    weight: 540
+    weight: 600
 
 ---
 

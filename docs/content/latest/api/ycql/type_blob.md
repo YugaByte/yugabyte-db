@@ -2,7 +2,6 @@
 title: BLOB data type [YCQL]
 headerTitle: BLOB data type
 linkTitle: BLOB
-summary: Binary strings of variable length
 description: Use the BLOB data type to represent arbitrary binary data of variable length.
 menu:
   latest:

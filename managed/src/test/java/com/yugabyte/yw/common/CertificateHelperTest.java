@@ -61,7 +61,7 @@ public class CertificateHelperTest extends FakeDBApplication{
   public void testCreateRootCAWithoutClientCert() {
     UniverseDefinitionTaskParams taskParams = new UniverseDefinitionTaskParams();
     taskParams.nodePrefix = "test-universe";
-    UUID rootCA = CertificateHelper.createRootCA(taskParams.nodePrefix, c.uuid, "/tmp", false);
+    UUID rootCA = CertificateHelper.createRootCA(taskParams.nodePrefix, c.uuid, "/tmp");
     assertNotNull(CertificateInfo.get(rootCA));
     try {
       InputStream in = new FileInputStream(certPath + String.format("/%s/ca.root.crt", rootCA));
@@ -77,7 +77,10 @@ public class CertificateHelperTest extends FakeDBApplication{
   public void testCreateRootCAWithClientCert() {
     UniverseDefinitionTaskParams taskParams = new UniverseDefinitionTaskParams();
     taskParams.nodePrefix = "test-universe";
-    UUID rootCA = CertificateHelper.createRootCA(taskParams.nodePrefix, c.uuid, "/tmp", true);
+    UUID rootCA = CertificateHelper.createRootCA(taskParams.nodePrefix, c.uuid, "/tmp");
+    CertificateHelper.createClientCertificate(rootCA, String.format(certPath + "/%s",
+                                                                    rootCA),
+                                              "yugabyte", null, null);
     assertNotNull(CertificateInfo.get(rootCA));
     try {
       InputStream in = new FileInputStream(certPath + String.format("/%s/ca.root.crt", rootCA));
@@ -99,7 +102,7 @@ public class CertificateHelperTest extends FakeDBApplication{
     SignatureException, IOException {
     UniverseDefinitionTaskParams taskParams = new UniverseDefinitionTaskParams();
     taskParams.nodePrefix = "test-universe";
-    UUID rootCA = CertificateHelper.createRootCA(taskParams.nodePrefix, c.uuid, "/tmp", false);
+    UUID rootCA = CertificateHelper.createRootCA(taskParams.nodePrefix, c.uuid, "/tmp");
     assertNotNull(CertificateInfo.get(rootCA));
 
     CertificateInfo cert = CertificateInfo.get(rootCA);
@@ -126,7 +129,7 @@ public class CertificateHelperTest extends FakeDBApplication{
     InvalidKeyException, NoSuchProviderException, SignatureException, IOException {
     UniverseDefinitionTaskParams taskParams = new UniverseDefinitionTaskParams();
     taskParams.nodePrefix = "test-universe";
-    UUID rootCA = CertificateHelper.createRootCA(taskParams.nodePrefix, c.uuid, "/tmp", false);
+    UUID rootCA = CertificateHelper.createRootCA(taskParams.nodePrefix, c.uuid, "/tmp");
     assertNotNull(CertificateInfo.get(rootCA));
 
     CertificateInfo cert = CertificateInfo.get(rootCA);

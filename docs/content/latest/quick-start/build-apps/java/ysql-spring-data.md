@@ -33,6 +33,12 @@ showAsideToc: true
       YCQL
     </a>
   </li>
+  <li>
+    <a href="/latest/quick-start/build-apps/java/ycql-4.6" class="nav-link">
+      <i class="icon-cassandra" aria-hidden="true"></i>
+      YCQL (4.6)
+    </a>
+  </li>
 </ul>
 
 ## Prerequisites

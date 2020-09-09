@@ -64,6 +64,10 @@ class JsonReader {
   // 'field' is NULL, will try to convert 'object' directly into the
   // desire type.
 
+  CHECKED_STATUS ExtractBool(const rapidjson::Value* object,
+                      const char* field,
+                      bool* result) const;
+
   CHECKED_STATUS ExtractInt32(const rapidjson::Value* object,
                       const char* field,
                       int32_t* result) const;

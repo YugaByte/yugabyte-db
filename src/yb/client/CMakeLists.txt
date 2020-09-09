@@ -36,6 +36,7 @@ set(CLIENT_SRCS
   batcher.cc
   client.cc
   client_builder-internal.cc
+  client_error.cc
   client-internal.cc
   client_utils.cc
   error.cc

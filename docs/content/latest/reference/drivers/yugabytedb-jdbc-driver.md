@@ -9,7 +9,7 @@ menu:
   latest:
     identifier: yugabytedb-jdbc-driver
     parent: drivers
-    weight: 2920
+    weight: 2941
 aliases:
   - /latest/reference/connectors/yugabytedb-jdbc-driver
 isTocNested: true
@@ -18,11 +18,11 @@ showAsideToc: true
 
 ## Overview
 
-The YugabyteDB JDBC Driver is based on the open source [PostgreSQL JDBC Driver (PgJDBC)](https://github.com/pgjdbc/pgjdbc) and incorporates all of the functionality and behavior of that driver. The YugabyteDB JDBC driver extends PgJDBC to add support for distributed SQL databases created in YugabyteDB universes, including cluster awareness and load balancing.
+The YugabyteDB JDBC Driver is based on the open source [PostgreSQL JDBC Driver (PgJDBC)](https://github.com/pgjdbc/pgjdbc) and incorporates all of the functionality and behavior of that driver. The YugabyteDB JDBC Driver extends PgJDBC to add support for distributed SQL databases created in YugabyteDB universes, including cluster awareness and load balancing. Like PgJDBC, the YugabyteDB JDBC Driver is not based on [`libpq`](#libpq), but supports the [SCRAM-SHA-256 authentication method](../../../secure/authentication/password-authentication/#scram-sha-256).
 
 ### Cluster awareness
 
-The YugabyteDB JBDC driver supports distributed SQL databases on a YugabyteDB universe, or cluster, and adds cluster awareness. When you specify any one node in your YugabyteDB cluster as the initial *contact point*  (`YBClusterAwareDataSource`), the driver discovers the rest of the nodes in the universe and automatically responds to nodes being started, stopped, added, or removed.
+The YugabyteDB JBDC Driver supports distributed SQL databases on a YugabyteDB universe, or cluster, and adds cluster awareness. When you specify any one node in your YugabyteDB cluster as the initial *contact point*  (`YBClusterAwareDataSource`), the driver discovers the rest of the nodes in the universe and automatically responds to nodes being started, stopped, added, or removed.
 
 ### Connection pooling
 
@@ -40,7 +40,7 @@ For details on functionality incorporated from the PostgreSQL JDBC driver, see [
 
 ## Download
 
-Add the following lines to your Apache Maven project to access and download the YugabyteDB JDBC driver.
+Add the following lines to your Apache Maven project to access and download the YugabyteDB JDBC Driver.
 
 ```
 <dependency>
@@ -93,3 +93,4 @@ Add the following lines to your Apache Maven project to access and download the 
         <version>42.2.7-yb-3-SNAPSHOT</version>
     </dependency>
     ```
+

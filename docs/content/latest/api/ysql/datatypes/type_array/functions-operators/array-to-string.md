@@ -11,7 +11,7 @@ isTocNested: true
 showAsideToc: true
 ---
 
-**Purpose:** Return a `text` value computed by representing each array value, traversing these in row-major order, by its `::text` typecast, using the supplied delimiter between each such representation. (The result, therefore, loses all information about the arrays geometric properties.) Optionally, represent `NULL` by the supplied `text` value. The term _"row-major order"_ is explained in the section [Joint semantics](../properties/#joint-semantics) within the section _"Functions for reporting the geometric properties of an array"_.
+**Purpose:** Return a `text` value computed by representing each array value, traversing these in row-major order, by its `::text` typecast, using the supplied delimiter between each such representation. (The result, therefore, loses all information about the arrays geometric properties.) Optionally, represent `NULL` by the supplied `text` value. The term _"row-major order"_ is explained in [Joint semantics](../properties/#joint-semantics) within the section _"Functions for reporting the geometric properties of an array"_.
 
 **Signature:**
 ```
@@ -20,7 +20,7 @@ return value:      text
 ```
 
 **Example:**
-```postgresql
+```plpgsql
 create type rt as (f1 int, f2 text);
 create table t(k int primary key, arr rt[]);
 insert into t(k, arr) values(1,
@@ -42,7 +42,7 @@ It shows this:
 To understand the syntax of the text of this literal, especially when a field is `NULL`, see  [The literal for a _"row"_ type value](../../literals/row/).
 
 Now do this:
-```postgresql
+```plpgsql
 select
   array_to_string(
     arr,     -- the input array
@@ -59,7 +59,7 @@ It shows this:
 Notice that the third, `NULL`, array value is not represented. Rather, this implied by the _absence_ of any characters between the comma and the right parenthesis delimiters.
 
 Now do this;
-```postgresql
+```plpgsql
 select
   array_to_string(
     arr,     -- the input array

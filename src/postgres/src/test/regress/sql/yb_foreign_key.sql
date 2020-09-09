@@ -138,24 +138,233 @@ DROP TABLE pk;
 
 -- DEFERRABLE foreign key constraints
 CREATE TABLE parent(k INT PRIMARY KEY);
-CREATE TABLE child(k INT PRIMARY KEY, v INT REFERENCES parent INITIALLY DEFERRED);
+CREATE TABLE child(k INT PRIMARY KEY, p_fk INT REFERENCES parent INITIALLY DEFERRED);
+
 BEGIN;
-INSERT INTO child VALUES(1, 1);
-INSERT INTO child VALUES(2, 2);
+INSERT INTO child VALUES (1, 1);
+INSERT INTO child VALUES (2, 2);
 COMMIT; -- should fail
 
 SELECT * FROM child ORDER BY k;
 
 BEGIN;
-INSERT INTO child VALUES(1, 1);
-INSERT INTO child VALUES(2, 1);
-INSERT INTO child VALUES(3, 2), (4, 3), (5, 4);
-INSERT INTO parent VALUES(1);
-INSERT INTO parent VALUES(2), (3), (4);
+INSERT INTO child VALUES (1, 1);
+INSERT INTO child VALUES (2, 1);
+INSERT INTO child VALUES (3, 2), (4, 3), (5, 4);
+INSERT INTO parent VALUES (1);
+INSERT INTO parent VALUES (2), (3), (4);
 COMMIT;
 
 SELECT * FROM parent ORDER BY k;
 SELECT * FROM child ORDER BY k;
 
+DELETE FROM child;
+DELETE FROM parent;
+
+CREATE TABLE grand_child(k INT PRIMARY KEY, c_fk INT REFERENCES child INITIALLY DEFERRED);
+
+BEGIN;
+INSERT INTO grand_child VALUES (1, 1), (2, 2), (3, 3);
+INSERT INTO child VALUES (2, 2), (3, 3);
+INSERT INTO parent VALUES (1), (2);
+COMMIT; -- should fail
+
+BEGIN;
+INSERT INTO grand_child VALUES (1, 1), (2, 2), (3, 3);
+INSERT INTO child VALUES (2, 2), (3, 3), (1, 1);
+INSERT INTO parent VALUES (3), (2), (1);
+COMMIT;
+
+SELECT * FROM parent ORDER BY k;
+SELECT * FROM child ORDER BY k;
+SELECT * FROM grand_child ORDER BY k;
+
+BEGIN;
+UPDATE grand_child SET c_fk = 4 WHERE k = 1;
+INSERT INTO child VALUES (4, 4);
+INSERT INTO parent VALUES (5);
+COMMIT; -- should fail
+
+BEGIN;
+UPDATE grand_child SET c_fk = 4 WHERE k = 1;
+INSERT INTO child VALUES (4, 4);
+INSERT INTO parent VALUES (4);
+COMMIT;
+
+SELECT * FROM parent ORDER BY k;
+SELECT * FROM child ORDER BY k;
+SELECT * FROM grand_child ORDER BY k;
+
+DROP TABLE grand_child;
+DROP TABLE child;
+DELETE FROM parent;
+
+CREATE TABLE child(k INT PRIMARY KEY, p_fk INT REFERENCES parent INITIALLY DEFERRED);
+CREATE TABLE grand_child(k INT PRIMARY KEY, c_fk INT REFERENCES child);
+
+BEGIN;
+INSERT INTO child VALUES (1, 1), (2, 2);
+INSERT INTO grand_child VALUES (1, 1), (2, 2);
+INSERT INTO parent VALUES (1);
+COMMIT; -- should fail
+
+BEGIN;
+INSERT INTO child VALUES (1, 1), (2, 2);
+INSERT INTO grand_child VALUES (1, 1), (2, 2);
+INSERT INTO parent VALUES (1);
+INSERT INTO parent VALUES (2);
+COMMIT;
+
+SELECT * FROM parent ORDER BY k;
+SELECT * FROM child ORDER BY k;
+SELECT * FROM grand_child ORDER BY k;
+
+DROP TABLE grand_child;
 DROP TABLE child;
 DROP TABLE parent;
+
+CREATE TABLE mother(k INT PRIMARY KEY);
+CREATE TABLE father(k INT PRIMARY KEY);
+CREATE TABLE child(
+    k INT PRIMARY KEY,
+    m_fk INT REFERENCES mother INITIALLY DEFERRED,
+    f_fk INT REFERENCES father INITIALLY DEFERRED);
+
+BEGIN;
+INSERT INTO child VALUES (1, 1, 1), (2, 2, 2), (3, 3, 3);
+INSERT INTO mother VALUES (1), (2);
+INSERT INTO father VALUES (1), (2), (3);
+COMMIT; -- should fail
+
+BEGIN;
+INSERT INTO child VALUES (1, 1, 1), (2, 2, 2);
+INSERT INTO mother VALUES (1), (2);
+INSERT INTO father VALUES (3), (2), (1);
+COMMIT;
+
+SELECT * FROM child ORDER BY k;
+SELECT * FROM mother ORDER by k;
+SELECT * FROM father ORDER BY k;
+
+BEGIN;
+UPDATE child SET m_fk = 4, f_fk = 4 WHERE k = 1;
+INSERT INTO mother VALUES (5), (4);
+INSERT INTO father VALUES (4), (5);
+COMMIT;
+
+SELECT * FROM child ORDER BY k;
+SELECT * FROM mother ORDER by k;
+SELECT * FROM father ORDER BY k;
+
+DROP TABLE child;
+DELETE FROM mother;
+DELETE FROM father;
+
+CREATE TABLE child(
+    k INT PRIMARY KEY,
+    m_fk INT REFERENCES mother,
+    f_fk INT REFERENCES father INITIALLY DEFERRED);
+
+BEGIN;
+INSERT INTO mother VALUES (1), (2);
+INSERT INTO child VALUES (1, 1, 1), (2, 2, 2), (3, 3, 3); -- should fail
+COMMIT;
+
+BEGIN;
+INSERT INTO mother VALUES (1), (2);
+INSERT INTO child VALUES (1, 1, 1), (2, 2, 2);
+INSERT INTO father VALUES (1);
+COMMIT; -- should fail
+
+BEGIN;
+INSERT INTO mother VALUES (1), (2);
+INSERT INTO child VALUES (1, 1, 1), (2, 2, 2);
+INSERT INTO father VALUES (3), (2), (1);
+COMMIT;
+
+SELECT * FROM child ORDER BY k;
+SELECT * FROM mother ORDER by k;
+SELECT * FROM father ORDER BY k;
+
+DROP TABLE child;
+DELETE FROM mother;
+DELETE FROM father;
+
+CREATE TABLE child(
+    k INT PRIMARY KEY,
+    m_fk INT REFERENCES mother INITIALLY DEFERRED,
+    f_fk INT REFERENCES father);
+
+BEGIN;
+INSERT INTO father VALUES (1), (2);
+INSERT INTO child VALUES (1, 1, 1), (2, 2, 2), (3, 3, 3); -- should fail
+COMMIT;
+
+BEGIN;
+INSERT INTO father VALUES (1), (2);
+INSERT INTO child VALUES (1, 1, 1), (2, 2, 2);
+INSERT INTO mother VALUES (1);
+COMMIT; -- should fail
+
+BEGIN;
+INSERT INTO father VALUES (1), (2);
+INSERT INTO child VALUES (1, 1, 1), (2, 2, 2);
+INSERT INTO mother VALUES (3), (2), (1);
+COMMIT;
+
+SELECT * FROM child ORDER BY k;
+SELECT * FROM mother ORDER by k;
+SELECT * FROM father ORDER BY k;
+
+BEGIN;
+UPDATE child SET f_fk = 4 WHERE k = 1; -- should fail
+COMMIT;
+
+BEGIN;
+UPDATE child SET m_fk = 4 WHERE k = 1;
+INSERT INTO mother VALUES (4);
+COMMIT;
+
+SELECT * FROM child ORDER BY k;
+SELECT * FROM mother ORDER by k;
+
+DROP TABLE child;
+DROP TABLE mother;
+DROP TABLE father;
+
+CREATE TABLE p1(k INT PRIMARY KEY);
+CREATE TABLE p2(k INT PRIMARY KEY);
+CREATE TABLE p3(k INT PRIMARY KEY);
+CREATE TABLE p4(k INT PRIMARY KEY);
+CREATE TABLE c(
+    k INT PRIMARY KEY,
+    p1_fk INT REFERENCES p1 INITIALLY DEFERRED,
+    p2_fk INT REFERENCES p2,
+    p3_fk INT REFERENCES p3 INITIALLY DEFERRED,
+    p4_fk INT REFERENCES p4);
+
+BEGIN;
+INSERT INTO p2 VALUES (1), (2);
+INSERT INTO c VALUES (1, 1, 1, 1, 1); -- should fail
+COMMIT;
+
+BEGIN;
+INSERT INTO p2 VALUES (1), (2);
+INSERT INTO p4 VALUES (1);
+INSERT INTO c VALUES (1, 1, 1, 1, 1);
+INSERT INTO p3 VALUES (1);
+COMMIT;  -- should fail
+
+BEGIN;
+INSERT INTO p2 VALUES (1), (2);
+INSERT INTO p4 VALUES (1), (2);
+INSERT INTO c VALUES (1, 1, 1, 1, 1), (2, 2, 2, 2, 2);
+INSERT INTO p3 VALUES (2), (1);
+INSERT INTO p1 VALUES (3), (2), (1);
+COMMIT;
+
+SELECT * FROM p1 ORDER BY k;
+SELECT * FROM p2 ORDER BY k;
+SELECT * FROM p3 ORDER BY k;
+SELECT * FROM p4 ORDER BY k;
+SELECT * FROM c ORDER BY k;

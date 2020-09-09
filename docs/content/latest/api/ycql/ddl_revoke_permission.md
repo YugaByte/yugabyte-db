@@ -2,7 +2,6 @@
 title: REVOKE PERMISSION statement [YCQL]
 headerTitle: REVOKE PERMISSION
 linkTitle: REVOKE PERMISSION
-summary: Revoke a permission from a role
 description: Use the REVOKE PERMISSION statement to revoke a permission (or all the granted permissions) from a role.
 menu:
   latest:

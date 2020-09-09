@@ -13,6 +13,8 @@
 
 package org.yb.pgsql;
 
+import static org.yb.AssertionWrappers.*;
+
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,6 +22,7 @@ import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yb.pgsql.cleaners.ClusterCleaner;
+import org.yb.pgsql.cleaners.DatabaseCleaner;
 import org.yb.pgsql.cleaners.RoleCleaner;
 import org.yb.util.YBTestRunnerNonTsanOnly;
 
@@ -31,10 +34,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
-import static org.yb.AssertionWrappers.assertThat;
-import static org.yb.AssertionWrappers.fail;
-import static org.yb.pgsql.ComparableArray.arrayOf;
+import java.util.TreeMap;
 
 /**
  * Tests for PostgreSQL configuration.
@@ -43,11 +43,19 @@ import static org.yb.pgsql.ComparableArray.arrayOf;
 public class TestPgConfiguration extends BasePgSQLTest {
   private static final Logger LOG = LoggerFactory.getLogger(TestPgConfiguration.class);
 
+  @Override
+  protected List<ClusterCleaner> getCleaners() {
+    List<ClusterCleaner> cleaners = super.getCleaners();
+    cleaners.add(0, new DatabaseCleaner());
+    cleaners.add(1, new RoleCleaner());
+    return cleaners;
+  }
+
   @Test
   public void testPostgresConfigDefault() throws Exception {
     int tserver = spawnTServerWithFlags();
 
-    try (Connection connection = newConnectionBuilder().setTServer(tserver).connect();
+    try (Connection connection = getConnectionBuilder().withTServer(tserver).connect();
          Statement statement = connection.createStatement()) {
       // Default value determined by local initdb.
       assertQuery(
@@ -70,7 +78,7 @@ public class TestPgConfiguration extends BasePgSQLTest {
     int tserver = spawnTServerWithFlags(
         "--ysql_pg_conf=max_connections=46, bonjour_name = 'some name', port=5432");
 
-    try (Connection connection = newConnectionBuilder().setTServer(tserver).connect();
+    try (Connection connection = getConnectionBuilder().withTServer(tserver).connect();
          Statement statement = connection.createStatement()) {
       // Parameters set via gflag.
       assertQuery(
@@ -109,14 +117,14 @@ public class TestPgConfiguration extends BasePgSQLTest {
     int tserver = spawnTServerWithFlags();
 
     // Can connect as test_role.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver)
-        .setUser("test_role").connect()) {
+    try (Connection ignored = getConnectionBuilder().withTServer(tserver)
+        .withUser("test_role").connect()) {
       // No-op.
     }
 
     // Can connect as superuser.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver)
-        .setUser("yugabyte").connect()) {
+    try (Connection ignored = getConnectionBuilder().withTServer(tserver)
+        .withUser("yugabyte").connect()) {
       // No-op.
     }
   }
@@ -132,20 +140,20 @@ public class TestPgConfiguration extends BasePgSQLTest {
         "host all all 0.0.0.0/0 trust");
 
     // Can connect as test_role with password.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver)
-        .setUser("test_role").setPassword("pass").connect()) {
+    try (Connection ignored = getConnectionBuilder().withTServer(tserver)
+        .withUser("test_role").withPassword("pass").connect()) {
       // No-op.
     }
 
     // Can connect as other users without password.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver)
-        .setUser("yugabyte").connect()) {
+    try (Connection ignored = getConnectionBuilder().withTServer(tserver)
+        .withUser("yugabyte").connect()) {
       // No-op.
     }
 
     // Cannot connect as test_role without password.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver)
-        .setUser("test_role").connect()) {
+    try (Connection ignored = getConnectionBuilder().withTServer(tserver)
+        .withUser("test_role").connect()) {
       fail("Expected login attempt to fail");
     } catch (SQLException sqle) {
       assertThat(
@@ -166,14 +174,14 @@ public class TestPgConfiguration extends BasePgSQLTest {
         "host all test_role 0.0.0.0/0 password");
 
     // Can connect as test_role without password.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver)
-        .setUser("test_role").connect()) {
+    try (Connection ignored = getConnectionBuilder().withTServer(tserver)
+        .withUser("test_role").connect()) {
       // No-op.
     }
 
     // Can connect as superuser without password.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver)
-        .setUser("yugabyte").connect()) {
+    try (Connection ignored = getConnectionBuilder().withTServer(tserver)
+        .withUser("yugabyte").connect()) {
       // No-op.
     }
   }
@@ -187,16 +195,17 @@ public class TestPgConfiguration extends BasePgSQLTest {
     }
 
     int tserver = spawnTServerWithFlags("--ysql_enable_auth");
+    ConnectionBuilder tsConnBldr = getConnectionBuilder().withTServer(tserver);
 
     // Can connect as user with correct password.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver).setUser("pass_role")
-        .setPassword("pass").connect()) {
+    try (Connection ignored = tsConnBldr.withUser("pass_role")
+        .withPassword("pass").connect()) {
       // No-op.
     }
 
     // Cannot connect as user with incorrect password.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver).setUser("pass_role")
-        .setPassword("wrong pass").connect()) {
+    try (Connection ignored = tsConnBldr.withUser("pass_role")
+        .withPassword("wrong pass").connect()) {
       fail("Expected login attempt to fail");
     } catch (SQLException sqle) {
       assertThat(
@@ -206,8 +215,7 @@ public class TestPgConfiguration extends BasePgSQLTest {
     }
 
     // Cannot connect as user without password.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver)
-        .setUser("no_pass_role").connect()) {
+    try (Connection ignored = tsConnBldr.withUser("no_pass_role").connect()) {
       fail("Expected login attempt to fail");
     } catch (SQLException sqle) {
       assertThat(
@@ -217,14 +225,14 @@ public class TestPgConfiguration extends BasePgSQLTest {
     }
 
     // Can connect as default yugabyte user with the default password.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver).setUser(DEFAULT_PG_USER)
-            .setPassword(DEFAULT_PG_PASS).connect()) {
+    try (Connection ignored = tsConnBldr.withUser(DEFAULT_PG_USER)
+            .withPassword(DEFAULT_PG_PASS).connect()) {
       // No-op.
     }
 
     // Cannot connect as yugabyte user with incorrect password.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver).setUser(DEFAULT_PG_USER)
-            .setPassword("wrong_pass").connect()) {
+    try (Connection ignored = tsConnBldr.withUser(DEFAULT_PG_USER)
+            .withPassword("wrong_pass").connect()) {
       fail("Expected login attempt to fail");
     } catch (SQLException sqle) {
       assertThat(
@@ -234,8 +242,7 @@ public class TestPgConfiguration extends BasePgSQLTest {
     }
 
     // Cannot connect as yugabyte user without password.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver)
-            .setUser(DEFAULT_PG_USER).connect()) {
+    try (Connection ignored = tsConnBldr.withUser(DEFAULT_PG_USER).connect()) {
       fail("Expected login attempt to fail");
     } catch (SQLException sqle) {
       assertThat(
@@ -246,15 +253,15 @@ public class TestPgConfiguration extends BasePgSQLTest {
 
     // Things like ip masking, auth methods, ... are difficult to test, so just check that the
     // hba rules are the same as we expect.
-    try (Connection connection = newConnectionBuilder().setTServer(tserver).setUser("su")
-        .setPassword("pass").connect();
+    try (Connection connection = tsConnBldr.withUser("su")
+        .withPassword("pass").connect();
          Statement statement = connection.createStatement()) {
       assertQuery(
           statement,
           "SELECT type, database, user_name, address, netmask, auth_method" +
               " FROM pg_hba_file_rules ORDER BY line_number",
-          new Row("host", arrayOf("all"), arrayOf("all"), "0.0.0.0", "0.0.0.0", "md5"),
-          new Row("host", arrayOf("all"), arrayOf("all"), "::", "::", "md5")
+          new Row("host", Arrays.asList("all"), Arrays.asList("all"), "0.0.0.0", "0.0.0.0", "md5"),
+          new Row("host", Arrays.asList("all"), Arrays.asList("all"), "::", "::", "md5")
       );
     }
   }
@@ -270,16 +277,16 @@ public class TestPgConfiguration extends BasePgSQLTest {
         "--ysql_enable_auth",
         "--ysql_hba_conf=host all all 0.0.0.0/0 trust, host all all ::0/0 trust"
     );
+    ConnectionBuilder tsConnBldr = getConnectionBuilder().withTServer(tserver);
 
     // Can connect as user with correct password.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver).setUser("pass_role")
-        .setPassword("pass").connect()) {
+    try (Connection ignored = tsConnBldr.withUser("pass_role").withPassword("pass").connect()) {
       // No-op.
     }
 
     // Cannot connect as user with incorrect password.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver).setUser("pass_role")
-        .setPassword("wrong pass").connect()) {
+    try (Connection ignored = tsConnBldr.withUser("pass_role")
+                                        .withPassword("wrong pass").connect()) {
       fail("Expected login attempt to fail");
     } catch (SQLException sqle) {
       assertThat(
@@ -289,8 +296,7 @@ public class TestPgConfiguration extends BasePgSQLTest {
     }
 
     // Cannot connect as user without password.
-    try (Connection ignored = newConnectionBuilder().setTServer(tserver)
-        .setUser("no_pass_role").connect()) {
+    try (Connection ignored = tsConnBldr.withUser("no_pass_role").connect()) {
       fail("Expected login attempt to fail");
     } catch (SQLException sqle) {
       assertThat(
@@ -304,7 +310,7 @@ public class TestPgConfiguration extends BasePgSQLTest {
   public void testTimezoneFlag() throws Exception {
     int tserver = spawnTServerWithFlags("--ysql_timezone=GMT");
 
-    try (Connection connection = newConnectionBuilder().setTServer(tserver).connect();
+    try (Connection connection = getConnectionBuilder().withTServer(tserver).connect();
          Statement statement = connection.createStatement()) {
       // Config file was created and applied properly.
       assertQuery(
@@ -327,14 +333,14 @@ public class TestPgConfiguration extends BasePgSQLTest {
   public void testDateStyleFlag() throws Exception {
     int tserver = spawnTServerWithFlags("--ysql_datestyle=MDY");
 
-    try (Connection connection = newConnectionBuilder().setTServer(tserver).connect();
+    try (Connection connection = getConnectionBuilder().withTServer(tserver).connect();
          Statement statement = connection.createStatement()) {
       assertQuery(statement, "SHOW datestyle", new Row("ISO, MDY"));
     }
 
     tserver = spawnTServerWithFlags("--ysql_datestyle=YMD");
 
-    try (Connection connection = newConnectionBuilder().setTServer(tserver).connect();
+    try (Connection connection = getConnectionBuilder().withTServer(tserver).connect();
          Statement statement = connection.createStatement()) {
       assertQuery(statement, "SHOW datestyle", new Row("ISO, YMD"));
     }
@@ -344,14 +350,14 @@ public class TestPgConfiguration extends BasePgSQLTest {
   public void testMaxConnectionsFlag() throws Exception {
     int tserver = spawnTServerWithFlags("--ysql_max_connections=256");
 
-    try (Connection connection = newConnectionBuilder().setTServer(tserver).connect();
+    try (Connection connection = getConnectionBuilder().withTServer(tserver).connect();
          Statement statement = connection.createStatement()) {
       assertQuery(statement, "SHOW max_connections", new Row("256"));
     }
 
     tserver = spawnTServerWithFlags("--ysql_max_connections=64");
 
-    try (Connection connection = newConnectionBuilder().setTServer(tserver).connect();
+    try (Connection connection = getConnectionBuilder().withTServer(tserver).connect();
          Statement statement = connection.createStatement()) {
       assertQuery(statement, "SHOW max_connections", new Row("64"));
     }
@@ -362,8 +368,8 @@ public class TestPgConfiguration extends BasePgSQLTest {
     int tserver = spawnTServerWithFlags("--ysql_default_transaction_isolation='serializable'");
 
     // Connect without passing a default isolation level.
-    try (Connection connection = newConnectionBuilder().setTServer(tserver)
-        .setIsolationLevel(null).connect();
+    try (Connection connection = getConnectionBuilder().withTServer(tserver)
+        .withIsolationLevel(null).connect();
          Statement statement = connection.createStatement()) {
       assertQuery(statement, "SHOW default_transaction_isolation", new Row("serializable"));
     }
@@ -371,8 +377,8 @@ public class TestPgConfiguration extends BasePgSQLTest {
     tserver = spawnTServerWithFlags("--ysql_default_transaction_isolation='read committed'");
 
     // Connect without passing a default isolation level.
-    try (Connection connection = newConnectionBuilder().setTServer(tserver)
-        .setIsolationLevel(null).connect();
+    try (Connection connection = getConnectionBuilder().withTServer(tserver)
+        .withIsolationLevel(null).connect();
          Statement statement = connection.createStatement()) {
       assertQuery(statement, "SHOW default_transaction_isolation", new Row("read committed"));
     }
@@ -382,13 +388,13 @@ public class TestPgConfiguration extends BasePgSQLTest {
   public void testLogStatementFlag() throws Exception {
     int tserver = spawnTServerWithFlags("--ysql_log_statement=ddl");
 
-    try (Connection connection = newConnectionBuilder().setTServer(tserver).connect();
+    try (Connection connection = getConnectionBuilder().withTServer(tserver).connect();
          Statement statement = connection.createStatement()) {
       assertQuery(statement, "SHOW log_statement", new Row("ddl"));
     }
 
     tserver = spawnTServerWithFlags("--ysql_log_statement=all");
-    try (Connection connection = newConnectionBuilder().setTServer(tserver).connect();
+    try (Connection connection = getConnectionBuilder().withTServer(tserver).connect();
          Statement statement = connection.createStatement()) {
       assertQuery(statement, "SHOW log_statement", new Row("all"));
     }
@@ -398,15 +404,31 @@ public class TestPgConfiguration extends BasePgSQLTest {
   public void testLogMinMessagesFlag() throws Exception {
     int tserver = spawnTServerWithFlags("--ysql_log_min_messages=error");
 
-    try (Connection connection = newConnectionBuilder().setTServer(tserver).connect();
+    try (Connection connection = getConnectionBuilder().withTServer(tserver).connect();
          Statement statement = connection.createStatement()) {
       assertQuery(statement, "SHOW log_min_messages", new Row("error"));
     }
 
     tserver = spawnTServerWithFlags("--ysql_log_min_messages=fatal");
-    try (Connection connection = newConnectionBuilder().setTServer(tserver).connect();
+    try (Connection connection = getConnectionBuilder().withTServer(tserver).connect();
          Statement statement = connection.createStatement()) {
       assertQuery(statement, "SHOW log_min_messages", new Row("fatal"));
+    }
+  }
+
+  @Test
+  public void testLogMinDurationStatement() throws Exception {
+    int tserver = spawnTServerWithFlags("--ysql_log_min_duration_statement=100");
+
+    try (Connection connection = getConnectionBuilder().withTServer(tserver).connect();
+         Statement statement = connection.createStatement()) {
+      assertQuery(statement, "SHOW log_min_duration_statement", new Row("100ms"));
+    }
+
+    tserver = spawnTServerWithFlags("--ysql_log_min_duration_statement=150");
+    try (Connection connection = getConnectionBuilder().withTServer(tserver).connect();
+         Statement statement = connection.createStatement()) {
+      assertQuery(statement, "SHOW log_min_duration_statement", new Row("150ms"));
     }
   }
 
@@ -419,8 +441,8 @@ public class TestPgConfiguration extends BasePgSQLTest {
     );
 
     // Connect without passing a default isolation level.
-    try (Connection connection = newConnectionBuilder().setTServer(tserver)
-        .setIsolationLevel(null).connect();
+    try (Connection connection = getConnectionBuilder().withTServer(tserver)
+        .withIsolationLevel(null).connect();
          Statement statement = connection.createStatement()) {
 
       statement.execute("SET datestyle = DMY");
@@ -451,7 +473,7 @@ public class TestPgConfiguration extends BasePgSQLTest {
     int tserver = spawnTServerWithFlags(
         "--flagfile=" + targetDir.getName() + "/" + confFile.getName());
 
-    try (Connection conn = newConnectionBuilder().setTServer(tserver).connect();
+    try (Connection conn = getConnectionBuilder().withTServer(tserver).connect();
         Statement stmt = conn.createStatement()) {
 
       // flagfile flags should be applied:

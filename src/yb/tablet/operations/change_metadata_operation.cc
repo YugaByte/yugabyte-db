@@ -42,6 +42,8 @@
 #include "yb/tablet/tablet_peer.h"
 #include "yb/tablet/tablet_metrics.h"
 #include "yb/tserver/tserver.pb.h"
+
+#include "yb/util/scope_exit.h"
 #include "yb/util/trace.h"
 
 namespace yb {
@@ -62,19 +64,8 @@ void ChangeMetadataOperationState::SetIndexes(const RepeatedPtrField<IndexInfoPB
 }
 
 string ChangeMetadataOperationState::ToString() const {
-  return Format("ChangeMetadataOperationState {hybrid_time: $0 schema: $1 request: $2 }",
+  return Format("ChangeMetadataOperationState { hybrid_time: $0 schema: $1 request: $2 }",
                 hybrid_time_even_if_unset(), schema_, request());
-}
-
-void ChangeMetadataOperationState::AcquireSchemaLock(rw_semaphore* l) {
-  TRACE("Acquiring schema lock in exclusive mode");
-  schema_lock_ = std::unique_lock<rw_semaphore>(*l);
-  TRACE("Acquired schema lock");
-}
-
-void ChangeMetadataOperationState::ReleaseSchemaLock() {
-  schema_lock_ = std::unique_lock<rw_semaphore>();
-  TRACE("Released schema lock");
 }
 
 void ChangeMetadataOperationState::UpdateRequestFromConsensusRound() {
@@ -128,6 +119,10 @@ void ChangeMetadataOperation::DoStart() {
 
 Status ChangeMetadataOperation::DoReplicated(int64_t leader_term, Status* complete_status) {
   TRACE("APPLY CHANGE-METADATA: Starting");
+
+  auto se = ScopeExit([this] {
+    state()->Finish();
+  });
 
   Tablet* tablet = state()->tablet();
   log::Log* log = state()->mutable_log();
@@ -219,18 +214,9 @@ Status ChangeMetadataOperation::DoReplicated(int64_t leader_term, Status* comple
       break;
   }
 
-  // The schema lock was acquired by Tablet::CreatePreparedChangeMetadata.
-  // Normally, we would release it in tablet.cc after applying the operation,
-  // but currently we need to wait until after the COMMIT message is logged
-  // to release this lock as a workaround for KUDU-915. See the TODO in
-  // Tablet::AlterSchema().
-  state()->ReleaseSchemaLock();
-
   // Now that all of the changes have been applied and the commit is durable
   // make the changes visible to readers.
   TRACE("AlterSchemaCommitCallback: making alter schema visible");
-  state()->Finish();
-
   return Status::OK();
 }
 

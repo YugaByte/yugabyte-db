@@ -18,6 +18,7 @@ import static org.junit.Assert.*;
 import static play.mvc.Http.Status.BAD_REQUEST;
 import static play.mvc.Http.Status.INTERNAL_SERVER_ERROR;
 import static play.mvc.Http.Status.OK;
+import static play.mvc.Http.Status.FORBIDDEN;
 import static play.mvc.Http.Status.UNAUTHORIZED;
 import static play.test.Helpers.contentAsString;
 
@@ -39,6 +40,11 @@ public class AssertHelper {
   public static void assertUnauthorized(Result result, String errorStr) {
     assertEquals(UNAUTHORIZED, result.status());
     assertErrorResponse(result, errorStr);
+  }
+
+  public static void assertForbidden(Result result, String errorStr) {
+    assertEquals(FORBIDDEN, result.status());
+    assertEquals(errorStr, contentAsString(result));
   }
 
   public static void assertErrorResponse(Result result, String errorStr) {

@@ -59,7 +59,8 @@ class KeyValueTableTest : public QLDmlTestBase {
                           TableHandle* table);
 
   static void CreateIndex(Transactional transactional, int indexed_column_index,
-                          const TableHandle& table, YBClient* client, TableHandle* index);
+                          bool use_mangled_names, const TableHandle& table,
+                          YBClient* client, TableHandle* index);
 
   // Insert/update a full, single row, equivalent to the statement below. Return a YB write op that
   // has been applied.
@@ -94,7 +95,9 @@ class KeyValueTableTest : public QLDmlTestBase {
  protected:
   void CreateTable(Transactional transactional);
 
-  void CreateIndex(Transactional transactional, int indexed_column_index = 1);
+  void CreateIndex(Transactional transactional,
+                   int indexed_column_index = 1,
+                   bool use_mangled_names = true);
 
   Result<YBqlWriteOpPtr> WriteRow(
       const YBSessionPtr& session, int32_t key, int32_t value,

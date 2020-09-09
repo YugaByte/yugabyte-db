@@ -64,3 +64,6 @@ redhat_packages:
   - atop
   - perf
   - python-devel
+
+azure_packages:
+  - libselinux-python

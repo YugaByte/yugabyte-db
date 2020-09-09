@@ -1,0 +1,48 @@
+# Copyright (c) YugaByte, Inc.
+# az account list-locations -o table from Azure CLI
+# Residency https://azure.microsoft.com/en-us/global-infrastructure/data-residency/
+
+westus2:
+  name: US West 2 (Washington)
+  latitude: 47.233
+  longitude: -119.852
+eastus:
+  name: US East (Virginia)
+  latitude: 37.3719
+  longitude: -79.8164
+centralus:
+  name: US Central (Iowa)
+  latitude: 41.5908
+  longitude: -93.6208
+uksouth:
+  name: UK South (London)
+  latitude: 50.941
+  longitude: -0.799
+westeurope:
+  name: West Europe (Netherlands)
+  latitude: 52.3667
+  longitude: 4.9
+northeurope:
+  name: North Europe (Ireland)
+  latitude: 53.3478
+  longitude: -6.2597
+japaneast:
+  name: Japan East (Tokyo)
+  longitude: 35.68
+  latitude: 139.77
+southeastasia:
+  name: Southeast Asia (Singapore)
+  longitude: 1.283
+  latitude: 103.833
+australiaeast:
+  name: Australia East (New South Wales)
+  latitude: -33.86
+  longitude: 151.2094
+eastus2:
+  name: US East 2 (Virginia)
+  latitude: 36.6681
+  longitude: -78.3889
+francecentral:
+  name: France Central (Paris)
+  latitude: 46.3772
+  longitude: 2.3730

@@ -178,7 +178,7 @@ public class UniverseDefinitionTaskParams extends UniverseTaskParams {
       }
       ObjectNode clusterJson = (ObjectNode) Json.toJson(this);
       if (userIntent.regionList != null && !userIntent.regionList.isEmpty()) {
-        List<Region> regions = Region.find.where().idIn(userIntent.regionList).findList();
+        List<Region> regions = Region.find.query().where().idIn(userIntent.regionList).findList();
         if (!regions.isEmpty()) {
           clusterJson.set("regions", Json.toJson(regions));
         }
@@ -272,6 +272,11 @@ public class UniverseDefinitionTaskParams extends UniverseTaskParams {
     public boolean enableVolumeEncryption = false;
 
     public String awsArnString;
+
+    // When this is set to true, YW will setup the universe to communicate by way of hostnames
+    // instead of ip addresses. These hostnames will have been provided during on-prem provider
+    // setup and will be in-place of privateIP
+    public boolean useHostname = false;
 
     // Info of all the gflags that the user would like to save to the universe. These will be
     // used during edit universe, for example, to set the flags on new nodes to match

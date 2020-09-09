@@ -27,6 +27,7 @@ class KeyValueWriteBatchPB;
 class QLWriteOperation;
 class PgsqlWriteOperation;
 
+struct ApplyTransactionState;
 struct DocDB;
 
 YB_STRONGLY_TYPED_BOOL(PartialRangeKeyIntents);

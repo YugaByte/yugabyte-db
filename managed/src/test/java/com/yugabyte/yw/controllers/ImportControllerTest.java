@@ -66,24 +66,6 @@ public class ImportControllerTest extends CommissionerBaseTest {
   private String authToken;
   private YBClient mockClient;
   private ListTabletServersResponse mockResponse;
-  @Mock
-  private ApiHelper mockApiHelper;
-
-  @Override
-  protected Application provideApplication() {
-    mockApiHelper = mock(ApiHelper.class);
-    mockYBClient = mock(YBClientService.class);
-    mockCallHome = mock(CallHome.class);
-    mockHealthChecker = mock(HealthChecker.class);
-
-    return new GuiceApplicationBuilder()
-        .configure((Map) Helpers.inMemoryDatabase())
-        .overrides(bind(YBClientService.class).toInstance(mockYBClient))
-        .overrides(bind(HealthChecker.class).toInstance(mockHealthChecker))
-        .overrides(bind(CallHome.class).toInstance(mockCallHome))
-        .overrides(bind(ApiHelper.class).toInstance(mockApiHelper))
-        .build();
-  }
 
   @Before
   public void setUp() {

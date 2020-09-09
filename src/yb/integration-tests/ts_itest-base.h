@@ -71,7 +71,6 @@ namespace tserver {
 
 using client::YBSchemaFromSchema;
 using client::YBTableType;
-using consensus::OpId;
 using consensus::RaftPeerPB;
 using itest::GetReplicaStatusAndCheckIfLeader;
 using itest::TabletReplicaMap;
@@ -344,7 +343,7 @@ class TabletServerIntegrationTestBase : public TabletServerTestBase {
   // Return the index within 'replicas' for the replica which is farthest ahead.
   int64_t GetFurthestAheadReplicaIdx(const std::string& tablet_id,
                                      const std::vector<TServerDetails*>& replicas) {
-    std::vector<OpId> op_ids;
+    std::vector<OpIdPB> op_ids;
     CHECK_OK(GetLastOpIdForEachReplica(tablet_id, replicas, consensus::RECEIVED_OPID,
                                        MonoDelta::FromSeconds(10), &op_ids));
 

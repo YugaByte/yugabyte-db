@@ -42,12 +42,12 @@ public class TestTransactionStatusTable extends BasePgSQLTest {
     for (int i = 0; i <  kTablesCount; ++i) {
       final int idx = i;
       cmds.add(() -> {
-        try (Statement stmt = newConnectionBuilder().connect().createStatement()) {
+        try (Statement stmt = getConnectionBuilder().connect().createStatement()) {
           startSignal.countDown();
           startSignal.await();
           // Check table is created in spite of the fact transaction status table is not ready yet.
           stmt.execute(String.format("CREATE TABLE t_%d(k INT, v INT)", idx));
-          assertOneRow(String.format("SELECT COUNT(*) FROM t_%d", idx), 0L);
+          assertOneRow(stmt, String.format("SELECT COUNT(*) FROM t_%d", idx), 0L);
         }
       });
     }

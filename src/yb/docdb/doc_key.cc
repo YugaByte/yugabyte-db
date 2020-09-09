@@ -434,6 +434,7 @@ int MaxRangeComponentsToDecode(const DocKeyPart part_to_decode, const bool hash_
       LOG(FATAL) << "Internal error: unexpected to have DocKeyPart::kUpToId here";
     case DocKeyPart::kWholeDocKey:
       return kNumValuesNoLimit;
+    case DocKeyPart::kUpToHashCode: FALLTHROUGH_INTENDED;
     case DocKeyPart::kUpToHash:
       return 0;
     case DocKeyPart::kUpToHashOrFirstRange:
@@ -460,6 +461,7 @@ yb::Status DocKey::DoDecode(DocKeyDecoder* decoder,
   switch (part_to_decode) {
     case DocKeyPart::kUpToId:
       return Status::OK();
+    case DocKeyPart::kUpToHashCode: FALLTHROUGH_INTENDED;
     case DocKeyPart::kUpToHash: FALLTHROUGH_INTENDED;
     case DocKeyPart::kUpToHashOrFirstRange: FALLTHROUGH_INTENDED;
     case DocKeyPart::kWholeDocKey:
@@ -467,6 +469,9 @@ yb::Status DocKey::DoDecode(DocKeyDecoder* decoder,
       const auto hash_present = VERIFY_RESULT(decoder->DecodeHashCode(&hash_code, allow_special));
       if (hash_present) {
         callback.SetHash(/* present */ true, hash_code);
+        if (part_to_decode == DocKeyPart::kUpToHashCode) {
+          return Status::OK();
+        }
         RETURN_NOT_OK_PREPEND(
             ConsumePrimitiveValuesFromKey(
                 decoder->mutable_input(), allow_special, callback.hashed_group()),
@@ -749,13 +754,13 @@ Status SubDocKey::DoDecode(rocksdb::Slice* slice,
 Status SubDocKey::FullyDecodeFrom(const rocksdb::Slice& slice,
                                   HybridTimeRequired require_hybrid_time) {
   rocksdb::Slice mutable_slice = slice;
-  Status status = DecodeFrom(&mutable_slice, require_hybrid_time);
+  RETURN_NOT_OK(DecodeFrom(&mutable_slice, require_hybrid_time));
   if (!mutable_slice.empty()) {
     return STATUS_SUBSTITUTE(InvalidArgument,
         "Expected all bytes of the slice to be decoded into SubDocKey, found $0 extra bytes: $1",
         mutable_slice.size(), mutable_slice.ToDebugHexString());
   }
-  return status;
+  return Status::OK();
 }
 
 Status SubDocKey::DecodePrefixLengths(
@@ -1097,11 +1102,9 @@ DocKeyEncoderAfterTableIdStep DocKeyEncoder::Schema(const class Schema& schema) 
 }
 
 Result<bool> DocKeyDecoder::DecodeCotableId(Uuid* uuid) {
-  if (input_.empty() || input_[0] != ValueTypeAsChar::kTableId) {
+  if (!input_.TryConsumeByte(ValueTypeAsChar::kTableId)) {
     return false;
   }
-
-  input_.consume_byte();
 
   if (input_.size() < kUuidSize) {
     return STATUS_FORMAT(
@@ -1309,6 +1312,12 @@ bool DocKeyBelongsTo(Slice doc_key, const Schema& schema) {
     BigEndian::Store32(buf, schema.pgtable_id());
     return doc_key.starts_with(Slice(buf, sizeof(PgTableOid)));
   }
+}
+
+Result<boost::optional<DocKeyHash>> DecodeDocKeyHash(const Slice& encoded_key) {
+  DocKey key;
+  RETURN_NOT_OK(key.DecodeFrom(encoded_key, DocKeyPart::kUpToHashCode));
+  return key.has_hash() ? key.hash() : boost::optional<DocKeyHash>();
 }
 
 const KeyBounds KeyBounds::kNoBounds;

@@ -398,18 +398,21 @@ class AWSProviderInitView extends Component {
 
     const sshPrivateKeyText = formValues.sshPrivateKeyContent;
 
-    if (this.state.keypairsInputType === "custom_keypairs" && isNonEmptyObject(sshPrivateKeyText)) {
-      const reader = new FileReader();
-      reader.readAsText(sshPrivateKeyText);
-      // Parse the file back to JSON, since the API controller endpoint doesn't support file upload
-      reader.onloadend = () => {
-        try {
-          regionFormVals["sshPrivateKeyContent"] = JSON.parse(reader.result);
-        } catch (e) {
-          this.setState({"error": "Invalid PEM Config file"});
-        }
-        return this.props.createAWSProvider(formValues.accountName, awsProviderConfig, regionFormVals);
-      };
+    if (this.state.keypairsInputType === "custom_keypairs") {
+      if(isNonEmptyObject(sshPrivateKeyText)) {
+        const reader = new FileReader();
+        reader.readAsText(sshPrivateKeyText);
+        // Parse the file back to JSON, since the API controller endpoint doesn't support file upload
+        reader.onloadend = () => {
+          try {
+            regionFormVals["sshPrivateKeyContent"] = JSON.parse(reader.result);
+          } catch (e) {
+            this.setState({"error": "Invalid PEM Config file"});
+          }
+        };
+      }
+      return this.props.createAWSProvider(formValues.accountName, awsProviderConfig, regionFormVals);
+
     } else if (this.state.keypairsInputType === 'yw_keypairs') {
       return this.props.createAWSProvider(formValues.accountName, awsProviderConfig, regionFormVals);
     }

@@ -293,7 +293,7 @@ TEST_P(MasterFailoverTestIndexCreation, TestPauseAfterCreateIndexIssued) {
     ASSERT_OK(cluster_->GetLeaderMasterIndex(&leader_idx));
     ScopedResumeExternalDaemon resume_daemon(cluster_->master(leader_idx));
 
-    consensus::OpId op_id;
+    OpIdPB op_id;
     ASSERT_OK(cluster_->GetLastOpIdForLeader(&op_id));
     ASSERT_OK(cluster_->WaitForMastersToCommitUpTo(static_cast<int>(op_id.index())));
 
@@ -414,6 +414,55 @@ TEST_F(MasterFailoverTest, TestRenameTableSync) {
 
   Status s = client_->OpenTable(table_name_orig, &table);
   ASSERT_TRUE(s.IsNotFound());
+}
+
+TEST_F(MasterFailoverTest, TestFailoverAfterTsFailure) {
+  for (auto master : cluster_->master_daemons()) {
+    ASSERT_OK(cluster_->SetFlag(master, "enable_register_ts_from_raft", "true"));
+  }
+  YBTableName table_name(YQL_DATABASE_CQL, "test", "testFailoverAfterTsFailure");
+  ASSERT_OK(CreateTable(table_name, kWaitForCreate));
+
+  cluster_->tablet_server(0)->Shutdown();
+
+  // Roll over to a new master.
+  ASSERT_OK(cluster_->ChangeConfig(cluster_->GetLeaderMaster(), consensus::REMOVE_SERVER));
+
+  // Count all servers equal to 3.
+  ASSERT_OK(WaitFor([&]() -> Result<bool> {
+    int tserver_count;
+    RETURN_NOT_OK(client_->TabletServerCount(&tserver_count, false /* primary_only */));
+    return tserver_count == 3;
+  }, MonoDelta::FromSeconds(30), "Wait for tablet server count"));
+
+  ASSERT_OK(WaitFor([&]() -> Result<bool> {
+    int tserver_count;
+    RETURN_NOT_OK(client_->TabletServerCount(&tserver_count, true /* primary_only */));
+    return tserver_count == 2;
+  }, MonoDelta::FromSeconds(30), "Wait for tablet server count"));
+
+  google::protobuf::RepeatedPtrField<master::TabletLocationsPB> tablets;
+  ASSERT_OK(client_->GetTablets(table_name, 0, &tablets));
+
+  // Assert master sees that all tablets have 3 replicas.
+  for (const auto& loc : tablets) {
+    ASSERT_EQ(loc.replicas_size(), 3);
+  }
+
+  // Make sure we can issue a delete table that doesn't crash with the fake ts. Then, make sure
+  // when we restart the server, we properly re-register and have no crashes.
+  ASSERT_OK(client_->DeleteTable(table_name, false /* wait */));
+  ASSERT_OK(cluster_->tablet_server(0)->Start());
+
+  ASSERT_OK(WaitFor([&]() -> Result<bool> {
+    int tserver_count;
+    RETURN_NOT_OK(client_->TabletServerCount(&tserver_count, true /* primary_only */));
+    bool is_idle = VERIFY_RESULT(client_->IsLoadBalancerIdle());
+    // We have registered the new tserver and the LB is idle.
+    return tserver_count == 3 && is_idle;
+  }, MonoDelta::FromSeconds(30), "Wait for LB idle"));
+
+  cluster_->AssertNoCrashes();
 }
 
 }  // namespace client

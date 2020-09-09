@@ -791,7 +791,7 @@ Status ExternalMiniCluster::GetNumMastersAsSeenBy(ExternalMaster* master, int* n
 }
 
 Status ExternalMiniCluster::WaitForLeaderCommitTermAdvance() {
-  consensus::OpId start_opid;
+  OpIdPB start_opid;
   RETURN_NOT_OK(GetLastOpIdForLeader(&start_opid));
   LOG(INFO) << "Start OPID : " << start_opid.ShortDebugString();
 
@@ -822,7 +822,7 @@ Status ExternalMiniCluster::WaitForLeaderCommitTermAdvance() {
 Status ExternalMiniCluster::GetLastOpIdForEachMasterPeer(
     const MonoDelta& timeout,
     consensus::OpIdType opid_type,
-    vector<consensus::OpId>* op_ids) {
+    vector<OpIdPB>* op_ids) {
   GetLastOpIdRequestPB opid_req;
   GetLastOpIdResponsePB opid_resp;
   opid_req.set_tablet_id(yb::master::kSysCatalogTabletId);
@@ -847,7 +847,7 @@ Status ExternalMiniCluster::WaitForMastersToCommitUpTo(int target_index) {
   auto deadline = CoarseMonoClock::Now() + opts_.timeout.ToSteadyDuration();
 
   for (int i = 1;; i++) {
-    vector<consensus::OpId> ids;
+    vector<OpIdPB> ids;
     Status s = GetLastOpIdForEachMasterPeer(opts_.timeout, consensus::COMMITTED_OPID, &ids);
 
     if (s.ok()) {
@@ -904,7 +904,7 @@ Status ExternalMiniCluster::GetIsMasterLeaderServiceReady(ExternalMaster* master
   return Status::OK();
 }
 
-Status ExternalMiniCluster::GetLastOpIdForLeader(consensus::OpId* opid) {
+Status ExternalMiniCluster::GetLastOpIdForLeader(OpIdPB* opid) {
   ExternalMaster* leader = GetLeaderMaster();
   auto leader_master_sock = leader->bound_rpc_addr();
   std::shared_ptr<ConsensusServiceProxy> leader_proxy =
@@ -938,7 +938,7 @@ string ExternalMiniCluster::GetTabletServerAddresses() const {
     if (!peer_addrs.empty()) {
       peer_addrs += ",";
     }
-    peer_addrs += Format("$0:$1", ts->bind_host(), ts->rpc_port());
+    peer_addrs += HostPortToString(ts->bind_host(), ts->rpc_port());
   }
   return peer_addrs;
 }
@@ -1285,7 +1285,12 @@ Status ExternalMiniCluster::GetPeerMasterIndex(int* idx, bool is_leader) {
   *idx = 0;  // default to 0'th index, even in case of errors.
 
   for (const scoped_refptr<ExternalMaster>& master : masters_) {
-    addrs.push_back({master->bound_rpc_addr()});
+    if (master->IsProcessAlive()) {
+      addrs.push_back({ master->bound_rpc_addr() });
+    }
+  }
+  if (addrs.empty()) {
+    return STATUS(IllegalState, "No running masters");
   }
   rpc::Rpcs rpcs;
   auto rpc = rpc::StartRpc<GetLeaderMasterRpc>(
@@ -1360,8 +1365,8 @@ int ExternalMiniCluster::tablet_server_index_by_uuid(const std::string& uuid) co
   return -1;
 }
 
-vector<ExternalDaemon*> ExternalMiniCluster::master_daemons() const {
-  vector<ExternalDaemon*> results;
+vector<ExternalMaster*> ExternalMiniCluster::master_daemons() const {
+  vector<ExternalMaster*> results;
   for (const scoped_refptr<ExternalMaster>& master : masters_) {
     results.push_back(master.get());
   }
@@ -2131,6 +2136,9 @@ Status ExternalMaster::Start(bool shell_mode) {
   flags.Add("rpc_bind_addresses", rpc_bind_address_);
   flags.Add("webserver_interface", "localhost");
   flags.Add("webserver_port", http_port_);
+  // Default master args to make sure we don't wait to trigger new LB tasks upon master leader
+  // failover.
+  flags.Add("load_balancer_initial_delay_secs", 0);
   // On first start, we need to tell the masters their list of expected peers.
   // For 'shell' master, there is no master addresses.
   if (!shell_mode) {

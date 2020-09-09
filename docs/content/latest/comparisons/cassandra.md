@@ -73,6 +73,10 @@ With YugabyteDB’s native JSON support, developers can now benefit from the str
 
 4. Apache Cassandra needs constant tuning of compactions (because of Java implementation, non-scalable, non-partitioned bloom filters and index-metadata, lack of scan-resistant caches, and so on.).
 
+5. Adding a node when the cluster is at risk of running out of disk space can give relief in steps over time. The new server will 
+start serving requests as soon as 1 tablet has been transferred. While in Cassandra the old nodes get no benefit until after adding node and then doing `nodetool cleanup` which could take many hours each.
+
+
 ## Operational flexibility
 
 At times, you may need to move your database infrastructure to new hardware or you may want to add a sync/async replica in another region or in public cloud. With YugabyteDB, these operations are simple 1-click intent based operations that are handled seamlessly by the system in a completely online manner. Yugabyte’s core data fabric and its consensus based replication model enables the "data tier” to be very agile/recomposable much like containers/VMs have done for the application or stateless tier.

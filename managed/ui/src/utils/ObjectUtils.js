@@ -190,6 +190,10 @@ export function normalizeToPositiveInt(value) {
   return parseInt(Math.abs(value), 10) || 0;
 }
 
+export function normalizeToValidPort(value) {
+  return parseInt(Math.abs(value), 10) || 1;
+}
+
 // Provided a String, return the corresponding positive float value. If invalid value, return 0.00.
 export function normalizeToPositiveFloat(value) {
   // null -> "0.00"

@@ -20,6 +20,3 @@ detect_brew
 if using_linuxbrew; then
   echo "$YB_LINUXBREW_DIR"
 fi
-if using_custom_homebrew; then
-  echo "$YB_CUSTOM_HOMEBREW_DIR"
-fi

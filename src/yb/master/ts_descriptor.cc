@@ -53,9 +53,16 @@ Result<TSDescriptorPtr> TSDescriptor::RegisterNew(
     const NodeInstancePB& instance,
     const TSRegistrationPB& registration,
     CloudInfoPB local_cloud_info,
-    rpc::ProxyCache* proxy_cache) {
+    rpc::ProxyCache* proxy_cache,
+    RegisteredThroughHeartbeat registered_through_heartbeat) {
   auto result = std::make_shared<enterprise::TSDescriptor>(
       instance.permanent_uuid());
+  if (!registered_through_heartbeat) {
+    // This tserver hasn't actually heartbeated, so register using a last_heartbeat_ time of 0.
+    std::lock_guard<decltype(result->lock_)> l(result->lock_);
+    result->last_heartbeat_ = MonoTime::kMin;
+    result->registered_through_heartbeat_ = RegisteredThroughHeartbeat::kFalse;
+  }
   RETURN_NOT_OK(result->Register(instance, registration, std::move(local_cloud_info), proxy_cache));
   return std::move(result);
 }
@@ -165,6 +172,11 @@ bool TSDescriptor::has_tablet_report() const {
 void TSDescriptor::set_has_tablet_report(bool has_report) {
   std::lock_guard<decltype(lock_)> l(lock_);
   has_tablet_report_ = has_report;
+}
+
+bool TSDescriptor::registered_through_heartbeat() const {
+  SharedLock<decltype(lock_)> l(lock_);
+  return registered_through_heartbeat_;
 }
 
 void TSDescriptor::DecayRecentReplicaCreationsUnlocked() {

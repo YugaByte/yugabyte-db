@@ -41,6 +41,7 @@
 #include <glog/stl_logging.h>
 
 #include "yb/client/callbacks.h"
+#include "yb/client/async_initializer.h"
 #include "yb/client/client.h"
 #include "yb/client/client-internal.h"
 #include "yb/client/client-test-util.h"
@@ -86,6 +87,7 @@
 
 #include "yb/util/capabilities.h"
 #include "yb/util/metrics.h"
+#include "yb/util/net/dns_resolver.h"
 #include "yb/util/net/sockaddr.h"
 #include "yb/util/status.h"
 #include "yb/util/stopwatch.h"
@@ -1051,7 +1053,6 @@ void ClientTest::DoTestWriteWithDeadServer(WhichServerToKill which) {
     case DEAD_MASTER:
       // Only one master, so no retry for finding the new leader master.
       ASSERT_TRUE(error->status().IsTimedOut());
-      ASSERT_STR_CONTAINS(error->status().ToString(false), "Network error");
       break;
     case DEAD_TSERVER:
       ASSERT_TRUE(error->status().IsTimedOut());
@@ -2177,18 +2178,22 @@ TEST_F(ClientTest, FlushTable) {
     // Test flush table.
     InsertTestRows(client_table2_, 1, current_row++);
     ASSERT_EQ(tablet->GetCurrentVersionNumSSTFiles(), initial_num_sst_files);
-    ASSERT_OK(client_->FlushTable(table_id_or_name, kTimeoutSecs, false /* is_compaction */));
+    ASSERT_OK(client_->FlushTables(
+        {table_id_or_name}, /* add_indexes */ false, kTimeoutSecs, false /* is_compaction */));
     ASSERT_EQ(tablet->GetCurrentVersionNumSSTFiles(), initial_num_sst_files + 1);
 
     // Insert and flush more rows.
     InsertTestRows(client_table2_, 1, current_row++);
-    ASSERT_OK(client_->FlushTable(table_id_or_name, kTimeoutSecs, false /* is_compaction */));
+    ASSERT_OK(client_->FlushTables(
+        {table_id_or_name}, /* add_indexes */ false, kTimeoutSecs, false /* is_compaction */));
     InsertTestRows(client_table2_, 1, current_row++);
-    ASSERT_OK(client_->FlushTable(table_id_or_name, kTimeoutSecs, false /* is_compaction */));
+    ASSERT_OK(client_->FlushTables(
+        {table_id_or_name}, /* add_indexes */ false, kTimeoutSecs, false /* is_compaction */));
 
     // Test compact table.
     ASSERT_EQ(tablet->GetCurrentVersionNumSSTFiles(), initial_num_sst_files + 3);
-    ASSERT_OK(client_->FlushTable(table_id_or_name, kTimeoutSecs, true /* is_compaction */));
+    ASSERT_OK(client_->FlushTables(
+        {table_id_or_name}, /* add_indexes */ false, kTimeoutSecs, true /* is_compaction */));
     ASSERT_EQ(tablet->GetCurrentVersionNumSSTFiles(), 1);
   });
 
@@ -2197,9 +2202,11 @@ TEST_F(ClientTest, FlushTable) {
 
   auto test_bad_flush_and_compact = ([&]<class T>(T table_id_or_name) {
     // Test flush table.
-    ASSERT_NOK(client_->FlushTable(table_id_or_name, kTimeoutSecs, false /* is_compaction */));
+    ASSERT_NOK(client_->FlushTables(
+        {table_id_or_name}, /* add_indexes */ false, kTimeoutSecs, false /* is_compaction */));
     // Test compact table.
-    ASSERT_NOK(client_->FlushTable(table_id_or_name, kTimeoutSecs, true /* is_compaction */));
+    ASSERT_NOK(client_->FlushTables(
+        {table_id_or_name}, /* add_indexes */ false, kTimeoutSecs, true /* is_compaction */));
   });
 
   test_bad_flush_and_compact("bad table id");
@@ -2238,6 +2245,34 @@ TEST_F(ClientTest, GetNamespaceInfo) {
   ASSERT_EQ(resp.namespace_().name(), kPgsqlKeyspaceName);
   ASSERT_EQ(resp.namespace_().database_type(), YQL_DATABASE_PGSQL);
   ASSERT_TRUE(resp.colocated());
+}
+
+TEST_F(ClientTest, BadMasterAddress) {
+  auto messenger = ASSERT_RESULT(CreateMessenger("test-messenger"));
+  auto host = "should.not.resolve";
+
+  // Put host entry in cache.
+  ASSERT_NOK(messenger->resolver().Resolve(host));
+
+  {
+    struct TestServerOptions : public server::ServerBaseOptions {
+      TestServerOptions() : server::ServerBaseOptions(1) {}
+    };
+    TestServerOptions opts;
+    auto master_addr = std::make_shared<server::MasterAddresses>();
+    // Put several hosts, so resolve would take place.
+    master_addr->push_back({HostPort(host, 1)});
+    master_addr->push_back({HostPort(host, 2)});
+    opts.SetMasterAddresses(master_addr);
+
+    AsyncClientInitialiser async_init(
+        "test-client", /* num_reactors= */ 1, /* timeout_seconds= */ 1, "UUID", &opts,
+        /* metric_entity= */ nullptr, /* parent_mem_tracker= */ nullptr, messenger.get());
+    async_init.Start();
+    async_init.get_client_future().wait_for(1s);
+  }
+
+  messenger->Shutdown();
 }
 
 }  // namespace client

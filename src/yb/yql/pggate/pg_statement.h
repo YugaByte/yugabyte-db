@@ -49,6 +49,8 @@ enum class StmtOp {
   STMT_TRUNCATE,
   STMT_SELECT,
   STMT_ALTER_DATABASE,
+  STMT_CREATE_TABLEGROUP,
+  STMT_DROP_TABLEGROUP,
 };
 
 class PgStatement : public RefCountedThreadSafe<PgStatement> {

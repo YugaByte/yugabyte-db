@@ -18,9 +18,12 @@
 #include "yb/client/table.h"
 
 #include "yb/common/pg_system_attr.h"
+#include "yb/docdb/doc_key.h"
 
 namespace yb {
 namespace pggate {
+
+using google::protobuf::RepeatedPtrField;
 
 PgTableDesc::PgTableDesc(std::shared_ptr<client::YBTable> pg_table) : table_(pg_table) {
   const auto& schema = pg_table->schema();
@@ -92,7 +95,21 @@ int PgTableDesc::GetPartitionCount() const {
   return table_->GetPartitionCount();
 }
 
-size_t PgTableDesc::FindPartitionStartIndex(const std::string& partition_key) const {
+Result<int> PgTableDesc::FindPartitionStartIndex(const string& partition_key) const {
+  return table_->FindPartitionStartIndex(partition_key);
+}
+
+Result<int> PgTableDesc::FindPartitionStartIndex(const Slice& ybctid, uint16 *hash_code) const {
+  *hash_code = VERIFY_RESULT(docdb::DocKey::DecodeHash(ybctid));
+  string partition_key = PartitionSchema::EncodeMultiColumnHashValue(*hash_code);
+  return table_->FindPartitionStartIndex(partition_key);
+}
+
+Result<int> PgTableDesc::FindPartitionStartIndex(
+    const RepeatedPtrField<PgsqlExpressionPB>& hash_col_values, uint16 *hash_code) const {
+  string partition_key;
+  RETURN_NOT_OK(table_->partition_schema().EncodeKey(hash_col_values, &partition_key));
+  *hash_code = table_->partition_schema().DecodeMultiColumnHashValue(partition_key);
   return table_->FindPartitionStartIndex(partition_key);
 }
 

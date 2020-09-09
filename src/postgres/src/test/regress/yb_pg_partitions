@@ -1,0 +1,12 @@
+# src/test/regress/yb_partitions
+#
+####################################################################################################
+# This testsuite contains testcases ported from postgres partitioning regression tests, namely
+# partition_join and partition_aggregate.
+####################################################################################################
+test: yb_pg_partition_prune
+test: yb_pg_partition_join
+test: yb_pg_partition_aggregate
+test: yb_pg_partition_update
+
+test: yb_partition_fk

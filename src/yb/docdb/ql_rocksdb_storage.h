@@ -65,6 +65,7 @@ class QLRocksDBStorage : public common::YQLStorageIf {
                               const QLValuePB& ybctid) const override;
 
   CHECKED_STATUS GetIterator(const PgsqlReadRequestPB& request,
+                             int64_t batch_arg_index,
                              const Schema& projection,
                              const Schema& schema,
                              const TransactionOperationContextOpt& txn_op_context,

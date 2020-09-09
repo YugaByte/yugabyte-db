@@ -1852,6 +1852,12 @@ YBStartTransaction(TransactionState s)
 	s->isYBTxnWithPostgresRel = !IsYugaByteEnabled();
 	s->ybDataSent             = false;
 
+	YBInitializeTransaction();
+}
+
+void
+YBInitializeTransaction(void)
+{
 	if (YBTransactionsEnabled())
 	{
 		YBCPgBeginTransaction();

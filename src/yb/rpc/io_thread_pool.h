@@ -20,6 +20,7 @@
 #include <functional>
 
 #include "yb/rpc/rpc_fwd.h"
+#include "yb/util/net/net_fwd.h"
 
 namespace yb {
 namespace rpc {

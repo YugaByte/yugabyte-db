@@ -85,7 +85,8 @@ DECLARE_int32(max_create_tablets_per_ts);
 DEFINE_int32(num_test_tablets, 60, "Number of tablets for stress test");
 DEFINE_int32(benchmark_runtime_secs, 5, "Number of seconds to run the benchmark");
 DEFINE_int32(benchmark_num_threads, 16, "Number of threads to run the benchmark");
-DEFINE_int32(benchmark_num_tablets, 60, "Number of tablets to create");
+// Increase this for actually using this as a benchmark test.
+DEFINE_int32(benchmark_num_tablets, 8, "Number of tablets to create");
 
 METRIC_DECLARE_histogram(handler_latency_yb_master_MasterService_GetTableLocations);
 

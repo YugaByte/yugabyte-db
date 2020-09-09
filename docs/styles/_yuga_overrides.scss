@@ -385,7 +385,7 @@ dd {
     float: none;
     margin-bottom: 0;
     padding: 0;
-    width: 265px;
+    width: 275px;
     margin-left: -40px;
     flex-basis: auto;
   }
@@ -394,7 +394,7 @@ dd {
 .drawer {
   position: relative !important;
   nav {
-    width: 265px;
+    width: 275px;
     .scrollable {
       padding-left: 40px;
     }
@@ -583,7 +583,6 @@ h1, h2, h3, h4, h5, h6 {
 
           a.node-toggle {
             color: $YB_LIGHT_BLUE;
-
             > i {
               font-size: 12px;
             }
@@ -595,8 +594,9 @@ h1, h2, h3, h4, h5, h6 {
         margin-left: 10px;
         border-left: none;
 
-        a {
+        a:not(.node-toggle) {
           padding-left: 0px;
+          max-width: 85%;
         }
       }
 
@@ -604,8 +604,12 @@ h1, h2, h3, h4, h5, h6 {
         margin-left: 0;
         border-left: 1px solid $YB_ORANGE;
 
-        a {
+        > li {
           padding-left: 15px;
+        }
+
+        ul {
+          margin-left: 10px;
         }
       }
 

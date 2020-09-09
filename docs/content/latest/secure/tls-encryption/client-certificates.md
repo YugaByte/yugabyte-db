@@ -1,10 +1,8 @@
 ---
 title: Create client certificates
-headerTitle: Client client certificates
+headerTitle: Create client certificates
 linkTitle: Create client certificates
-description: Generate client certificates to connect to YugabyteDB clusters.
-headcontent: Generate client certificates to connect to YugabyteDB clusters.
-image: /images/section_icons/secure/prepare-nodes.png
+description: Generate client certificates to connect to and interact with YugabyteDB databases.
 menu:
   latest:
     identifier: client-certificates
@@ -161,7 +159,7 @@ subject=O = Yugabyte, CN = yugabyte
 Getting CA Private Key
 ```
 
-You've now created the required client certificates for user `yugabyte` and added the files to the default client certificates directory for `ysqlsh` (`~/.yugabytedb`).
+You have created the required client certificates for user `yugabyte` and added the files to the default client certificates directory for `ysqlsh` (`~/.yugabytedb`). The user `yugabyte` must present his client certificates to connect to and interact with YugabyteDB databases when client-to-server encryption is enabled. Each set of client certificates is unique to each user or role that connects to YugabyteDB and uses clients, tools, and APIs to communicate with their databases.
 
 ## What's next
 

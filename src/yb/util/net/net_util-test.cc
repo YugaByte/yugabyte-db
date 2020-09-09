@@ -38,6 +38,7 @@
 
 #include "yb/gutil/strings/join.h"
 #include "yb/gutil/strings/util.h"
+#include "yb/util/format.h"
 #include "yb/util/net/net_util.h"
 #include "yb/util/net/socket.h"
 #include "yb/util/net/sockaddr.h"
@@ -62,16 +63,34 @@ class NetUtilTest : public YBTest {
     return Status::OK();
   }
 
+  Status GetHostPorts(const string &endpoint_str, vector<HostPort> *hps) {
+    return HostPort::ParseStrings(endpoint_str, NetUtilTest::kDefaultPort, hps);
+  }
+
+  Status GetHostPort(const string &endpoint_str, HostPort *hp) {
+    return hp->ParseString(endpoint_str, NetUtilTest::kDefaultPort);
+  }
+
+  uint16_t GetDefaultPort() { return NetUtilTest::kDefaultPort; }
+
   static const uint16_t kDefaultPort = 7150;
 };
 
 TEST(SockaddrTest, Test) {
   boost::system::error_code ec;
-  auto address = IpAddress::from_string("1.1.1.1", ec);
+  const auto& kRegularAddr = "1.1.1.1";
+  auto address = IpAddress::from_string(kRegularAddr, ec);
   ASSERT_FALSE(ec);
   Endpoint endpoint(address, 12345);
   ASSERT_EQ("1.1.1.1:12345", ToString(endpoint));
   ASSERT_EQ(12345, endpoint.port());
+
+  ASSERT_FALSE(IsWildcardAddress(kRegularAddr));
+  const auto kWildcardAddr1 = "0.0.0.0";
+  ASSERT_TRUE(IsWildcardAddress(kWildcardAddr1));
+  const auto kWildcardAddr2 = "::";
+  ASSERT_TRUE(IsWildcardAddress(kWildcardAddr2));
+  ASSERT_FALSE(IsWildcardAddress("::1"));
 }
 
 TEST_F(NetUtilTest, TestParseAddresses) {
@@ -96,15 +115,62 @@ TEST_F(NetUtilTest, TestParseAddresses) {
   ASSERT_STR_CONTAINS(s.ToString(), "Invalid port");
 }
 
+TEST_F(NetUtilTest, TestHostPortParsing) {
+  const vector<string> hosts = { "samplehost.example.org", "192.168.1.45" };
+  const vector<string> ipv6_hosts = { "2600:1f18:1094:c832:36e6:43b9:e6c8:02",
+                                      "0:0:0:0:0:0:0:1", "fe80%lo" };
+  for (const auto &host : hosts) {
+    std::unique_ptr<HostPort> hp(new HostPort());
+    ASSERT_OK(GetHostPort(Format("$0:7100", host), hp.get()));
+    ASSERT_EQ(hp->port(), 7100);
+    ASSERT_EQ(hp->host(), host);
+
+    hp.reset(new HostPort());
+    ASSERT_OK(GetHostPort(Format("$0", host), hp.get()));
+    ASSERT_EQ(hp->port(), GetDefaultPort());
+    ASSERT_EQ(hp->host(), host);
+  }
+
+  for (const auto &host : ipv6_hosts) {
+    std::unique_ptr<HostPort> hp(new HostPort());
+    ASSERT_OK(GetHostPort(Format("[$0]:7100", host), hp.get()));
+    ASSERT_EQ(hp->port(), 7100);
+    ASSERT_EQ(hp->host(), host);
+
+    hp.reset(new HostPort());
+    ASSERT_OK(GetHostPort(Format("[$0]", host), hp.get()));
+    ASSERT_EQ(hp->port(), GetDefaultPort());
+    ASSERT_EQ(hp->host(), host);
+  }
+
+  vector<HostPort> hps;
+  ASSERT_OK(GetHostPorts("[::1]:7100,127.0.0.1:7200", &hps));
+  ASSERT_EQ(hps.size(), 2);
+  ASSERT_EQ(hps[0].port(), 7100);
+  ASSERT_EQ(hps[1].port(), 7200);
+
+  hps.clear();
+  ASSERT_OK(GetHostPorts(
+      "[2600:1f18:1094:c832:36e6:43b9:e6c8:f02]:7100,0.0.0.0:7200", &hps));
+  ASSERT_EQ(hps.size(), 2);
+  ASSERT_EQ(hps[0].port(), 7100);
+  ASSERT_EQ(hps[1].port(), 7200);
+}
+
 TEST_F(NetUtilTest, TestResolveAddresses) {
   HostPort hp("localhost", 12345);
   std::vector<Endpoint> addrs;
   ASSERT_OK(hp.ResolveAddresses(&addrs));
   ASSERT_TRUE(!addrs.empty());
   for (const auto& addr : addrs) {
-    LOG(INFO) << "Address: " << addr;
-    EXPECT_TRUE(HasPrefixString(ToString(addr), "127."));
-    EXPECT_TRUE(HasSuffixString(ToString(addr), ":12345"));
+    LOG(INFO) << "Address: " << ToString(addr);
+    if (addr.address().is_v4()) {
+      EXPECT_TRUE(HasPrefixString(ToString(addr), "127."));
+      EXPECT_TRUE(HasSuffixString(ToString(addr), ":12345"));
+    } else if (addr.address().is_v6()) {
+      EXPECT_TRUE(HasPrefixString(ToString(addr), "[::1]"));
+      EXPECT_TRUE(HasSuffixString(ToString(addr), ":12345"));
+    }
     EXPECT_TRUE(addr.address().is_loopback());
   }
 

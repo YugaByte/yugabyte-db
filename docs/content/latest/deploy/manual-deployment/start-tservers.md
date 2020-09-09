@@ -1,8 +1,8 @@
 ---
-title: Start YB-TServer servers of YugabyteDB cluster
+title: Start YB-TServer servers
 headerTitle: Start YB-TServers
 linkTitle: 4. Start YB-TServers
-description: Start YB-TServer servers of your YugabyteDB cluster
+description: Steps to start YB-TServers when deploying for a single region or data center in a multi-zone/multi-rack configuration.
 aliases:
   - /deploy/manual-deployment/start-tservers
 menu:
@@ -51,8 +51,6 @@ $ ./bin/yb-tserver \
 
 For the full list of configuration flags, see the [YB-TServer reference](../../../reference/configuration/yb-tserver/).
 
-If you need to turn on the YEDIS API as well, add `--redis_proxy_bind_address=172.151.17.130:6379` to the above list.
-
 {{< note title="Note" >}}
 
 The number of comma-separated values in the [`--tserver_master_addrs`](../../../reference/configuration/yb-tserver/#tserver-master-addrs)) flag should match the total number of YB-Master servers (or the replication factor).
@@ -75,8 +73,6 @@ Alternatively, you can also create a `tserver.conf` file with the following flag
 --placement_zone=us-west-2a 
 ```
 
-Add `--redis_proxy_bind_address=172.22.25.108:6379` to the above list if you need to turn on the YEDIS API as well.
-
 ```sh
 $ ./bin/yb-tserver --flagfile tserver.conf >& /home/centos/disk1/yb-tserver.out &
 ```
@@ -89,7 +85,7 @@ This step is required for only multi-AZ deployments and can be skipped for a sin
 
 {{< /note >}}
 
-The default replica placement policy when the cluster is first created is to treat all nodes as equal irrespective of the `--placement_*` configuration flags.  However, for the current deployment, we want to explicitly place one replica of each tablet in each AZ. The following command sets replication factor of `3` across `us-west-2a`, `us-west-2b`, `us-west-2c` leading to such a placement.
+The default replica placement policy when the cluster is first created is to treat all nodes as equal irrespective of the `--placement_*` configuration flags.  However, for the current deployment, you want to explicitly place one replica of each tablet in each AZ. The following command sets replication factor of `3` across `us-west-2a`, `us-west-2b`, `us-west-2c` leading to such a placement.
 
 On any host running the yb-master, run the following command.
 

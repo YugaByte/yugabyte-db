@@ -12,10 +12,16 @@
 //
 package org.yb.pgsql;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+import static org.yb.AssertionWrappers.*;
+import static org.yb.util.SanitizerUtil.isASAN;
+import static org.yb.util.SanitizerUtil.isTSAN;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -42,37 +48,12 @@ import java.io.File;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.net.URLConnection;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Scanner;
-import java.util.Set;
-import java.util.TreeMap;
+import java.sql.*;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-
-import static com.google.common.base.Preconditions.checkNotNull;
-import static org.yb.AssertionWrappers.assertArrayEquals;
-import static org.yb.AssertionWrappers.assertEquals;
-import static org.yb.AssertionWrappers.assertLessThan;
-import static org.yb.AssertionWrappers.assertFalse;
-import static org.yb.AssertionWrappers.assertTrue;
-import static org.yb.AssertionWrappers.fail;
-import static org.yb.util.SanitizerUtil.isASAN;
-import static org.yb.util.SanitizerUtil.isTSAN;
 
 public class BasePgSQLTest extends BaseMiniClusterTest {
   private static final Logger LOG = LoggerFactory.getLogger(BasePgSQLTest.class);
@@ -109,9 +90,6 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
   protected static Connection connection;
 
   protected File pgBinDir;
-
-  // Post-test cleaners, stored in a tree-map to maintain order.
-  private final TreeMap<Integer, ClusterCleaner> cleanersByPriority = getCleaners();
 
   protected static final int DEFAULT_STATEMENT_TIMEOUT_MS = 30000;
 
@@ -189,11 +167,7 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
   }
 
   protected Map<String, String> getMasterAndTServerFlags() {
-    Map<String, String> flagMap = new TreeMap<>();
-    flagMap.put(
-        "retryable_rpc_single_call_timeout_ms",
-        String.valueOf(getRetryableRpcSingleCallTimeoutMs()));
-    return flagMap;
+    return new TreeMap<>();
   }
 
   protected Integer getYsqlPrefetchLimit() {
@@ -211,7 +185,6 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     Map<String, String> flagMap = new TreeMap<>();
 
     if (isTSAN() || isASAN()) {
-      flagMap.put("yb_client_admin_operation_timeout_sec", "120");
       flagMap.put("pggate_rpc_timeout_secs", "120");
     }
     flagMap.put("start_cql_proxy", Boolean.toString(startCqlProxy));
@@ -301,42 +274,18 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     }
 
     // Create test role.
-    try (Connection initialConnection = newConnectionBuilder().setUser(DEFAULT_PG_USER).connect();
+    try (Connection initialConnection = getConnectionBuilder().withUser(DEFAULT_PG_USER).connect();
          Statement statement = initialConnection.createStatement()) {
       statement.execute(
           "CREATE ROLE " + TEST_PG_USER + " SUPERUSER CREATEROLE CREATEDB BYPASSRLS LOGIN");
     }
 
-    connection = newConnectionBuilder().connect();
+    connection = getConnectionBuilder().connect();
     pgInitialized = true;
   }
 
-  static ConnectionBuilder newConnectionBuilder() {
+  static ConnectionBuilder getConnectionBuilder() {
     return new ConnectionBuilder(miniCluster);
-  }
-
-  /**
-   * @deprecated Use {@link #newConnectionBuilder()} instead.
-   */
-  @Deprecated
-  protected Connection createConnection(
-      IsolationLevel isolationLevel,
-      AutoCommit autoCommit) throws Exception {
-    return newConnectionBuilder()
-        .setIsolationLevel(isolationLevel)
-        .setAutoCommit(autoCommit)
-        .connect();
-  }
-
-  /**
-   * @deprecated Use {@link #newConnectionBuilder()} instead.
-   */
-  @Deprecated
-  protected Connection createConnectionSerializableNoAutoCommit() throws Exception {
-    return newConnectionBuilder()
-        .setIsolationLevel(IsolationLevel.SERIALIZABLE)
-        .setAutoCommit(AutoCommit.DISABLED)
-        .connect();
   }
 
   public String getPgHost(int tserverIndex) {
@@ -345,50 +294,6 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
 
   public int getPgPort(int tserverIndex) {
     return miniCluster.getPostgresContactPoints().get(tserverIndex).getPort();
-  }
-
-  /**
-   * @deprecated Use {@link #newConnectionBuilder()} instead.
-   */
-  @Deprecated
-  protected Connection createConnection() throws Exception {
-    return newConnectionBuilder().connect();
-  }
-
-  /**
-   * @deprecated Use {@link #newConnectionBuilder()} instead.
-   */
-  @Deprecated
-  protected Connection createConnection(int tserverIndex) throws Exception {
-    return newConnectionBuilder()
-        .setTServer(tserverIndex)
-        .connect();
-  }
-
-  /**
-   * @deprecated Use {@link #newConnectionBuilder()} instead.
-   */
-  @Deprecated
-  protected Connection createPgConnectionToTServer(
-      int tserverIndex,
-      IsolationLevel isolationLevel,
-      AutoCommit autoCommit) throws Exception {
-    return newConnectionBuilder()
-        .setTServer(tserverIndex)
-        .setIsolationLevel(isolationLevel)
-        .setAutoCommit(autoCommit)
-        .connect();
-  }
-
-  /**
-   * @deprecated Use {@link #newConnectionBuilder()} instead.
-   */
-  @Deprecated
-  protected Connection createConnection(int tserverIndex, String pgDB) throws Exception {
-    return newConnectionBuilder()
-        .setTServer(tserverIndex)
-        .setDatabase(pgDB)
-        .connect();
   }
 
   protected Map<String, String> getPgRegressEnvVars() {
@@ -413,12 +318,13 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
   }
 
   /**
-   * Register default post-test cleaners.
+   * Register default post-test cleaners, executed in order.
+   * When overridden, new cleaners should be added to the front of the list.
    */
-  protected TreeMap<Integer, ClusterCleaner> getCleaners() {
-    TreeMap<Integer, ClusterCleaner> cleaners = new TreeMap<>();
-    cleaners.put(99, new ConnectionCleaner());
-    cleaners.put(100, new UserObjectCleaner());
+  protected List<ClusterCleaner> getCleaners() {
+    List<ClusterCleaner> cleaners = new ArrayList<>();
+    cleaners.add(new ConnectionCleaner());
+    cleaners.add(new UserObjectCleaner());
     return cleaners;
   }
 
@@ -431,12 +337,12 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
 
     // If root connection was closed, open a new one for cleaning.
     if (connection.isClosed()) {
-      connection = newConnectionBuilder().connect();
+      connection = getConnectionBuilder().connect();
     }
 
-    // Run cleaners in ascending key order (i.e. low key => high priority).
-    for (Map.Entry<Integer, ClusterCleaner> entry : cleanersByPriority.entrySet()) {
-      entry.getValue().clean(connection);
+    // Run cleaners in order.
+    for (ClusterCleaner cleaner : getCleaners()) {
+      cleaner.clean(connection);
     }
   }
 
@@ -522,7 +428,7 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     return value;
   }
 
-  protected void verifyStatementStat(Statement statement, String stmt, String statName,
+  protected void verifyStatementStat(Statement stmt, String sql, String statName,
                                      int stmtMetricDelta, boolean validStmt) throws Exception {
     long oldValue = 0;
     if (statName != null) {
@@ -530,9 +436,9 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     }
 
     if (validStmt) {
-      statement.execute(stmt);
+      stmt.execute(sql);
     } else {
-      runInvalidQuery(statement, stmt);
+      runInvalidQuery(stmt, sql, "ERROR");
     }
 
     long newValue = 0;
@@ -543,26 +449,26 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     assertEquals(oldValue + stmtMetricDelta, newValue);
   }
 
-  protected void verifyStatementStats(Statement statement, String stmt, String statName,
+  protected void verifyStatementStats(Statement stmt, String sql, String statName,
                                       long numLoops, long oldValue) throws Exception {
     for (int i = 0; i < numLoops; i++) {
-      statement.execute(stmt);
+      stmt.execute(sql);
     }
 
     long newValue = getStatementStat(statName).count;
     assertEquals(oldValue + numLoops, newValue);
   }
 
-  protected void verifyStatementStatWithReset(Statement statement, String stmt, String statName,
+  protected void verifyStatementStatWithReset(Statement stmt, String sql, String statName,
                                               long numLoopsBeforeReset, long numLoopsAfterReset)
                                                 throws Exception {
     long oldValue = getStatementStat(statName).count;
-    verifyStatementStats(statement, stmt, statName, numLoopsBeforeReset, oldValue);
+    verifyStatementStats(stmt, sql, statName, numLoopsBeforeReset, oldValue);
 
     resetStatementStat();
 
     oldValue = 0;
-    verifyStatementStats(statement, stmt, statName, numLoopsAfterReset, oldValue);
+    verifyStatementStats(stmt, sql, statName, numLoopsAfterReset, oldValue);
   }
 
   private JsonArray[] getRawMetric(
@@ -609,7 +515,7 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
   }
 
   /** Time execution of a query. */
-  protected long verifyStatementMetric(Statement statement, String query, String metricName,
+  protected long verifyStatementMetric(Statement stmt, String sql, String metricName,
                                        int queryMetricDelta, int txnMetricDelta,
                                        boolean validStmt) throws Exception {
     long oldQueryMetricValue = metricName == null ? 0 : getMetricCounter(metricName);
@@ -617,9 +523,9 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
 
     final long startTimeMillis = System.currentTimeMillis();
     if (validStmt) {
-      statement.execute(query);
+      stmt.execute(sql);
     } else {
-      runInvalidQuery(statement, query);
+      runInvalidQuery(stmt, sql, "ERROR");
     }
 
     // Check the elapsed time.
@@ -628,17 +534,17 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     long newValue = metricName == null ? 0 : getMetricCounter(metricName);
     long newTxnValue = getMetricCounter(TRANSACTIONS_METRIC);
 
-    assertEquals("Metric '" + metricName + "' assertion failed for query '" + query + "'",
+    assertEquals("Metric '" + metricName + "' assertion failed for query '" + sql + "'",
         oldQueryMetricValue + queryMetricDelta, newValue);
-    assertEquals("Metric '" + TRANSACTIONS_METRIC + "' assertion failed for query '" + query + "'",
+    assertEquals("Metric '" + TRANSACTIONS_METRIC + "' assertion failed for query '" + sql + "'",
         oldTxnMetricValue + txnMetricDelta, newTxnValue);
 
     return result;
   }
 
-  protected void verifyStatementTxnMetric(Statement statement, String query,
+  protected void verifyStatementTxnMetric(Statement statement, String sql,
                                           int txnMetricDelta) throws Exception {
-    verifyStatementMetric(statement, query, null, 0, txnMetricDelta, true);
+    verifyStatementMetric(statement, sql, null, 0, txnMetricDelta, true);
   }
 
   protected void executeWithTimeout(Statement statement, String sql)
@@ -744,11 +650,11 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
   }
 
 
-  protected void executeWithTxnState(PgTxnState txnState, String query) throws Exception {
+  protected void executeWithTxnState(PgTxnState txnState, String sql) throws Exception {
     boolean previousStmtFailed = Boolean.FALSE.equals(txnState.stmtExecuted);
     txnState.stmtExecuted = false;
     try {
-      executeWithTimeout(txnState.getStatement(), query);
+      executeWithTimeout(txnState.getStatement(), sql);
       txnState.stmtExecuted = !previousStmtFailed;
     } catch (PSQLException ex) {
       // TODO: validate the exception message.
@@ -766,15 +672,27 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
   //------------------------------------------------------------------------------------------------
   // Test Utilities
 
-  protected class Row implements Comparable<Row>, Cloneable {
-    ArrayList<Comparable> elems = new ArrayList<>();
-
-    Row(Comparable... args) {
-      Collections.addAll(elems, args);
+  protected static class Row implements Comparable<Row>, Cloneable {
+    static Row fromResultSet(ResultSet rs) throws SQLException {
+      Object[] elems = new Object[rs.getMetaData().getColumnCount()];
+      for (int i = 0; i < elems.length; i++) {
+        elems[i] = rs.getObject(i + 1); // Column index starts from 1.
+      }
+      return new Row(elems);
     }
 
-    Comparable get(int index) {
+    ArrayList<Object> elems = new ArrayList<>();
+
+    Row(Object... elems) {
+      Collections.addAll(this.elems, elems);
+    }
+
+    Object get(int index) {
       return elems.get(index);
+    }
+
+    Boolean getBoolean(int index) {
+      return (Boolean) elems.get(index);
     }
 
     Integer getInt(int index) {
@@ -806,24 +724,12 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     }
 
     @Override
-    public int compareTo(Row other) {
+    public int compareTo(Row that) {
       // In our test, if selected Row has different number of columns from expected row, something
       // must be very wrong. Stop the test here.
-      assertEquals("Row width mismatch between " + this + " and " + other,
-          elems.size(), other.elems.size());
-      for (int i = 0; i < elems.size(); i++) {
-        if (elems.get(i) == null || other.elems.get(i) == null) {
-          if (elems.get(i) != other.elems.get(i)) {
-            return elems.get(i) == null ? -1 : 1;
-          }
-        } else {
-          int compareResult = promoteType(elems.get(i)).compareTo(promoteType(other.elems.get(i)));
-          if (compareResult != 0) {
-            return compareResult;
-          }
-        }
-      }
-      return 0;
+      assertEquals("Row width mismatch between " + this + " and " + that,
+          this.elems.size(), that.elems.size());
+      return compare(this.elems, that.elems);
     }
 
     @Override
@@ -852,8 +758,8 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     public Row clone() throws CloneNotSupportedException {
       Row clone = (Row)super.clone();
       clone.elems = new ArrayList<>(elems.size());
-      for (Comparable<?> c : elems) {
-        clone.elems.add(c);
+      for (Object e : elems) {
+        clone.elems.add(e);
       }
       return clone;
     }
@@ -862,14 +768,122 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     // Helpers
     //
 
-    /** Converts the value to a widest one of the same type */
-    private Comparable promoteType(Comparable v) {
+    /**
+     * Compare two objects if possible. Is able to compare:
+     * <ul>
+     * <li>Primitives
+     * <li>Comparables (including {@code String}) - but cannot handle the case of two unrelated
+     * Comparables
+     * <li>{@code PGobject}s wrapping {@code Comparable}s
+     * <li>Arrays, {@code PgArray}s or lists of the above types
+     * </ul>
+     */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static int compare(Object o1, Object o2) {
+      if (o1 == null || o2 == null) {
+        if (o1 != o2) {
+          return o1 == null ? -1 : 1;
+        }
+        return 0;
+      } else {
+        Object promoted1 = promoteType(o1);
+        Object promoted2 = promoteType(o2);
+        if (promoted1 instanceof Long && promoted2 instanceof Long) {
+          return ((Long) promoted1).compareTo((Long) promoted2);
+        } else if (promoted1 instanceof Double && promoted2 instanceof Double) {
+          return ((Double) promoted1).compareTo((Double) promoted2);
+        } else if (promoted1 instanceof Number && promoted2 instanceof Number) {
+          return Double.compare(
+              ((Number) promoted1).doubleValue(),
+              ((Number) promoted2).doubleValue());
+        } else if (promoted1 instanceof Comparable && promoted2 instanceof Comparable) {
+          // This is unsafe but we dont expect arbitrary types here.
+          return ((Comparable) promoted1).compareTo((Comparable) promoted2);
+        } else if (promoted1 instanceof List && promoted2 instanceof List) {
+          List list1 = (List) promoted1;
+          List list2 = (List) promoted2;
+          if (list1.size() != list2.size()) {
+            return Integer.compare(list1.size(), list2.size());
+          }
+          for (int i = 0; i < list1.size(); ++i) {
+            int comparisonResult = compare(list1.get(i), list2.get(i));
+            if (comparisonResult != 0) {
+              return comparisonResult;
+            }
+          }
+          return 0;
+        } else {
+          throw new IllegalArgumentException("Cannot compare "
+              + o1 + " (of class " + o1.getClass().getCanonicalName() + ") with "
+              + o2 + " (of class " + o1.getClass().getCanonicalName() + ")");
+        }
+      }
+    }
+
+    /** Converts the value to a widest one of the same type for comparison */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private static Object promoteType(Object v) {
       if (v instanceof Byte || v instanceof Short || v instanceof Integer) {
         return ((Number)v).longValue();
       } else if (v instanceof Float) {
         return ((Float)v).doubleValue();
-      } else {
+      } else if (v instanceof Comparable) {
         return v;
+      } else if (v instanceof List) {
+        return v;
+      } else if (v instanceof PGobject) {
+        return promoteType(((PGobject) v).getValue()); // For PG_LSN type.
+      } else if (v instanceof PgArray) {
+        try {
+          return promoteType(((PgArray) v).getArray());
+        } catch (SQLException ex) {
+          throw new RuntimeException("SQL exception during type promotion", ex);
+        }
+      } else if (v.getClass().isArray()) {
+        List list = new ArrayList<>();
+        // Unfortunately there's no easy way to automate that, we have to enumerate all array types
+        // explicitly.
+        if (v instanceof byte[]) {
+          for (byte ve : (byte[]) v) {
+            list.add(promoteType(ve));
+          }
+        } else if (v instanceof short[]) {
+          for (short ve : (short[]) v) {
+            list.add(promoteType(ve));
+          }
+        } else if (v instanceof int[]) {
+          for (int ve : (int[]) v) {
+            list.add(promoteType(ve));
+          }
+        } else if (v instanceof long[]) {
+          for (long ve : (long[]) v) {
+            list.add(promoteType(ve));
+          }
+        } else if (v instanceof float[]) {
+          for (float ve : (float[]) v) {
+            list.add(promoteType(ve));
+          }
+        } else if (v instanceof double[]) {
+          for (double ve : (double[]) v) {
+            list.add(promoteType(ve));
+          }
+        } else if (v instanceof boolean[]) {
+          for (boolean ve : (boolean[]) v) {
+            list.add(promoteType(ve));
+          }
+        } else if (v instanceof char[]) {
+          for (char ve : (char[]) v) {
+            list.add(promoteType(ve));
+          }
+        } else if (v instanceof Object[]) {
+          for (Object ve : (Object[]) v) {
+            list.add(promoteType(ve));
+          }
+        }
+        return list;
+      } else {
+        throw new IllegalArgumentException(v + " (of class " + v.getClass().getSimpleName() + ")"
+            + " cannot be promoted for comparison!");
       }
     }
   }
@@ -877,53 +891,22 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
   protected Set<Row> getRowSet(ResultSet rs) throws SQLException {
     Set<Row> rows = new HashSet<>();
     while (rs.next()) {
-      Comparable[] elems = new Comparable[rs.getMetaData().getColumnCount()];
-      for (int i = 0; i < elems.length; i++) {
-        elems[i] = (Comparable)rs.getObject(i + 1); // Column index starts from 1.
-      }
-      rows.add(new Row(elems));
+      rows.add(Row.fromResultSet(rs));
     }
     return rows;
   }
 
-  protected Comparable toComparable(Object obj) {
-    if (obj == null) {
-      return null;
-    } else if (obj instanceof Comparable) {
-      return (Comparable)obj;
-    } else if (obj instanceof PGobject) {
-      return ((PGobject) obj).getValue(); // For PG_LSN type.
-    } else if (obj instanceof PgArray) {
-      try {
-        Object arr = ((PgArray) obj).getArray();
-        if (arr instanceof Comparable[]) {
-          return new ComparableArray((Comparable[])arr);
-        } else {
-          throw new IllegalArgumentException(String.format(
-              "Cannot cast to Comparable[] %s: %s",
-              arr.getClass().getSimpleName(),
-              obj
-          ));
-        }
-      } catch (SQLException sqle) {
-        throw new RuntimeException(sqle);
-      }
-    } else if (obj instanceof byte[]) {
-      return Arrays.toString((byte[])obj); // For BYTEA type.
-    }
-
-    throw new IllegalArgumentException(
-        "Cannot cast to Comparable " + obj.getClass().getSimpleName() + ": " + obj.toString());
+  protected Row getSingleRow(ResultSet rs) throws SQLException {
+    assertTrue("Result set has no rows", rs.next());
+    Row row = Row.fromResultSet(rs);
+    assertFalse("Result set has more than one row", rs.next());
+    return row;
   }
 
   protected List<Row> getRowList(ResultSet rs) throws SQLException {
     List<Row> rows = new ArrayList<>();
     while (rs.next()) {
-      Comparable[] elems = new Comparable[rs.getMetaData().getColumnCount()];
-      for (int i = 0; i < elems.length; i++) {
-        elems[i] = toComparable(rs.getObject(i + 1)); // Column index starts from 1.
-      }
-      rows.add(new Row(elems));
+      rows.add(Row.fromResultSet(rs));
     }
     return rows;
   }
@@ -951,9 +934,9 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
 
   protected void assertNextRow(ResultSet rs, Object... values) throws SQLException {
     assertTrue(rs.next());
-    for (int i = 0; i < values.length; i++) {
-      assertEquals(values[i], rs.getObject(i + 1)); // Column index starts from 1.
-    }
+    Row expected = new Row(values);
+    Row actual = Row.fromResultSet(rs);
+    assertEquals(expected, actual);
   }
 
   protected void assertOneRow(Statement statement,
@@ -965,12 +948,6 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     }
   }
 
-  protected void assertOneRow(String stmt, Object... values) throws SQLException {
-    try (Statement statement = connection.createStatement()) {
-     assertOneRow(statement, stmt, values);
-    }
-  }
-
   protected void assertRowSet(Statement statement,
                               String query,
                               Set<Row> expectedRows) throws SQLException {
@@ -979,45 +956,45 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     }
   }
 
-  protected void assertRowSet(String stmt, Set<Row> expectedRows) throws SQLException {
-    try (Statement statement = connection.createStatement()) {
-      assertRowSet(statement, stmt, expectedRows);
+  protected void assertRowList(Statement statement,
+                               String query,
+                               List<Row> expectedRows) throws SQLException {
+    try (ResultSet rs = statement.executeQuery(query)) {
+      assertEquals(expectedRows, getRowList(rs));
     }
   }
 
-  /*
-   * Returns whether or not this select statement uses index.
-   */
-  protected boolean useIndex(String stmt, String index) throws SQLException {
-    try (Statement statement = connection.createStatement()) {
-      try (ResultSet rs = statement.executeQuery("EXPLAIN " + stmt)) {
-        assert(rs.getMetaData().getColumnCount() == 1); // Expecting one string column.
-        while (rs.next()) {
-          if (rs.getString(1).contains("Index Scan using " + index)) {
-            return true;
-          }
+  private boolean doesQueryPlanContainsSubstring(Statement stmt, String query, String substring)
+      throws SQLException {
+    try (ResultSet rs = stmt.executeQuery("EXPLAIN " + query)) {
+      assert (rs.getMetaData().getColumnCount() == 1); // Expecting one string column.
+      while (rs.next()) {
+        if (rs.getString(1).contains(substring)) {
+          return true;
         }
-        return false;
       }
+      return false;
     }
   }
 
-  /*
-   * Returns whether or not this select statement requires filtering by Postgres (i.e. not all
+  /** Whether or not this select query uses Index Scan with a given index. */
+  protected boolean isIndexScan(Statement stmt, String query, String index)
+      throws SQLException {
+    return doesQueryPlanContainsSubstring(stmt, query, "Index Scan using " + index);
+  }
+
+  /** Whether or not this select query uses Index Only Scan with a given index. */
+  protected boolean isIndexOnlyScan(Statement stmt, String query, String index)
+      throws SQLException {
+    return doesQueryPlanContainsSubstring(stmt, query, "Index Only Scan using " + index);
+  }
+
+  /**
+   * Whether or not this select query requires filtering by Postgres (i.e. not all
    * conditions can be pushed down to YugaByte).
    */
-  protected boolean needsPgFiltering(String stmt) throws SQLException {
-    try (Statement statement = connection.createStatement()) {
-      try (ResultSet rs = statement.executeQuery("EXPLAIN " + stmt)) {
-        assert(rs.getMetaData().getColumnCount() == 1); // Expecting one string column.
-        while (rs.next()) {
-          if (rs.getString(1).contains("Filter:")) {
-            return true;
-          }
-        }
-        return false;
-      }
-    }
+  protected boolean doesNeedPgFiltering(Statement stmt, String query) throws SQLException {
+    return doesQueryPlanContainsSubstring(stmt, query, "Filter:");
   }
 
   protected void createSimpleTableWithSingleColumnKey(String tableName) throws SQLException {
@@ -1042,20 +1019,6 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     LOG.info("Creating table " + tableName + ", SQL statement: " + sql);
     statement.execute(sql);
     LOG.info("Table creation finished: " + tableName);
-  }
-
-  /**
-   * Deprecated. Use the version below which requires an expected error message substring.
-   * TODO Consider replacing all occurences of this version and then removing it.
-   */
-  @Deprecated
-  protected void runInvalidQuery(Statement statement, String query) {
-    try {
-      statement.execute(query);
-      fail(String.format("Statement did not fail: %s", query));
-    } catch (SQLException e) {
-      LOG.info("Expected exception", e);
-    }
   }
 
   /**
@@ -1144,15 +1107,13 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
   }
 
   /** Run a query and check row-count. */
-  private void runQueryWithRowCount(String stmt, int expectedRowCount)
+  private void runQueryWithRowCount(Statement stmt, String query, int expectedRowCount)
       throws Exception {
     // Query and check row count.
     int rowCount = 0;
-    try (Statement statement = connection.createStatement()) {
-      try (ResultSet rs = statement.executeQuery(stmt)) {
-        while (rs.next()) {
-          rowCount++;
-        }
+    try (ResultSet rs = stmt.executeQuery(query)) {
+      while (rs.next()) {
+        rowCount++;
       }
     }
     if (expectedRowCount >= 0) {
@@ -1182,17 +1143,19 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
   }
 
   /** Time execution of a query. */
-  protected long timeQueryWithRowCount(String stmt, int expectedRowCount, int numberOfRuns)
-      throws Exception {
+  protected long timeQueryWithRowCount(Statement stmt,
+                                       String query,
+                                       int expectedRowCount,
+                                       int numberOfRuns) throws Exception {
     LOG.info(String.format("Exec statement: %s", stmt));
 
     // Not timing the first query run as its result is not predictable.
-    runQueryWithRowCount(stmt, expectedRowCount);
+    runQueryWithRowCount(stmt, query, expectedRowCount);
 
     // Seek average run-time for a few different run.
     final long startTimeMillis = System.currentTimeMillis();
     for (int qrun = 0; qrun < numberOfRuns; qrun++) {
-      runQueryWithRowCount(stmt, expectedRowCount);
+      runQueryWithRowCount(stmt, query, expectedRowCount);
     }
 
     // Check the elapsed time.
@@ -1226,20 +1189,20 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
   }
 
   /** Time execution of a statement. */
-  protected long timeStatement(String stmt, int numberOfRuns)
+  protected long timeStatement(String sql, int numberOfRuns)
       throws Exception {
-    LOG.info(String.format("Exec statement: %s", stmt));
+    LOG.info(String.format("Exec statement: %s", sql));
 
     // Not timing the first query run as its result is not predictable.
     try (Statement statement = connection.createStatement()) {
-      statement.executeUpdate(stmt);
+      statement.executeUpdate(sql);
     }
 
     // Seek average run-time for a few different run.
     final long startTimeMillis = System.currentTimeMillis();
     try (Statement statement = connection.createStatement()) {
       for (int qrun = 0; qrun < numberOfRuns; qrun++) {
-        statement.executeUpdate(stmt);
+        statement.executeUpdate(sql);
       }
     }
 
@@ -1273,11 +1236,12 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
 
   /** Time execution of a query. */
   protected long assertQueryRuntimeWithRowCount(
-      String stmt,
+      Statement stmt,
+      String query,
       int expectedRowCount,
       int numberOfRuns,
       long maxTotalMillis) throws Exception {
-    long elapsedMillis = timeQueryWithRowCount(stmt, expectedRowCount, numberOfRuns);
+    long elapsedMillis = timeQueryWithRowCount(stmt, query, expectedRowCount, numberOfRuns);
     assertTrue(
         String.format("Query '%s' took %d ms! Expected %d ms at most", stmt, elapsedMillis,
             maxTotalMillis),
@@ -1300,12 +1264,12 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
 
   /** Time execution of a statement. */
   protected long assertStatementRuntime(
-      String stmt,
+      String sql,
       int numberOfRuns,
       long maxTotalMillis) throws Exception {
-    long elapsedMillis = timeStatement(stmt, numberOfRuns);
+    long elapsedMillis = timeStatement(sql, numberOfRuns);
     assertTrue(
-        String.format("Statement '%s' took %d ms! Expected %d ms at most", stmt, elapsedMillis,
+        String.format("Statement '%s' took %d ms! Expected %d ms at most", sql, elapsedMillis,
             maxTotalMillis),
         elapsedMillis <= maxTotalMillis);
     return elapsedMillis;
@@ -1354,7 +1318,7 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     }
   }
 
-  // TODO(alex): This should be reworked and made immutable.
+  /** Immutable connection builder */
   public static class ConnectionBuilder implements Cloneable {
     private static final int MAX_CONNECTION_ATTEMPTS = 15;
     private static final int INITIAL_CONNECTION_DELAY_MS = 500;
@@ -1370,46 +1334,49 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     private AutoCommit autoCommit = AutoCommit.DEFAULT;
 
     ConnectionBuilder(MiniYBCluster miniCluster) {
-      this.miniCluster = miniCluster;
+      this.miniCluster = checkNotNull(miniCluster);
     }
 
-    ConnectionBuilder setTServer(int tserverIndex) {
-      this.tserverIndex = tserverIndex;
-      return this;
+    ConnectionBuilder withTServer(int tserverIndex) {
+      ConnectionBuilder copy = clone();
+      copy.tserverIndex = tserverIndex;
+      return copy;
     }
 
-    ConnectionBuilder setDatabase(String database) {
-      this.database = database;
-      return this;
+    ConnectionBuilder withDatabase(String database) {
+      ConnectionBuilder copy = clone();
+      copy.database = database;
+      return copy;
     }
 
-    ConnectionBuilder setUser(String user) {
-      this.user = user;
-      return this;
+    ConnectionBuilder withUser(String user) {
+      ConnectionBuilder copy = clone();
+      copy.user = user;
+      return copy;
     }
 
-    ConnectionBuilder setPassword(String password) {
-      this.password = password;
-      return this;
+    ConnectionBuilder withPassword(String password) {
+      ConnectionBuilder copy = clone();
+      copy.password = password;
+      return copy;
     }
 
-    ConnectionBuilder setIsolationLevel(IsolationLevel isolationLevel) {
-      this.isolationLevel = isolationLevel;
-      return this;
+    ConnectionBuilder withIsolationLevel(IsolationLevel isolationLevel) {
+      ConnectionBuilder copy = clone();
+      copy.isolationLevel = isolationLevel;
+      return copy;
     }
 
-    ConnectionBuilder setAutoCommit(AutoCommit autoCommit) {
-      this.autoCommit = autoCommit;
-      return this;
+    ConnectionBuilder withAutoCommit(AutoCommit autoCommit) {
+      ConnectionBuilder copy = clone();
+      copy.autoCommit = autoCommit;
+      return copy;
     }
 
-    ConnectionBuilder setPreferQueryMode(String preferQueryMode) {
-      this.preferQueryMode = preferQueryMode;
-      return this;
-    }
-
-    ConnectionBuilder newBuilder() {
-      return clone();
+    ConnectionBuilder withPreferQueryMode(String preferQueryMode) {
+      ConnectionBuilder copy = clone();
+      copy.preferQueryMode = preferQueryMode;
+      return copy;
     }
 
     @Override

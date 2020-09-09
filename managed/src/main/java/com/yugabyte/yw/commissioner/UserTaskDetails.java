@@ -129,6 +129,9 @@ public class UserTaskDetails {
     // Wait for Kubernetes pod deployment
     KubernetesWaitForPod,
 
+    // Wait for Kubernetes to have correct number of pods.
+    KubernetesCheckNumPod,
+
     // Upgrade existing helm chart.
     HelmUpgrade,
 
@@ -286,6 +289,10 @@ public class UserTaskDetails {
       case KubernetesWaitForPod:
         title = "Wait for Kubernetes pod to run";
         description = "Wait for Kubernetes pod to run";
+        break;
+      case KubernetesCheckNumPod:
+        title = "Wait for Kubernetes to have correct number of pods.";
+        description = "Wait for Kubernetes to have correct number of pods.";
         break;
       case KubernetesUpgradePod:
         title = "Upgrade Kubernetes Pod";

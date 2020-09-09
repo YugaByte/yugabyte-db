@@ -264,7 +264,8 @@ PTSelectStmt::PTSelectStmt(MemoryContext *memctx,
       order_by_clause_(order_by_clause),
       limit_clause_(limit_clause),
       offset_clause_(offset_clause),
-      covering_exprs_(memctx) {
+      covering_exprs_(memctx),
+      referenced_index_colnames_(memctx) {
 }
 
 // Construct a nested select tnode to select from the index. Only the syntactic information
@@ -288,7 +289,8 @@ PTSelectStmt::PTSelectStmt(MemoryContext *memctx,
       offset_clause_(other.offset_clause_),
       covering_exprs_(memctx),
       index_id_(index_id),
-      covers_fully_(covers_fully) {
+      covers_fully_(covers_fully),
+      referenced_index_colnames_(memctx) {
 }
 
 PTSelectStmt::~PTSelectStmt() {
@@ -378,6 +380,39 @@ CHECKED_STATUS PTSelectStmt::Analyze(SemContext *sem_context) {
   // Check if there is an index to use. If there is and it covers the query fully, we will query
   // just the index and that is it.
   if (index_id_.empty()) {
+    // Validate the ordering expressions without processing ORDER BY clause. This check is to
+    // verify that ordering column exists, and the column's datatype allows comparison. The entire
+    // ORDER BY clause can only be analyzed after an INDEX is chosen.
+    RETURN_NOT_OK(ValidateOrderByExprs(sem_context));
+
+    // TODO(neil) Remove this construction if "referenced_index_colnames_" is no longer needed.
+    //
+    // Constructing a list of index column names that is being referenced.
+    // - This is similar to the list "column_refs_", but this is a list of column names instead of
+    //   column ids. When indexing by expression, a mangled-name of the expression is used to
+    //   represent the column, so column id cannot be used to identify coverage.
+    //
+    // - This list is to support a quick fix for github #4881. Once column and expression names
+    //   are mangled correctly, this code should be removed.
+    //
+    // - In CQL semantics, ORDER BY must used only indexed column, so not need to check for its
+    //   coverage. Neither "column_refs_" nor "referenced_index_colnames_" has ORDER BY columns.
+    for (const PTExpr *expr : covering_exprs_) {
+      if (!expr->HaveColumnRef()) {
+        continue;
+      }
+      if (expr->opcode() == TreeNodeOpcode::kPTAllColumns) {
+        for (const ColumnDesc& coldesc : static_cast<const PTAllColumns*>(expr)->columns()) {
+          referenced_index_colnames_.insert(coldesc.MangledName());
+        }
+      } else {
+        expr->CollectReferencedIndexColnames(&referenced_index_colnames_);
+      }
+    }
+    for (const PTExpr *expr : filtering_exprs_) {
+      expr->CollectReferencedIndexColnames(&referenced_index_colnames_);
+    }
+
     RETURN_NOT_OK(AnalyzeIndexes(sem_context));
     if (child_select_ && child_select_->covers_fully_) {
       return Status::OK();
@@ -476,7 +511,7 @@ CHECKED_STATUS PTSelectStmt::AnalyzeIndexes(SemContext *sem_context) {
   MCVector<Selectivity> selectivities(sem_context->PTempMem());
   selectivities.reserve(table_->index_map().size() + 1);
   selectivities.emplace_back(sem_context->PTempMem(), *this);
-  for (const std::pair<TableId, IndexInfo>& index : table_->index_map()) {
+  for (const std::pair<TableId, IndexInfo> index : table_->index_map()) {
     if (index.second.HasReadPermission()) {
       selectivities.emplace_back(sem_context->PTempMem(), *this, index.second);
     }
@@ -545,46 +580,87 @@ CHECKED_STATUS PTSelectStmt::AnalyzeIndexes(SemContext *sem_context) {
 }
 
 // Return whether the index covers the read fully.
+// INDEXes that were created before v2.0 are defined by column IDs instead of mangled_names.
+// - Returns TRUE if a list of column refs of a statement is a subset of INDEX columns.
+// - Use ColumnID to check if a column in a query is covered by the index.
+// - The list "column_refs_" contains IDs of all columns that are referred to by SELECT.
+// - The list "IndexInfo::columns_" contains the IDs of all columns in the INDEX.
 bool PTSelectStmt::CoversFully(const IndexInfo& index_info) const {
-  // INDEXes that were created before v2.0 are defined by column IDs instead of mangled_names.
-  // - Returns TRUE if a list of column refs of a statement is a subset of INDEX columns.
-  // - Use ColumnID to check if a column in a query is covered by the index.
-  // - The list "column_refs_" contains IDs of all columns that are referred to by SELECT.
-  // - The list "IndexInfo::columns_" contains the IDs of all columns in the INDEX.
-  if (!index_info.use_mangled_column_name()) {
-    for (const int32 table_col_id : column_refs_) {
-      if (!index_info.IsColumnCovered(ColumnId(table_col_id))) {
+  // First, check covering by ID.
+  bool all_ref_id_covered = true;
+  for (const int32 table_col_id : column_refs_) {
+    if (!index_info.IsColumnCovered(ColumnId(table_col_id))) {
+      all_ref_id_covered = false;
+    }
+  }
+
+  // Return result if name-resolution for covering is NOT needed.
+  // - If all column references are found by ID, return true without further resolution.
+  // - Index is not by expression, so name resolution for covering is not needed.
+  // - Index uses older Protobuf versions, which doesn't use column name (id only).
+  if (all_ref_id_covered ||
+      !index_info.has_index_by_expr() ||
+      !index_info.use_mangled_column_name()) {
+    return all_ref_id_covered;
+  }
+
+  // Now, check for covering by column names to support index by expression.
+  //
+  // TODO(neil) We use a quick fix for now, but eventually we should mangle column name correctly
+  // and remove the following quick fix and its associated code. See github #4881 for the bug
+  // in column name mangling.
+  //
+  // Iterating names in "referenced_index_colnames_", which consists of names of all columns that
+  // are referenced by SELECT and check if the name is covered in the index.
+  for (const string &column_name : referenced_index_colnames_) {
+    if (!index_info.IsColumnCovered(column_name)) {
+      return false;
+    }
+  }
+
+  // TODO(neil) Change INDEX's metadata for column name-mangling to support the following code.
+  // As shown in github #4881, the following is not working correctly.
+  //   CREATE INDEX idx ON a_table(v);
+  //   - Index column "v" is named as "$C_v"
+  //   - Index column "v1" is named as "$C_v1"
+  // As a result, IsExprCovered("$C_v1") would return true as it thought "$C_v1" is just an
+  // expression for "$C_v" column.
+
+  // Correct fix for #4881 would be adding a postfix when mangling column name. For example:
+  // - column name "v" is mangled to "$C_v_E$"
+  // - column name "v1" is mangled to "$C_v1_E$"
+  // That way, IsExprCovered() would know that "$C_v1_E$" is NOT an expression of "$C_v_E$".
+  // However, this changes metadata for INDEX, so compatible flag must be added to distinguish
+  // between different mangling method, such as
+  //   "use_mangled_column_name" versus "use_mangled_column_name_2"
+  if (false) {
+    // Check all ColumnRef in selected list.
+    for (const PTExpr *expr : covering_exprs_) {
+      // If this expression does not have column reference, it is considered "coverred".
+      if (!expr->HaveColumnRef()) {
+        continue;
+      }
+
+      if (expr->opcode() == TreeNodeOpcode::kPTAllColumns) {
+        for (const ColumnDesc& coldesc : static_cast<const PTAllColumns*>(expr)->columns()) {
+          if (index_info.IsExprCovered(coldesc.MangledName()) < 0) {
+            return false;
+          }
+        }
+      } else if (index_info.IsExprCovered(expr->MangledName()) < 0) {
         return false;
       }
     }
-    return true;
-  }
 
-  // Check all ColumnRef in selected list.
-  for (const PTExpr *expr : covering_exprs_) {
-    // If this expression does not have column reference, it is considered "coverred".
-    if (!expr->HaveColumnRef()) {
-      continue;
-    }
-
-    if (expr->opcode() == TreeNodeOpcode::kPTAllColumns) {
-      for (const ColumnDesc coldesc : static_cast<const PTAllColumns*>(expr)->columns()) {
-        if (index_info.IsExprCovered(coldesc.MangledName()) < 0) {
-          return false;
-        }
+    // Check all ColumnRef in filtering list.
+    for (const PTExpr *expr : filtering_exprs_) {
+      if (index_info.IsExprCovered(expr->MangledName()) < 0) {
+        return false;
       }
-    } else if (index_info.IsExprCovered(expr->MangledName()) < 0) {
-      return false;
     }
   }
 
-  // Check all ColumnRef in filtering list.
-  for (const PTExpr *expr : filtering_exprs_) {
-    if (index_info.IsExprCovered(expr->MangledName()) < 0) {
-      return false;
-    }
-  }
-
+  // All referenced columns are covered.
   return true;
 }
 
@@ -593,7 +669,7 @@ bool PTSelectStmt::CoversFully(const IndexInfo& index_info) const {
 CHECKED_STATUS PTSelectStmt::AnalyzeDistinctClause(SemContext *sem_context) {
   // Only partition and static columns are allowed to be used with distinct clause.
   int key_count = 0;
-  for (const auto pair : column_map_) {
+  for (const auto& pair : column_map_) {
     const ColumnDesc& desc = pair.second;
     if (desc.is_hash()) {
       if (column_refs_.find(desc.id()) != column_refs_.end()) {
@@ -644,6 +720,15 @@ PTOrderBy::Direction directionFromSortingType(ColumnSchema::SortingType sorting_
 }
 
 } // namespace
+
+CHECKED_STATUS PTSelectStmt::ValidateOrderByExprs(SemContext *sem_context) {
+  if (order_by_clause_ != nullptr) {
+    for (auto& order_by : order_by_clause_->node_list()) {
+      RETURN_NOT_OK(order_by->ValidateExpr(sem_context));
+    }
+  }
+  return Status::OK();
+}
 
 CHECKED_STATUS PTSelectStmt::AnalyzeOrderByClause(SemContext *sem_context) {
   if (order_by_clause_ != nullptr) {
@@ -758,6 +843,11 @@ PTOrderBy::PTOrderBy(MemoryContext *memctx,
     order_expr_(order_expr),
     direction_(direction),
     null_placement_(null_placement) {
+}
+
+Status PTOrderBy::ValidateExpr(SemContext *sem_context) {
+  RETURN_NOT_OK(order_expr_->Analyze(sem_context));
+  return Status::OK();
 }
 
 Status PTOrderBy::Analyze(SemContext *sem_context) {

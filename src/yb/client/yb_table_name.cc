@@ -19,7 +19,6 @@
 
 #include "yb/master/master_defaults.h"
 #include "yb/master/master_util.h"
-#include "yb/master/master.pb.h"
 
 namespace yb {
 namespace client {

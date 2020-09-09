@@ -17,21 +17,21 @@ isTocNested: true
 <ul class="nav nav-tabs-alt nav-tabs-yb">
 
   <li >
-    <a href="/latest/benchmark/ycsb-jdbc/" class="nav-link active">
+    <a href="{{< relref "./ycsb-jdbc.md" >}}" class="nav-link active">
       <i class="icon-postgres" aria-hidden="true"></i>
       JDBC Binding
     </a>
   </li>
 
   <li >
-    <a href="/latest/benchmark/ycsb-ysql/" class="nav-link">
+    <a href="{{< relref "./ycsb-ysql.md" >}}" class="nav-link">
       <i class="icon-postgres" aria-hidden="true"></i>
       YSQL Binding
     </a>
   </li>
 
   <li >
-    <a href="/latest/benchmark/ycsb-ycql/" class="nav-link">
+    <a href="{{< relref "./ycsb-ycql.md" >}}" class="nav-link">
       <i class="icon-cassandra" aria-hidden="true"></i>
       YCQL Binding
     </a>
@@ -111,7 +111,7 @@ $ ./run_jdbc.sh --ip <ip> --recordcount <number of rows>
 ```
 
 {{< note title="Note" >}}
-To get the maximum performance out of the system, you would have to tune the threadcount parameter in the script. As a reference, for a c5.4xlarge instance with 16 cores and 32GB RAM, we used a threadcount of 32 for the loading phase and 256 for the execution phase.
+To get the maximum performance out of the system, you would have to tune the threadcount parameter in the script. As a reference, for a c5.4xlarge instance with 16 cores and 32GB RAM, you used a threadcount of 32 for the loading phase and 256 for the execution phase.
 {{< /note >}}
 
 ### 5. Verify results
@@ -159,7 +159,7 @@ $ ./bin/ycsb load jdbc -s        \
       -P workloads/workloada     \
       -p recordcount=1000000     \
       -p operationcount=10000000 \
-      -p threadcount=256         \
+      -p threadcount=32          \
       -p maxexecutiontime=180
 ```
 
@@ -190,7 +190,7 @@ $ ./bin/ycsb run jdbc -s         \
 ## Expected results
 
 ### Setup
-When run on a 3-node cluster with each a c5.4xlarge AWS instance (16 cores, 32GB of RAM and 2 EBS volumes) all belonging to the same AZ with the client VM running in the same AZ we get the following results:
+When run on a 3-node cluster with each a c5.4xlarge AWS instance (16 cores, 32GB of RAM and 2 EBS volumes) all belonging to the same AZ with the client VM running in the same AZ you get the following results:
 
 ### 1 Million Rows
 

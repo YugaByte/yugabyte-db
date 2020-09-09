@@ -64,17 +64,31 @@ public class TestPgInsert extends BasePgSQLTest {
       expectedRows.add(new Row(7L, 7.5D, 8, "mno"));
 
       // Test null values (for primary-key columns) -- expecting error.
-      runInvalidQuery(statement, "INSERT INTO test(h, r, vi, vs) VALUES (8, null, 2, 'abc')");
-      runInvalidQuery(statement, "INSERT INTO test(h, r, vi, vs) VALUES (null, 8.5, 2, 'abc')");
+      runInvalidQuery(statement,
+          "INSERT INTO test(h, r, vi, vs) VALUES (8, null, 2, 'abc')",
+          "violates not-null constraint");
+      runInvalidQuery(statement,
+          "INSERT INTO test(h, r, vi, vs) VALUES (null, 8.5, 2, 'abc')",
+          "violates not-null constraint");
 
       // Test missing values (for primary-key columns) -- expecting error.
-      runInvalidQuery(statement, "INSERT INTO test(r, vi, vs) VALUES (9, 2, 'abc')");
-      runInvalidQuery(statement, "INSERT INTO test(h, vi, vs) VALUES (9.5, 2, 'abc')");
+      runInvalidQuery(statement,
+          "INSERT INTO test(r, vi, vs) VALUES (9, 2, 'abc')",
+          "violates not-null constraint");
+      runInvalidQuery(statement,
+          "INSERT INTO test(h, vi, vs) VALUES (9.5, 2, 'abc')",
+          "violates not-null constraint");
 
       // Test duplicate primary key -- expecting error;
-      runInvalidQuery(statement, "INSERT INTO test(h, r, vi, vs) VALUES (1, 1.5, 2, 'abc')");
-      runInvalidQuery(statement, "INSERT INTO test(h, r, vi, vs) VALUES (1, 1.5, 9, 'xyz')");
-      runInvalidQuery(statement, "INSERT INTO test(h, r) VALUES (1, 1.5)");
+      runInvalidQuery(statement,
+          "INSERT INTO test(h, r, vi, vs) VALUES (1, 1.5, 2, 'abc')",
+          "violates unique constraint");
+      runInvalidQuery(statement,
+          "INSERT INTO test(h, r, vi, vs) VALUES (1, 1.5, 9, 'xyz')",
+          "violates unique constraint");
+      runInvalidQuery(statement,
+          "INSERT INTO test(h, r) VALUES (1, 1.5)",
+          "violates unique constraint");
 
       // Sort expected rows to compare with result set.
       Collections.sort(expectedRows);
@@ -94,7 +108,7 @@ public class TestPgInsert extends BasePgSQLTest {
       // Test expressions in INSERT values.
       statement.execute("INSERT INTO test(h, r, vi, vs) " +
                             "VALUES (floor(1 + 1.5), log(3, 27), ceil(pi()), 'ab' || 'c')");
-      assertOneRow("SELECT * FROM test", 2L, 3.0D, 4, "abc");
+      assertOneRow(statement, "SELECT * FROM test", 2L, 3.0D, 4, "abc");
     }
   }
 

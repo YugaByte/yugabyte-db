@@ -40,6 +40,7 @@
 #include "yb/gutil/stl_util.h"
 #include "yb/gutil/strings/substitute.h"
 #include "yb/util/threadpool.h"
+#include "yb/util/logging.h"
 
 namespace yb {
 namespace consensus {
@@ -66,7 +67,7 @@ PeerManager::~PeerManager() {
 }
 
 void PeerManager::UpdateRaftConfig(const RaftConfigPB& config) {
-  VLOG(1) << "Updating peers from new config: " << config.ShortDebugString();
+  VLOG_WITH_PREFIX(1) << "Updating peers from new config: " << config.ShortDebugString();
 
   std::lock_guard<simple_spinlock> lock(lock_);
   // Create new peers.
@@ -78,13 +79,14 @@ void PeerManager::UpdateRaftConfig(const RaftConfigPB& config) {
       continue;
     }
 
-    VLOG(1) << GetLogPrefix() << "Adding remote peer. Peer: " << peer_pb.ShortDebugString();
+    VLOG_WITH_PREFIX(1) << "Adding remote peer. Peer: " << peer_pb.ShortDebugString();
     auto remote_peer = Peer::NewRemotePeer(
         peer_pb, tablet_id_, local_uuid_, peer_proxy_factory_->NewProxy(peer_pb), queue_,
         raft_pool_token_, consensus_, peer_proxy_factory_->messenger());
     if (!remote_peer.ok()) {
-      LOG(WARNING) << "Failed to create remote peer for " << peer_pb.ShortDebugString() << ": "
-                   << remote_peer.status();
+      LOG_WITH_PREFIX(WARNING)
+          << "Failed to create remote peer for " << peer_pb.ShortDebugString() << ": "
+          << remote_peer.status();
       return;
     }
 
@@ -96,12 +98,17 @@ void PeerManager::SignalRequest(RequestTriggerMode trigger_mode) {
   std::lock_guard<simple_spinlock> lock(lock_);
   for (auto iter = peers_.begin(); iter != peers_.end();) {
     Status s = iter->second->SignalRequest(trigger_mode);
-    if (PREDICT_FALSE(!s.ok())) {
-      LOG(WARNING) << GetLogPrefix()
-                   << "Peer was closed, removing from peers. Peer: "
-                   << (*iter).second->peer_pb().ShortDebugString();
+    if (PREDICT_FALSE(s.IsIllegalState())) {
+      LOG_WITH_PREFIX(WARNING)
+          << "Peer was closed: " << s << ", removing from peers. Peer: "
+          << (*iter).second->peer_pb().ShortDebugString();
       iter = peers_.erase(iter);
     } else {
+      if (PREDICT_FALSE(!s.ok())) {
+        LOG_WITH_PREFIX(WARNING)
+            << "Peer " << (*iter).second->peer_pb().ShortDebugString()
+            << " failed to send request: " << s;
+      }
       iter++;
     }
   }
@@ -140,7 +147,7 @@ void PeerManager::ClosePeersNotInConfig(const RaftConfigPB& config) {
   }
 }
 
-std::string PeerManager::GetLogPrefix() const {
+std::string PeerManager::LogPrefix() const {
   return MakeTabletLogPrefix(tablet_id_, local_uuid_);
 }
 

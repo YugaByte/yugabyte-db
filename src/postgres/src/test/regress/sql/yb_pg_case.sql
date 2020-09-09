@@ -161,14 +161,13 @@ UPDATE CASE_TBL
 
 SELECT * FROM CASE_TBL ORDER BY i, f;
 
--- TODO(jason): uncomment when issue #738 is closed or closing.
--- UPDATE CASE_TBL
---   SET i = CASE WHEN b.i >= 2 THEN (2 * j)
---                 ELSE (3 * j) END
---   FROM CASE2_TBL b
---   WHERE j = -CASE_TBL.i;
---
--- SELECT * FROM CASE_TBL ORDER BY i, f;
+UPDATE CASE_TBL
+  SET i = CASE WHEN b.i >= 2 THEN (2 * j)
+                ELSE (3 * j) END
+  FROM CASE2_TBL b
+  WHERE j = -CASE_TBL.i;
+
+SELECT * FROM CASE_TBL ORDER BY i, f;
 
 --
 -- Nested CASE expressions

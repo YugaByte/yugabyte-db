@@ -58,7 +58,13 @@ class GraphPanelHeader extends Component {
       currentUniverse = this.props.universe.currentUniverse.data;
       currentUniversePrefix = currentUniverse.universeDetails.nodePrefix;
     }
-    this.state = {
+
+    const location = browserHistory.getCurrentLocation();
+    const currentQuery = location.query;
+    // Remove subtab from query param
+    delete currentQuery.subtab;
+
+    let defaultFilters = {
       showDatePicker: false,
       filterLabel: defaultFilter.label,
       filterType: defaultFilter.type,
@@ -69,19 +75,6 @@ class GraphPanelHeader extends Component {
       nodePrefix: currentUniversePrefix,
       nodeName: "all"
     };
-  }
-
-  componentDidMount() {
-    const location = browserHistory.getCurrentLocation();
-    const currentQuery = location.query;
-    const { universe: { universeList }} = this.props;
-    // Remove subtab from query param
-    delete currentQuery.subtab;
-
-    let currentFilters = this.state;
-    if (this.props.origin === "customer" && getPromiseState(universeList).isInit()) {
-      this.props.fetchUniverseList();
-    }
     if (isValidObject(currentQuery) && Object.keys(currentQuery).length > 1) {
       const filterParams = {
         nodePrefix: currentQuery.nodePrefix,
@@ -101,13 +94,24 @@ class GraphPanelHeader extends Component {
         filterParams.endMoment = moment();
         filterParams.startMoment = moment().subtract(currentFilterItem.value, currentFilterItem.type);
       }
-      this.setState({...filterParams});
-      currentFilters = filterParams;
-    }
-    this.props.changeGraphQueryFilters(currentFilters);
+      this.state = {
+        ...defaultFilters,
+        ...filterParams
+      };
+      props.changeGraphQueryFilters(filterParams);
+    } else {    
+      this.state = defaultFilters;
+    }    
   }
 
-  componentDidUpdate(prevProps, prevState) {
+  componentDidMount() {
+    const { universe: { universeList }} = this.props;
+    if (this.props.origin === "customer" && getPromiseState(universeList).isInit()) {
+      this.props.fetchUniverseList();
+    }
+  }
+
+  componentDidUpdate(prevProps) {
     const { location, universe, universe: { universeList }} = this.props;
     if (prevProps.location !== this.props.location ||
        (getPromiseState(universeList).isSuccess() && getPromiseState(prevProps.universe.universeList).isLoading())) {
@@ -130,7 +134,10 @@ class GraphPanelHeader extends Component {
       if (isValidObject(location.query.nodeName)) {
         currentSelectedNode = location.query.nodeName;
       }
-      this.setState({currentSelectedUniverse: currentUniverse, currentSelectedNode: currentSelectedNode});
+      this.setState({
+        currentSelectedNode,
+        currentSelectedUniverse: currentUniverse,
+      });
     }
   }
 
@@ -141,7 +148,6 @@ class GraphPanelHeader extends Component {
   submitGraphFilters = (type, val) => {
     const queryObject = this.state.filterParams;
     queryObject[type] = val;
-    this.props.changeGraphQueryFilters(queryObject);
     this.updateUrlQueryParams(queryObject);
   };
 
@@ -172,7 +178,6 @@ class GraphPanelHeader extends Component {
       newParams.startMoment = startMoment;
       newParams.endMoment = endMoment;
       this.setState({startMoment: startMoment, endMoment: endMoment});
-      this.props.changeGraphQueryFilters(newParams);
       this.updateUrlQueryParams(newParams);
     }
   };
@@ -195,14 +200,12 @@ class GraphPanelHeader extends Component {
       newParams.nodePrefix = null;
     }
     newParams.nodeName = "all";
-    this.props.changeGraphQueryFilters(newParams);
     this.updateUrlQueryParams(newParams);
   };
 
   nodeItemChanged = event => {
     const newParams = this.state;
     newParams.nodeName = event.target.value;
-    this.props.changeGraphQueryFilters(newParams);
     this.setState({nodeName: event.target.value});
     this.updateUrlQueryParams(newParams);
   };

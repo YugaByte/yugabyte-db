@@ -12,14 +12,17 @@
 //
 
 #include "yb/yql/pgwrapper/pg_wrapper_test_base.h"
+#include "yb/yql/pgwrapper/pg_wrapper.h"
 
-#include "yb/util/size_literals.h"
-#include "yb/util/format.h"
+#include "yb/util/env_util.h"
+#include "yb/util/path_util.h"
+#include "yb/util/tostring.h"
 
-using namespace yb::size_literals;
+using std::unique_ptr;
 
-DECLARE_int64(retryable_rpc_single_call_timeout_ms);
-DECLARE_int32(yb_client_admin_operation_timeout_sec);
+using yb::util::TrimStr;
+using yb::util::TrimTrailingWhitespaceFromEveryLine;
+using yb::util::LeftShiftTextBlock;
 
 namespace yb {
 namespace pgwrapper {
@@ -29,22 +32,6 @@ void PgWrapperTestBase::SetUp() {
 
   ExternalMiniClusterOptions opts;
   opts.enable_ysql = true;
-
-  // TODO Increase the rpc timeout (from 2500) to not time out for long master queries (i.e. for
-  // Postgres system tables). Should be removed once the long lock issue is fixed.
-  const int kSingleCallTimeoutMs = NonTsanVsTsan(10000, 30000);
-  const string rpc_flag_str =
-      "--retryable_rpc_single_call_timeout_ms=" + std::to_string(kSingleCallTimeoutMs);
-  opts.extra_master_flags.emplace_back(rpc_flag_str);
-
-  if (IsTsan()) {
-    // Increase timeout for admin ops to account for create database with copying during initdb.
-    // This will be useful when we start enabling PostgreSQL tests under TSAN.
-    opts.extra_master_flags.emplace_back(
-        "--yb_client_admin_operation_timeout_sec=120");
-  }
-
-  opts.extra_tserver_flags.emplace_back(rpc_flag_str);
 
   // With ysql_num_shards_per_tserver=1 and 3 tservers we'll be creating 3 tablets per table, which
   // is enough for most tests.
@@ -73,6 +60,85 @@ void PgWrapperTestBase::SetUp() {
 
   // TODO: fix cluster verification for PostgreSQL tables.
   DontVerifyClusterBeforeNextTearDown();
+}
+
+namespace {
+
+string TrimSqlOutput(string output) {
+  return TrimStr(TrimTrailingWhitespaceFromEveryLine(LeftShiftTextBlock(output)));
+}
+
+string CertsDir() {
+  const auto sub_dir = JoinPathSegments("ent", "test_certs");
+  return JoinPathSegments(env_util::GetRootDir(sub_dir), sub_dir);
+}
+
+} // namespace
+
+void PgCommandTestBase::RunPsqlCommand(const string &statement, const string &expected_output) {
+  string tmp_dir;
+  ASSERT_OK(Env::Default()->GetTestDirectory(&tmp_dir));
+
+  unique_ptr<WritableFile> tmp_file;
+  string tmp_file_name;
+  ASSERT_OK(
+      Env::Default()->NewTempWritableFile(
+          WritableFileOptions(),
+          tmp_dir + "/psql_statementXXXXXX",
+          &tmp_file_name,
+          &tmp_file));
+  ASSERT_OK(tmp_file->Append(statement));
+  ASSERT_OK(tmp_file->Close());
+
+  vector<string> argv{
+      GetPostgresInstallRoot() + "/bin/ysqlsh",
+      "-h", pg_ts->bind_host(),
+      "-p", std::to_string(pg_ts->pgsql_rpc_port()),
+      "-U", "yugabyte",
+      "-f", tmp_file_name
+  };
+
+  if (!db_name_.empty()) {
+    argv.push_back("-d");
+    argv.push_back(db_name_);
+  }
+
+  if (encrypt_connection_) {
+    argv.push_back(Format(
+        "sslmode=require sslcert=$0/ysql.crt sslrootcert=$0/ca.crt sslkey=$0/ysql.key",
+        CertsDir()));
+  }
+
+  LOG(INFO) << "Run tool: " << yb::ToString(argv);
+  Subprocess proc(argv.front(), argv);
+  if (use_auth_) {
+    proc.SetEnv("PGPASSWORD", "yugabyte");
+  }
+
+  string psql_stdout;
+  LOG(INFO) << "Executing statement: " << statement;
+  ASSERT_OK(proc.Call(&psql_stdout));
+  LOG(INFO) << "Output from statement {{ " << statement << " }}:\n"
+            << psql_stdout;
+  ASSERT_EQ(TrimSqlOutput(expected_output), TrimSqlOutput(psql_stdout));
+}
+
+void PgCommandTestBase::UpdateMiniClusterOptions(ExternalMiniClusterOptions* options) {
+  PgWrapperTestBase::UpdateMiniClusterOptions(options);
+  if (encrypt_connection_) {
+    const vector<string> common_flags{"--use_node_to_node_encryption=true",
+                                      "--certs_dir=" + CertsDir()};
+    for (auto flags : {&options->extra_master_flags, &options->extra_tserver_flags}) {
+      flags->insert(flags->begin(), common_flags.begin(), common_flags.end());
+    }
+    options->extra_tserver_flags.push_back("--use_client_to_server_encryption=true");
+    options->extra_tserver_flags.push_back("--allow_insecure_connections=false");
+    options->use_even_ips = true;
+  }
+
+  if (use_auth_) {
+    options->extra_tserver_flags.push_back("--ysql_enable_auth");
+  }
 }
 
 } // namespace pgwrapper

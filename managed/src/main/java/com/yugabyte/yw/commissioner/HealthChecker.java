@@ -320,6 +320,12 @@ public class HealthChecker {
           }
         }
       }
+
+      for (NodeDetails nd : details.nodeDetailsSet) {
+        info.ycqlPort = nd.yqlServerRpcPort;
+        info.redisPort = nd.redisServerRpcPort;
+        break;
+      }
     }
     // If any clusters were invalid, abort for this universe.
     if (invalidUniverseData) {
@@ -405,7 +411,7 @@ public class HealthChecker {
       HealthCheck.addAndPrune(u.universeUUID, u.customerId, response.message);
     } else {
       LOG.error(String.format(
-          "Health check script got error: code (%s), msg: ", response.code, response.message));
+          "Health check script got error: code (%s)\n%s", response.code, response.message));
     }
   }
 }

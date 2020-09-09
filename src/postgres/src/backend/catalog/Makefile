@@ -39,7 +39,7 @@ CATALOG_HEADERS := \
 	pg_cast.h pg_enum.h pg_namespace.h pg_conversion.h pg_depend.h \
 	pg_database.h pg_db_role_setting.h pg_tablespace.h pg_pltemplate.h \
 	pg_authid.h pg_auth_members.h pg_shdepend.h pg_shdescription.h \
-	pg_ts_config.h pg_ts_config_map.h pg_ts_dict.h \
+	pg_ts_config.h pg_ts_config_map.h pg_ts_dict.h pg_tablegroup.h \
 	pg_ts_parser.h pg_ts_template.h pg_extension.h \
 	pg_foreign_data_wrapper.h pg_foreign_server.h pg_user_mapping.h \
 	pg_foreign_table.h pg_policy.h pg_replication_origin.h \

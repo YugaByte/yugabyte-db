@@ -1,7 +1,7 @@
 // Copyright (c) YugaByte, Inc.
 
 import LoginForm from './LoginForm';
-import { login, loginResponse, resetCustomerError }
+import {login, loginResponse, resetCustomerError}
   from '../../../../actions/customers';
 import { connect } from 'react-redux';
 

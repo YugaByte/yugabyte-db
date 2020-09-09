@@ -700,13 +700,18 @@ CREATE FUNCTION price_key_from_input(price_input) RETURNS price_key AS $$
     SELECT $1.id
 $$ LANGUAGE SQL;
 insert into price values (1,false,42), (10,false,100), (11,true,17.99);
--- TODO(jason): uncomment when issue #738 is closed or closing.
--- UPDATE price
---     SET active = true, price = input_prices.price
---     FROM unnest(ARRAY[(10, 123.00), (11, 99.99)]::price_input[]) input_prices
---     WHERE price_key_from_table(price.*) = price_key_from_input(input_prices.*);
---
--- select * from price;
+UPDATE price
+    SET active = true, price = input_prices.price
+    FROM unnest(ARRAY[(10, 123.00), (11, 99.99)]::price_input[]) input_prices
+    WHERE price_key_from_table(price.*) = price_key_from_input(input_prices.*);
+select * from price order by id;
+ id | active | price
+----+--------+-------
+  1 | f      |    42
+ 10 | t      |   123
+ 11 | t      | 99.99
+(3 rows)
+
 rollback;
 --
 -- Test case derived from bug #9085: check * qualification of composite
@@ -727,25 +732,25 @@ create function fcompos3(v compos) returns void as $$
 select fcompos1(fcompos3.v.*);
 $$ language sql;
 select fcompos1(row(1,'one'));
- fcompos1 
+ fcompos1
 ----------
- 
+
 (1 row)
 
 select fcompos2(row(2,'two'));
- fcompos2 
+ fcompos2
 ----------
- 
+
 (1 row)
 
 select fcompos3(row(3,'three'));
- fcompos3 
+ fcompos3
 ----------
- 
+
 (1 row)
 
 select * from compos order by f1;
- f1 |  f2   
+ f1 |  f2
 ----+-------
   1 | one
   2 | two

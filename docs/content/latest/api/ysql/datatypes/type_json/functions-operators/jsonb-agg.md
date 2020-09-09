@@ -6,7 +6,7 @@ description: Aggregate a SETOF values into a JSON array.
 menu:
   latest:
     identifier: jsonb-agg
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 57
 isTocNested: true
 showAsideToc: true
@@ -23,7 +23,7 @@ return value:      jsonb
 
 **Notes:** The syntax _"order by column1 nulls first"_ within the parentheses of the aggregate function is not specific to `jsonb_agg()`. Rather, it is a generic feature of aggregate functions. The same syntax is used with the [array_agg()`](../../../type_array/functions-operators/array-agg-unnest/#array-agg) function for SQL arrays.
 
-```postgresql
+```plpgsql
 create type rt as (key1 int, key2 text);
 
 do $body$
@@ -55,7 +55,7 @@ end;
 $body$;
 ```
 You can also aggregate SQL arrays into a ragged JSON _array_ of JSON _arrays_ like this:
-```postgresql
+```plpgsql
 do $body$
 declare
   agg jsonb not null := '"?"';

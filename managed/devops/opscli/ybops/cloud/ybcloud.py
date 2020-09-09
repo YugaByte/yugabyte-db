@@ -15,6 +15,7 @@ import logging
 from ybops.cloud.aws.cloud import AwsCloud
 from ybops.cloud.gcp.cloud import GcpCloud
 from ybops.cloud.onprem.cloud import OnPremCloud
+from ybops.cloud.azure.cloud import AzureCloud
 from ybops.cloud.common.base import AbstractCommandParser
 from ybops.utils import init_env, init_logging
 
@@ -34,6 +35,7 @@ class YbCloud(AbstractCommandParser):
         self.add_subcommand(AwsCloud())
         self.add_subcommand(GcpCloud())
         self.add_subcommand(OnPremCloud())
+        self.add_subcommand(AzureCloud())
 
     def add_extra_args(self):
         """Setting up the top level flags for the entire program.

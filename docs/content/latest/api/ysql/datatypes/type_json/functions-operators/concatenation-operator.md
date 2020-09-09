@@ -6,7 +6,7 @@ description: Concatenate two jsonb values using the JSON concatenation operator 
 menu:
   latest:
     identifier: concatenation-operator
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 14
 isTocNested: true
 showAsideToc: true
@@ -25,7 +25,7 @@ return value:       jsonb
 
 If both sides of the operator are primitive JSON values, then the result is an _array_ of these values:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_left constant jsonb := '17';
@@ -41,7 +41,7 @@ $body$;
 
 If one side is a primitive JSON value and the other is an  _array_ , then the result is an _array_:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_left constant jsonb := '17';
@@ -57,7 +57,7 @@ $body$;
 
 If each side is an _object_, then the results is an _object_ with all the key-value pairs present:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_left constant jsonb := '{"a": 1, "b": 2}';
@@ -73,7 +73,7 @@ $body$;
 
 If the keys of key-value pairs collide, then the last-mentioned one wins, just as when the keys of such pairs collide in a single _object_:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_left constant jsonb := '{"a": 1, "b": 2}';
@@ -89,7 +89,7 @@ $body$;
 
 If one side is an _object_ and the other is an _array_, then the _object_ is absorbed as a value in the _array_:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_left constant jsonb := '{"a": 1, "b": 2}';

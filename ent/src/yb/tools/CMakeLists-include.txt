@@ -30,6 +30,13 @@ set(YB_ENT_CURRENT_SOURCE_DIR
   ${YB_ENT_CURRENT_SOURCE_DIR}
   PARENT_SCOPE)
 
+set(TOOLS_EXTENSIONS_TEST_LINK_LIBS
+  pg_wrapper_test_base
+  PARENT_SCOPE)
+
 set(TOOLS_EXTENSIONS_TESTS
   yb-admin-test_ent
+  yb-backup-test_ent
   PARENT_SCOPE)
+
+link_directories(${YB_BUILD_ROOT}/postgres/lib)

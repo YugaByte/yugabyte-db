@@ -474,14 +474,14 @@ Status ThreadPool::DoSubmit(const std::shared_ptr<Runnable> task, ThreadPoolToke
   if (additional_threads > 0 && num_threads_ < max_threads_) {
     Status status = CreateThreadUnlocked();
     if (!status.ok()) {
+      // If we failed to create a thread, but there are still some other
+      // worker threads, log a warning message and continue.
+      LOG(WARNING) << "Thread pool failed to create thread: " << status << ", num_threads: "
+                   << num_threads_ << ", max_threads: " << max_threads_;
       if (num_threads_ == 0) {
         // If we have no threads, we can't do any work.
         return status;
       }
-      // If we failed to create a thread, but there are still some other
-      // worker threads, log a warning message and continue.
-      LOG(WARNING) << "Thread pool failed to create thread: "
-                   << status.ToString();
     }
   }
 

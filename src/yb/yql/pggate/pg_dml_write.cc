@@ -124,7 +124,7 @@ Status PgDmlWrite::Exec(bool force_non_bufferable) {
   }
 
   // Initialize doc operator.
-  doc_op_->Initialize(nullptr);
+  doc_op_->ExecuteInit(nullptr);
 
   // Set column references in protobuf.
   ColumnRefsToPB(write_req_->mutable_column_refs());
@@ -141,12 +141,18 @@ Status PgDmlWrite::Exec(bool force_non_bufferable) {
   return Status::OK();
 }
 
+Status PgDmlWrite::SetWriteTime(const HybridTime& write_time) {
+  SCHECK(doc_op_.get() != nullptr, RuntimeError, "expected doc_op_ to be initialized");
+  down_cast<PgDocWriteOp*>(doc_op_.get())->SetWriteTime(write_time);
+  return Status::OK();
+}
+
 void PgDmlWrite::AllocWriteRequest() {
   auto wop = AllocWriteOperation();
   DCHECK(wop);
   wop->set_is_single_row_txn(is_single_row_txn_);
   write_req_ = wop->mutable_request();
-  doc_op_ = make_shared<PgDocWriteOp>(pg_session_, table_id_, std::move(wop));
+  doc_op_ = make_shared<PgDocWriteOp>(pg_session_, target_desc_, table_id_, std::move(wop));
 }
 
 PgsqlExpressionPB *PgDmlWrite::AllocColumnBindPB(PgColumn *col) {

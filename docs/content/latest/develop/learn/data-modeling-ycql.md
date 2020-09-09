@@ -99,7 +99,7 @@ Such tables have *simple primary keys*. One or more columns of a table can be ma
 
 - All the data for a unique set of partition key values are always stored on the same node. This matters only if there are clustering key columns, which are described in the next section.
 
-In the case of the `users` table, we can make `user_id` column the only primary key column. This is a good choice for a partition key because our queries do not care about the order of the `user_id`s. If the table is split into a number of tablets (partitions), the data may be assigned as follows.
+In the case of the `users` table, you can make `user_id` column the only primary key column. This is a good choice for a partition key because our queries do not care about the order of the `user_id`s. If the table is split into a number of tablets (partitions), the data may be assigned as follows.
 
 | tablet    | user_id  | firstname | lastname | address
 | --------- | -------- | --------- | -------- | -------- 
@@ -122,7 +122,7 @@ In the case of the `books` table, `author` is a good partition key and `book_tit
 | tablet-21 | Charles Dickens      | A Tale of Two Cities | 11.40  | 1859 | historical novel
 | tablet-21 | Charles Dickens      | Oliver Twist         | 9.25   | 1837 | serial novel
 
-Note that if we had made both `author` and `book_title` partition key columns, we would not be able to list all the books for a given author efficiently.
+Note that if you had made both `author` and `book_title` partition key columns, you would not be able to list all the books for a given author efficiently.
 
 **Note**
 
@@ -213,7 +213,7 @@ ycqlsh> INSERT INTO example.users (user_id, firstname, lastname, email)
        VALUES (2, 'Sherlock', 'Holmes', 'sholmes@yb.com');
 ```
 
-But upon inserting a duplicate email, we get an error.
+But upon inserting a duplicate email, you get an error.
 
 ```sql
 ycqlsh> INSERT INTO example.users (user_id, firstname, lastname, email) 

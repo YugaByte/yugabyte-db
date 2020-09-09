@@ -20,7 +20,7 @@
 namespace yb {
 namespace pgwrapper {
 
-class PgWrapperTestBase : public YBMiniClusterTestBase<ExternalMiniCluster> {
+class PgWrapperTestBase : public MiniClusterTestWithClient<ExternalMiniCluster> {
  protected:
   void SetUp() override;
 
@@ -35,6 +35,58 @@ class PgWrapperTestBase : public YBMiniClusterTestBase<ExternalMiniCluster> {
 
   // Tablet server to use to perform PostgreSQL operations.
   ExternalTabletServer* pg_ts = nullptr;
+};
+
+class PgCommandTestBase : public PgWrapperTestBase {
+ protected:
+  PgCommandTestBase(bool auth, bool encrypted)
+      : use_auth_(auth), encrypt_connection_(encrypted) {}
+
+  void SetDbName(const std::string& db_name) {
+    db_name_ = db_name;
+  }
+
+  void RunPsqlCommand(const std::string &statement, const std::string &expected_output);
+
+  void UpdateMiniClusterOptions(ExternalMiniClusterOptions* options) override;
+
+  void CreateTable(const std::string &statement) {
+    RunPsqlCommand(statement, "CREATE TABLE");
+  }
+
+  void CreateIndex(const std::string &statement) {
+    RunPsqlCommand(statement, "CREATE INDEX");
+  }
+
+  void CreateView(const std::string &statement) {
+    RunPsqlCommand(statement, "CREATE VIEW");
+  }
+
+  void CreateProcedure(const std::string &statement) {
+    RunPsqlCommand(statement, "CREATE PROCEDURE");
+  }
+
+  void Call(const std::string &statement) {
+    RunPsqlCommand(statement, "CALL");
+  }
+
+  void InsertRows(const std::string& statement, size_t expected_rows) {
+    RunPsqlCommand(statement, Format("INSERT 0 $0", expected_rows));
+  }
+
+  void InsertOneRow(const std::string& statement) {
+    InsertRows(statement, /* expected_rows */ 1);
+  }
+
+  void UpdateOneRow(const std::string &statement) {
+    RunPsqlCommand(statement, "UPDATE 1");
+  }
+
+ private:
+  const bool use_auth_;
+  const bool encrypt_connection_;
+
+  std::string db_name_;
 };
 
 } // namespace pgwrapper

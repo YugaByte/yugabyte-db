@@ -77,6 +77,7 @@ class IndexInfo {
 
   // Is column covered by this index? (Note: indexed columns are always covered)
   bool IsColumnCovered(ColumnId column_id) const;
+  bool IsColumnCovered(const std::string& column_name) const;
 
   // Check if this INDEX contain the column being referenced by the given selected expression.
   // - If found, return the location of the column (columns_[loc]).
@@ -115,6 +116,13 @@ class IndexInfo {
     return use_mangled_column_name_;
   }
 
+  bool has_index_by_expr() const {
+    return has_index_by_expr_;
+  }
+
+  // Check if this index is dependent on the given column.
+  bool CheckColumnDependency(ColumnId column_id) const;
+
  private:
   const TableId table_id_;            // Index table id.
   const TableId indexed_table_id_;    // Indexed table id.
@@ -133,6 +141,7 @@ class IndexInfo {
 
   // Newer INDEX use mangled column name instead of ID.
   bool use_mangled_column_name_ = false;
+  bool has_index_by_expr_ = false;
 };
 
 // A map to look up an index by its index table id.

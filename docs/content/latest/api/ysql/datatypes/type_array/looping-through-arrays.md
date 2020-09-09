@@ -7,7 +7,7 @@ menu:
   latest:
     identifier: looping-through-arrays
     parent: api-ysql-datatypes-array
-    weight: 10
+    weight: 30
 isTocNested: true
 showAsideToc: true
 ---
@@ -15,7 +15,7 @@ The PL/pgSQL `FOREACH` loop brings dedicated syntax for looping over the content
 
 ## Overview
 
-**Note:** See [array_lower()](../functions-operators/properties/#array-lower), [array_upper()](../functions-operators/properties/#array-upper), [array_ndims()](../functions-operators/properties/#array-ndims) and [cardinality()](../functions-operators/properties/#cardinality) for descriptions of the functions that the following account mentions. It also mentions _"row-major order"_. See  the section [Joint semantics](../functions-operators/properties/#joint-semantics), within the section _"Functions for reporting the geometric properties of an array"_, for an explanation of this term. The section [Syntax and semantics](./#syntax-and-semantics) shows where, in the `FOREACH` loop header, the `SLICE` keyword is used.
+**Note:** See [array_lower()](../functions-operators/properties/#array-lower), [array_upper()](../functions-operators/properties/#array-upper), [array_ndims()](../functions-operators/properties/#array-ndims) and [cardinality()](../functions-operators/properties/#cardinality) for descriptions of the functions that the following account mentions. It also mentions _"row-major order"_. See [Joint semantics](../functions-operators/properties/#joint-semantics), within the section _"Functions for reporting the geometric properties of an array"_, for an explanation of this term. [Syntax and semantics](./#syntax-and-semantics) shows where, in the `FOREACH` loop header, the `SLICE` keyword is used.
 
 - When the operand of the `SLICE` clause is `0`, and for the general case where the iterand array has any number of dimensions, YSQL assigns its successive values, in row-major order, to the loop iterator. Here, its effect is functionally analogous to that of [`unnest()`](../functions-operators/array-agg-unnest/#unnest).
 
@@ -90,7 +90,7 @@ END LOOP [ label ];
 
 This loop is functionally identical to the `FOR var IN` loop. However, in the `FOR` loop, YSQL automatically defines `var` with the type `int` so that its scope is limited to the loop; but in the `FOREACH` loop, `var` must be explicitly declared, as noted  in the _"Syntax and semantics"_ section above.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   arr1 int[] := array[1, 2];
@@ -123,7 +123,7 @@ The next loop shows these things of note:
 - The syntax spot where _"var"_ is used above need not be occupied by a single variable. Rather, _"f1"_ and _"f2"_ are used, to correspond to the fields in _"rt"_.
 - The `FOREACH` loop is followed by a _"cursor"_ loop whose `SELECT` statement uses `unnest()`.
 - The `FOREACH` loop is more terse than the _"cursor"_ loop. In particular, you can use the pair of declared variables _"f1"_ and _"f2"_ without any fuss (just as you could have used a single variable _"r"_ of type _"rt"_ without any fuss) as the iterator. YSQL looks after the proper assignment in both cases. But when you use `unnest()`, you have to look after this yourself.
-```postgresql
+```plpgsql
 create type rt as (f1 int, f2 text);
 
 do $body$
@@ -172,7 +172,7 @@ This shows that this use of the `FOREACH` loop (with an implied `0` as the `SLIC
 
 First, store a three-dimensional two-by-two-by-two array in a `::text[]` field in a single-row table. Each of the subsequent `DO` blocks uses it.
 
-```postgresql
+```plpgsql
 create table t(k int primary key, arr text[] not null);
 insert into t(k, arr) values(1, '
   {
@@ -187,7 +187,7 @@ insert into t(k, arr) values(1, '
   }'::text[]);
 ```
 Next, show the outcome when a bad value is used for the `SLICE` operand:
-```postgresql
+```plpgsql
 do $body$
 declare
   arr constant text[] not null := (select arr from t where k = 1);
@@ -210,7 +210,7 @@ This test confirms that the value of the `SLICE` operand must not exceed the ite
 
 As has been seen, `SLICE 0` (or equivalently omitting the `SLICE` clause) scans the array values in row-major order. The next test, with `SLICE 3`, demonstrates the meaning when the `SLICE` operand is equal to the iterand array's dimensionality.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   arr constant text[] not null := (select arr from t where k = 1);
@@ -239,7 +239,7 @@ The `FOREACH` loop generates just a single iterator slice. And, as the `assert` 
 
 The next test uses `SLICE 2`:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   arr constant text[] not null := (select arr from t where k = 1);
@@ -266,7 +266,7 @@ As the `assert` shows, the operand of the `SLICE` operator determines the dimens
 
 The next test uses `SLICE 1`: 
 
-```postgresql
+```plpgsql
 do $body$
 declare
   arr constant text[] not null := (select arr from t where k = 1);
@@ -295,7 +295,7 @@ Once again, the `assert` shows that the operand of the `SLICE` operator determin
 
 The last `FOREACH` test uses `SLICE 0`. Notice that, now, the iterator is declared as the scalar `text` variable  _"var"_:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   arr constant text[] not null := (select arr from t where k = 1);
@@ -324,7 +324,7 @@ FOREACH SLICE 0
 8 | 008
 ```
 This is functionally equivalent to `unnest()` as the final test shows:
-```postgresql
+```plpgsql
 do $body$
 <<b>>declare
   arr constant text[] not null := (select arr from t where k = 1);
@@ -362,7 +362,12 @@ unnest()
 8 | 007
 9 | 008
 ```
-## Using a wrapper PL/pgSQL table function to expose the SLICE operand as a formal parameter.
+
+## Using FOREACH to iterate over the elements in an array of DOMAIN values
+
+You need to be aware of some special considerations to implement this scenario. [Using FOREACH with an array of DOMAINs](../array-of-domains/#using-foreach-with-an-array-of-domains), within the dedicated section [Using an array of DOMAIN values](../array-of-domains/) explains what you need to know. 
+
+## Using a wrapper PL/pgSQL table function to expose the SLICE operand as a formal parameter
 
 The fact that the `SLICE` operand must be a literal means that there are only two ways two parameterize this—and neither is satisfactory for real application code. Each uses a table function whose input is the iterand array and the value for the `SLICE` operand, and whose output is a `SETOF` iterator array values.
 
@@ -383,7 +388,7 @@ Here is the basic encapsulation. It's hard-coded to handle values for the `SLICE
 
 Recall that the iterator for `SLICE 0` is a scalar and that the iterators for other values of the `SLICE` operand are arrays. And recall that a pair of functions with the same definitions of the input formal parameters cannot be overload-distinguished by the data type of their return values. For this reason, the encapsulation of the `FOREACH` loop for `SLICE 0` is a dedicated function with just one input formal parameter: the iterand array. And the encapsulation of the `FOREACH` loop for other values of the  `SLICE` operand is a second function with two input formal parameters: the iterand array and the value of the  `SLICE` operand. Here they are:
 
-```postgresql
+```plpgsql
 -- First overload
 create function array_slices(arr in anyarray)
   returns table(ret anyelement)
@@ -407,7 +412,7 @@ end;
 $body$;
 ```
 And:
-```postgresql
+```plpgsql
 -- Second overload
 create function array_slices(arr in anyarray, slice_operand in int)
   returns table(ret anyarray)
@@ -496,7 +501,7 @@ You can see that each leg of the `CASE` is "generated" formulaically—albeit ma
 2202E: slice dimension % is out of the valid range 0..%
 ```
 Here is the test harness. Both this procedure and the function that generates the to-be-tested iterand array are hard-coding for a dimensionality of `4`.
-```postgresql
+```plpgsql
 -- Exercise each of the meaningful calls to array_slices().
 --
 -- You cannot declare local variables as "anyelement" or "anyarray".
@@ -576,7 +581,7 @@ end;
 $body$;
 ```
 Here is a function to generate a four-dimensional array. Notice that the actual argument for  the _"lengths"_ formal parameter must be a one-dimensional `int[]` array with four values. These specify the lengths along each of the output array's dimensions.
-```postgresql
+```plpgsql
 create function four_d_array(lengths in int[])
   returns text[]
   immutable
@@ -636,7 +641,7 @@ end;
 $body$;
 ```
 And here is one example test invocation:
-```postgresql
+```plpgsql
 do $body$
 declare
   arr constant text[] not null := four_d_array('{2, 2, 2, 2}'::int[]);

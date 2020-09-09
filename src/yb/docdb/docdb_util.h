@@ -214,30 +214,6 @@ class DocDBRocksDBUtil {
   boost::optional<DocWriteBatch> doc_write_batch_;
 };
 
-// An implementation of the document node visitor interface that dumps all events (document
-// start/end, object keys and values, etc.) to a string as separate lines.
-class DebugDocVisitor : public DocVisitor {
- public:
-  DebugDocVisitor();
-  virtual ~DebugDocVisitor();
-
-  CHECKED_STATUS StartSubDocument(const SubDocKey &key) override;
-
-  CHECKED_STATUS VisitKey(const PrimitiveValue& key) override;
-  CHECKED_STATUS VisitValue(const PrimitiveValue& value) override;
-
-  CHECKED_STATUS EndSubDocument() override;
-  CHECKED_STATUS StartObject() override;
-  CHECKED_STATUS EndObject() override;
-  CHECKED_STATUS StartArray() override;
-  CHECKED_STATUS EndArray() override;
-
-  std::string ToString();
-
- private:
-  std::stringstream out_;
-};
-
 }  // namespace docdb
 }  // namespace yb
 

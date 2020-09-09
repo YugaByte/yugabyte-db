@@ -581,10 +581,10 @@ DROP TABLE bool_test;
 -- Basic cases
 explain (costs off)
   select min(unique1) from tenk1;
-         QUERY PLAN
------------------------------
+       QUERY PLAN
+-------------------------
  Aggregate
-   ->  Foreign Scan on tenk1
+   ->  Seq Scan on tenk1
 (2 rows)
 
 select min(unique1) from tenk1;
@@ -595,10 +595,10 @@ select min(unique1) from tenk1;
 
 explain (costs off)
   select max(unique1) from tenk1;
-         QUERY PLAN
------------------------------
+       QUERY PLAN
+-------------------------
  Aggregate
-   ->  Foreign Scan on tenk1
+   ->  Seq Scan on tenk1
 (2 rows)
 
 select max(unique1) from tenk1;
@@ -612,7 +612,7 @@ explain (costs off)
            QUERY PLAN
 --------------------------------
  Aggregate
-   ->  Foreign Scan on tenk1
+   ->  Seq Scan on tenk1
          Filter: (unique1 < 42)
 (3 rows)
 
@@ -627,7 +627,7 @@ explain (costs off)
            QUERY PLAN
 --------------------------------
  Aggregate
-   ->  Foreign Scan on tenk1
+   ->  Seq Scan on tenk1
          Filter: (unique1 > 42)
 (3 rows)
 
@@ -648,7 +648,7 @@ explain (costs off)
             QUERY PLAN
 -----------------------------------
  Aggregate
-   ->  Foreign Scan on tenk1
+   ->  Seq Scan on tenk1
          Filter: (unique1 > 42000)
 (3 rows)
 
@@ -665,7 +665,7 @@ explain (costs off)
            QUERY PLAN
 ---------------------------------
  Aggregate
-   ->  Foreign Scan on tenk1
+   ->  Seq Scan on tenk1
          Filter: (thousand = 33)
 (3 rows)
 
@@ -680,7 +680,7 @@ explain (costs off)
            QUERY PLAN
 ---------------------------------
  Aggregate
-   ->  Foreign Scan on tenk1
+   ->  Seq Scan on tenk1
          Filter: (thousand = 33)
 (3 rows)
 
@@ -696,10 +696,10 @@ explain (costs off)
     from int4_tbl;
                    QUERY PLAN
 -------------------------------------------------
- Foreign Scan on int4_tbl
+ Seq Scan on int4_tbl
    SubPlan 1
      ->  Aggregate
-           ->  Foreign Scan on tenk1
+           ->  Seq Scan on tenk1
                  Filter: (unique1 > int4_tbl.f1)
 (5 rows)
 
@@ -709,13 +709,13 @@ explain (costs off)
 -- check some cases that were handled incorrectly in 8.3.0
 explain (costs off)
   select distinct max(unique2) from tenk1;
-               QUERY PLAN
------------------------------------------
+             QUERY PLAN
+-------------------------------------
  Unique
    ->  Sort
          Sort Key: (max(unique2))
          ->  Aggregate
-               ->  Foreign Scan on tenk1
+               ->  Seq Scan on tenk1
 (5 rows)
 
 select distinct max(unique2) from tenk1;
@@ -726,12 +726,12 @@ select distinct max(unique2) from tenk1;
 
 explain (costs off)
   select max(unique2) from tenk1 order by 1;
-            QUERY PLAN
------------------------------------
+          QUERY PLAN
+-------------------------------
  Sort
    Sort Key: (max(unique2))
    ->  Aggregate
-         ->  Foreign Scan on tenk1
+         ->  Seq Scan on tenk1
 (4 rows)
 
 select max(unique2) from tenk1 order by 1;
@@ -742,12 +742,12 @@ select max(unique2) from tenk1 order by 1;
 
 explain (costs off)
   select max(unique2) from tenk1 order by max(unique2);
-            QUERY PLAN
------------------------------------
+          QUERY PLAN
+-------------------------------
  Sort
    Sort Key: (max(unique2))
    ->  Aggregate
-         ->  Foreign Scan on tenk1
+         ->  Seq Scan on tenk1
 (4 rows)
 
 select max(unique2) from tenk1 order by max(unique2);
@@ -759,11 +759,11 @@ select max(unique2) from tenk1 order by max(unique2);
 explain (costs off)
   select max(unique2) from tenk1 order by max(unique2)+1;
             QUERY PLAN
------------------------------------
+----------------------------------
  Sort
    Sort Key: ((max(unique2) + 1))
    ->  Aggregate
-         ->  Foreign Scan on tenk1
+         ->  Seq Scan on tenk1
 (4 rows)
 
 select max(unique2) from tenk1 order by max(unique2)+1;
@@ -780,7 +780,7 @@ explain (costs off)
    Sort Key: (generate_series(1, 3)) DESC
    ->  ProjectSet
          ->  Aggregate
-               ->  Foreign Scan on tenk1
+               ->  Seq Scan on tenk1
 (5 rows)
 
 select max(unique2), generate_series(1,3) as g from tenk1 order by g desc;
@@ -801,7 +801,7 @@ explain (costs off)
      ->  Limit
            ->  Result
                  One-Time Filter: (100 IS NOT NULL)
-                 ->  Foreign Scan on tenk1
+                 ->  Seq Scan on tenk1
 (6 rows)
 
 select max(100) from tenk1;
@@ -832,10 +832,10 @@ insert into minmaxtest values(11), (12);
 -- insert into minmaxtest3 values(17), (18);
 explain (costs off)
   select min(f1), max(f1) from minmaxtest;
-            QUERY PLAN
-----------------------------------
+          QUERY PLAN
+------------------------------
  Aggregate
-   ->  Foreign Scan on minmaxtest
+   ->  Seq Scan on minmaxtest
 (2 rows)
 
 select min(f1), max(f1) from minmaxtest;
@@ -847,13 +847,13 @@ select min(f1), max(f1) from minmaxtest;
 -- DISTINCT doesn't do anything useful here, but it shouldn't fail
 explain (costs off)
   select distinct min(f1), max(f1) from minmaxtest;
-                  QUERY PLAN
-----------------------------------------------
+                QUERY PLAN
+------------------------------------------
  Unique
    ->  Sort
          Sort Key: (min(f1)), (max(f1))
          ->  Aggregate
-               ->  Foreign Scan on minmaxtest
+               ->  Seq Scan on minmaxtest
 (5 rows)
 
 select distinct min(f1), max(f1) from minmaxtest;
@@ -1089,7 +1089,6 @@ create or replace view agg_view1 as
   select aggfns(distinct a,b,c)
     from (values (1,3,'foo'),(0,null,null),(2,2,'bar'),(3,1,'baz')) v(a,b,c),
          generate_series(1,3) i;
-ERROR:  Alter table is not yet supported
 select * from agg_view1;
                     aggfns
 -----------------------------------------------
@@ -1108,7 +1107,6 @@ create or replace view agg_view1 as
   select aggfns(distinct a,b,c order by b)
     from (values (1,3,'foo'),(0,null,null),(2,2,'bar'),(3,1,'baz')) v(a,b,c),
          generate_series(1,3) i;
-ERROR:  Alter table is not yet supported
 select * from agg_view1;
                     aggfns
 -----------------------------------------------
@@ -1126,7 +1124,6 @@ select pg_get_viewdef('agg_view1'::regclass);
 create or replace view agg_view1 as
   select aggfns(a,b,c order by b+1)
     from (values (1,3,'foo'),(0,null,null),(2,2,'bar'),(3,1,'baz')) v(a,b,c);
-ERROR:  Alter table is not yet supported
 select * from agg_view1;
                     aggfns
 -----------------------------------------------
@@ -1143,7 +1140,6 @@ select pg_get_viewdef('agg_view1'::regclass);
 create or replace view agg_view1 as
   select aggfns(a,a,c order by b)
     from (values (1,3,'foo'),(0,null,null),(2,2,'bar'),(3,1,'baz')) v(a,b,c);
-ERROR:  Alter table is not yet supported
 select * from agg_view1;
                      aggfns
 ------------------------------------------------
@@ -1160,7 +1156,6 @@ select pg_get_viewdef('agg_view1'::regclass);
 create or replace view agg_view1 as
   select aggfns(a,b,c order by c using ~<~)
     from (values (1,3,'foo'),(0,null,null),(2,2,'bar'),(3,1,'baz')) v(a,b,c);
-ERROR:  Alter table is not yet supported
 select * from agg_view1;
                     aggfns
 -----------------------------------------------
@@ -1178,7 +1173,6 @@ create or replace view agg_view1 as
   select aggfns(distinct a,b,c order by a,c using ~<~,b)
     from (values (1,3,'foo'),(0,null,null),(2,2,'bar'),(3,1,'baz')) v(a,b,c),
          generate_series(1,2) i;
-ERROR:  Alter table is not yet supported
 select * from agg_view1;
                     aggfns
 -----------------------------------------------
@@ -1934,10 +1928,10 @@ CREATE AGGREGATE balk(int4)
 SET LOCAL parallel_setup_cost=0;
 SET LOCAL max_parallel_workers_per_gather=4;
 EXPLAIN (COSTS OFF) SELECT balk(hundred) FROM tenk1;
-         QUERY PLAN
------------------------------
+       QUERY PLAN
+-------------------------
  Aggregate
-   ->  Foreign Scan on tenk1
+   ->  Seq Scan on tenk1
 (2 rows)
 
 SELECT balk(hundred) FROM tenk1;
@@ -1958,10 +1952,10 @@ SET enable_indexonlyscan = off;
 -- sum(int8) covers int8_avg_combine
 EXPLAIN (COSTS OFF)
   SELECT variance(unique1::int4), sum(unique1::int8) FROM tenk1;
-         QUERY PLAN
------------------------------
+       QUERY PLAN
+-------------------------
  Aggregate
-   ->  Foreign Scan on tenk1
+   ->  Seq Scan on tenk1
 (2 rows)
 
 SELECT variance(unique1::int4), sum(unique1::int8) FROM tenk1;

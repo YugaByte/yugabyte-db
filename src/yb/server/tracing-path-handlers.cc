@@ -275,7 +275,7 @@ void TracingPathHandlers::RegisterHandlers(Webserver* server) {
     { "/tracing/json/simple_dump", kSimpleDump } };
 
   typedef pair<string, Handler> HandlerPair;
-  for (const HandlerPair& e : handlers) {
+  for (const HandlerPair e : handlers) {
     server->RegisterPathHandler(
         e.first, "", std::bind(&HandleRequest, e.second, _1, _2), false /* styled */,
         false /* is_on_nav_bar */);

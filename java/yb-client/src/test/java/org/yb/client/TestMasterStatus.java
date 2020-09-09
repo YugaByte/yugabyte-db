@@ -114,7 +114,7 @@ public class TestMasterStatus extends BaseYBClientTest {
 
         LOG.info("Leader host and port: " + leaderMasterHostAndPort.toString());
         for (HostAndPort host_and_port : masters.keySet()){
-            String RAFT_role = isMasterLeader(host_and_port.getHostText(),
+            String RAFT_role = isMasterLeader(host_and_port.getHost(),
                 masters.get(host_and_port).getWebPort());
             if (RAFT_role == "LEADER") {
                 assertEquals(host_and_port.toString(), leaderMasterHostAndPort.toString());
@@ -131,7 +131,7 @@ public class TestMasterStatus extends BaseYBClientTest {
         Map<HostAndPort, MiniYBDaemon> masters = miniCluster.getMasters();
         int num_masters = masters.size();
         for (HostAndPort host_and_port : masters.keySet()){
-            String ret_status = allMasterStatuses(host_and_port.getHostText(),
+            String ret_status = allMasterStatuses(host_and_port.getHost(),
                 masters.get(host_and_port).getWebPort());
             JsonParser parser = new JsonParser();
             JsonObject masters_obj = parser.parse(ret_status).getAsJsonObject();

@@ -10,6 +10,7 @@ import './stylesheets/TopNavBar.scss';
 import { getPromiseState } from '../../../utils/PromiseUtils';
 import { LinkContainer } from 'react-router-bootstrap';
 import { isNotHidden, isDisabled } from '../../../utils/LayoutUtils';
+import { clearCredentials } from '../../../routes';
 
 class YBMenuItem extends Component {
   render() {
@@ -34,12 +35,7 @@ class YBMenuItem extends Component {
 
 export default class TopNavBar extends Component {
   handleLogout = event => {
-    // Don't remove all localStorage items
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('apiToken');
-    Cookies.remove('authToken');
-    Cookies.remove('apiToken');
-    Cookies.remove('customerId');
+    clearCredentials();
     this.props.logoutProfile();
   };
 

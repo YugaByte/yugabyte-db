@@ -24,7 +24,7 @@ import org.yb.util.YBTestRunnerNonTsanOnly;
 import static org.yb.AssertionWrappers.*;
 
 @RunWith(value=YBTestRunnerNonTsanOnly.class)
-public class TestPgSortDateTime extends BasePgSortingOrder {
+public class TestPgSortDateTime extends BasePgSortingOrderTest {
   private static final Logger LOG = LoggerFactory.getLogger(TestPgSortDateTime.class);
 
   // All typename MUST be in upper case for comparison purpose.
@@ -127,7 +127,7 @@ public class TestPgSortDateTime extends BasePgSortingOrder {
   // Testing sorting order for the listed types.
   @Test
   public void testSort() throws Exception {
-    RunTest(testTypes, testValues, testInvalidValues);
+    runSortingOrderTest(testTypes, testValues, testInvalidValues);
 
     // Test invalid type names.
     createTablesWithInvalidPrimaryKey("TIMETZ", "TIME WITH TIME ZONE", "INTERVAL");

@@ -131,7 +131,13 @@ set(CONSENSUS_SRCS
 add_library(consensus ${CONSENSUS_SRCS})
 cotire(consensus)
 
+ADD_YB_LIBRARY(
+  consensus_error
+  SRCS consensus_error.cc
+  DEPS consensus_proto yb_util)
+
 target_link_libraries(consensus
+  consensus_error
   consensus_proto
   yb_common
   log

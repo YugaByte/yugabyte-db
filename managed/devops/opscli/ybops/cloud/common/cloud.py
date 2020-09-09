@@ -200,7 +200,7 @@ class AbstractCloud(AbstractCommandParser):
             x509.NameAttribute(NameOID.COMMON_NAME, six.text_type(node_ip)),
             x509.NameAttribute(NameOID.ORGANIZATION_NAME, six.text_type(extra_vars["org_name"]))
         ]))
-        builder = builder.issuer_name(root_cert.issuer)
+        builder = builder.issuer_name(root_cert.subject)
         builder = builder.not_valid_before(datetime.datetime.today())
         builder = builder.not_valid_after(datetime.datetime.today() + datetime.timedelta(
             extra_vars["cert_valid_duration"]))

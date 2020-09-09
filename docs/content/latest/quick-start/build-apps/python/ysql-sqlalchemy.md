@@ -16,19 +16,25 @@ showAsideToc: true
 
 <ul class="nav nav-tabs-alt nav-tabs-yb">
   <li >
-    <a href="/latest/quick-start/build-apps/python/ysql-psycopg2" class="nav-link">
+    <a href="{{< relref "./ysql-psycopg2.md" >}}" class="nav-link">
       <i class="icon-postgres" aria-hidden="true"></i>
-      YSQL - Psycopg2
+      YSQL - psycopg2
     </a>
   </li>
   <li >
-    <a href="/latest/quick-start/build-apps/python/ysql-sqlalchemy" class="nav-link active">
+    <a href="{{< relref "./ysql-aiopg.md" >}}" class="nav-link">
+      <i class="icon-postgres" aria-hidden="true"></i>
+      YSQL - aiopg
+    </a>
+  </li>
+  <li >
+    <a href="" class="nav-link active">
       <i class="icon-postgres" aria-hidden="true"></i>
       YSQL - SQL Alchemy
     </a>
   </li>
   <li>
-    <a href="/latest/quick-start/build-apps/python/ycql" class="nav-link">
+    <a href="{{< relref "./ycql.md" >}}" class="nav-link">
       <i class="icon-cassandra" aria-hidden="true"></i>
       YCQL
     </a>
@@ -61,7 +67,7 @@ Python 3 is installed
 Python packages (dependencies) are installed
 
 - [SQLAlchemy (`SQLAlchemy`)](https://www.sqlalchemy.org/)
-- [Psycopg2 (`psycopg2-binary`)](http://initd.org/psycopg/)
+- [psycopg2 (`psycopg2-binary`)](http://initd.org/psycopg/)
 - [JSONpickle (`jsonpickle`)](https://jsonpickle.github.io/)
 
 To quickly install these three packages, run the following command.

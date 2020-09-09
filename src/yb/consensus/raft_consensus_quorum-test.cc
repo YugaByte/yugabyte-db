@@ -133,7 +133,8 @@ class RaftConsensusQuorumTest : public YBTest {
                               schema_,
                               0, // schema_version
                               nullptr, // metric_entity
-                              append_pool_.get(),
+                              log_thread_pool_.get(),
+                              log_thread_pool_.get(),
                               std::numeric_limits<int64_t>::max(), // cdc_min_replicated_index
                               &log));
       logs_.push_back(log.get());
@@ -216,7 +217,7 @@ class RaftConsensusQuorumTest : public YBTest {
 
   Status BuildConfig(int num) {
     RETURN_NOT_OK(ThreadPoolBuilder("raft").Build(&raft_pool_));
-    RETURN_NOT_OK(ThreadPoolBuilder("append").Build(&append_pool_));
+    RETURN_NOT_OK(ThreadPoolBuilder("log").Build(&log_thread_pool_));
     BuildInitialRaftConfigPB(num);
     RETURN_NOT_OK(BuildFsManagersAndLogs());
     BuildPeers();
@@ -281,7 +282,7 @@ class RaftConsensusQuorumTest : public YBTest {
     return FindOrDie(syncs_, round)->WaitFor(delta);
   }
 
-  void WaitForReplicateIfNotAlreadyPresent(const OpId& to_wait_for, int peer_idx) {
+  void WaitForReplicateIfNotAlreadyPresent(const OpIdPB& to_wait_for, int peer_idx) {
     shared_ptr<RaftConsensus> peer;
     ASSERT_OK(peers_->GetPeerByIdx(peer_idx, &peer));
     ReplicaState* state = peer->GetReplicaStateForTests();
@@ -298,7 +299,7 @@ class RaftConsensusQuorumTest : public YBTest {
 
   // Waits for an operation to be (database) committed in the replica at index
   // 'peer_idx'. If the operation was already committed this returns immediately.
-  void WaitForCommitIfNotAlreadyPresent(const OpId& to_wait_for,
+  void WaitForCommitIfNotAlreadyPresent(const OpIdPB& to_wait_for,
                                         int peer_idx,
                                         int leader_idx) {
     MonoDelta timeout(MonoDelta::FromSeconds(10));
@@ -310,7 +311,7 @@ class RaftConsensusQuorumTest : public YBTest {
 
     int backoff_exp = 0;
     const int kMaxBackoffExp = 8;
-    OpId committed_op_id;
+    OpIdPB committed_op_id;
     while (true) {
       {
         auto lock = state->LockForRead();
@@ -368,7 +369,7 @@ class RaftConsensusQuorumTest : public YBTest {
                                    int leader_idx,
                                    ReplicateWaitMode wait_mode,
                                    CommitMode commit_mode,
-                                   OpId* last_op_id,
+      OpIdPB* last_op_id,
                                    vector<scoped_refptr<ConsensusRound> >* rounds) {
     for (int i = 0; i < seq_size; i++) {
       scoped_refptr<ConsensusRound> round;
@@ -452,8 +453,8 @@ class RaftConsensusQuorumTest : public YBTest {
     }
   }
 
-  std::vector<OpId> ExtractReplicateIds(const log::LogEntries& entries) {
-    std::vector<OpId> result;
+  std::vector<OpIdPB> ExtractReplicateIds(const log::LogEntries& entries) {
+    std::vector<OpIdPB> result;
     result.reserve(entries.size() / 2);
     for (const auto& entry : entries) {
       if (entry->has_replicate()) {
@@ -475,7 +476,7 @@ class RaftConsensusQuorumTest : public YBTest {
   }
 
   void VerifyNoCommitsBeforeReplicates(const log::LogEntries& entries) {
-    unordered_set<OpId,
+    unordered_set<OpIdPB,
                   OpIdHashFunctor,
                   OpIdEqualsFunctor> replication_ops;
 
@@ -549,12 +550,12 @@ class RaftConsensusQuorumTest : public YBTest {
  protected:
   ConsensusOptions options_;
   RaftConfigPB config_;
-  OpId initial_id_;
+  OpIdPB initial_id_;
   vector<shared_ptr<MemTracker> > parent_mem_trackers_;
   vector<FsManager*> fs_managers_;
   vector<scoped_refptr<Log> > logs_;
   unique_ptr<ThreadPool> raft_pool_;
-  unique_ptr<ThreadPool> append_pool_;
+  unique_ptr<ThreadPool> log_thread_pool_;
   gscoped_ptr<TestPeerMapManager> peers_;
   std::vector<std::unique_ptr<TestOperationFactory>> operation_factories_;
   scoped_refptr<server::Clock> clock_;
@@ -573,7 +574,7 @@ TEST_F(RaftConsensusQuorumTest, TestConsensusContinuesIfAMinorityFallsBehind) {
 
   ASSERT_OK(BuildAndStartConfig(3));
 
-  OpId last_replicate;
+  OpIdPB last_replicate;
   vector<scoped_refptr<ConsensusRound> > rounds;
   {
     // lock one of the replicas down by obtaining the state lock
@@ -616,7 +617,7 @@ TEST_F(RaftConsensusQuorumTest, TestConsensusStopsIfAMajorityFallsBehind) {
 
   ASSERT_OK(BuildAndStartConfig(3));
 
-  OpId last_op_id;
+  OpIdPB last_op_id;
 
   scoped_refptr<ConsensusRound> round;
   {
@@ -663,7 +664,7 @@ TEST_F(RaftConsensusQuorumTest, TestReplicasHandleCommunicationErrors) {
 
   ASSERT_OK(BuildAndStartConfig(3));
 
-  OpId last_op_id;
+  OpIdPB last_op_id;
 
   // Append a dummy message, with faults injected on the first attempt
   // to send the message.
@@ -749,7 +750,7 @@ TEST_F(RaftConsensusQuorumTest, TestLeaderHeartbeats) {
 
   // Wait for the config round to get committed and count the number
   // of update calls, calls after that will be heartbeats.
-  OpId config_round;
+  OpIdPB config_round;
   config_round.set_term(1);
   config_round.set_index(1);
   WaitForCommitIfNotAlreadyPresent(config_round, kFollower0Idx, kLeaderIdx);
@@ -785,7 +786,7 @@ TEST_F(RaftConsensusQuorumTest, TestLeaderElectionWithQuiescedQuorum) {
   const int kInitialNumPeers = 5;
   ASSERT_OK(BuildAndStartConfig(kInitialNumPeers));
 
-  OpId last_op_id;
+  OpIdPB last_op_id;
   vector<scoped_refptr<ConsensusRound> > rounds;
 
   // Loop twice, successively shutting down the previous leader.
@@ -843,7 +844,7 @@ TEST_F(RaftConsensusQuorumTest, TestLeaderElectionWithQuiescedQuorum) {
 TEST_F(RaftConsensusQuorumTest, TestReplicasEnforceTheLogMatchingProperty) {
   ASSERT_OK(BuildAndStartConfig(3));
 
-  OpId last_op_id;
+  OpIdPB last_op_id;
   vector<scoped_refptr<ConsensusRound> > rounds;
   REPLICATE_SEQUENCE_OF_MESSAGES(10,
                                  2, // The index of the initial leader.
@@ -874,7 +875,7 @@ TEST_F(RaftConsensusQuorumTest, TestReplicasEnforceTheLogMatchingProperty) {
 
   ReplicateMsg* replicate = req.add_ops();
   replicate->set_hybrid_time(clock_->Now().ToUint64());
-  OpId* id = replicate->mutable_id();
+  OpIdPB* id = replicate->mutable_id();
   id->set_term(last_op_id.term());
   id->set_index(last_op_id.index() + 1);
   // Make a copy of the OpId to be TSAN friendly.
@@ -905,7 +906,7 @@ TEST_F(RaftConsensusQuorumTest, TestReplicasEnforceTheLogMatchingProperty) {
 TEST_F(RaftConsensusQuorumTest, TestRequestVote) {
   ASSERT_OK(BuildAndStartConfig(3));
 
-  OpId last_op_id;
+  OpIdPB last_op_id;
   vector<scoped_refptr<ConsensusRound> > rounds;
   REPLICATE_SEQUENCE_OF_MESSAGES(10,
                                  2, // The index of the initial leader.

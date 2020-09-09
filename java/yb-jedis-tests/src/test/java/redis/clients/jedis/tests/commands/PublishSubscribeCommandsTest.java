@@ -4,7 +4,10 @@ import static org.yb.AssertionWrappers.assertEquals;
 import static org.yb.AssertionWrappers.assertTrue;
 import static org.yb.AssertionWrappers.fail;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.IOException;
+import java.lang.Math;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -12,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 
 import org.junit.Ignore;
@@ -30,6 +34,7 @@ import org.yb.YBTestRunner;
 
 @RunWith(value=YBTestRunner.class)
 public class PublishSubscribeCommandsTest extends JedisCommandTestBase {
+  public static final Logger LOG = LoggerFactory.getLogger(PublishSubscribeCommandsTest.class);
   private void publishOne(final String channel, final String message) {
     Thread t = new Thread(new Runnable() {
       public void run() {
@@ -372,8 +377,10 @@ public class PublishSubscribeCommandsTest extends JedisCommandTestBase {
           // client-output-buffer-limit
           String veryLargeString = makeLargeString(10485760);
 
-          // 10M * 10 = 100M
-          for (int i = 0; i < 10 && !exit.get(); i++) {
+          // Flood the system as a producer, while the
+          // consumer is throttled due to sleep.
+          for (int i = 0; !exit.get(); i++) {
+            LOG.info("Iteration " + i + " Publishing to foo");
             j.publish("foo", veryLargeString);
           }
 
@@ -383,15 +390,17 @@ public class PublishSubscribeCommandsTest extends JedisCommandTestBase {
       }
     });
     t.start();
+    final AtomicInteger count = new AtomicInteger(0);
     try {
       jedis.subscribe(new JedisPubSub() {
         public void onMessage(String channel, String message) {
           try {
-            // wait 0.5 secs to slow down subscribe and
+            // wait exponentially longer to slow down subscribe and
             // client-output-buffer exceed
-            // System.out.println("channel - " + channel +
-            // " / message - " + message);
-            Thread.sleep(1000);
+            LOG.info(count.get() + " channel - " + channel +
+                " / message - " + message.substring(1, 10) +
+                "+...  of length " + message.length());
+            Thread.sleep(1000 * (long)Math.pow(2, count.incrementAndGet()));
           } catch (Exception e) {
             try {
               t.join();

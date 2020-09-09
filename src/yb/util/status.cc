@@ -461,7 +461,7 @@ Status Status::CloneAndAddErrorCode(const StatusErrorCode& error_code) const {
   bool inserted = false;
   // Insert encoded error code to existing list of error codes.
   // Which is ordered by category.
-  for (const auto& error : state_->error_codes()) {
+  for (const auto error : state_->error_codes()) {
     auto current_category = *error.data();
     // Appropriate place to insert new error code, when existing category is greater
     // and we did not insert yet.

@@ -38,8 +38,8 @@ public class TestPgExplicitLocks extends BasePgSQLTest {
     Statement statement = connection.createStatement();
     List<Row> allRows = setupSimpleTable("explicitlocks");
 
-    Connection c1 = newConnectionBuilder().connect();
-    Connection c2 = newConnectionBuilder().connect();
+    Connection c1 = getConnectionBuilder().connect();
+    Connection c2 = getConnectionBuilder().connect();
 
     Statement s1 = c1.createStatement();
     Statement s2 = c2.createStatement();

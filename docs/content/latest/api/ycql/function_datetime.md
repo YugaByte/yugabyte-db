@@ -1,8 +1,9 @@
 ---
 title: Date and time functions [YCQL]
 headerTitle: Date and time functions
-linkTitle: Date and time
-summary: Functions that work on data types related to date and time.
+title: Date and time functions [YCQL]
+headerTitle: Date and time functions
+linkTitle: Date and time 
 description: Use date and time functions to work on date and time data types.
 menu:
   latest:
@@ -21,8 +22,8 @@ This section covers the set of YCQL built-in functions that work on the date and
 
 Use these functions to return the current system date and time in UTC time zone.
 
-- They take in no arguments.
-- The return value is a `DATE`, `TIME`, or `TIMESTAMP` respectively.
+- They take no arguments.
+- The return value is a `DATE`, `TIME`, or `TIMESTAMP`, respectively.
 
 ### Examples
 

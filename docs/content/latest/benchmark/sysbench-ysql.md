@@ -17,7 +17,7 @@ isTocNested: true
 <ul class="nav nav-tabs-alt nav-tabs-yb">
 
   <li >
-    <a href="/latest/benchmark/sysbench-ysql/" class="nav-link active">
+    <a href="{{< relref "./sysbench-ysql.md" >}}" class="nav-link active">
       <i class="icon-postgres" aria-hidden="true"></i>
       YSQL
     </a>
@@ -71,7 +71,7 @@ This script runs all the 8 workloads using 64 threads with the number of tables 
 
 ### 4. Run individual workloads (optional)
 
-This section outlines instructions in case you need to run workloads individually. Before starting the workload we need to load the data first.
+This section outlines instructions in case you need to run workloads individually. Before starting the workload you need to load the data first.
 
 ```sh
 $ sysbench oltp_point_select        \
@@ -86,7 +86,7 @@ $ sysbench oltp_point_select        \
       prepare
 ```
 
-Then we can run the workload as follows
+Then you can run the workload as follows
 
 ```sh
 $ sysbench oltp_point_select        \
@@ -118,7 +118,7 @@ The choice of different workloads are:
 
 ### Setup
 
-When run on a 3-node cluster with each node on a c5.4xlarge AWS instance (16 cores, 32 GB of RAM, and 2 EBS volumes), all belonging to the same AZ with the client VM running in the same AZ, we get the following results:
+When run on a 3-node cluster with each node on a c5.4xlarge AWS instance (16 cores, 32 GB of RAM, and 2 EBS volumes), all belonging to the same AZ with the client VM running in the same AZ, you get the following results:
 
 ### 10 Tables Each with 100k Rows
 

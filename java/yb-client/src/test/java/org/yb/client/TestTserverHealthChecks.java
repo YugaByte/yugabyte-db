@@ -100,7 +100,7 @@ public class TestTserverHealthChecks extends BaseYBClientTest {
     HostAndPort tserver = entry.getKey();
     int port = tservers.get(tserver).getWebPort();
 
-    return getTserverHealthValue(tserver.getHostText(), port, key);
+    return getTserverHealthValue(tserver.getHost(), port, key);
   }
 
   @Test(timeout = 60000)

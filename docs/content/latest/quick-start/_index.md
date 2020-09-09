@@ -4,11 +4,11 @@ headerTitle: Quick start
 linkTitle: Quick start
 description: Get started using YugabyteDB in less than five minutes on macOS, Linux, Docker, and Kubernetes (Minikube).
 image: /images/section_icons/index/quick_start.png
-headcontent: The easiest way to test YugabyteDB's basic features and APIs is to create a local cluster on a single host.
+headcontent: The easiest way to test YugabyteDB's APIs and core features is to create a local cluster on a single host.
 type: page
 aliases:
   - /quick-start/
-section: GET STARTED
+section: YUGABYTEDB CORE
 menu:
   latest:
     identifier: quick-start
@@ -17,7 +17,7 @@ menu:
 
 {{< note title="Note" >}}
 
-The local cluster setup on a single host is intended for development and learning. For production deployment, performance benchmarking, or deploying a true multi-node on multi-host setup, see [Deploy YugabyteDB](../../latest/deploy).
+The local cluster setup on a single host is intended for development and learning. For production deployment, performance benchmarking, or deploying a true multi-node on multi-host setup, see [Deploy YugabyteDB](../../../deploy).
 
 {{< /note >}}
 
@@ -49,13 +49,13 @@ The local cluster setup on a single host is intended for development and learnin
   </div>
 
   <div class="col-12 col-md-6 col-lg-12 col-xl-6">
-    <a class="section-link icon-offset" href="explore-ysql/">
+    <a class="section-link icon-offset" href="explore/">
       <div class="head">
         <img class="icon" src="/images/section_icons/quick_start/explore_ysql.png" aria-hidden="true" />
-        <div class="title">3. Explore YSQL</div>
+        <div class="title">3. Explore Distributed SQL APIs</div>
       </div>
       <div class="body">
-        Explore Yugabyte SQL (YSQL).
+        Explore YugabyteDB's distributed SQL APIs.
       </div>
     </a>
   </div>

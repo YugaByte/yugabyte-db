@@ -61,11 +61,11 @@ $ gcloud config set project yugabyte
 
 ## 1. Create a GKE cluster
 
-Each cluster brings up 3 nodes each of the type `n1-standard-1` for the Kubernetes masters. You can directly create a cluster with the desired machine type using the `--machine-type` option. In this example, we are going to create a node-pool with `n1-standard-8` type nodes for the YugabyteDB universe.
+Each cluster brings up 3 nodes each of the type `n1-standard-1` for the Kubernetes masters. You can directly create a cluster with the desired machine type using the `--machine-type` option. In this example, you are going to create a node-pool with `n1-standard-8` type nodes for the YugabyteDB universe.
 
 - Choose the zone
 
-First, choose the zone in which you want to run the cluster in. In this tutorial, we are going to deploy the Kubernetes masters using the default machine type `n1-standard-1` in the zone `us-west1-a`, and add a node pool with the desired node type and node count in order to deploy the YugabyteDB universe. You can view the list of zones by running the following command:
+First, choose the zone in which you want to run the cluster in. In this tutorial, you are going to deploy the Kubernetes masters using the default machine type `n1-standard-1` in the zone `us-west1-a`, and add a node pool with the desired node type and node count in order to deploy the YugabyteDB universe. You can view the list of zones by running the following command:
 
 ```sh
 $ gcloud compute zones list
@@ -190,7 +190,7 @@ Note the following `nodeSelector` snippet in the YAML file which instructs the K
     cloud.google.com/gke-local-ssd: "true"
 ```
 
-Also, note that we instruct the scheduler to place the various pods in the `yb-master` or `yb-tserver` services on different physical nodes with the `antiAffinity` hint:
+Also, note that you instruct the scheduler to place the various pods in the `yb-master` or `yb-tserver` services on different physical nodes with the `antiAffinity` hint:
 
 ```
   spec:
@@ -250,7 +250,7 @@ Note the `yb-master-ui` service above. It is a load balancer service, which expo
 You can connect to one of the tserver pods and verify that the local disk is mounted into the pods.
 
 ```sh
-$ kubectl exec -it yb-tserver-0 bash
+$ kubectl exec -it yb-tserver-0 -- bash
 ```
 
 You can observe the local disks by running the following command.
@@ -267,7 +267,7 @@ Filesystem      Size  Used Avail Use% Mounted on
 You can connect to the `ycqlsh` shell on this universe by running the following command.
 
 ```sh
-$ kubectl exec -it yb-tserver-0 bin/ycqlsh
+$ kubectl exec -it yb-tserver-0 -- ycqlsh yb-tserver-0
 ```
 
 ```sh

@@ -145,6 +145,8 @@ struct CompactionJobInfo {
   // Reason to run the compaction
   CompactionReason compaction_reason;
 
+  bool is_full_compaction;
+
   // If non-null, this variable stores detailed information
   // about this compaction.
   CompactionJobStats stats;

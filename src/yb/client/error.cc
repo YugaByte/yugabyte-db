@@ -33,6 +33,10 @@ const YBOperation& YBError::failed_op() const {
   return *failed_op_;
 }
 
+YBOperation& YBError::failed_op() {
+  return *failed_op_;
+}
+
 bool YBError::was_possibly_successful() const {
   // TODO: implement me - right now be conservative.
   return true;

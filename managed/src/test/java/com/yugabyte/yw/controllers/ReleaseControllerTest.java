@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.ImmutableMap;
 import com.yugabyte.yw.common.FakeApiHelper;
 import com.yugabyte.yw.common.ModelFactory;
+import com.yugabyte.yw.common.FakeDBApplication;
 import com.yugabyte.yw.common.ReleaseManager;
 import com.yugabyte.yw.models.Customer;
 import com.yugabyte.yw.models.Users;
@@ -40,21 +41,10 @@ import static play.mvc.Http.Status.OK;
 import static play.mvc.Http.Status.FORBIDDEN;
 import static play.test.Helpers.contentAsString;
 
-public class ReleaseControllerTest extends WithApplication {
+public class ReleaseControllerTest extends FakeDBApplication {
 
   private Customer customer;
   private Users user;
-  ReleaseManager mockReleaseManager;
-
-  @Override
-  protected Application provideApplication() {
-    mockReleaseManager = mock(ReleaseManager.class);
-
-    return new GuiceApplicationBuilder()
-        .configure((Map) Helpers.inMemoryDatabase())
-        .overrides(bind(ReleaseManager.class).toInstance(mockReleaseManager))
-        .build();
-  }
 
   @Before
   public void setUp() {

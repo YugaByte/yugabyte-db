@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "yb/util/bfql/bfql.h"
+#include "yb/util/net/net_util.h"
 #include "yb/util/test_util.h"
 #include "yb/common/ql_value.h"
 
@@ -612,8 +613,7 @@ TEST_F(BfqlTest, TestBuiltinToJson) {
   string time_uuid_str = time_uuid.ToString();
   check_tojson(param, "\"" + time_uuid_str + "\"");
 
-  InetAddress addr;
-  ASSERT_OK(addr.FromString("1.2.3.4"));
+  InetAddress addr(ASSERT_RESULT(ParseIpAddress("1.2.3.4")));
   param.set_inetaddress_value(addr);
   check_tojson(param, "\"1.2.3.4\"");
 

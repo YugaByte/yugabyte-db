@@ -72,6 +72,23 @@ public class CreateUniverse extends UniverseDefinitionTaskBase {
       Set<NodeDetails> primaryNodes = taskParams().getNodesInCluster(primaryCluster.uuid);
       // Override master flags (on primary cluster) and tserver flags as necessary.
       createGFlagsOverrideTasks(primaryNodes, ServerType.MASTER);
+
+      // Explicitly set webserver ports for each dql
+      primaryCluster.userIntent.tserverGFlags.put(
+        "redis_proxy_webserver_port",
+        Integer.toString(taskParams().communicationPorts.redisServerHttpPort)
+      );
+      primaryCluster.userIntent.tserverGFlags.put(
+        "cql_proxy_webserver_port",
+        Integer.toString(taskParams().communicationPorts.yqlServerHttpPort)
+      );
+      if (primaryCluster.userIntent.enableYSQL) {
+        primaryCluster.userIntent.tserverGFlags.put(
+          "pgsql_proxy_webserver_port",
+          Integer.toString(taskParams().communicationPorts.ysqlServerHttpPort)
+        );
+      }
+
       createGFlagsOverrideTasks(taskParams().nodeDetailsSet, ServerType.TSERVER);
 
       // Get the new masters from the node list.

@@ -47,8 +47,8 @@ YBCStatus YBCPgInitSession(const YBCPgEnv pg_env, const char *database_name);
 //   Postgres operations are done, associated YugaByte memory context (YBCPgMemCtx) will be
 //   destroyed toghether with Postgres memory context.
 YBCPgMemctx YBCPgCreateMemctx();
-void YBCPgDestroyMemctx(YBCPgMemctx memctx);
-void YBCPgResetMemctx(YBCPgMemctx memctx);
+YBCStatus YBCPgDestroyMemctx(YBCPgMemctx memctx);
+YBCStatus YBCPgResetMemctx(YBCPgMemctx memctx);
 
 // Invalidate the sessions table cache.
 YBCStatus YBCPgInvalidateCache();
@@ -58,6 +58,9 @@ YBCStatus YBCPgClearBinds(YBCPgStatement handle);
 
 // Check if initdb has been already run.
 YBCStatus YBCPgIsInitDbDone(bool* initdb_done);
+
+// Get gflag TEST_ysql_disable_transparent_cache_refresh_retry
+const bool YBCGetDisableTransparentCacheRefreshRetry();
 
 // Sets catalog_version to the local tserver's catalog version stored in shared
 // memory, or an error if the shared memory has not been initialized (e.g. in initdb).
@@ -135,6 +138,26 @@ YBCStatus YBCPgReserveOids(YBCPgOid database_oid,
 
 YBCStatus YBCPgGetCatalogMasterVersion(uint64_t *version);
 
+void YBCPgInvalidateTableCache(
+    const YBCPgOid database_oid,
+    const YBCPgOid table_oid);
+YBCStatus YBCPgInvalidateTableCacheByTableId(const char *table_id);
+
+// TABLEGROUP --------------------------------------------------------------------------------------
+
+// Create tablegroup.
+YBCStatus YBCPgNewCreateTablegroup(const char *database_name,
+                                   YBCPgOid database_oid,
+                                   YBCPgOid tablegroup_oid,
+                                   YBCPgStatement *handle);
+YBCStatus YBCPgExecCreateTablegroup(YBCPgStatement handle);
+
+// Drop tablegroup.
+YBCStatus YBCPgNewDropTablegroup(YBCPgOid database_oid,
+                                 YBCPgOid tablegroup_oid,
+                                 YBCPgStatement *handle);
+YBCStatus YBCPgExecDropTablegroup(YBCPgStatement handle);
+
 // TABLE -------------------------------------------------------------------------------------------
 // Create and drop table "database_name.schema_name.table_name()".
 // - When "schema_name" is NULL, the table "database_name.table_name" is created.
@@ -148,6 +171,7 @@ YBCStatus YBCPgNewCreateTable(const char *database_name,
                               bool if_not_exist,
                               bool add_primary_key,
                               const bool colocated,
+                              YBCPgOid tablegroup_oid,
                               YBCPgStatement *handle);
 
 YBCStatus YBCPgCreateTableAddColumn(YBCPgStatement handle, const char *attr_name, int attr_num,
@@ -200,6 +224,9 @@ YBCStatus YBCPgGetColumnInfo(YBCPgTableDesc table_desc,
                              bool *is_primary,
                              bool *is_hash);
 
+YBCStatus YBCPgGetTableProperties(YBCPgTableDesc table_desc,
+                                  YBCPgTableProperties *properties);
+
 YBCStatus YBCPgDmlModifiesRow(YBCPgStatement handle, bool *modifies_row);
 
 YBCStatus YBCPgSetIsSysCatalogVersionChange(YBCPgStatement handle);
@@ -209,6 +236,10 @@ YBCStatus YBCPgSetCatalogCacheVersion(YBCPgStatement handle, uint64_t catalog_ca
 YBCStatus YBCPgIsTableColocated(const YBCPgOid database_oid,
                                 const YBCPgOid table_oid,
                                 bool *colocated);
+
+YBCStatus YBCPgTableExists(const YBCPgOid database_oid,
+                           const YBCPgOid table_oid,
+                           bool *exists);
 
 // INDEX -------------------------------------------------------------------------------------------
 // Create and drop index "database_name.schema_name.index_name()".
@@ -222,7 +253,9 @@ YBCStatus YBCPgNewCreateIndex(const char *database_name,
                               YBCPgOid table_oid,
                               bool is_shared_index,
                               bool is_unique_index,
+                              const bool skip_index_backfill,
                               bool if_not_exist,
+                              YBCPgOid tablegroup_oid,
                               YBCPgStatement *handle);
 
 YBCStatus YBCPgCreateIndexAddColumn(YBCPgStatement handle, const char *attr_name, int attr_num,
@@ -230,6 +263,9 @@ YBCStatus YBCPgCreateIndexAddColumn(YBCPgStatement handle, const char *attr_name
                                     bool is_desc, bool is_nulls_first);
 
 YBCStatus YBCPgCreateIndexSetNumTablets(YBCPgStatement handle, int32_t num_tablets);
+
+YBCStatus YBCPgCreateIndexAddSplitRow(YBCPgStatement handle, int num_cols,
+                                      YBCPgTypeEntity **types, uint64_t *data);
 
 YBCStatus YBCPgExecCreateIndex(YBCPgStatement handle);
 
@@ -246,6 +282,10 @@ YBCStatus YBCPgWaitUntilIndexPermissionsAtLeast(
     const YBCPgOid index_oid,
     const uint32_t target_index_permissions,
     uint32_t *actual_index_permissions);
+
+YBCStatus YBCPgAsyncUpdateIndexPermissions(
+    const YBCPgOid database_oid,
+    const YBCPgOid indexed_table_oid);
 
 //--------------------------------------------------------------------------------------------------
 // DML statements (select, insert, update, delete, truncate)
@@ -334,6 +374,8 @@ YBCStatus YBCPgNewInsert(YBCPgOid database_oid,
 YBCStatus YBCPgExecInsert(YBCPgStatement handle);
 
 YBCStatus YBCPgInsertStmtSetUpsertMode(YBCPgStatement handle);
+
+YBCStatus YBCPgInsertStmtSetWriteTime(YBCPgStatement handle, const uint64_t write_time);
 
 // UPDATE ------------------------------------------------------------------------------------------
 YBCStatus YBCPgNewUpdate(YBCPgOid database_oid,

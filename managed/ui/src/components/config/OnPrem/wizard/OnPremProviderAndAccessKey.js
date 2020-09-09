@@ -24,8 +24,8 @@ export default class OnPremProviderAndAccessKey extends Component {
   render() {
     const {handleSubmit, switchToJsonEntry, isEditProvider} = this.props;
     const {nameHelpContent, userHelpContent, pkHelpContent,
-           passwordlessSudoHelp, airGapInstallHelp, homeDirHelp,
-           portHelpContent} = constants;
+      passwordlessSudoHelp, airGapInstallHelp, homeDirHelp,
+      portHelpContent, useHostnameHelp} = constants;
     const isReadOnly = this.props.isEditProvider;
 
     return (
@@ -35,26 +35,29 @@ export default class OnPremProviderAndAccessKey extends Component {
             <Col lg={6}>
               <div className="form-right-aligned-labels">
                 <Field name="name" component={YBInputField} label="Provider Name" insetError={true}
-                       isReadOnly={isReadOnly} infoContent={nameHelpContent}
-                       infoTitle="Provider Name" />
+                  isReadOnly={isReadOnly} infoContent={nameHelpContent}
+                  infoTitle="Provider Name" />
                 <Field name="sshUser" component={YBInputField} label="SSH User" insetError={true}
-                       isReadOnly={isReadOnly} infoContent={userHelpContent}
-                       infoTitle="SSH User" />
+                  isReadOnly={isReadOnly} infoContent={userHelpContent}
+                  infoTitle="SSH User" />
                 <Field name="sshPort" component={YBNumericInput} label="SSH Port" insetError={true}
-                       isReadOnly={isReadOnly} infoContent={portHelpContent}
-                       infoTitle="SSH Port" />
+                  isReadOnly={isReadOnly} infoContent={portHelpContent}
+                  infoTitle="SSH Port" />
+                <Field name="useHostnames" component={YBToggle}
+                  label="Use Hostnames" defaultChecked={false} isReadOnly={isReadOnly}
+                  infoContent={useHostnameHelp} infoTitle="Use Hostnames"/>
                 <Field name="passwordlessSudoAccess" component={YBToggle}
-                       label="Passwordless Sudo" defaultChecked={true} isReadOnly={isReadOnly}
-                       infoContent={passwordlessSudoHelp} infoTitle="Passwordless Sudo"/>
+                  label="Passwordless Sudo" defaultChecked={true} isReadOnly={isReadOnly}
+                  infoContent={passwordlessSudoHelp} infoTitle="Passwordless Sudo"/>
                 <Field name="privateKeyContent" component={YBTextArea} label="SSH Key" insetError={true}
-                       className="ssh-key-container" isReadOnly={isReadOnly} infoContent={pkHelpContent}
-                       infoTitle="SSH Key" />
+                  className="ssh-key-container" isReadOnly={isReadOnly} infoContent={pkHelpContent}
+                  infoTitle="SSH Key" />
                 <Field name="airGapInstall" component={YBToggle} isReadOnly={isReadOnly}
-                       label="Air Gap Installation" defaultChecked={false}
-                       infoContent={airGapInstallHelp} infoTitle="Air Gap Installation"/>
+                  label="Air Gap Installation" defaultChecked={false}
+                  infoContent={airGapInstallHelp} infoTitle="Air Gap Installation"/>
                 <Field name="homeDir" component={YBTextArea} isReadOnly={isReadOnly}
-                       label="Desired Home Directory (Optional)" insetError={true}
-                       infoContent={homeDirHelp} infoTitle="Home Directory" />
+                  label="Desired Home Directory (Optional)" insetError={true}
+                  infoContent={homeDirHelp} infoTitle="Home Directory" />
               </div>
             </Col>
           </Row>

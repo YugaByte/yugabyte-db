@@ -42,6 +42,8 @@ extern "C"
 #define DEF_YBPORT 5433
 #define DEF_YBPORT_STR "5433"
 
+#define DefaultHost "localhost"
+
 /* Application-visible enum types */
 
 /*

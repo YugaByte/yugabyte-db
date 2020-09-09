@@ -31,7 +31,7 @@ public class NodeTaskParams extends UniverseDefinitionTaskParams {
 
   public AvailabilityZone getAZ() {
     if (azUuid != null) {
-      return AvailabilityZone.find.fetch("region").where().idEq(azUuid).findUnique();
+      return AvailabilityZone.find.query().fetch("region").where().idEq(azUuid).findOne();
     }
     return null;
   }

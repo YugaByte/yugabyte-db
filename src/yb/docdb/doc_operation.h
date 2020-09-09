@@ -46,8 +46,7 @@ typedef boost::container::small_vector_base<RefCntPrefix> DocPathsToLock;
 
 YB_DEFINE_ENUM(GetDocPathsMode, (kLock)(kIntents));
 YB_DEFINE_ENUM(DocOperationType,
-               (PGSQL_WRITE_OPERATION)(PGSQL_READ_OPERATION)(QL_WRITE_OPERATION)
-                   (REDIS_WRITE_OPERATION));
+               (PGSQL_WRITE_OPERATION)(QL_WRITE_OPERATION)(REDIS_WRITE_OPERATION));
 
 class DocOperation {
  public:

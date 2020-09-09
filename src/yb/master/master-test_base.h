@@ -142,6 +142,11 @@ class MasterTestBase : public YBTest {
                           const TableName& table_name,
                           const Schema& schema);
 
+  Status CreateTablegroupTable(const NamespaceId& namespace_id,
+                               const TableName& table_name,
+                               const TablegroupId& tablegroup_id,
+                               const Schema& schema);
+
   Status DoCreateTable(const NamespaceName& namespace_name,
                        const TableName& table_name,
                        const Schema& schema,
@@ -167,6 +172,16 @@ class MasterTestBase : public YBTest {
                          const TableName& table_name,
                          TableId* table_id);
 
+  Status CreateTablegroup(const TablegroupId& tablegroup_id,
+                          const NamespaceId& namespace_id,
+                          const NamespaceName& namespace_name);
+
+  Status DeleteTablegroup(const TablegroupId& tablegroup_id,
+                          const NamespaceId& namespace_id);
+
+  void DoListTablegroups(const ListTablegroupsRequestPB& req,
+                         ListTablegroupsResponsePB* resp);
+
   void DoListAllNamespaces(ListNamespacesResponsePB* resp);
   void DoListAllNamespaces(const boost::optional<YQLDatabase>& database_type,
                            ListNamespacesResponsePB* resp);
@@ -178,7 +193,7 @@ class MasterTestBase : public YBTest {
   Status CreateNamespaceAsync(const NamespaceName& ns_name,
                               const boost::optional<YQLDatabase>& database_type,
                               CreateNamespaceResponsePB* resp);
-  Status CreateNamespaceWait(const NamespaceName& ns_name,
+  Status CreateNamespaceWait(const NamespaceId& ns_id,
                              const boost::optional<YQLDatabase>& database_type);
 
   Status AlterNamespace(const NamespaceName& ns_name,

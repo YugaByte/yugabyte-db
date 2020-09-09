@@ -17,6 +17,8 @@ showAsideToc: true
 
 Use the `SELECT` statement to retrieve rows of specified columns that meet a given condition from a table. It specifies the columns to be retrieved, the name of the table, and the condition each selected row must satisfy.
 
+The same syntax rules govern a subquery, wherever you might use one—like, for example, in an [`INSERT` statement](../dml_insert/). Certain syntax spots, for example a `WHERE` clause predicate or the actual argument of a function like `sqrt()`, allow only a scalar subquery.
+
 ## Syntax
 
 <ul class="nav nav-tabs nav-tabs-yb">
@@ -36,12 +38,14 @@ Use the `SELECT` statement to retrieve rows of specified columns that meet a giv
 
 <div class="tab-content">
   <div id="grammar" class="tab-pane fade show active" role="tabpanel" aria-labelledby="grammar-tab">
-    {{% includeMarkdown "../syntax_resources/commands/select,order_expr.grammar.md" /%}}
+    {{% includeMarkdown "../syntax_resources/commands/select,fn_over_window,order_expr.grammar.md" /%}}
   </div>
   <div id="diagram" class="tab-pane fade" role="tabpanel" aria-labelledby="diagram-tab">
-    {{% includeMarkdown "../syntax_resources/commands/select,order_expr.diagram.md" /%}}
+    {{% includeMarkdown "../syntax_resources/commands/select,fn_over_window,order_expr.diagram.md" /%}}
   </div>
 </div>
+
+**Note:** The **fn_over_window** rule denotes the special kind of `SELECT` list item that must be used to invoke a window function and that may be used to invoke an aggregate function. (Window functions are known as analytic functions in the terminology of some database systems.) The dedicated diagram that follows the main diagram for the **select** rule shows the `FILTER` and the `OVER` keywords. You can see that you _cannot_ invoke a function in this way without specifying an `OVER` clause—and that the `OVER` clause requires the specification of the so-called [_window_](../../exprs/window_functions/sql-syntax-semantics/#the-window-definition-rule) that gives this invocation style its name. The `FILTER` clause is optional and may be used _only_ when you invoke an aggregate function in this way. All of this is explained in the major section [Window functions](../../exprs/window_functions/).
 
 ## Semantics
 

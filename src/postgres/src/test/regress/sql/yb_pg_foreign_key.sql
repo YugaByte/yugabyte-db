@@ -159,9 +159,12 @@ SELECT * FROM FKTABLE ORDER BY ftest1, ftest2;
 UPDATE PKTABLE SET ptest1=1 WHERE ptest1=2;
 
 -- Check FKTABLE for update of matched row
-SELECT * FROM FKTABLE ORDER BY ftest1, ftest2;
+SELECT * FROM FKTABLE ORDER BY ftest1, ftest2, ftest3;
 
-\set VERBOSITY terse \\ -- suppress cascade details
+-- Suppress cascade details because it doesn't mismatch what Postgres prints.
+-- TODO(YB): PG show dependecy on table pktable, but for us it's either it or
+--           index pktable_pkey (at random)!
+\set VERBOSITY terse
 -- this should fail for lack of CASCADE
 DROP TABLE PKTABLE;
 \set VERBOSITY default
@@ -301,7 +304,7 @@ SELECT * from PKTABLE ORDER BY ptest1, ptest2, ptest3;
 SELECT * from FKTABLE ORDER BY ftest1, ftest2, ftest3;
 
 -- Try to delete something that should cascade
-DELETE FROM PKTABLE where ptest1=1 and ptest2=2 and ptest3=3;
+DELETE FROM PKTABLE where ptest1=1 and ptest2=5 and ptest3=3;
 
 -- Show PKTABLE and FKTABLE
 SELECT * from PKTABLE ORDER BY ptest1, ptest2, ptest3;
@@ -361,7 +364,7 @@ SELECT * from PKTABLE ORDER BY ptest1, ptest2, ptest3;
 SELECT * from FKTABLE ORDER BY ftest1, ftest2, ftest3;
 
 -- Try to delete something that should not set default
-DELETE FROM PKTABLE where ptest2=3;
+DELETE FROM PKTABLE where ptest2=5;
 
 -- Show PKTABLE and FKTABLE
 SELECT * from PKTABLE ORDER BY ptest1, ptest2, ptest3;
@@ -432,14 +435,19 @@ DROP TABLE PKTABLE;
 CREATE TABLE PKTABLE (ptest1 int PRIMARY KEY);
 CREATE TABLE FKTABLE_FAIL1 ( ftest1 int, CONSTRAINT fkfail1 FOREIGN KEY (ftest2) REFERENCES PKTABLE);
 CREATE TABLE FKTABLE_FAIL2 ( ftest1 int, CONSTRAINT fkfail1 FOREIGN KEY (ftest1) REFERENCES PKTABLE(ptest2));
+
 SELECT COUNT(*) FROM pg_class WHERE relname = 'FKTABLE_FAIL1';
 SELECT COUNT(*) FROM pg_class WHERE relname = 'FKTABLE_FAIL2';
+DROP TABLE FKTABLE_FAIL1;
+DROP TABLE FKTABLE_FAIL2;
 DROP TABLE PKTABLE;
 
 -- Test for referencing column number smaller than referenced constraint
 CREATE TABLE PKTABLE (ptest1 int, ptest2 int, UNIQUE(ptest1, ptest2));
 CREATE TABLE FKTABLE_FAIL1 (ftest1 int REFERENCES pktable(ptest1));
+
 SELECT COUNT(*) FROM pg_class WHERE relname = 'FKTABLE_FAIL1';
+DROP TABLE FKTABLE_FAIL1;
 DROP TABLE PKTABLE;
 
 --
@@ -480,7 +488,7 @@ UPDATE FKTABLE SET ftest1 = ftest1 + 1;	-- should fail
 DROP TABLE FKTABLE;
 DROP TABLE PKTABLE;
 
--- TODO (YB) changing inet->text below as we don't support indexes on inet type yet.
+-- TODO(YB) changing inet->text below as we don't support indexes on inet type yet.
 -- Two columns, two tables
 CREATE TABLE PKTABLE (ptest1 int, ptest2 text, PRIMARY KEY(ptest1, ptest2));
 -- This should fail, because we just chose really odd types
@@ -521,9 +529,9 @@ CREATE TABLE PKTABLE (ptest1 int, ptest2 text, ptest3 int, ptest4 text, PRIMARY 
 ptest3) REFERENCES pktable);
 
 -- TODO: YugaByte does not yet support table inheritance.
--- Leaving the first failing statement uncommented so that this test
--- will fail when the feature is implemented (the full test should
--- be uncommented then).
+--       Leaving the first failing statement uncommented so that this test
+--       will fail when the feature is implemented (the full test should
+--       be uncommented then).
 
 --
 -- Now some cases with inheritance
@@ -1084,19 +1092,14 @@ commit;
 
 drop table pktable2, fktable2;
 
+
 --
 -- Foreign keys and partitioned tables
 --
 
--- TODO YugaByte does not support partitioned tables yet.
--- Leaving the first failing statement uncommented so that this test
--- will fail when the feature is implemented (the full test should
--- be uncommented then).
-
 -- partitioned table in the referenced side are not allowed
 CREATE TABLE fk_partitioned_pk (a int, b int, primary key (a, b))
   PARTITION BY RANGE (a, b);
-/*
 -- verify with create table first ...
 CREATE TABLE fk_notpartitioned_fk (a int, b int,
   FOREIGN KEY (a, b) REFERENCES fk_partitioned_pk);
@@ -1157,11 +1160,13 @@ INSERT INTO fk_partitioned_fk (a,b) VALUES (1500, 1501);
 INSERT INTO fk_partitioned_fk (a,b) VALUES (2500, 2502);
 INSERT INTO fk_partitioned_fk (a,b) VALUES (2501, 2503);
 
+-- TODO(YB): When UPDATE changing partitions is supported, restore this section
+--           to its original form. (#5310)
 -- this update fails because there is no referenced row
-UPDATE fk_partitioned_fk SET a = a + 1 WHERE a = 2501;
+UPDATE fk_partitioned_fk SET a = a + 5 WHERE a = 2501;
 -- but we can fix it thusly:
-INSERT INTO fk_notpartitioned_pk (a,b) VALUES (2502, 2503);
-UPDATE fk_partitioned_fk SET a = a + 1 WHERE a = 2501;
+INSERT INTO fk_notpartitioned_pk (a,b) VALUES (2506, 2503);
+UPDATE fk_partitioned_fk SET a = a + 5 WHERE a = 2501;
 
 -- these updates would leave lingering rows in the referencing table; disallow
 UPDATE fk_notpartitioned_pk SET b = 502 WHERE a = 500;
@@ -1208,11 +1213,22 @@ INSERT INTO fk_partitioned_fk (a,b) VALUES (NULL, NULL);
 
 -- ON UPDATE SET NULL
 SELECT tableoid::regclass, a, b FROM fk_partitioned_fk WHERE b IS NULL ORDER BY a;
+-- TODO(YB): When UPDATE changing partitions is supported, the below section
+--           should be reworked. (#5310)
 UPDATE fk_notpartitioned_pk SET a = a + 1 WHERE a = 2502;
-SELECT tableoid::regclass, a, b FROM fk_partitioned_fk WHERE b IS NULL ORDER BY a;
+DELETE FROM fk_partitioned_fk WHERE a = 2502;
+INSERT INTO fk_partitioned_fk (a,b) VALUES (NULL, NULL);
+INSERT INTO fk_partitioned_fk (a,b) VALUES (2502, NULL);
+UPDATE fk_notpartitioned_pk SET a = 2503 WHERE a = 2502;
+SELECT tableoid::regclass, a, b FROM fk_partitioned_fk ORDER BY a, b;
+SELECT tableoid::regclass, a, b FROM fk_notpartitioned_pk ORDER BY a;
 
 -- ON DELETE SET NULL
-INSERT INTO fk_partitioned_fk VALUES (2503, 2503);
+-- TODO(YB): When UPDATE changing partitions is supported, restore this section
+--           to its original form. (#5310)
+DELETE FROM fk_notpartitioned_pk WHERE a=2502;
+INSERT INTO fk_notpartitioned_pk (a,b) VALUES (500, 500);
+INSERT INTO fk_partitioned_fk VALUES (500, 500);
 SELECT count(*) FROM fk_partitioned_fk WHERE a IS NULL;
 DELETE FROM fk_notpartitioned_pk;
 SELECT count(*) FROM fk_partitioned_fk WHERE a IS NULL;
@@ -1253,11 +1269,12 @@ DROP TABLE fk_partitioned_fk_2;
 -- partitions.
 CREATE TABLE fk_partitioned_fk_2 PARTITION OF fk_partitioned_fk FOR VALUES IN (1500,1502);
 ALTER TABLE fk_partitioned_fk DETACH PARTITION fk_partitioned_fk_2;
-BEGIN;
-DROP TABLE fk_partitioned_fk;
--- constraint should still be there
-\d fk_partitioned_fk_2;
-ROLLBACK;
+-- TODO(YB): Uncomment when transactional DDLs are supported (#1404)
+-- BEGIN;
+-- DROP TABLE fk_partitioned_fk;
+-- -- constraint should still be there
+-- \d fk_partitioned_fk_2;
+-- ROLLBACK;
 ALTER TABLE fk_partitioned_fk ATTACH PARTITION fk_partitioned_fk_2 FOR VALUES IN (1500,1502);
 DROP TABLE fk_partitioned_fk_2;
 CREATE TABLE fk_partitioned_fk_2 (b int, c text, a int,
@@ -1325,7 +1342,8 @@ create schema fkpart0
       (foreign key (a) references fkpart0.pkey) for values in (2, 3)
       partition by list (a)
   create table fk_part_23_2 partition of fk_part_23 for values in (2);
-
+-- TODO(YB): Import remaining tests from postgres after creating schema is supported.
+/*
 alter table fkpart0.fk_part add foreign key (a) references fkpart0.pkey;
 \d fkpart0.fk_part_1	\\ -- should have only one FK
 alter table fkpart0.fk_part_1 drop constraint fk_part_1_a_fkey;
@@ -1382,3 +1400,5 @@ alter table fkpart2.fk_part_1_1 drop constraint my_fkey;	-- doesn't exist
 drop schema fkpart0, fkpart1, fkpart2 cascade;
 \set VERBOSITY default
 */
+-- TODO(jason): remove when issue #1721 is closed or closing.
+DISCARD TEMP;

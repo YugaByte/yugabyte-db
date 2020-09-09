@@ -7,6 +7,7 @@ menu:
   latest:
     identifier: array-comparison
     parent: array-functions-operators
+    weight: 20
 isTocNested: true
 showAsideToc: true
 ---
@@ -34,7 +35,7 @@ These are the unique characteristics of an array with respect to the algorithm t
 - the number of dimensions
 - the lower bound on each dimension.
 
-The term _"row-major order"_ is explained in the section [Joint semantics](../properties/#joint-semantics) within the section _"Functions for reporting the geometric properties of an array"_.
+The term _"row-major order"_ is explained in [Joint semantics](../properties/#joint-semantics) within the section _"Functions for reporting the geometric properties of an array"_.
 
 The other geometric properties (the length and upper bound along each dimension) can be derived from the properties that the bullets list..
 
@@ -61,7 +62,7 @@ When _both_ all possible value comparisons _and_ the cardinality comparison resu
 
 This means that the lower bounds are significant when two arrays are compared _only_ when they are identical in pairwise value comparison, cardinality, and the number of dimensions. Then the array with the greater lower bound, in dimension order, is deemed to be the greater array.
 
-The [Equality and inequality semantics](./#equality-and-inequality-semantics) section demonstrates each of the rules that this _"Comparison operators overview"_  section has stated.
+[Equality and inequality semantics](./#equality-and-inequality-semantics) demonstrates each of the rules that this _"Comparison operators overview"_  section has stated.
 
 ## Containment and overlap operators overview
 
@@ -69,7 +70,7 @@ These three operators are insensitive to the geometric properties of the two to-
 - The two containment operators test if the distinct set of values in one array contains, or is contained by, the distinct set of values in the other array.
 - The overlap operator tests if the distinct set of values in one array and the distinct set of values in the other array have at least one value in common.
 
-The [Containment and overlap operators semantics](./#containment-and-overlap-operators-semantics) section below demonstrates each of the rules that this section has stated.
+[Containment and overlap operators semantics](./#containment-and-overlap-operators-semantics) below demonstrates each of the rules that this section has stated.
 
 ## Examples for each operator
 
@@ -78,7 +79,7 @@ The [Containment and overlap operators semantics](./#containment-and-overlap-ope
 - The `=` operator returns `TRUE` if the LHS and RHS arrays are equal.
 - The `<>` operator is the natural complement: it returns `TRUE` if the LHS and RHS arrays are not equal.
 
-```postgresql
+```plpgsql
 with
   v as (
     select
@@ -95,7 +96,7 @@ This is the result:
  true
 ```
 
-```postgresql
+```plpgsql
 with
   v as (
     select
@@ -121,7 +122,7 @@ These four operators implement the familiar inequality comparisons.
 - The `<` operator returns `TRUE` if the LHS array is less than the RHS array.
 
 It's sufficient, therefore, to provide an example for just the `<` operator.
-```postgresql
+```plpgsql
 with
   v as (
     select
@@ -146,7 +147,7 @@ This is the result:
 - The `@>` operator returns `TRUE` if the LHS array contains the RHS array—that is, if every distinct value in the RHS array is found among the LHS array's distinct values.
 - The `<@` operator is the natural complement: it returns `TRUE` if every distinct value in the LHS array is found among the RHS array's distinct values.
 
-```postgresql
+```plpgsql
 with
   v as (
     select
@@ -169,7 +170,7 @@ This is the result:
 
 The `&&` operator returns `TRUE` if the LHS and RHS arrays overlap—that is, if they have at least one value in common. The definition of this operator makes it insensitive to which of the two to-be-compared is used on the LHS and which is used on the RHS.
 
-```postgresql
+```plpgsql
 with
   v as (
     select
@@ -190,9 +191,9 @@ This is the result:
 
 ## Equality and inequality semantics
 
-This section demonstrates each of the rules that the [Comparison operators overview](./#comparison-operators-overview) section above stated.
+This section demonstrates each of the rules that [Comparison operators overview](./#comparison-operators-overview) above stated.
 
-```postgresql
+```plpgsql
 -- Any two arrays can be compared without error if they have the same data type.
 do $body$
 begin
@@ -422,11 +423,11 @@ $body$;
 
 ## Containment and overlap operators semantics
 
-This section demonstrates each of the rules that the [Containment and overlap operators overview](./#containment-and-overlap-operators-overview) section stated.
+This section demonstrates each of the rules that [Containment and overlap operators overview](./#containment-and-overlap-operators-overview) stated.
 
-```postgresql
+```plpgsql
 -- Any two arrays can be compared without error if they have the same data type.
--- Insensitive to the geom. properties.
+-- Insensitive to the geometric properties.
 do $body$
 declare
   a constant int[] := '[2:3][4:5]={{10, 20}, {30, 40}}';

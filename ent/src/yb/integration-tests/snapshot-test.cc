@@ -293,7 +293,7 @@ class SnapshotTest : public YBMiniClusterTestBase<MiniCluster> {
         ));
         FsManager* const fs = tablet_peer->tablet_metadata()->fs_manager();
         const auto rocksdb_dir = tablet_peer->tablet_metadata()->rocksdb_dir();
-        const auto top_snapshots_dir = tablet::TabletSnapshots::SnapshotsDirName(rocksdb_dir);
+        const auto top_snapshots_dir = tablet_peer->tablet_metadata()->snapshots_dir();
         const auto snapshot_dir = JoinPathSegments(top_snapshots_dir, snapshot_id);
 
         LOG(INFO) << "Checking tablet snapshot folder: " << snapshot_dir;
@@ -357,7 +357,7 @@ TEST_F(SnapshotTest, CreateSnapshot) {
     for (std::shared_ptr<TabletPeer>& tablet_peer : ts_tablet_peers) {
       FsManager* const fs = tablet_peer->tablet_metadata()->fs_manager();
       const string rocksdb_dir = tablet_peer->tablet_metadata()->rocksdb_dir();
-      const string top_snapshots_dir = tablet::TabletSnapshots::SnapshotsDirName(rocksdb_dir);
+      const string top_snapshots_dir = tablet_peer->tablet_metadata()->snapshots_dir();
 
       ASSERT_TRUE(fs->Exists(rocksdb_dir));
       ASSERT_TRUE(fs->Exists(top_snapshots_dir));

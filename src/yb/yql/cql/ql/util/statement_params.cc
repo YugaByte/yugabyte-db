@@ -54,7 +54,7 @@ Status StatementParameters::SetPagingState(const std::string& paging_state) {
     paging_state_.reset(new QLPagingStatePB());
   }
   if (!paging_state_->ParseFromString(paging_state)) {
-    STATUS(Corruption, "Invalid paging state");
+    return STATUS(Corruption, "Invalid paging state");
   }
 
   if (paging_state_->has_original_request_id()) {

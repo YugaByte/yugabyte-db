@@ -26,7 +26,7 @@
 #include "utils/memdebug.h"
 #include "utils/memutils.h"
 #include "yb/yql/pggate/ybc_pggate.h"
-
+#include "pg_yb_utils.h"
 
 /*****************************************************************************
  *	  GLOBAL MEMORY															 *
@@ -196,7 +196,7 @@ MemoryContextResetOnly(MemoryContext context)
 	 * Currently reset YugaByte context does not destroy it.  Maybe we should?
 	 */
 	if (context->yb_memctx) {
-		YBCPgResetMemctx(context->yb_memctx);
+		HandleYBStatus(YBCPgResetMemctx(context->yb_memctx));
 	}
 
 	/* Nothing to do if no pallocs since startup or last reset */
@@ -291,7 +291,7 @@ MemoryContextDelete(MemoryContext context)
 	/*
 	 * Destroy YugaByte memory context.
 	 */
-	YBCPgDestroyMemctx(context->yb_memctx);
+	HandleYBStatus(YBCPgDestroyMemctx(context->yb_memctx));
 	context->yb_memctx = NULL;
 
 	VALGRIND_DESTROY_MEMPOOL(context);

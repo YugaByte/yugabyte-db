@@ -45,10 +45,13 @@
 #include "yb/consensus/opid_util.h"
 #include "yb/util/auto_release_pool.h"
 #include "yb/util/locks.h"
+#include "yb/util/operation_counter.h"
 #include "yb/util/status.h"
 #include "yb/util/memory/arena.h"
 
 namespace yb {
+
+struct OpId;
 
 namespace tablet {
 
@@ -216,11 +219,11 @@ class OperationState {
   // For instance it could be different from hybrid_time() for CDC.
   virtual HybridTime WriteHybridTime() const;
 
-  consensus::OpId* mutable_op_id() {
+  OpIdPB* mutable_op_id() {
     return &op_id_;
   }
 
-  const consensus::OpId& op_id() const {
+  const OpIdPB& op_id() const {
     return op_id_;
   }
 
@@ -230,6 +233,11 @@ class OperationState {
 
   void CompleteWithStatus(const Status& status) const;
   void SetError(const Status& status, tserver::TabletServerErrorPB::Code code) const;
+
+  // Initialize operation at leader side.
+  // op_id - operation id.
+  // committed_op_id - current committed operation id.
+  void LeaderInit(const OpId& op_id, const OpId& committed_op_id);
 
   virtual ~OperationState();
 
@@ -251,7 +259,7 @@ class OperationState {
   uint64_t hybrid_time_error_ = 0;
 
   // This OpId stores the canonical "anchor" OpId for this transaction.
-  consensus::OpId op_id_;
+  OpIdPB op_id_;
 
   scoped_refptr<consensus::ConsensusRound> consensus_round_;
 
@@ -259,11 +267,11 @@ class OperationState {
   mutable simple_spinlock mutex_;
 };
 
-template <class Request>
-class OperationStateBase : public OperationState {
+template <class Request, class BaseState = OperationState>
+class OperationStateBase : public BaseState {
  public:
   OperationStateBase(Tablet* tablet, const Request* request)
-      : OperationState(tablet), request_(request) {}
+      : BaseState(tablet), request_(request) {}
 
   explicit OperationStateBase(Tablet* tablet)
       : OperationStateBase(tablet, nullptr) {}
@@ -278,6 +286,10 @@ class OperationStateBase : public OperationState {
     return request_holder_.get();
   }
 
+  tserver::TabletSnapshotOpRequestPB* ReleaseRequest() {
+    return request_holder_.release();
+  }
+
   void TakeRequest(Request* request) {
     request_holder_.reset(new Request);
     request_.store(request_holder_.get(), std::memory_order_release);
@@ -286,7 +298,7 @@ class OperationStateBase : public OperationState {
 
   std::string ToString() const override {
     return Format("{ request: $0 consensus_round: $1 }",
-                  request_.load(std::memory_order_acquire), ConsensusRoundAsString());
+                  request_.load(std::memory_order_acquire), BaseState::ConsensusRoundAsString());
   }
 
  protected:
@@ -297,6 +309,42 @@ class OperationStateBase : public OperationState {
  private:
   std::unique_ptr<Request> request_holder_;
   std::atomic<const Request*> request_;
+};
+
+class ExclusiveSchemaOperationStateBase : public OperationState {
+ public:
+  template <class... Args>
+  explicit ExclusiveSchemaOperationStateBase(Args&&... args)
+      : OperationState(std::forward<Args>(args)...) {}
+
+  // Release the acquired schema lock.
+  void ReleasePermitToken();
+
+  void UsePermitToken(ScopedRWOperationPause&& token) {
+    permit_token_ = std::move(token);
+  }
+
+ private:
+  // Used to pause write operations from being accepted while alter is in progress.
+  ScopedRWOperationPause permit_token_;
+};
+
+template <class Request>
+class ExclusiveSchemaOperationState :
+    public OperationStateBase<Request, ExclusiveSchemaOperationStateBase> {
+ public:
+  template <class... Args>
+  explicit ExclusiveSchemaOperationState(Args&&... args)
+      : OperationStateBase<Request, ExclusiveSchemaOperationStateBase>(
+            std::forward<Args>(args)...) {}
+
+  void Finish() {
+    ExclusiveSchemaOperationStateBase::ReleasePermitToken();
+
+    // Make the request NULL since after this operation commits
+    // the request may be deleted at any moment.
+    OperationStateBase<Request, ExclusiveSchemaOperationStateBase>::UseRequest(nullptr);
+  }
 };
 
 // A parent class for the callback that gets called when transactions complete.

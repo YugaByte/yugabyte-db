@@ -4,3 +4,4 @@ yugabyte_pycommon
 compiledb
 psutil
 distro
+boto

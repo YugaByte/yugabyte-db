@@ -20,10 +20,14 @@
 #include "yb/common/roles_permissions.h"
 #include "yb/client/table.h"
 #include "yb/client/yb_table_name.h"
-#include "yb/yql/cql/ql/statement.h"
+
+#include "yb/util/scope_exit.h"
 #include "yb/util/thread_restrictions.h"
 
+#include "yb/yql/cql/ql/statement.h"
+
 DECLARE_bool(use_cassandra_authentication);
+DECLARE_bool(ycql_require_drop_privs_for_truncate);
 
 METRIC_DEFINE_histogram_with_percentiles(
     server, handler_latency_yb_cqlserver_SQLProcessor_ParseRequest,
@@ -122,14 +126,22 @@ QLMetrics::QLMetrics(const scoped_refptr<yb::MetricEntity> &metric_entity) {
       METRIC_handler_latency_yb_cqlserver_SQLProcessor_ResponseSize.Instantiate(metric_entity);
 }
 
+namespace {
+
+ThreadSafeObjectPool<Parser> default_parser_pool;
+
+}
+
 QLProcessor::QLProcessor(client::YBClient* client,
                          shared_ptr<YBMetaDataCache> cache, QLMetrics* ql_metrics,
+                         ThreadSafeObjectPool<Parser>* parser_pool,
                          const server::ClockPtr& clock,
                          TransactionPoolProvider transaction_pool_provider)
     : ql_env_(client, cache, clock, std::move(transaction_pool_provider)),
       analyzer_(&ql_env_),
       executor_(&ql_env_, this, ql_metrics),
-      ql_metrics_(ql_metrics) {
+      ql_metrics_(ql_metrics),
+      parser_pool_(parser_pool ? parser_pool : &default_parser_pool) {
 }
 
 QLProcessor::~QLProcessor() {
@@ -140,13 +152,17 @@ Status QLProcessor::Parse(const string& stmt, ParseTree::UniPtr* parse_tree,
                           const bool internal) {
   // Parse the statement and get the generated parse tree.
   const MonoTime begin_time = MonoTime::Now();
-  RETURN_NOT_OK(parser_.Parse(stmt, reparsed, mem_tracker, internal));
+  auto* parser = parser_pool_->Take();
+  auto scope_exit = ScopeExit([this, parser] {
+    this->parser_pool_->Release(parser);
+  });
+  RETURN_NOT_OK(parser->Parse(stmt, reparsed, mem_tracker, internal));
   const MonoTime end_time = MonoTime::Now();
   if (ql_metrics_ != nullptr) {
     const MonoDelta elapsed_time = end_time.GetDeltaSince(begin_time);
     ql_metrics_->time_to_parse_ql_query_->Increment(elapsed_time.ToMicroseconds());
   }
-  *parse_tree = parser_.Done();
+  *parse_tree = parser->Done();
   DCHECK(*parse_tree) << "Parse tree is null";
   return Status::OK();
 }
@@ -228,7 +244,11 @@ Status QLProcessor::CheckNodePermissions(const TreeNode* tnode) {
     }
     case TreeNodeOpcode::kPTTruncateStmt: {
       const YBTableName table_name = static_cast<const PTTruncateStmt*>(tnode)->yb_table_name();
-      s = ql_env_.HasTablePermission(table_name, PermissionType::MODIFY_PERMISSION);
+      if (FLAGS_ycql_require_drop_privs_for_truncate) {
+        s = ql_env_.HasTablePermission(table_name, PermissionType::DROP_PERMISSION);
+      } else {
+        s = ql_env_.HasTablePermission(table_name, PermissionType::MODIFY_PERMISSION);
+      }
       break;
     }
     case TreeNodeOpcode::kPTExplainStmt: {

@@ -14,21 +14,21 @@ menu:
 <ul class="nav nav-tabs-alt nav-tabs-yb">
 
   <li >
-    <a href="/latest/develop/ecosystem-integrations/apache-spark/scala" class="nav-link">
+    <a href="{{< relref "./scala.md" >}}" class="nav-link">
       <i class="icon-scala" aria-hidden="true"></i>
       Scala
     </a>
   </li>
 
   <li >
-    <a href="/latest/develop/ecosystem-integrations/apache-spark/java" class="nav-link">
+    <a href="{{< relref "./java.md" >}}" class="nav-link">
       <i class="icon-java-bold" aria-hidden="true"></i>
       Java
     </a>
   </li>
 
   <li >
-    <a href="/latest/develop/ecosystem-integrations/apache-spark/python" class="nav-link active">
+    <a href="{{< relref "./python.md" >}}" class="nav-link active">
       <i class="icon-python" aria-hidden="true"></i>
       Python
     </a>

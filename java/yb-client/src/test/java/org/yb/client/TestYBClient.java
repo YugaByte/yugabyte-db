@@ -223,11 +223,11 @@ public class TestYBClient extends BaseYBClientTest {
     HostAndPort oldHp;
     for (int i = 0; i < 3; i++) {
       LOG.info("Add server {}", newHp[i].toString());
-      resp = syncClient.changeMasterConfig(newHp[i].getHostText(), newHp[i].getPort(), true);
+      resp = syncClient.changeMasterConfig(newHp[i].getHost(), newHp[i].getPort(), true);
       assertFalse(resp.hasError());
       oldHp = miniCluster.getMasterHostPort(i);
       LOG.info("Remove server {}", oldHp.toString());
-      resp = syncClient.changeMasterConfig(oldHp.getHostText(), oldHp.getPort(), false);
+      resp = syncClient.changeMasterConfig(oldHp.getHost(), oldHp.getPort(), false);
       assertFalse(resp.hasError());
     }
 
@@ -249,7 +249,7 @@ public class TestYBClient extends BaseYBClientTest {
     assertEquals(listResp.getMasters().size(), numBefore);
     HostAndPort newHp = miniCluster.startShellMaster();
     ChangeConfigResponse resp = syncClient.changeMasterConfig(
-        newHp.getHostText(), newHp.getPort(), true);
+        newHp.getHost(), newHp.getPort(), true);
     assertFalse(resp.hasError());
     int numAfter = miniCluster.getNumMasters();
     assertEquals(numAfter, numBefore + 1);
@@ -273,9 +273,9 @@ public class TestYBClient extends BaseYBClientTest {
         break;
       }
     }
-    LOG.info("Using host/port {}/{}.",nonLeaderHp.getHostText(), nonLeaderHp.getPort());
+    LOG.info("Using host/port {}/{}.",nonLeaderHp.getHost(), nonLeaderHp.getPort());
     ChangeConfigResponse resp = syncClient.changeMasterConfig(
-        nonLeaderHp.getHostText(), nonLeaderHp.getPort(), false, true);
+        nonLeaderHp.getHost(), nonLeaderHp.getPort(), false, true);
     assertFalse(resp.hasError());
     ListMastersResponse listResp = syncClient.listMasters();
     assertEquals(listResp.getMasters().size(), numBefore - 1);
@@ -294,7 +294,7 @@ public class TestYBClient extends BaseYBClientTest {
     assertEquals(listResp.getMasters().size(), numBefore);
     HostAndPort leaderHp = BaseYBClientTest.findLeaderMasterHostPort();
     ChangeConfigResponse resp = syncClient.changeMasterConfig(
-        leaderHp.getHostText(), leaderHp.getPort(), false);
+        leaderHp.getHost(), leaderHp.getPort(), false);
     assertFalse(resp.hasError());
     listResp = syncClient.listMasters();
     assertEquals(listResp.getMasters().size(), numBefore - 1);

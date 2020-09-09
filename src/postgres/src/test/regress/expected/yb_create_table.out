@@ -397,6 +397,11 @@ CREATE TABLE client (
 CREATE TABLE tbl1 (
 	a			int4 primary key
 ) SPLIT (INTO 20 TABLETS);
+CREATE TABLE tbl1_5 (
+	a       int4,
+ 	primary key(a asc)
+) SPLIT (INTO 20 TABLETS);
+ERROR:  HASH columns must be present to split by number of tablets
 CREATE TABLE tbl2 (
 	a			int4,
 	primary key (a asc)
@@ -458,7 +463,6 @@ CREATE TABLE tbl13 (
 	b			date,
 	c			time
 ) SPLIT INTO 9 TABLETS;
-ERROR:  Cannot have SPLIT options in the absence of a primary key
 CREATE TABLE tbl14 (
 	a			int4,
 	primary key (a asc)
@@ -513,3 +517,147 @@ CREATE TABLE tbl19(
   primary key(a asc, b desc nulls last)
 ) SPLIT AT VALUES((100), (200, 5), (200, 5));
 ERROR:  Invalid argument: Cannot have duplicate split rows
+-- Test ordering on splitted tables
+CREATE TABLE ordered_asc(
+    k INT,
+    PRIMARY KEY(k ASC)
+) SPLIT AT VALUES((10), (20), (30));
+INSERT INTO ordered_asc VALUES
+    (5), (6), (16), (15), (25), (26), (36), (35), (46), (10), (20), (30);
+EXPLAIN (COSTS OFF) SELECT * FROM ordered_asc ORDER BY k ASC;
+                    QUERY PLAN
+--------------------------------------------------
+ Index Scan using ordered_asc_pkey on ordered_asc
+(1 row)
+
+SELECT * FROM ordered_asc ORDER BY k ASC;
+ k
+----
+  5
+  6
+ 10
+ 15
+ 16
+ 20
+ 25
+ 26
+ 30
+ 35
+ 36
+ 46
+(12 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM ordered_asc ORDER BY k DESC;
+                        QUERY PLAN
+-----------------------------------------------------------
+ Index Scan Backward using ordered_asc_pkey on ordered_asc
+(1 row)
+
+SELECT * FROM ordered_asc ORDER BY k DESC;
+ k
+----
+ 46
+ 36
+ 35
+ 30
+ 26
+ 25
+ 20
+ 16
+ 15
+ 10
+  6
+  5
+(12 rows)
+
+EXPLAIN (COSTS OFF) SELECT k FROM ordered_asc WHERE k > 10 and k < 40 ORDER BY k DESC;
+                        QUERY PLAN
+-----------------------------------------------------------
+ Index Scan Backward using ordered_asc_pkey on ordered_asc
+   Index Cond: ((k > 10) AND (k < 40))
+(2 rows)
+
+SELECT k FROM ordered_asc WHERE k > 10 and k < 40 ORDER BY k DESC;
+ k
+----
+ 36
+ 35
+ 30
+ 26
+ 25
+ 20
+ 16
+ 15
+(8 rows)
+
+CREATE TABLE ordered_desc(
+    k INT,
+    PRIMARY KEY(k DESC)
+) SPLIT AT VALUES((30), (20), (10));
+INSERT INTO ordered_desc VALUES
+    (5), (6), (16), (15), (25), (26), (36), (35), (46), (10), (20), (30);
+EXPLAIN (COSTS OFF) SELECT * FROM ordered_desc ORDER BY k ASC;
+                         QUERY PLAN
+-------------------------------------------------------------
+ Index Scan Backward using ordered_desc_pkey on ordered_desc
+(1 row)
+
+SELECT * FROM ordered_desc ORDER BY k ASC;
+ k
+----
+  5
+  6
+ 10
+ 15
+ 16
+ 20
+ 25
+ 26
+ 30
+ 35
+ 36
+ 46
+(12 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM ordered_desc ORDER BY k DESC;
+                     QUERY PLAN
+----------------------------------------------------
+ Index Scan using ordered_desc_pkey on ordered_desc
+(1 row)
+
+SELECT * FROM ordered_desc ORDER BY k DESC;
+ k
+----
+ 46
+ 36
+ 35
+ 30
+ 26
+ 25
+ 20
+ 16
+ 15
+ 10
+  6
+  5
+(12 rows)
+
+EXPLAIN (COSTS OFF) SELECT k FROM ordered_desc WHERE k > 10 and k < 40 ORDER BY k ASC;
+                         QUERY PLAN
+-------------------------------------------------------------
+ Index Scan Backward using ordered_desc_pkey on ordered_desc
+   Index Cond: ((k > 10) AND (k < 40))
+(2 rows)
+
+SELECT k FROM ordered_desc WHERE k > 10 and k < 40 ORDER BY k ASC;
+ k
+----
+ 15
+ 16
+ 20
+ 25
+ 26
+ 30
+ 35
+ 36
+(8 rows)

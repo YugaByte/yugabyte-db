@@ -89,7 +89,7 @@ class PeerManager {
   virtual void ClosePeersNotInConfig(const RaftConfigPB& config);
 
  private:
-  std::string GetLogPrefix() const;
+  std::string LogPrefix() const;
 
   typedef std::unordered_map<std::string, std::shared_ptr<Peer>> PeersMap;
   const std::string tablet_id_;

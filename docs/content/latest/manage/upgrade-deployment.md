@@ -27,7 +27,7 @@ Your data/log/conf directories are generally stored in a separate location which
 
 ## Install new version of YugabyteDB
 
-First we need to install the new version of YugabyteDB in a new location. 
+First you need to install the new version of YugabyteDB in a new location. 
 For CentOS, this would be something like:
 
 ```

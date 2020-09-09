@@ -13,6 +13,7 @@
 
 #include "yb/docdb/redis_operation.h"
 
+#include "yb/docdb/doc_reader.h"
 #include "yb/docdb/doc_ttl_util.h"
 #include "yb/docdb/doc_write_batch.h"
 #include "yb/docdb/doc_write_batch_cache.h"
@@ -661,7 +662,10 @@ Status RedisWriteOperation::ApplySet(const DocOperationApplyData& data) {
                 // should_remove_existing_entry to true, and if the CH flag is on (return both
                 // elements changed and elements added), increment return_value.
                 double score_to_remove = subdoc_reverse.GetDouble();
-                if (score_to_remove != kv.subkey(i).double_subkey()) {
+                // If incr option is set, we add the increment to the existing score.
+                double score_to_add = request_.set_request().sorted_set_options().incr() ?
+                    score_to_remove + kv.subkey(i).double_subkey() : kv.subkey(i).double_subkey();
+                if (score_to_remove != score_to_add) {
                   should_remove_existing_entry = true;
                   if (request_.set_request().sorted_set_options().ch()) {
                     return_value++;
@@ -1590,6 +1594,33 @@ Result<RedisValue> RedisReadOperation::GetValue(int subkey_index) {
     return GetRedisValue(iterator_.get(), request_.key_value(), subkey_index);
 }
 
+namespace {
+
+// Note: Do not use if also retrieving other value, as some work will be repeated.
+// Assumes every value has a TTL, and the TTL is stored in the row with this key.
+// Also observe that tombstone checking only works because we assume the key has
+// no ancestors.
+Result<boost::optional<Expiration>> GetTtl(
+    const Slice& encoded_subdoc_key, IntentAwareIterator* iter) {
+  auto dockey_size =
+    VERIFY_RESULT(DocKey::EncodedSize(encoded_subdoc_key, DocKeyPart::kWholeDocKey));
+  Slice key_slice(encoded_subdoc_key.data(), dockey_size);
+  iter->Seek(key_slice);
+  if (!iter->valid())
+    return boost::none;
+  auto key_data = VERIFY_RESULT(iter->FetchKey());
+  if (!key_data.key.compare(key_slice)) {
+    Value doc_value = Value(PrimitiveValue(ValueType::kInvalid));
+    RETURN_NOT_OK(doc_value.Decode(iter->value()));
+    if (doc_value.value_type() != ValueType::kTombstone) {
+      return Expiration(key_data.write_time.hybrid_time(), doc_value.ttl());
+    }
+  }
+  return boost::none;
+}
+
+} // namespace
+
 Status RedisReadOperation::ExecuteGetTtl() {
   const RedisKeyValuePB& kv = request_.key_value();
   if (!kv.has_key()) {
@@ -1601,16 +1632,15 @@ Status RedisReadOperation::ExecuteGetTtl() {
                              "Expected no subkeys, got $0", kv.subkey().size());
   }
 
-  bool doc_found = false;
-  Expiration exp;
   auto encoded_doc_key = DocKey::EncodedFromRedisKey(kv.hash_code(), kv.key());
-  RETURN_NOT_OK(GetTtl(encoded_doc_key.AsSlice(), iterator_.get(), &doc_found, &exp));
+  auto maybe_ttl_exp = VERIFY_RESULT(GetTtl(encoded_doc_key.AsSlice(), iterator_.get()));
 
-  if (!doc_found) {
+  if (!maybe_ttl_exp.has_value()) {
     response_.set_int_response(-2);
     return Status::OK();
   }
 
+  auto exp = maybe_ttl_exp.get();
   if (exp.ttl.Equals(Value::kMaxTtl)) {
     response_.set_int_response(-1);
     return Status::OK();

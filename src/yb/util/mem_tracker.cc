@@ -209,7 +209,7 @@ class MemTracker::TrackerMetrics {
         std::unique_ptr<GaugePrototype<int64_t>>(new OwningGaugePrototype<int64_t>(
           metric_entity_->prototype().name(), std::move(name),
           CreateMetricLabel(mem_tracker), MetricUnit::kBytes,
-          CreateMetricDescription(mem_tracker))),
+          CreateMetricDescription(mem_tracker), yb::MetricLevel::kInfo)),
         mem_tracker.consumption());
   }
 
@@ -590,7 +590,7 @@ bool MemTracker::LimitExceeded() {
   return false;
 }
 
-SoftLimitExceededResult MemTracker::SoftLimitExceeded(double score) {
+SoftLimitExceededResult MemTracker::SoftLimitExceeded(double* score) {
   // Did we exceed the actual limit?
   if (LimitExceeded()) {
     return {true, consumption() * 100.0 / limit()};
@@ -608,16 +608,16 @@ SoftLimitExceededResult MemTracker::SoftLimitExceeded(double score) {
   }
 
   // We're over the threshold; were we randomly chosen to be over the soft limit?
-  if (score == 0.0) {
-    score = RandomUniformReal<double>();
+  if (*score == 0.0) {
+    *score = RandomUniformReal<double>();
   }
-  if (usage + (limit_ - soft_limit_) * score > limit_ && GcMemory(soft_limit_)) {
+  if (usage + (limit_ - soft_limit_) * *score > limit_ && GcMemory(soft_limit_)) {
     return {true, usage * 100.0 / limit()};
   }
   return {false, 0.0};
 }
 
-SoftLimitExceededResult MemTracker::AnySoftLimitExceeded(double score) {
+SoftLimitExceededResult MemTracker::AnySoftLimitExceeded(double* score) {
   for (MemTracker* t : limit_trackers_) {
     auto result = t->SoftLimitExceeded(score);
     if (result.exceeded) {
@@ -849,7 +849,7 @@ std::string DumpMemoryUsage() {
 
 bool CheckMemoryPressureWithLogging(
     const MemTrackerPtr& mem_tracker, double score, const char* error_prefix) {
-  const auto soft_limit_exceeded_result = mem_tracker->AnySoftLimitExceeded(score);
+  const auto soft_limit_exceeded_result = mem_tracker->AnySoftLimitExceeded(&score);
   if (!soft_limit_exceeded_result.exceeded) {
     return true;
   }

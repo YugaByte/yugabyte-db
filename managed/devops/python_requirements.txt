@@ -23,6 +23,10 @@ ansible-vault==1.0.4
 apache-libcloud>=1.2.1
 auth0-python==3.0.0
 awscli==1.11.1
+azure-common==1.1.25
+azure-mgmt-compute==12.1.0
+azure-mgmt-network==10.2.0
+azure-mgmt-resource==10.0.0
 boto>=2.42.0
 boto3>=1.4.0
 botocore>=1.4.59
@@ -35,11 +39,13 @@ graphviz
 ipaddr==2.1.11
 jmespath==0.9.0
 oauth2client<4.0.0  # GCP SDK seems to require version <4 of oauth2client: https://goo.gl/7uC34W
+paramiko==2.4.2
 pycodestyle>=2.2.0
 pycrypto
 python-dateutil==2.5.3
 python-dotenv==0.6.4
-pyyaml
+PyYAML==3.13
+s3cmd==2.0.2
 setuptools>=11.333
 six==1.10.0
 slackclient

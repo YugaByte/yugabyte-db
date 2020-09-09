@@ -1940,6 +1940,23 @@ ProcessStartupPacket(Port *port, bool SSLdone)
 	MemoryContext oldcontext;
 
 	pq_startmsgread();
+
+	/* Check we have no data at all. */
+	if (pq_peekbyte() == EOF)
+	{
+		/*
+		 * If we get no data at all, don't clutter the log with a complaint;
+		 * such cases often occur for legitimate reasons.  An example is that
+		 * we might be here after responding to NEGOTIATE_SSL_CODE, and if the
+		 * client didn't like our response, it'll probably just drop the
+		 * connection.  Service-monitoring software also often just opens and
+		 * closes a connection without sending anything.  (So do port
+		 * scanners, which may be less benign, but it's not really our job to
+		 * notice those.)
+		 */
+		return STATUS_ERROR;
+	}
+
 	if (pq_getbytes((char *) &len, 4) == EOF)
 	{
 		/*

@@ -84,7 +84,7 @@ public class TestWipeNode  extends BaseCQLTest {
 
     Map.Entry<HostAndPort, MiniYBDaemon> daemon =
         miniCluster.getTabletServers().entrySet().iterator().next();
-    String removedNodeHost = daemon.getKey().getHostText();
+    String removedNodeHost = daemon.getKey().getHost();
     int removedNodePort = daemon.getKey().getPort();
 
     // Get the uuid of the node that we are going to remove.

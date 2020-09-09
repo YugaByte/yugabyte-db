@@ -47,7 +47,7 @@ DocDB supports range and hash sharding natively.
         <div class="title">Tablet splitting</div>
       </div>
       <div class="body">
-        How tablet splitting works in DocDB. This includes pre-splitting tablets, manual splitting and dynamic splitting.
+        How tablet splitting works in DocDB. This includes presplitting tablets, manual splitting and automatic splitting.
       </div>
     </a>
   </div>

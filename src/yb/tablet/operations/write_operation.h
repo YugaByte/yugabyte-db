@@ -272,6 +272,10 @@ class WriteOperation : public Operation {
     return state()->force_txn_path();
   }
 
+  void UseSubmitToken(ScopedRWOperation&& token) {
+    submit_token_ = std::move(token);
+  }
+
  private:
   friend class DelayedApplyOperation;
 
@@ -309,6 +313,7 @@ class WriteOperation : public Operation {
 
   const int64_t term_;
   ScopedOperation preparing_token_;
+  ScopedRWOperation submit_token_;
   const CoarseTimePoint deadline_;
   WriteOperationContext* const context_;
 

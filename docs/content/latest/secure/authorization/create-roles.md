@@ -53,7 +53,7 @@ Read about [how to create users in YugabyteDB](../../authentication/ysql-authent
 
 You can grant a role to another role (which can be a user), or revoke a role that has already been granted. Executing the `GRANT` and the `REVOKE` operations requires the `AUTHORIZE` privilege on the role being granted or revoked.
 
-As an example, you can grant the `engineering` role we created above to the user `john` as follows:
+As an example, you can grant the `engineering` role you created above to the user `john` as follows:
 
 ```postgresql
 yugabyte=# GRANT engineering TO john;
@@ -65,7 +65,7 @@ Read more about [granting roles](../../../api/ysql/commands/dcl_grant/).
 
 In YSQL, you can create a hierarchy of roles. The privileges of any role in the hierarchy flows downward.
 
-As an example, let us say that in the above example, we want to create a `developer` role that inherits all the privileges from the `engineering` role. You can achieve this as follows.
+As an example, let us say that in the above example, you want to create a `developer` role that inherits all the privileges from the `engineering` role. You can achieve this as follows.
 
 First, create the `developer` role.
 
@@ -111,7 +111,7 @@ In the table above, note the following:
 
 Roles can be revoked using the [REVOKE](../../../api/ysql/commands/dcl_revoke/) statement.
 
-In the above example, we can revoke the `engineering` role from the user `john` as follows:
+In the above example, you can revoke the `engineering` role from the user `john` as follows:
 
 ```postgresql
 yugabyte=# REVOKE engineering FROM john;
@@ -138,7 +138,7 @@ yugabyte     | t           | t        | {}
 
 Roles can be dropped with the [DROP ROLE](../../../api/ysql/commands/dcl_drop_role/) statement.
 
-In the above example, we can drop the `developer` role with the following statement:
+In the above example, you can drop the `developer` role with the following statement:
 
 ```postgresql
 yugabyte=# DROP ROLE developer;

@@ -100,7 +100,6 @@ struct LogSegmentSeqnoComparator {
 };
 }
 
-using consensus::OpId;
 using consensus::ReplicateMsg;
 using env_util::ReadFully;
 using strings::Substitute;

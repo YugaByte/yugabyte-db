@@ -85,7 +85,7 @@ TEST_P(LdbCmdTest, HexToStringBadInputs) {
   const vector<string> badInputs = {
       "0xZZ", "123", "0xx5", "0x11G", "Ox12", "0xT", "0x1Q1",
   };
-  for (const auto badInput : badInputs) {
+  for (const auto& badInput : badInputs) {
     try {
       rocksdb::LDBCommand::HexToString(badInput);
       std::cerr << "Should fail on bad hex value: " << badInput << "\n";

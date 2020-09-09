@@ -3,11 +3,8 @@
 package com.yugabyte.yw.models;
 
 import java.util.Date;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 import java.util.List;
-import java.util.Arrays;
 import java.util.stream.Collectors;
 
 import javax.persistence.Column;
@@ -23,9 +20,8 @@ import org.mindrot.jbcrypt.BCrypt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.avaje.ebean.annotation.DbJson;
-import com.avaje.ebean.annotation.EnumValue;
-import com.avaje.ebean.Model;
+import io.ebean.*;
+import io.ebean.annotation.*;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -53,7 +49,25 @@ public class Users extends Model {
     ReadOnly,
 
     @EnumValue("SuperAdmin")
-    SuperAdmin
+    SuperAdmin,
+
+    @EnumValue("BackupAdmin")
+    BackupAdmin;
+
+    public String getFeaturesFile() {
+      switch (this) {
+        case Admin:
+          return null;
+        case ReadOnly:
+          return "readOnlyFeatureConfig.json";
+        case SuperAdmin:
+          return null;
+        case BackupAdmin:
+          return "backupAdminFeatureConfig.json";
+        default:
+          return null;
+      }
+    }
   }
 
 
@@ -123,15 +137,15 @@ public class Users extends Model {
     return this.authTokenIssueDate;
   }
 
-  public static final Find<UUID, Users> find = new Find<UUID, Users>() {
+  public static final Finder<UUID, Users> find = new Finder<UUID, Users>(Users.class) {
   };
 
   public static Users get(UUID userUUID) {
-    return find.where().eq("uuid", userUUID).findUnique();
+    return find.query().where().eq("uuid", userUUID).findOne();
   }
 
   public static List<Users> getAll(UUID customerUUID) {
-    return find.where().eq("customer_uuid", customerUUID).findList();
+    return find.query().where().eq("customer_uuid", customerUUID).findList();
   }
 
   public Users() {
@@ -172,13 +186,28 @@ public class Users extends Model {
    * @return Authenticated Users Info
    */
   public static Users authWithPassword(String email, String password) {
-    Users users = Users.find.where().eq("email", email).findUnique();
+    Users users = Users.find.query().where().eq("email", email).findOne();
 
     if (users != null && BCrypt.checkpw(password, users.passwordHash)) {
       return users;
     } else {
       return null;
     }
+  }
+
+  /**
+   * Validate if the email and password combination is valid, we use this to authenticate
+   * the Users.
+   *
+   * @param email
+   * @return Authenticated Users Info
+   */
+  public static Users getByEmail(String email) {
+    if (email == null) {
+      return null;
+    }
+
+    return Users.find.query().where().eq("email", email).findOne();
   }
 
   /**
@@ -237,7 +266,7 @@ public class Users extends Model {
 
     try {
       // TODO: handle authToken expiry etc.
-      return find.where().eq("authToken", authToken).findUnique();
+      return find.query().where().eq("authToken", authToken).findOne();
     } catch (Exception e) {
       return null;
     }
@@ -255,7 +284,7 @@ public class Users extends Model {
     }
 
     try {
-      return find.where().eq("apiToken", apiToken).findUnique();
+      return find.query().where().eq("apiToken", apiToken).findOne();
     } catch (Exception e) {
       return null;
     }
@@ -303,6 +332,6 @@ public class Users extends Model {
   }
 
   public static List<Users> getAllReadOnly() {
-    return find.where().eq("role", Role.ReadOnly).findList();
+    return find.query().where().eq("role", Role.ReadOnly).findList();
   }
 }

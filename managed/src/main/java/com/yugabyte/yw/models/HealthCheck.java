@@ -2,7 +2,6 @@
 
 package com.yugabyte.yw.models;
 
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,7 +13,7 @@ import javax.persistence.Id;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.avaje.ebean.Model;
+import io.ebean.*;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import play.data.validation.Constraints;
@@ -51,7 +50,8 @@ public class HealthCheck extends Model {
     return hasErrorField != null && hasErrorField.asBoolean();
   }
 
-  public static final Find<UUID, HealthCheck> find = new Find<UUID, HealthCheck>() {};
+  public static final Finder<UUID, HealthCheck> find =
+    new Finder<UUID, HealthCheck>(HealthCheck.class) {};
 
   /**
    * Creates an empty universe.
@@ -86,11 +86,11 @@ public class HealthCheck extends Model {
    * @return the HealthCheck object
    */
   public static List<HealthCheck> getAll(UUID universeUUID) {
-    return find.where().eq("universe_uuid", universeUUID).orderBy("check_time").findList();
+    return find.query().where().eq("universe_uuid", universeUUID).orderBy("check_time").findList();
   }
 
   public static HealthCheck getLatest(UUID universeUUID) {
-    List<HealthCheck> checks = find.where()
+    List<HealthCheck> checks = find.query().where()
       .eq("universe_uuid", universeUUID)
       .orderBy("check_time desc")
       .setMaxRows(1)

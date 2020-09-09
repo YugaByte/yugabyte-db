@@ -23,8 +23,6 @@
 #include "yb/rpc/messenger.h"
 #include "yb/rpc/rpc_context.h"
 
-#include "yb/util/crypt.h"
-
 #include "yb/yql/cql/cqlserver/cql_service.h"
 
 METRIC_DEFINE_histogram_with_percentiles(
@@ -70,6 +68,16 @@ METRIC_DEFINE_counter(server, cql_processors_created,
                       "Number of created CQL Processors.",
                       yb::MetricUnit::kUnits,
                       "Number of created CQL Processors.");
+
+METRIC_DEFINE_gauge_int64(server, cql_parsers_alive,
+                          "Number of alive CQL Parsers.",
+                          yb::MetricUnit::kUnits,
+                          "Number of alive CQL Parsers.");
+
+METRIC_DEFINE_counter(server, cql_parsers_created,
+                      "Number of created CQL Parsers.",
+                      yb::MetricUnit::kUnits,
+                      "Number of created CQL Parsers.");
 
 DECLARE_bool(use_cassandra_authentication);
 
@@ -128,18 +136,22 @@ CQLMetrics::CQLMetrics(const scoped_refptr<yb::MetricEntity>& metric_entity)
       METRIC_yb_cqlserver_CQLServerService_ParsingErrors.Instantiate(metric_entity);
   cql_processors_alive_ = METRIC_cql_processors_alive.Instantiate(metric_entity, 0);
   cql_processors_created_ = METRIC_cql_processors_created.Instantiate(metric_entity);
+  parsers_alive_ = METRIC_cql_parsers_alive.Instantiate(metric_entity, 0);
+  parsers_created_ = METRIC_cql_parsers_created.Instantiate(metric_entity);
 }
 
 //------------------------------------------------------------------------------------------------
 CQLProcessor::CQLProcessor(CQLServiceImpl* service_impl, const CQLProcessorListPos& pos)
     : QLProcessor(service_impl->client(), service_impl->metadata_cache(),
                   service_impl->cql_metrics().get(),
+                  &service_impl->parser_pool(),
                   service_impl->clock(),
                   std::bind(&CQLServiceImpl::TransactionPool, service_impl)),
       service_impl_(service_impl),
       cql_metrics_(service_impl->cql_metrics()),
       pos_(pos),
-      statement_executed_cb_(Bind(&CQLProcessor::StatementExecuted, Unretained(this))) {
+      statement_executed_cb_(Bind(&CQLProcessor::StatementExecuted, Unretained(this))),
+      consumption_(service_impl->processors_mem_tracker(), sizeof(*this)) {
   IncrementCounter(cql_metrics_->cql_processors_created_);
   IncrementGauge(cql_metrics_->cql_processors_alive_);
 }
@@ -185,6 +197,15 @@ void CQLProcessor::ProcessCall(rpc::InboundCallPtr call) {
   PrepareAndSendResponse(response);
 }
 
+void CQLProcessor::Release() {
+  call_ = nullptr;
+  request_ = nullptr;
+  stmts_.clear();
+  parse_trees_.clear();
+  SetCurrentSession(nullptr);
+  service_impl_->ReturnProcessor(pos_);
+}
+
 void CQLProcessor::PrepareAndSendResponse(const unique_ptr<CQLResponse>& response) {
   if (response) {
     const CQLConnectionContext& context =
@@ -214,13 +235,7 @@ void CQLProcessor::SendResponse(const CQLResponse& response) {
   cql_metrics_->time_to_queue_cql_response_->Increment(
       response_done.GetDeltaSince(response_begin).ToMicroseconds());
 
-  // Release the processor.
-  call_ = nullptr;
-  request_ = nullptr;
-  stmts_.clear();
-  parse_trees_.clear();
-  SetCurrentSession(nullptr);
-  service_impl_->ReturnProcessor(pos_);
+  Release();
 }
 
 CQLResponse* CQLProcessor::ProcessRequest(const CQLRequest& req) {
@@ -326,6 +341,16 @@ CQLResponse* CQLProcessor::ProcessRequest(const ExecuteRequest& req) {
 
 CQLResponse* CQLProcessor::ProcessRequest(const QueryRequest& req) {
   VLOG(1) << "QUERY " << req.query();
+  if (service_impl_->system_cache() != nullptr) {
+    auto cached_response = service_impl_->system_cache()->Lookup(req.query());
+    if (cached_response) {
+      VLOG(1) << "Using cached response for " << req.query();
+      statement_executed_cb_.Run(
+          Status::OK(),
+          std::static_pointer_cast<ExecutedResult>(*cached_response));
+      return nullptr;
+    }
+  }
   RunAsync(req.query(), req.params(), statement_executed_cb_);
   return nullptr;
 }
@@ -505,7 +530,7 @@ CQLResponse* CQLProcessor::ProcessResult(const ExecutedResult::SharedPtr& result
                   "Provided username " + params.username + " and/or password are incorrect");
             }
             const auto& saved_hash = salted_hash_value.string_value();
-            if (bcrypt_checkpw(params.password.c_str(), saved_hash.c_str())) {
+            if (!service_impl_->CheckPassword(params.password, saved_hash)) {
               return new ErrorResponse(*request_, ErrorResponse::Code::BAD_CREDENTIALS,
                   "Provided username " + params.username + " and/or password are incorrect");
             } else if (!can_login) {

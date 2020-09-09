@@ -19,7 +19,6 @@ import com.yugabyte.yw.commissioner.Commissioner;
 import com.yugabyte.yw.commissioner.tasks.params.KMSConfigTaskParams;
 import com.yugabyte.yw.common.ApiResponse;
 import com.yugabyte.yw.common.kms.EncryptionAtRestManager;
-import com.yugabyte.yw.common.kms.services.EncryptionAtRestService;
 import com.yugabyte.yw.common.kms.util.EncryptionAtRestUtil;
 import com.yugabyte.yw.common.kms.util.KeyProvider;
 import com.yugabyte.yw.models.Audit;
@@ -28,12 +27,10 @@ import com.yugabyte.yw.models.CustomerTask;
 import com.yugabyte.yw.models.KmsConfig;
 import com.yugabyte.yw.models.KmsHistory;
 import com.yugabyte.yw.models.KmsHistoryId;
-import com.yugabyte.yw.models.Universe;
 import com.yugabyte.yw.models.helpers.TaskType;
-import java.util.Arrays;
+
 import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -99,9 +96,8 @@ public class EncryptionAtRestController extends AuthenticatedController {
                 configUUID.toString()
         ));
         KmsConfig config = KmsConfig.get(configUUID);
-        EncryptionAtRestService keyService =
-                keyManager.getServiceInstance(config.keyProvider.name());
-        ObjectNode kmsConfig = keyService.getAuthConfig(configUUID);
+        ObjectNode kmsConfig = keyManager.getServiceInstance(config.keyProvider.name())
+          .getAuthConfig(configUUID);
         if (kmsConfig == null) {
             return ApiResponse.error(BAD_REQUEST, String.format(
                     "No KMS configuration found for config %s",
@@ -120,9 +116,9 @@ public class EncryptionAtRestController extends AuthenticatedController {
                 .stream()
                 .map(configModel -> {
                     ObjectNode result = null;
-                    EncryptionAtRestService keyService = keyManager
-                            .getServiceInstance(configModel.keyProvider.name());
-                    ObjectNode credentials = keyService.getAuthConfig(configModel.configUUID);
+                    ObjectNode credentials = keyManager.getServiceInstance(
+                      configModel.keyProvider.name()
+                    ).getAuthConfig(configModel.configUUID);
                     if (credentials != null) {
                         result = Json.newObject();
                         ObjectNode metadata = Json.newObject();

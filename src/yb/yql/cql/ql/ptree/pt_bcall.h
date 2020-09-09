@@ -94,6 +94,8 @@ class PTBcall : public PTExpr {
 
   CHECKED_STATUS CheckOperatorAfterArgAnalyze(SemContext *sem_context);
 
+  void CollectReferencedIndexColnames(MCSet<string> *col_names) const override;
+
   virtual string QLName(QLNameOption option = QLNameOption::kUserOriginalName) const override;
   virtual bool IsAggregateCall() const override;
   virtual yb::bfql::TSOpcode aggregate_opcode() const override {

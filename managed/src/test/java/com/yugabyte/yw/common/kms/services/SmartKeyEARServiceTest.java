@@ -179,21 +179,11 @@ public class SmartKeyEARServiceTest extends FakeDBApplication {
         payload.put("obj_type", testAlgorithm);
         payload.put("key_size", testKeySize);
         payload.set("key_ops", keyOps);
-        when(mockApiHelper.getRequest(any(String.class), anyMap()))
-                .thenReturn(Json.parse(getKeyMockResponse));
-        when(mockApiHelper.getRequest(
-                eq("https://api.amer.smartkey.io/crypto/v1/keys"),
-                anyMap(), anyMap())).thenReturn(Json.parse(getKeyListMockResponse));
         when(mockApiHelper.postRequest(anyString(), eq(null), anyMap()))
                 .thenReturn(Json.parse(getAccessTokenMockResponse));
         when(mockApiHelper.postRequest(
                 eq("https://api.amer.smartkey.io/crypto/v1/keys"), eq(payload), anyMap())
         ).thenReturn(Json.parse(postCreateMockResponse));
-        when(mockApiHelper.postRequest(
-                eq("https://api.amer.smartkey.io/crypto/v1/keys/rekey"),
-                any(JsonNode.class),
-                anyMap()
-        )).thenReturn(Json.parse(rekeyMockResponse));
         encryptionService = new TestEncryptionAtRestService();
     }
 

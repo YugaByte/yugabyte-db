@@ -59,7 +59,7 @@ void CleanupAbortsTask::Run() {
     return;
   }
 
-  for (const TransactionId transaction_id : transactions_to_cleanup_) {
+  for (const TransactionId& transaction_id : transactions_to_cleanup_) {
     // If transaction is committed, no action required
     // TODO(dtxn) : Do batch processing of transactions,
     // because LocalCommitTime will acquire lock per each call.

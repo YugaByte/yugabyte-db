@@ -1,0 +1,4 @@
+#### rollback
+
+<svg class="rrdiagram" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" width="269" height="70" viewbox="0 0 269 70"><path class="connector" d="M0 22h15m83 0h30m106 0h20m-136 25q0 5 5 5h5m57 0h54q5 0 5-5m-131-25q5 0 5 5v33q0 5 5 5h116q5 0 5-5v-33q0-5 5-5m5 0h15"/><polygon points="0,29 5,22 0,15" style="fill:black;stroke-width:0"/><rect class="literal" x="15" y="5" width="83" height="25" rx="7"/><text class="text" x="25" y="22">ROLLBACK</text><rect class="literal" x="128" y="5" width="106" height="25" rx="7"/><text class="text" x="138" y="22">TRANSACTION</text><rect class="literal" x="128" y="35" width="57" height="25" rx="7"/><text class="text" x="138" y="52">WORK</text><polygon points="265,29 269,29 269,15 265,15" style="fill:black;stroke-width:0"/></svg>
+

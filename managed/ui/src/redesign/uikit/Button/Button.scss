@@ -1,0 +1,22 @@
+@import "../common";
+
+.yb-uikit-button {
+  height: 45px;
+  padding: 0 20px;
+  background-color: $YB_PAGE_BACKGROUND;
+  color: $YB_TEXT_1;
+  border: 1px solid $YB_BORDER_2;
+  font-size: 20px;
+  font-weight: 600;
+  border-radius: 23px;
+  transition: color 200ms ease;
+  user-select: none;
+
+  &:hover:not([disabled]) {
+    color: $YB_TEXT_2;
+  }
+  &[disabled] {
+    background-color: $YB_BORDER_1;
+    color: $YB_TEXT_2;
+  }
+}

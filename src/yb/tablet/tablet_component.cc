@@ -20,8 +20,9 @@ ScopedRWOperationPause TabletComponent::PauseReadWriteOperations() {
   return tablet_.PauseReadWriteOperations();
 }
 
-Status TabletComponent::ResetRocksDBs(bool destroy) {
-  return tablet_.ResetRocksDBs(destroy);
+Status TabletComponent::ResetRocksDBs(
+    Destroy destroy, DisableFlushOnShutdown disable_flush_on_shutdown) {
+  return tablet_.ResetRocksDBs(destroy, disable_flush_on_shutdown);
 }
 
 Status TabletComponent::OpenRocksDBs() {
@@ -30,10 +31,6 @@ Status TabletComponent::OpenRocksDBs() {
 
 std::string TabletComponent::LogPrefix() const {
   return tablet_.LogPrefix();
-}
-
-rw_semaphore& TabletComponent::schema_lock() const {
-  return tablet_.schema_lock_;
 }
 
 RaftGroupMetadata& TabletComponent::metadata() const {

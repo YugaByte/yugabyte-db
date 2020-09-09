@@ -129,8 +129,10 @@ ThreadPool* Proxy::GetCallbackThreadPool(
     case InvokeCallbackMode::kReactorThread:
       return nullptr;
       break;
-    case InvokeCallbackMode::kThreadPool:
-      return &context_->CallbackThreadPool();
+    case InvokeCallbackMode::kThreadPoolNormal:
+      return &context_->CallbackThreadPool(ServicePriority::kNormal);
+    case InvokeCallbackMode::kThreadPoolHigh:
+      return &context_->CallbackThreadPool(ServicePriority::kHigh);
   }
   FATAL_INVALID_ENUM_VALUE(InvokeCallbackMode, invoke_callback_mode);
 }
@@ -170,6 +172,10 @@ void Proxy::DoAsyncRequest(const RemoteMethod* method,
     return;
   }
 
+  if (controller->timeout().Initialized() && controller->timeout() > 3600s) {
+    LOG(DFATAL) << "Too big timeout specified: " << controller->timeout();
+  }
+
   if (call_local_service_) {
     // For local call, the response message buffer is reused when an RPC call is retried. So clear
     // the buffer before calling the RPC method.
@@ -203,35 +209,40 @@ void Proxy::Resolve() {
     return;
   }
 
+  auto endpoint = resolved_ep_.Load();
+  if (!endpoint.address().is_unspecified()) {
+    expected = ResolveState::kResolving;
+    while (resolve_state_.compare_exchange_strong(
+        expected, ResolveState::kNotifying, std::memory_order_acq_rel)) {
+      RpcController* controller = nullptr;
+      while (resolve_waiters_.pop(controller)) {
+        QueueCall(controller, endpoint);
+      }
+      resolve_state_.store(ResolveState::kIdle, std::memory_order_release);
+      if (resolve_waiters_.empty()) {
+        break;
+      }
+      expected = ResolveState::kIdle;
+    }
+    return;
+  }
+
   const std::string kService = "";
 
   auto address = TryFastResolve(remote_.host());
   if (address) {
-    Endpoint ep(*address, remote_.port());
-    HandleResolve(boost::system::error_code(),
-                  Resolver::results_type::create(ep, remote_.host(), kService));
+    HandleResolve(*address);
     return;
   }
 
-  auto resolver = std::make_shared<Resolver>(context_->io_service());
-  ScopedLatencyMetric latency_metric(latency_hist_, Auto::kFalse);
+  auto latency_metric = std::make_shared<ScopedLatencyMetric>(latency_hist_, Auto::kFalse);
 
-  resolver->async_resolve(
-      Resolver::query(remote_.host(), kService),
-      [this, resolver, latency_metric = std::move(latency_metric)](
-          const boost::system::error_code& error,
-          const Resolver::results_type& entries) mutable {
-    latency_metric.Finish();
-    HandleResolve(error, entries);
+  context_->resolver().AsyncResolve(
+      remote_.host(), [this, latency_metric = std::move(latency_metric)](
+          const Result<IpAddress>& result) {
+    latency_metric->Finish();
+    HandleResolve(result);
   });
-
-  if (context_->io_service().stopped()) {
-    auto expected = ResolveState::kResolving;
-    if (resolve_state_.compare_exchange_strong(
-        expected, ResolveState::kIdle, std::memory_order_acq_rel)) {
-      NotifyAllFailed(STATUS(Aborted, "Messenger already stopped"));
-    }
-  }
 }
 
 void Proxy::NotifyAllFailed(const Status& status) {
@@ -241,12 +252,11 @@ void Proxy::NotifyAllFailed(const Status& status) {
   }
 }
 
-void Proxy::HandleResolve(
-    const boost::system::error_code& error, const Resolver::results_type& entries) {
+void Proxy::HandleResolve(const Result<IpAddress>& result) {
   auto expected = ResolveState::kResolving;
   if (resolve_state_.compare_exchange_strong(
       expected, ResolveState::kNotifying, std::memory_order_acq_rel)) {
-    ResolveDone(error, entries);
+    ResolveDone(result);
     resolve_state_.store(ResolveState::kIdle, std::memory_order_release);
     if (!resolve_waiters_.empty()) {
       Resolve();
@@ -254,15 +264,14 @@ void Proxy::HandleResolve(
   }
 }
 
-void Proxy::ResolveDone(
-    const boost::system::error_code& error, const Resolver::results_type& entries) {
-  auto address = PickResolvedAddress(remote_.host(), error, entries);
-  if (!address.ok()) {
-    NotifyAllFailed(address.status());
+void Proxy::ResolveDone(const Result<IpAddress>& result) {
+  if (!result.ok()) {
+    LOG(WARNING) << "Resolve " << remote_.host() << " failed: " << result.status();
+    NotifyAllFailed(result.status());
     return;
   }
 
-  Endpoint endpoint(address->address(), remote_.port());
+  Endpoint endpoint(*result, remote_.port());
   resolved_ep_.Store(endpoint);
 
   RpcController* controller = nullptr;

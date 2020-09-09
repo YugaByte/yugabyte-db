@@ -38,6 +38,7 @@ DECLARE_int32(timestamp_history_retention_interval_sec);
 DECLARE_int32(history_cutoff_propagation_interval_ms);
 DECLARE_int32(raft_heartbeat_interval_ms);
 DECLARE_bool(flush_rocksdb_on_shutdown);
+DECLARE_uint64(snapshot_coordinator_cleanup_delay_ms);
 
 namespace yb {
 namespace client {
@@ -116,6 +117,7 @@ class BackupTxnTest : public TransactionTestBase {
     controller.set_timeout(60s);
     req.set_restoration_id(restoration_id.data(), restoration_id.size());
     RETURN_NOT_OK(MakeBackupServiceProxy().ListSnapshotRestorations(req, &resp, &controller));
+    LOG(INFO) << "Restoration: " << resp.ShortDebugString();
     if (resp.has_status()) {
       return StatusFromPB(resp.status());
     }
@@ -139,6 +141,7 @@ class BackupTxnTest : public TransactionTestBase {
     master::ListSnapshotsRequestPB req;
     master::ListSnapshotsResponsePB resp;
 
+    req.set_list_deleted_snapshots(true);
     if (!snapshot_id.IsNil()) {
       req.set_snapshot_id(snapshot_id.data(), snapshot_id.size());
     }
@@ -237,6 +240,42 @@ class BackupTxnTest : public TransactionTestBase {
       return StatusFromPB(resp.error().status());
     }
     return Status::OK();
+  }
+
+  CHECKED_STATUS WaitAllSnapshotsDeleted() {
+    RETURN_NOT_OK(WaitFor([this]() -> Result<bool> {
+      auto snapshots = VERIFY_RESULT(ListSnapshots());
+      SCHECK_EQ(snapshots.size(), 1, IllegalState, "Wrong number of snapshots");
+      if (snapshots[0].entry().state(), SysSnapshotEntryPB::DELETED) {
+        return true;
+      }
+      SCHECK_EQ(snapshots[0].entry().state(), SysSnapshotEntryPB::DELETING, IllegalState,
+                "Wrong snapshot state");
+      return false;
+    }, kWaitTimeout * kTimeMultiplier, "Complete delete snapshot"));
+
+    return WaitFor([this]() -> Result<bool> {
+      auto peers = ListTabletPeers(cluster_.get(), ListPeersFilter::kAll);
+      for (const auto& peer : peers) {
+        auto db = peer->tablet()->doc_db().regular;
+        if (!db) {
+          continue;
+        }
+        auto dir = tablet::TabletSnapshots::SnapshotsDirName(db->GetName());
+        auto children = VERIFY_RESULT(Env::Default()->GetChildren(dir, ExcludeDots::kTrue));
+        if (!children.empty()) {
+          LOG(INFO) << peer->LogPrefix() << "Children: " << AsString(children);
+          return false;
+        }
+      }
+      return true;
+    }, kWaitTimeout * kTimeMultiplier, "Delete on tablets");
+  }
+
+  CHECKED_STATUS WaitAllSnapshotsCleaned() {
+    return WaitFor([this]() -> Result<bool> {
+      return VERIFY_RESULT(ListSnapshots()).empty();
+    }, kWaitTimeout * kTimeMultiplier, "Snapshot cleanup");
   }
 
   Result<ImportedSnapshotData> StartImportSnapshot(const master::SnapshotInfoPB& snapshot) {
@@ -339,34 +378,28 @@ TEST_F(BackupTxnTest, Delete) {
   auto snapshot_id = ASSERT_RESULT(CreateSnapshot());
   ASSERT_OK(VerifySnapshot(snapshot_id, SysSnapshotEntryPB::COMPLETE));
   ASSERT_OK(DeleteSnapshot(snapshot_id));
+  ASSERT_OK(WaitAllSnapshotsDeleted());
 
-  ASSERT_OK(WaitFor([this]() -> Result<bool> {
-    auto snapshots = VERIFY_RESULT(ListSnapshots());
-    if (snapshots.empty()) {
-      return true;
-    }
-    SCHECK_EQ(snapshots.size(), 1, IllegalState, "Wrong number of snapshots");
-    SCHECK_EQ(snapshots[0].entry().state(), SysSnapshotEntryPB::DELETING, IllegalState,
-              "Wrong snapshot state");
-    return false;
-  }, kWaitTimeout * kTimeMultiplier, "Complete delete snapshot"));
+  SetAtomicFlag(1000, &FLAGS_snapshot_coordinator_cleanup_delay_ms);
 
-  ASSERT_OK(WaitFor([this]() -> Result<bool> {
-    auto peers = ListTabletPeers(cluster_.get(), ListPeersFilter::kAll);
-    for (const auto& peer : peers) {
-      auto db = peer->tablet()->doc_db().regular;
-      if (!db) {
-        continue;
-      }
-      auto dir = tablet::TabletSnapshots::SnapshotsDirName(db->GetName());
-      auto children = VERIFY_RESULT(Env::Default()->GetChildren(dir, ExcludeDots::kTrue));
-      if (!children.empty()) {
-        LOG(INFO) << peer->LogPrefix() << "Children: " << AsString(children);
-        return false;
-      }
-    }
-    return true;
-  }, kWaitTimeout * kTimeMultiplier, "Delete on tablets"));
+  ASSERT_OK(WaitAllSnapshotsCleaned());
+}
+
+TEST_F(BackupTxnTest, CleanupAfterRestart) {
+  SetAtomicFlag(300000, &FLAGS_snapshot_coordinator_cleanup_delay_ms);
+
+  ASSERT_NO_FATALS(WriteData());
+  auto snapshot_id = ASSERT_RESULT(CreateSnapshot());
+  ASSERT_OK(VerifySnapshot(snapshot_id, SysSnapshotEntryPB::COMPLETE));
+  ASSERT_OK(DeleteSnapshot(snapshot_id));
+  ASSERT_OK(WaitAllSnapshotsDeleted());
+
+  ASSERT_FALSE(ASSERT_RESULT(ListSnapshots()).empty());
+
+  SetAtomicFlag(1000, &FLAGS_snapshot_coordinator_cleanup_delay_ms);
+  ASSERT_OK(cluster_->leader_mini_master()->Restart());
+
+  ASSERT_OK(WaitAllSnapshotsCleaned());
 }
 
 TEST_F(BackupTxnTest, ImportMeta) {

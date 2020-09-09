@@ -72,7 +72,7 @@ class YBTableTestBase : public YBTest {
   void CreateRedisTable(const client::YBTableName& table_name);
   virtual void CreateTable();
   void OpenTable();
-  void DeleteTable();
+  virtual void DeleteTable();
   virtual void PutKeyValue(yb::client::YBSession* session, string key, string value);
   virtual void PutKeyValue(string key, string value);
   void RestartCluster();

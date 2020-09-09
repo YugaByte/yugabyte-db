@@ -101,7 +101,9 @@ class TSManager {
   CHECKED_STATUS RegisterTS(const NodeInstancePB& instance,
                             const TSRegistrationPB& registration,
                             CloudInfoPB local_cloud_info,
-                            rpc::ProxyCache* proxy_cache);
+                            rpc::ProxyCache* proxy_cache,
+                            RegisteredThroughHeartbeat registered_through_heartbeat =
+                                RegisteredThroughHeartbeat::kTrue);
 
   // Return all of the currently registered TS descriptors into the provided list.
   void GetAllDescriptors(TSDescriptorVector* descs) const;

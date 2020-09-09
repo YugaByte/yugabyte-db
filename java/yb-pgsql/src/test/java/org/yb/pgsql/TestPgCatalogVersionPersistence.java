@@ -91,7 +91,7 @@ public class TestPgCatalogVersionPersistence extends BasePgSQLTest {
     }
 
     // Test a new connections: it will get initialized with the new master's version.
-    try (Connection connection2 = createConnection();
+    try (Connection connection2 = getConnectionBuilder().connect();
          Statement statement = connection2.createStatement()) {
       statement.execute("INSERT INTO catver_test1 VALUES (5,5,5)");
       expectedRows.add(new Row(5, 5, 5));

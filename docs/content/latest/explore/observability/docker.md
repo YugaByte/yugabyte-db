@@ -93,7 +93,7 @@ $ docker run --name yb-sample-apps --hostname yb-sample-apps --net yb-net yugaby
 
 ## 3. Prepare Prometheus config file
 
-Copy the following into a file called `yugabytedb.yml`. Move this file to the `/tmp` directory so that we can bind the file to the Prometheus container later on.
+Copy the following into a file called `yugabytedb.yml`. Move this file to the `/tmp` directory so that you can bind the file to the Prometheus container later on.
 
 ```sh
 global:
@@ -146,7 +146,7 @@ Open the Prometheus UI at http://localhost:9090 and then navigate to the Targets
 
 ## 5. Analyze key metrics
 
-On the Prometheus Graph UI, you can now plot the read/write throughput and latency for the `CassandraKeyValue` sample app. As we can see from the [source code](https://github.com/yugabyte/yugabyte-db/blob/master/java/yb-loadtester/src/main/java/com/yugabyte/sample/apps/CassandraKeyValue.java) of the app, it uses only SELECT statements for reads and INSERT statements for writes (aside from the initial CREATE TABLE). This means we can measure throughput and latency by simply using the metrics corresponding to the SELECT and INSERT statements.
+On the Prometheus Graph UI, you can now plot the read/write throughput and latency for the `CassandraKeyValue` sample app. As you can see from the [source code](https://github.com/yugabyte/yugabyte-db/blob/master/java/yb-loadtester/src/main/java/com/yugabyte/sample/apps/CassandraKeyValue.java) of the app, it uses only SELECT statements for reads and INSERT statements for writes (aside from the initial CREATE TABLE). This means you can measure throughput and latency by simply using the metrics corresponding to the SELECT and INSERT statements.
 
 Paste the following expressions into the Expression box and click Execute followed by Add Graph.
 

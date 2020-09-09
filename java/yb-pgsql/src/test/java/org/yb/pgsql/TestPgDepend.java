@@ -170,7 +170,9 @@ public class TestPgDepend extends BasePgSQLTest {
       int oidView = rs.getInt("oid");
 
       // Test dropping the table (without CASCADE). -- expecting an error
-      runInvalidQuery(statement, "DROP TABLE test");
+      runInvalidQuery(statement,
+          "DROP TABLE test",
+          "cannot drop table test because other objects depend on it");
 
       // Test dropping the table (with CASCADE).
       statement.execute("DROP TABLE test CASCADE");
@@ -217,7 +219,9 @@ public class TestPgDepend extends BasePgSQLTest {
       int oidView2 = rs.getInt("oid");
 
       // Test dropping test_view (without CASCADE). -- expecting an error
-      runInvalidQuery(statement, "DROP VIEW test_view");
+      runInvalidQuery(statement,
+          "DROP VIEW test_view",
+          "cannot drop view test_view because other objects depend on it");
 
       // Test dropping test_view (with CASCADE).
       statement.execute("DROP VIEW test_view CASCADE");
@@ -260,7 +264,7 @@ public class TestPgDepend extends BasePgSQLTest {
       int oidColType = rs.getInt("objid");
 
       // Test dropping the sequence (without CASCADE). -- expecting an error
-      runInvalidQuery(statement, "DROP SEQUENCE seq_test");
+      runInvalidQuery(statement, "DROP SEQUENCE seq_test", "depends on sequence seq_test");
 
       // Test dropping the sequence (with CASCADE).
       statement.execute("DROP SEQUENCE seq_test CASCADE");

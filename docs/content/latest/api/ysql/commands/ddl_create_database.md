@@ -92,12 +92,6 @@ Specify `false` to only superusers or the owner of the database can clone it.
 
 ### COLOCATED
 
-{{< note title="Note" >}}
-
-This feature is currently in [Beta](../../../../faq/general/#what-is-the-definition-of-the-beta-feature-tag).
-
-{{< /note >}}
-
 Specify `true` if all tables for this database should be colocated on a single tablet. See [colocated tables architecture](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/ysql-colocated-tables.md) for details on when colocated tables are useful.
 Default value is `false` and every table in the database will have its own set of tablets.
 

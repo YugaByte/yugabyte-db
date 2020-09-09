@@ -1,0 +1,36 @@
+@import "../common";
+
+.yb-uikit-plus-button {
+  font-family: 'Source Sans Pro', sans-serif;
+  font-size: 14px;
+  color: $YB_TEXT_2;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  user-select: none;
+
+  &:before {
+    content: '+';
+    width: 20px;
+    height: 20px;
+    background-color: $YB_PAGE_BACKGROUND;
+    color: $YB_TEXT_1;
+    border-radius: 50%;
+    font-size: 18px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 10px #00000029;
+    margin-right: 10px;
+  }
+
+  &--disabled {
+    pointer-events: none;
+
+    &:before {
+      background-color: $YB_BORDER_1;
+      box-shadow: none;
+    }
+  }
+}

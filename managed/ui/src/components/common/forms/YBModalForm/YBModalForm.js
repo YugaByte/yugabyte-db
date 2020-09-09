@@ -25,7 +25,8 @@ export default class YBModalForm extends Component {
           onSubmit={(values, actions) => {
             this.props.onFormSubmit(values, actions);
           }}
-          render={props => (
+        >
+          {props => (
             <form name={formName} onSubmit={props.handleSubmit}>
               <Modal.Header closeButton>
                 <Modal.Title>{title}</Modal.Title>
@@ -49,7 +50,7 @@ export default class YBModalForm extends Component {
               }
             </form>
           )}
-        />
+        </Formik>
       </Modal>
     );
   }

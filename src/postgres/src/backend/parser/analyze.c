@@ -26,6 +26,7 @@
 
 #include "access/sysattr.h"
 #include "access/xact.h"
+#include "catalog/catalog.h"
 #include "catalog/pg_type.h"
 #include "commands/dbcommands.h"
 #include "miscadmin.h"
@@ -2361,29 +2362,6 @@ transformUpdateTargetList(ParseState *pstate, List *origTlist)
 							origTarget->name,
 							RelationGetRelationName(pstate->p_target_relation)),
 					 parser_errposition(pstate, origTarget->location)));
-
-		if (IsYBRelation(pstate->p_target_relation))
-		{
-
-			// Currently, YugaByte does not allow updating primary key columns that were specified
-			// when creating table.
-			YBCPgTableDesc ybc_tabledesc = NULL;
-			bool is_primary = false;
-			bool is_hash = false;
-			HandleYBStatus(YBCPgGetTableDesc(YBCGetDatabaseOid(pstate->p_target_relation),
-											 RelationGetRelid(pstate->p_target_relation),
-											 &ybc_tabledesc));
-			HandleYBTableDescStatus(YBCPgGetColumnInfo(ybc_tabledesc,
-													   attrno,
-													   &is_primary,
-													   &is_hash), ybc_tabledesc);
-			ybc_tabledesc = NULL;
-
-			if (is_hash || is_primary)
-			{
-				YBRaiseNotSupported("Update PRIMARY KEY columns are not yet supported", 659);
-			}
-		}
 
 		updateTargetListEntry(pstate, tle, origTarget->name,
 							  attrno,

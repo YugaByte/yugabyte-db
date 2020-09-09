@@ -105,7 +105,7 @@ public class Commissioner {
 
     // Check if the task is in the DB
     TaskInfo taskInfo = TaskInfo.get(taskUUID);
-    CustomerTask task = CustomerTask.find.where().eq("task_uuid", taskUUID).findUnique();
+    CustomerTask task = CustomerTask.find.query().where().eq("task_uuid", taskUUID).findOne();
     if (taskInfo != null && task != null) {
       // Add some generic information about the task
       responseJson.put("title", task.getFriendlyDescription());

@@ -49,6 +49,9 @@ public class ModelFactory {
   public static Users testUser(Customer customer, String email) {
     return testUser(customer, email, Role.Admin);
   }
+  public static Users testUser(Customer customer, Role role) {
+    return testUser(customer, "test@customer.com", role);
+  }
   public static Users testUser(Customer customer, String email, Role role) {
     return Users.create(email, "password", role, customer.uuid);
   }

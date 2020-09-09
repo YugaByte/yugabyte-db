@@ -16,6 +16,7 @@
 #include "yb/rocksdb/util/statistics.h"
 
 #include "yb/docdb/consensus_frontier.h"
+#include "yb/docdb/docdb_debug.h"
 #include "yb/docdb/docdb_rocksdb_util.h"
 #include "yb/docdb/docdb_util.h"
 
@@ -355,41 +356,6 @@ void DocDBRocksDBUtil::SetInitMarkerBehavior(InitMarkerBehavior init_marker_beha
     init_marker_behavior_ = init_marker_behavior;
   }
 }
-
-// ------------------------------------------------------------------------------------------------
-
-DebugDocVisitor::DebugDocVisitor() {
-}
-
-DebugDocVisitor::~DebugDocVisitor() {
-}
-
-#define SIMPLE_DEBUG_DOC_VISITOR_METHOD(method_name) \
-  Status DebugDocVisitor::method_name() { \
-    out_ << BOOST_PP_STRINGIZE(method_name) << endl; \
-    return Status::OK(); \
-  }
-
-#define SIMPLE_DEBUG_DOC_VISITOR_METHOD_ARGUMENT(method_name, argument_type) \
-  Status DebugDocVisitor::method_name(const argument_type& arg) { \
-    out_ << BOOST_PP_STRINGIZE(method_name) << "(" << arg << ")" << std::endl; \
-    return Status::OK(); \
-  }
-
-SIMPLE_DEBUG_DOC_VISITOR_METHOD_ARGUMENT(StartSubDocument, SubDocKey);
-SIMPLE_DEBUG_DOC_VISITOR_METHOD_ARGUMENT(VisitKey, PrimitiveValue);
-SIMPLE_DEBUG_DOC_VISITOR_METHOD_ARGUMENT(VisitValue, PrimitiveValue);
-SIMPLE_DEBUG_DOC_VISITOR_METHOD(EndSubDocument)
-SIMPLE_DEBUG_DOC_VISITOR_METHOD(StartObject)
-SIMPLE_DEBUG_DOC_VISITOR_METHOD(EndObject)
-SIMPLE_DEBUG_DOC_VISITOR_METHOD(StartArray)
-SIMPLE_DEBUG_DOC_VISITOR_METHOD(EndArray)
-
-string DebugDocVisitor::ToString() {
-  return out_.str();
-}
-
-#undef SIMPLE_DEBUG_DOC_VISITOR_METHOD
 
 }  // namespace docdb
 }  // namespace yb

@@ -27,6 +27,7 @@
 #include "optimizer/clauses.h"
 #include "optimizer/planmain.h"
 #include "parser/parsetree.h"
+#include "pg_yb_utils.h"
 #include "rewrite/rewriteHandler.h"
 #include "storage/bufmgr.h"
 #include "tcop/tcopprot.h"
@@ -1106,7 +1107,11 @@ ExplainNode(PlanState *planstate, List *ancestors,
 			switch (((ForeignScan *) plan)->operation)
 			{
 				case CMD_SELECT:
-					pname = "Foreign Scan";
+					/* Don't need to expose implementation details */
+					if (IsYBRelation(((ScanState*) planstate)->ss_currentRelation))
+						sname = pname = "Seq Scan";
+					else
+						pname = "Foreign Scan";
 					operation = "Select";
 					break;
 				case CMD_INSERT:

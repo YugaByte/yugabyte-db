@@ -18,7 +18,7 @@ return value:      anyarray
 **Purpose:** Return a new "blank canvas" array of the specified shape with all cells set to the same specified value.
 
 - The first parameter determines the value and data type for every cell, and therefore the data type of the new array as a whole. It can be a value of a primitive data type, or, for example, a _"row"_ type value. It can also be written `NULL::some_type` if this suits your purpose. You would presumably set a `NOT NULL` value if, for example, you wanted to insert the array into a table column on which you have created a constraint, based upon a PL/pgSQL function, that explicitly tests the array's geometric properties and the `NOT NULL` status of each of its values. Try this:
-  ```postgresql
+  ```plpgsql
   select pg_typeof(array_fill(null::text, '{1}')) as "type of the new array";
   ```
 &#160;&#160;&#160;&#160;This is the result:
@@ -34,7 +34,7 @@ The shape of the new array is, therefore, fully specified by the second and thir
 
 **Note:** Why does `array_fill()` exist? In other words, why not just set the values that you want by directly indexing each cell and assigning the value you want to it? Recall that, as described in [Synopsis](../../#synopsis), an array value is rectilinear. This means that its shape, when its number of dimensions exceeds one, is non-negotiably fixed at creation time. This `DO` block emphasizes the point.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   a int[];
@@ -64,7 +64,7 @@ So the array _"a"_ is stuck as one dimensional, one-by-one value.
 **Example:**
 
 Run this:
-```postgresql
+```plpgsql
 create table t(k int primary key, arr text[]);
 
 insert into t(k, arr)
@@ -88,7 +88,7 @@ It shows this:
 ```
 
 Now run this:
-```postgresql
+```plpgsql
 update t
 set
   arr[2][ 7] = '2---7',
@@ -110,7 +110,7 @@ It shows this (after some manual white-space formatting for readability):
 ```
 
 Finally, run this:
-```postgresql
+```plpgsql
 \set VERBOSITY verbose
 update t
 set

@@ -77,6 +77,8 @@ YBClient* AsyncClientInitialiser::client() const {
 }
 
 void AsyncClientInitialiser::InitClient() {
+  CDSAttacher attacher;
+
   LOG(INFO) << "Starting to init ybclient";
   while (!stopping_) {
     auto result = client_builder_.Build(messenger_);

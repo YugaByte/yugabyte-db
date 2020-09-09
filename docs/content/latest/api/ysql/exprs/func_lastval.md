@@ -25,7 +25,7 @@ Use the `lastval()` function to return the value returned from the last call to 
 
 Create two sequences and call `nextval()` for each of them.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE SEQUENCE s1;
 ```
 
@@ -33,7 +33,7 @@ yugabyte=# CREATE SEQUENCE s1;
 CREATE SEQUENCE
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE SEQUENCE s2 START -100 MINVALUE -100;
 ```
 
@@ -41,7 +41,7 @@ yugabyte=# CREATE SEQUENCE s2 START -100 MINVALUE -100;
 CREATE SEQUENCE
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT nextval('s1');
 ```
 
@@ -52,7 +52,7 @@ yugabyte=# SELECT nextval('s1');
 (1 row)
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT nextval('s2');
 ```
 
@@ -65,7 +65,7 @@ yugabyte=# SELECT nextval('s2');
 
 Call `lastval()`.
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT lastval()
 ```
 

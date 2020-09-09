@@ -37,6 +37,23 @@ void SortByKey(Iterator begin,
   });
 }
 
+// Returns an iterator pointing to last element that is <= k.
+// Returns map.end() if there are no such elements.
+//
+template <class Map, class Key>
+typename Map::const_iterator GetLastLessOrEqual(const Map& map, const Key& k) {
+  auto iter = map.upper_bound(k);
+  // iter is the first element > k.
+  if (iter == map.begin()) {
+    // All elements are > k => there are no elements that are <= k.
+    return map.end();
+  } else {
+    // Element previous to iter is the last element that <= k.
+    iter--;
+    return iter;
+  }
+}
+
 };  // namespace yb
 
 #endif  // YB_UTIL_ALGORITHM_UTIL_H

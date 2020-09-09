@@ -46,7 +46,7 @@ PggateTest::PggateTest() {
 }
 
 PggateTest::~PggateTest() {
-  YBCPgDestroyMemctx(test_memctx);
+  CHECK_YBC_STATUS(YBCPgDestroyMemctx(test_memctx));
 }
 
 //--------------------------------------------------------------------------------------------------

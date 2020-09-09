@@ -7,7 +7,7 @@ description: Create a JSON array from a SQL array using the array_to_json() func
 menu:
   latest:
     identifier: array-to-json
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 53
 isTocNested: true
 showAsideToc: true
@@ -25,7 +25,7 @@ return value:      json
 
 **Notes:** This has only a `json` variant. The first (mandatory) formal parameter is any SQL array whose elements might be compound values. The second formal parameter is optional. When it is _true_, line feeds are added between dimension-1 elements.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   sql_array constant text[] := array['a', 'b', 'c'];

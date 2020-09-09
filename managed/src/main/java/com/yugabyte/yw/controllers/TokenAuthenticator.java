@@ -2,6 +2,8 @@
 
 package com.yugabyte.yw.controllers;
 
+import play.Configuration;
+
 import play.mvc.Action;
 import play.mvc.Http;
 import play.mvc.Result;
@@ -18,6 +20,11 @@ import com.yugabyte.yw.common.ConfigHelper;
 import com.yugabyte.yw.models.Customer;
 import com.yugabyte.yw.models.Users;
 
+import org.pac4j.core.profile.CommonProfile;
+import org.pac4j.core.profile.ProfileManager;
+import org.pac4j.play.PlayWebContext;
+import org.pac4j.play.store.PlaySessionStore;
+
 import static com.yugabyte.yw.common.ConfigHelper.ConfigType.Security;
 import static com.yugabyte.yw.models.Users.Role;
 
@@ -30,29 +37,58 @@ public class TokenAuthenticator extends Action.Simple {
   @Inject
   ConfigHelper configHelper;
 
+  @Inject
+  Configuration appConfig;
+
+  @Inject
+  private PlaySessionStore playSessionStore;
+
+  private Users getCurrentAuthenticatedUser(Http.Context ctx) {
+    boolean useOAuth = appConfig.getBoolean("yb.security.use_oauth", false);
+    if (useOAuth) {
+      final PlayWebContext context = new PlayWebContext(ctx, playSessionStore);
+      final ProfileManager<CommonProfile> profileManager = new ProfileManager(context);
+      if (profileManager.isAuthenticated()) {
+        String emailAttr = appConfig.getString("yb.security.oidcEmailAttribute", "");
+        String email = "";
+        if (emailAttr.equals("")) {
+          email = profileManager.get(true).get().getEmail();
+        } else {
+          email = (String) profileManager.get(true).get().getAttribute(emailAttr);
+        }
+        return Users.getByEmail(email.toLowerCase());
+      }
+      return null;
+    } else {
+      String token = fetchToken(ctx, true);
+      if (token != null) {
+        return Users.authWithApiToken(token);
+      } else {
+        token = fetchToken(ctx, false);
+        return Users.authWithToken(token);
+      }
+    }
+  }
+
   @Override
   public CompletionStage<Result> call(Http.Context ctx) {
     String path = ctx.request().path();
-    String endPoint = null;
+    String endPoint = "";
     String requestType = ctx.request().method();
     Pattern pattern = Pattern.compile(".*/customers/([a-zA-Z0-9-]+)(/.*)?");
     Matcher matcher = pattern.matcher(path);
     UUID custUUID = null;
     if (matcher.find()) {
       custUUID = UUID.fromString(matcher.group(1));
-      endPoint = matcher.group(2);
+      endPoint = ((endPoint = matcher.group(2)) != null) ? endPoint : "";
     }
-    String token = fetchToken(ctx, true);
     Customer cust = null;
-    Users user = null;
-    if (token != null) {
-      user = Users.authWithApiToken(token);
-    } else {
-      token = fetchToken(ctx, false);
-      user = Users.authWithToken(token);
-    }
+    Users user = getCurrentAuthenticatedUser(ctx);
+
     if (user != null) {
       cust = Customer.get(user.customerUUID);
+    } else {
+      return CompletableFuture.completedFuture(Results.forbidden("Unable To Authenticate User"));
     }
 
     // Some authenticated calls don't actually need to be authenticated
@@ -111,10 +147,6 @@ public class TokenAuthenticator extends Action.Simple {
 
   // Check role, and if the API call is accessible.
   private boolean checkAccessLevel(String endPoint, Users user, String requestType) {
-    // All users have access to get.
-    if (requestType.equals("GET")) {
-      return true;
-    }
     // Users should be allowed to change their password.
     // Even admin users should not be allowed to change another
     // user's password.
@@ -127,16 +159,26 @@ public class TokenAuthenticator extends Action.Simple {
         return false;
       }
     }
-    // Admin/SuperAdmin have access to all APIs.
-    if (user.getRole() != Role.ReadOnly) {
+
+    // All users have access to get, metrics and setting an API token.
+    if (requestType.equals("GET") || endPoint.equals("/metrics") ||
+        endPoint.equals("/api_token")) {
       return true;
-    } else {
-      // User is not admin and the request isn't a GET.
-      // Return true if it is a metrics call, else false.
-      if (endPoint.equals("/metrics") || endPoint.equals("/api_token")) {
-        return true;
-      }
+    }
+    // If the user is readonly, then don't get any further access.
+    if (user.getRole() == Role.ReadOnly) {
       return false;
     }
+    // All users other than read only get access to backup endpoints.
+    if (endPoint.endsWith("/create_backup") || endPoint.endsWith("/multi_table_backup") ||
+        endPoint.endsWith("/restore")) {
+      return true;
+    }
+    // If the user is backupAdmin, they don't get further access.
+    if (user.getRole() == Role.BackupAdmin) {
+      return false;
+    }
+    // If the user has reached here, they have complete access.
+    return true;
   }
 }

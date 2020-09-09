@@ -122,7 +122,7 @@ class ReplicaState {
 
   ~ReplicaState();
 
-  CHECKED_STATUS StartUnlocked(const OpId& last_in_wal);
+  CHECKED_STATUS StartUnlocked(const OpIdPB& last_in_wal);
 
   // Should be used only to assert that the update_lock_ is held.
   bool IsLocked() const WARN_UNUSED_RESULT;
@@ -277,11 +277,12 @@ class ReplicaState {
   // Marks ReplicaOperations up to 'id' as majority replicated, meaning the
   // transaction may Apply() (immediately if Prepare() has completed or when Prepare()
   // completes, if not).
+  // Sets last_applied_op_id to the ID of last operation applied.
   //
   // If this advanced the committed index, sets *committed_op_id_changed to true.
-  CHECKED_STATUS UpdateMajorityReplicatedUnlocked(const OpId& majority_replicated,
-                                                  OpId* committed_op_id,
-                                                  bool* committed_op_id_changed);
+  CHECKED_STATUS UpdateMajorityReplicatedUnlocked(
+      const OpIdPB& majority_replicated, OpIdPB* committed_op_id, bool* committed_op_id_changed,
+      OpId* last_applied_op_id);
 
   // Advances the committed index.
   // This is a no-op if the committed index has not changed.
@@ -298,6 +299,13 @@ class ReplicaState {
   // This must be called under a lock.
   const yb::OpId& GetCommittedOpIdUnlocked() const;
 
+  // Returns the watermark below which all operations are known to be applied according to
+  // consensus.
+  const yb::OpId& GetLastAppliedOpIdUnlocked() const {
+    // See comment for last_committed_op_id_ for why we return committed op ID here.
+    return GetCommittedOpIdUnlocked();
+  }
+
   // Returns the ID of the split operation requesting to split this Raft group if it has been added
   // to Raft log and uninitialized OpId otherwise.
   const yb::OpId& GetSplitOpIdUnlocked() const;
@@ -310,7 +318,7 @@ class ReplicaState {
 
   // Updates the last received operation.
   // This must be called under a lock.
-  void UpdateLastReceivedOpIdUnlocked(const OpId& op_id);
+  void UpdateLastReceivedOpIdUnlocked(const OpIdPB& op_id);
 
   // Returns the last received op id. This must be called under the lock.
   const yb::OpId& GetLastReceivedOpIdUnlocked() const;
@@ -320,7 +328,7 @@ class ReplicaState {
 
   // Returns the id of the latest pending transaction (i.e. the one with the
   // latest index). This must be called under the lock.
-  OpId GetLastPendingOperationOpIdUnlocked() const;
+  OpIdPB GetLastPendingOperationOpIdUnlocked() const;
 
   // Used by replicas to cancel pending transactions. Pending transaction are those
   // that have completed prepare/replicate but are waiting on the LEADER's commit
@@ -330,7 +338,7 @@ class ReplicaState {
   // API to dump pending transactions. Added to debug ENG-520.
   void DumpPendingOperationsUnlocked();
 
-  void NewIdUnlocked(OpId* id);
+  yb::OpId NewIdUnlocked();
 
   // Used when, for some reason, an operation that failed before it could be considered
   // a part of the state machine. Basically restores the id gen to the state it was before
@@ -339,11 +347,11 @@ class ReplicaState {
   // the queue refused to add any more operations.
   // should_exists indicates whether we expect that this operation is already added.
   // Used for debugging purposes only.
-  void CancelPendingOperation(const OpId& id, bool should_exist);
+  void CancelPendingOperation(const OpIdPB& id, bool should_exist);
 
   // Accessors for pending election op id. These must be called under a lock.
-  const OpId& GetPendingElectionOpIdUnlocked() { return pending_election_opid_; }
-  void SetPendingElectionOpIdUnlocked(const OpId& opid) { pending_election_opid_ = opid; }
+  const OpIdPB& GetPendingElectionOpIdUnlocked() { return pending_election_opid_; }
+  void SetPendingElectionOpIdUnlocked(const OpIdPB& opid) { pending_election_opid_ = opid; }
   void ClearPendingElectionOpIdUnlocked() { pending_election_opid_.Clear(); }
 
   std::string ToString() const;
@@ -481,8 +489,9 @@ class ReplicaState {
   // involved in resetting this every time a new node becomes leader.
   yb::OpId last_received_op_id_current_leader_;
 
-  // The id of the Apply that was last triggered when the last message from the leader
-  // was received. Initialized to MinimumOpId().
+  // The ID of the operation that was last committed. Initialized to MinimumOpId().
+  // NOTE: due to implementation details at this and lower layers all operations up to
+  // last_committed_op_id_ are guaranteed to be already applied.
   yb::OpId last_committed_op_id_;
 
   // The id of the split operation requesting to split this tablet. This is set when split
@@ -497,7 +506,7 @@ class ReplicaState {
   yb::OpId split_op_id_;
 
   // If set, a leader election is pending upon the specific op id commitment to this peer's log.
-  OpId pending_election_opid_;
+  OpIdPB pending_election_opid_;
 
   State state_ = State::kInitialized;
 

@@ -3332,6 +3332,18 @@ _copyOptSplit(const OptSplit *from)
 	return newnode;
 }
 
+static OptTableGroup *
+_copyOptTableGroup(const OptTableGroup *from)
+{
+	OptTableGroup *newnode = makeNode(OptTableGroup);
+
+	COPY_SCALAR_FIELD(has_tablegroup);
+	COPY_STRING_FIELD(tablegroup_name);
+
+	return newnode;
+}
+
+
 /*
  * CopyCreateStmtFields
  *
@@ -3351,6 +3363,7 @@ CopyCreateStmtFields(const CreateStmt *from, CreateStmt *newnode)
 	COPY_NODE_FIELD(options);
 	COPY_SCALAR_FIELD(oncommit);
 	COPY_STRING_FIELD(tablespacename);
+	COPY_NODE_FIELD(tablegroup);
 	COPY_SCALAR_FIELD(if_not_exists);
 	COPY_NODE_FIELD(split_options);
 }
@@ -3465,6 +3478,7 @@ _copyIndexStmt(const IndexStmt *from)
 	COPY_SCALAR_FIELD(relationId);
 	COPY_STRING_FIELD(accessMethod);
 	COPY_STRING_FIELD(tableSpace);
+	COPY_NODE_FIELD(tablegroup);
 	COPY_NODE_FIELD(indexParams);
 	COPY_NODE_FIELD(indexIncludingParams);
 	COPY_NODE_FIELD(options);
@@ -4001,6 +4015,25 @@ _copyDiscardStmt(const DiscardStmt *from)
 
 	COPY_SCALAR_FIELD(target);
 
+	return newnode;
+}
+
+static CreateTableGroupStmt *
+_copyCreateTableGroupStmt(const CreateTableGroupStmt *from)
+{
+	CreateTableGroupStmt *newnode = makeNode(CreateTableGroupStmt);
+
+	COPY_STRING_FIELD(tablegroupname);
+	COPY_NODE_FIELD(options);
+	return newnode;
+}
+
+static DropTableGroupStmt *
+_copyDropTableGroupStmt(const DropTableGroupStmt *from)
+{
+	DropTableGroupStmt *newnode = makeNode(DropTableGroupStmt);
+
+	COPY_STRING_FIELD(tablegroupname);
 	return newnode;
 }
 
@@ -5377,6 +5410,12 @@ copyObjectImpl(const void *from)
 		case T_DiscardStmt:
 			retval = _copyDiscardStmt(from);
 			break;
+		case T_CreateTableGroupStmt:
+			retval = _copyCreateTableGroupStmt(from);
+			break;
+		case T_DropTableGroupStmt:
+			retval = _copyDropTableGroupStmt(from);
+			break;
 		case T_CreateTableSpaceStmt:
 			retval = _copyCreateTableSpaceStmt(from);
 			break;
@@ -5664,6 +5703,9 @@ copyObjectImpl(const void *from)
 			break;
 		case T_OptSplit:
 			retval = _copyOptSplit(from);
+			break;
+		case T_OptTableGroup:
+			retval = _copyOptTableGroup(from);
 			break;
 
 			/*

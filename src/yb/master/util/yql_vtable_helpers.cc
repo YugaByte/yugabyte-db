@@ -13,10 +13,13 @@
 
 #include "yb/master/util/yql_vtable_helpers.h"
 
+#include <boost/container/small_vector.hpp>
+
 #include "yb/common/ql_value.h"
 
 #include "yb/util/yb_partition.h"
 #include "yb/util/net/dns_resolver.h"
+#include "yb/util/net/net_util.h"
 
 namespace yb {
 namespace master {
@@ -39,12 +42,13 @@ bool RemoteEndpointMatchesList(const google::protobuf::RepeatedPtrField<HostPort
                                const InetAddress& remote_endpoint) {
   for (const HostPortPB& rpc_address : host_ports) {
     // host portion of rpc_address might be a hostname and hence we need to resolve it.
-    vector<InetAddress> resolved_addresses;
-    if (!InetAddress::Resolve(rpc_address.host(), &resolved_addresses).ok()) {
+    boost::container::small_vector<IpAddress, 5> resolved_addresses;
+    if (!HostToAddresses(rpc_address.host(), &resolved_addresses).ok()) {
       LOG (WARNING) << "Could not resolve host: " << rpc_address.host();
       continue;
     }
-    if (std::find(resolved_addresses.begin(), resolved_addresses.end(), remote_endpoint) !=
+    if (std::find(
+            resolved_addresses.begin(), resolved_addresses.end(), remote_endpoint.address()) !=
         resolved_addresses.end()) {
       return true;
     }
@@ -85,24 +89,24 @@ QLValuePB GetReplicationValue(int replication_factor) {
 }
 
 PublicPrivateIPFutures GetPublicPrivateIPFutures(
-    const TSInformationPB& ts_info, Resolver* resolver) {
+    const TSInformationPB& ts_info, DnsResolver* resolver) {
   const auto& common = ts_info.registration().common();
   PublicPrivateIPFutures result;
 
   const auto& private_host = common.private_rpc_addresses()[0].host();
   if (private_host.empty()) {
-    std::promise<Result<InetAddress>> promise;
+    std::promise<Result<IpAddress>> promise;
     result.private_ip_future = promise.get_future();
     promise.set_value(STATUS_FORMAT(
-        IllegalState, "Tablet sserver $0 doesn't have any rpc addresses registered",
+        IllegalState, "Tablet server $0 doesn't have any rpc addresses registered",
         ts_info.tserver_instance().permanent_uuid()));
     return result;
   }
 
-  result.private_ip_future = ResolveDnsFuture(private_host, resolver);
+  result.private_ip_future = resolver->ResolveFuture(private_host);
 
   if (!common.broadcast_addresses().empty()) {
-    result.public_ip_future = ResolveDnsFuture(common.broadcast_addresses()[0].host(), resolver);
+    result.public_ip_future = resolver->ResolveFuture(common.broadcast_addresses()[0].host());
   } else {
     result.public_ip_future = result.private_ip_future;
   }

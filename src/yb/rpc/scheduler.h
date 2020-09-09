@@ -17,6 +17,9 @@
 #define YB_RPC_SCHEDULER_H
 
 #include "yb/rpc/rpc_fwd.h"
+#include "yb/util/net/net_fwd.h"
+
+#include "yb/util/status.h"
 
 namespace yb {
 

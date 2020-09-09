@@ -32,15 +32,12 @@ import com.yugabyte.yw.models.CertificateInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.avaje.ebean.Ebean;
-import com.avaje.ebean.Model;
-import com.avaje.ebean.SqlUpdate;
-import com.avaje.ebean.annotation.DbJson;
+import io.ebean.*;
+import io.ebean.annotation.DbJson;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.yugabyte.yw.forms.UniverseTaskParams.EncryptionAtRestConfig;
 import com.yugabyte.yw.commissioner.tasks.UniverseDefinitionTaskBase.ServerType;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
@@ -171,7 +168,7 @@ public class Universe extends Model {
     return json;
   }
 
-  public static final Find<UUID, Universe> find = new Find<UUID, Universe>() {
+  public static final Finder<UUID, Universe> find = new Finder<UUID, Universe>(Universe.class) {
   };
 
   // Prefix added to read only node.
@@ -215,7 +212,7 @@ public class Universe extends Model {
    * @return true if universe already exists, false otherwise
    */
   public static boolean checkIfUniverseExists(String universeName) {
-    return find.select("universeUUID").where().eq("name", universeName).findRowCount() > 0;
+    return find.query().select("universeUUID").where().eq("name", universeName).findCount() > 0;
   }
 
   /**
@@ -224,7 +221,7 @@ public class Universe extends Model {
    * @return list of UUIDs of all universes
    */
   public static List<Universe> getAllUuids() {
-    return find.select("universeUUID").findList();
+    return find.query().select("universeUUID").findList();
   }
 
   /**
@@ -266,7 +263,7 @@ public class Universe extends Model {
 
   public static Universe getUniverseByName(String universeName) {
     if (checkIfUniverseExists(universeName)) {
-      return find.where().eq("name", universeName).findUnique();
+      return find.query().where().eq("name", universeName).findOne();
     }
     return null;
   }
@@ -711,7 +708,7 @@ public class Universe extends Model {
   public String getMasterLeaderHostText() {
     final HostAndPort masterLeader = getMasterLeader();
     if (masterLeader == null) return "";
-    return masterLeader.getHostText();
+    return masterLeader.getHost();
   }
 
   public boolean universeIsLocked() {

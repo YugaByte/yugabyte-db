@@ -18,6 +18,8 @@
 
 #include "yb/consensus/consensus_fwd.h"
 
+#include "yb/util/status.h"
+
 namespace yb {
 namespace consensus {
 

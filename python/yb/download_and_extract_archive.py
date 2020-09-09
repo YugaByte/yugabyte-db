@@ -76,7 +76,7 @@ def compute_sha256sum(file_path):
     if sys.platform.startswith('linux'):
         cmd_line = ['sha256sum', file_path]
     elif sys.platform.startswith('darwin'):
-        cmd_line = ['shasum', '--portable', '--algorithm', '256', file_path]
+        cmd_line = ['shasum', '--algorithm', '256', file_path]
     else:
         raise ValueError("Don't know how to compute SHA256 checksum on platform %s" % sys.platform)
 
@@ -269,8 +269,8 @@ def download_and_extract(url, dest_dir_parent, local_cache_dir, nfs_cache_dir):
         if not orig_brew_home.startswith(dest_dir):
             raise ValueError(
                 "Original Homebrew/Linuxbrew install home directory is '%s'"
-                "but we are trying to install it in '%s', and that is not a prefix of"
-                "the former." % (orig_brew_home, dest_dir))
+                " but we are trying to install it in '%s', and that is not a prefix of"
+                " the former." % (orig_brew_home, dest_dir))
 
         already_installed_msg = (
             "'%s' already exists, cannot move '%s' to it. Someone else must have "
@@ -335,6 +335,8 @@ def download_and_extract(url, dest_dir_parent, local_cache_dir, nfs_cache_dir):
 
         create_brew_symlink_if_needed()
     else:
+        if g_verbose:
+            logging.info("Moving %s to %s", tmp_extracted_dir, dest_dir)
         os.rename(tmp_extracted_dir, dest_dir)
 
     logging.info("Installation of %s took %.1f sec", dest_dir, time.time() - start_time_sec)

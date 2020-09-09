@@ -65,6 +65,7 @@ public class CloudRegionSetup extends CloudTaskBase {
         // Intentional fallthrough as both AWS and GCP should be covered the same way.
         case aws:
         case gcp:
+        case azu:
           // Setup default image, if no custom one was specified.
           String defaultImage = queryHelper.getDefaultImage(region);
           if (defaultImage == null || defaultImage.isEmpty()) {
@@ -99,6 +100,26 @@ public class CloudRegionSetup extends CloudTaskBase {
         region.zones = new HashSet<>();
         zoneSubnets.forEach((zone, subnet) ->
             region.zones.add(AvailabilityZone.create(region, zone, zone, subnet)));
+        break;
+      case azu:
+        Map<String, String> zoneNets = taskParams().metadata.azToSubnetIds;
+        String vnet = taskParams().metadata.vpcId;
+        if (vnet == null || vnet.isEmpty()) {
+          vnet = queryHelper.getVnet(region);
+        }
+        region.setVnetName(vnet);
+        if (zoneNets == null || zoneNets.size() == 0) {
+          zoneInfo =  queryHelper.getZones(region.uuid, vnet);
+          if (zoneInfo.has("error") || !zoneInfo.has(regionCode)) {
+            region.delete();
+            String errMsg = "Region Bootstrap failed. Unable to fetch zones for " + regionCode;
+            throw new RuntimeException(errMsg);
+          }
+          zoneNets = Json.fromJson(zoneInfo.get(regionCode), Map.class);
+        }
+        region.zones = new HashSet<>();
+        zoneNets.forEach((zone, subnet) ->
+          region.zones.add(AvailabilityZone.create(region, zone, zone, subnet)));
         break;
       case gcp:
         ObjectNode customPayload = Json.newObject();

@@ -35,7 +35,8 @@ TServerMetricsHeartbeatDataProvider::TServerMetricsHeartbeatDataProvider(TabletS
       MonoDelta::FromMilliseconds(FLAGS_tserver_heartbeat_metrics_interval_ms)),
   start_time_(MonoTime::Now()) {}
 
-void TServerMetricsHeartbeatDataProvider::DoAddData(master::TSHeartbeatRequestPB* req) {
+void TServerMetricsHeartbeatDataProvider::DoAddData(
+    const master::TSHeartbeatResponsePB& last_resp, master::TSHeartbeatRequestPB* req) {
   // Get the total memory used.
   size_t mem_usage = MemTracker::GetRootTracker()->GetUpdatedConsumption(true /* force */);
   auto* metrics = req->mutable_metrics();

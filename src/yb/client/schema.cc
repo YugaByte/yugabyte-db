@@ -469,12 +469,25 @@ bool YBSchema::Equals(const YBSchema& other) const {
          (schema_.get() && other.schema_.get() && schema_->Equals(*other.schema_));
 }
 
+bool YBSchema::EquivalentForDataCopy(const YBSchema& other) const {
+  return this == &other ||
+      (schema_.get() && other.schema_.get() && schema_->EquivalentForDataCopy(*other.schema_));
+}
+
 Result<bool> YBSchema::Equals(const SchemaPB& other) const {
   Schema schema;
   RETURN_NOT_OK(SchemaFromPB(other, &schema));
 
   YBSchema yb_schema(schema);
   return Equals(yb_schema);
+}
+
+Result<bool> YBSchema::EquivalentForDataCopy(const SchemaPB& other) const {
+  Schema schema;
+  RETURN_NOT_OK(SchemaFromPB(other, &schema));
+
+  YBSchema yb_schema(schema);
+  return EquivalentForDataCopy(yb_schema);
 }
 
 const TableProperties& YBSchema::table_properties() const {

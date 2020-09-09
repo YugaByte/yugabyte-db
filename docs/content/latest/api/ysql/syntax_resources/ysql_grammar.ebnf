@@ -168,7 +168,7 @@ alter_table ::= 'ALTER' 'TABLE' [ 'ONLY' ] name [ '*' ]
                         alter_table_action { ',' alter_table_action } ;
 
 alter_table_action ::=
-  ( 'ADD' [ 'COLUMN' ] column_name data_type
+  ( 'ADD' [ 'COLUMN' ] column_name data_type [ alter_column_constraint { alter_column_constraint } ]
     | 'RENAME' 'TO' table_name
     | 'DROP' [ 'COLUMN' ] column_name [ 'RESTRICT' | 'CASCADE' ]
     | 'ADD' alter_table_constraint
@@ -182,7 +182,17 @@ alter_table_action ::=
 alter_table_constraint ::= [ 'CONSTRAINT' constraint_name ] (
                        'CHECK' '(' expression ')' |
                        'UNIQUE' '(' column_names ')' index_parameters |
-                       'FOREIGN' 'KEY' '(' column_names ')' references_clause ) ;
+                       'FOREIGN' 'KEY' '(' column_names ')' references_clause )
+                       [ 'DEFERRABLE' | 'NOT' 'DEFERRABLE' ] [ 'INITIALLY' 'DEFERRED' | 'INITIALLY' 'IMMEDIATE' ] ;
+
+alter_column_constraint ::= [ 'CONSTRAINT' constraint_name ]
+                      (  'NOT' 'NULL'
+                         | 'NULL'
+                         | 'CHECK' '(' expression ')'
+                         | 'DEFAULT' expression
+                         | 'UNIQUE' index_parameters
+                         | references_clause )
+                      [ 'DEFERRABLE' | 'NOT' 'DEFERRABLE' ] [ 'INITIALLY' 'DEFERRED' | 'INITIALLY' 'IMMEDIATE' ] ;
 
 (* 'ALTER' 'USER' *)
 alter_user ::= 'ALTER' 'USER' role_specification [ [ 'WITH' ] alter_role_option { ',' alter_role_option } ] ;
@@ -265,7 +275,8 @@ copy_option ::=
     | 'FORCE_QUOTE' ( '(' column_names ')' | '*' )
     | 'FORCE_NOT_NULL' '(' column_names ')'
     | 'FORCE_NULL' '(' column_names ')'
-    | 'ENCODING' 'encoding_name' ) ;
+    | 'ENCODING' 'encoding_name'
+    | 'ROWS_PER_TRANSACTION' integer ) ;
 
 (* 'CREATE' 'AGGREGATE' *)
 
@@ -607,13 +618,15 @@ column_constraint ::= [ 'CONSTRAINT' constraint_name ]
                          | 'DEFAULT' expression
                          | 'UNIQUE' index_parameters
                          | 'PRIMARY' 'KEY'
-                         | references_clause ) ;
+                         | references_clause )
+                      [ 'DEFERRABLE' | 'NOT' 'DEFERRABLE' ] [ 'INITIALLY' 'DEFERRED' | 'INITIALLY' 'IMMEDIATE' ] ;
 
 table_constraint ::= [ 'CONSTRAINT' constraint_name ]
                      ( 'CHECK' '(' expression ')'
                        | 'UNIQUE' '(' column_names ')' index_parameters
                        | 'PRIMARY' 'KEY' '(' key_columns ')'
-                       | 'FOREIGN' 'KEY' '(' column_names ')' references_clause ) ;
+                       | 'FOREIGN' 'KEY' '(' column_names ')' references_clause )
+                     [ 'DEFERRABLE' | 'NOT' 'DEFERRABLE' ] [ 'INITIALLY' 'DEFERRED' | 'INITIALLY' 'IMMEDIATE' ] ;
 
 key_columns ::= hash_columns [ ',' range_columns ]
               | range_columns ;
@@ -968,16 +981,23 @@ rollback ::= 'ROLLBACK' [ 'TRANSACTION' | 'WORK' ] ;
 (* 'SELECT' *)
 select ::= [ 'WITH' [ 'RECURSIVE' ] ( with_query { ',' with_query } ) ] \
            'SELECT' [ 'ALL' | 'DISTINCT' [ 'ON' ( '(' expression { ',' expression } ')' ) ] ]
-               [ '*' | ( ( expression [ [ 'AS' ] name ] )
-                         { ',' ( expression [ [ 'AS' ] name ] ) } ) ] \
-               [ 'FROM' ( from_item { ','  from_item } ) ]
+               [ '*' | ( ( ( expression | fn_over_window ) [ [ 'AS' ] name ] )
+                         { ',' ( ( expression | fn_over_window ) [ [ 'AS' ] name ] ) } ) ] \
+               [ 'FROM' ( from_item { ','  from_item } ) ] \
                [ 'WHERE' condition ] \
-               [ 'GROUP' 'BY' ( grouping_element { ',' grouping_element } ) ]
+               [ 'GROUP' 'BY' ( grouping_element { ',' grouping_element } ) ] \
                [ 'HAVING' ( condition { ',' condition } ) ] \
-               [ ( 'UNION' | 'INTERSECT' | 'EXCEPT' ) [ 'ALL' | 'DISTINCT' ] select ]
+               [ 'WINDOW' ( ( name 'AS' window_definition ) { ',' ( name 'AS' window_definition ) } ) ] \
+               [ ( 'UNION' | 'INTERSECT' | 'EXCEPT' ) [ 'ALL' | 'DISTINCT' ] select ] \
                [ 'ORDER' 'BY' ( order_expr { ',' order_expr } ) ] \
-               [ 'LIMIT' [ integer | 'ALL' ] ]
+               [ 'LIMIT' [ integer | 'ALL' ] ] \
                [ 'OFFSET' integer [ 'ROW' | 'ROWS' ] ] ;
+
+select_start ::= 'SELECT' [ 'ALL' | 'DISTINCT' [ 'ON' ( '(' expression { ',' expression } ')' ) ] ]
+                   [ '*' | ( ( ( expression | fn_over_window ) [ [ 'AS' ] name ] )
+                             { ',' ( ( expression | fn_over_window ) [ [ 'AS' ] name ] ) } ) ] ;
+
+fn_over_window ::= fn_invocation [ 'FILTER' '(' 'WHERE' ( boolean_expression { ',' boolean_expression } ) ')' ] 'OVER' ( window_definition | name ) ;
 
 select_expression ::= expression [ [ 'AS' ] name ] ;
 
@@ -1039,6 +1059,45 @@ update_item ::= ( column_name '=' column_value
                   | '(' column_names ')' '=' '(' query ')' ) ;
 
 column_value ::= expression | 'DEFAULT' ;
+
+(* For the invocation of a window function, or an aggregate function, in conjunction with the OVER keyword. *)
+
+fn_invocation ::=
+  name '(' ( ( expression { ',' expression } ) | '*' ) ')' ;
+
+window_clause :=
+  [ 'WINDOW' ( ( name 'AS' window_definition ) { ',' ( name 'AS' window_definition ) } ) ] ;
+
+window_definition ::=
+  '(' [ name ] \
+      [ 'PARTITION' 'BY' order_expr { ',' order_expr } ] \
+      [ 'ORDER' 'BY' order_expr { ',' order_expr } ] \
+      [ frame_clause ] ')' ;
+
+frame_clause ::=
+  [ ( 'RANGE' | 'ROWS' | 'GROUPS' ) frame_bounds ] [ frame_exclusion ] ;
+
+frame_bounds ::=
+  ( frame_start | 'BETWEEN' frame_start 'AND' frame_end ) ;
+
+frame_start ::= frame_bound ;
+
+frame_end ::= frame_bound ;
+
+frame_bound ::=
+  ( 'UNBOUNDED' 'PRECEDING' |
+    offset 'PRECEDING' |
+    'CURRENT' 'ROW' |
+    offset 'FOLLOWING' |
+    'UNBOUNDED' 'FOLLOWING' ) ;
+
+frame_exclusion ::=
+  ( 'EXCLUDE' 'CURRENT' 'ROW' |
+    'EXCLUDE' 'GROUP' |
+    'EXCLUDE' 'TIES' |
+    'EXCLUDE' 'NO' 'OTHERS' ) ;
+
+offset ::= ( integer_expression | numeric_expression | interval_expression ) ;
 
 (* Supporting rules *)
 
@@ -1208,3 +1267,19 @@ new_name = name ;
 
 version = '<text literal>' ;
 extension_name = name ;
+
+(*
+  Notice that the "demo-2" rule uses ( ... ) redundantly.
+  The two rules are semantically identical but they produce the different diagrams.
+  The diagrams do express the same meaning but they are drawn using different conventions.
+  Uncomment the two rule definitions and look at the end of the grammar diagrams file to
+  see the two semantically equivalent, but differently drawn, diagrams.
+
+  Make sure that you comment these out again before creating a Pull request.
+*)
+
+(*
+demo-1-irrelevant-for-ysql-syntax ::= ( a 'K' b { ',' a 'K' b } ) ;
+
+demo-2-irrelevant-for-ysql-syntax ::= ( ( a 'K' b ) { ',' ( a 'K' b ) } ) ;
+*)

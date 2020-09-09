@@ -3,7 +3,6 @@ title: Explore colocated tables on Linux
 headerTitle: Colocated tables
 linkTitle: Colocated tables
 description: Create and use colocated tables in a local YugabyteDB cluster on Linux.
-beta: /latest/faq/general/#what-is-the-definition-of-the-beta-feature-tag
 menu:
   latest:
     identifier: colocated-tables-2-linux
@@ -31,19 +30,20 @@ showAsideToc: true
 
 </ul>
 
-In workloads that do very little IOPS and have a small data set, the bottleneck shifts from
-CPU/disk/network to the number of tablets one can host per node. Since each table by default requires at least one tablet per node, a YugabyteDB cluster with 5000 relations (tables, indexes) will result in 5000 tablets per node.There are practical limitations to the number of tablets that YugabyteDB can handle per node since each tablet adds some CPU, disk and network overhead. If most or all of the tables in YugabyteDB cluster are small tables, then having separate tablets for each table unnecessarily adds pressure on CPU, network and disk.
+In workloads that do very little IOPS and have a small data set, the bottleneck shifts from CPU/disk/network to the number of tablets one can host per node. Since each table by default requires at least one tablet per node, a YugabyteDB cluster with 5000 relations (tables, indexes) will result in 5000 tablets per node.There are practical limitations to the number of tablets that YugabyteDB can handle per node since each tablet adds some CPU, disk and network overhead. If most or all of the tables in YugabyteDB cluster are small tables, then having separate tablets for each table unnecessarily adds pressure on CPU, network and disk.
 
 To help accommodate such relational tables and workloads, you can colocate SQL tables.
 Colocating tables puts all of their data into a single tablet, called the _colocation tablet_.
 This can dramatically increase the number of relations (tables, indexes, etc.) that can
 be supported per node while keeping the number of tablets per node low. Note that all the data in the colocation tablet is still replicated across three nodes (or whatever the replication factor is).
 
-In this section, we'll explore creating and using colocated tables. If you haven't installed YugabyteDB yet, do so first by following [Quick start](../../../quick-start/install/).
+This tutorial uses the [yb-ctl](../../../admin/yb-ctl) local cluster management utility.
 
 ## 1. Create a universe
 
-You can create a universe by following [Create local cluster](../../../quick-start/create-local-cluster/).
+```sh
+$ ./bin/yb-ctl create
+```
 
 ## 2. Create a colocated database
 
@@ -109,7 +109,7 @@ If you go to tables view in [master UI](http://localhost:7000/tables), you'll se
 
 ## 4. Opt out table from colocation
 
-YugabyteDB has the flexibility to opt a table out of colocation. In this case, the table will use its own set of tablets instead of using the same tablet as the colocated database. This is useful for scaling out tables that we know are likely to be large. You can do this by using `colocated = false` option while creating table.
+YugabyteDB has the flexibility to opt a table out of colocation. In this case, the table will use its own set of tablets instead of using the same tablet as the colocated database. This is useful for scaling out tables that are likely to be large. You can do this by using `colocated = false` option while creating table.
 
 ```postgresql
 yugabyte=# CREATE TABLE orders (

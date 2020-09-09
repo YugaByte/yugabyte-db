@@ -206,7 +206,7 @@ class TestLoadBalancerBase {
     LOG(INFO) << "Testing moving overloaded leaders";
     // Move leaders of tablet i to ts i%3.
     int i = 0;
-    for (const auto tablet : tablets_) {
+    for (const auto& tablet : tablets_) {
       MoveTabletLeader(tablet.get(), ts_descs_[i%3]);
       i++;
     }
@@ -249,7 +249,7 @@ class TestLoadBalancerBase {
     ASSERT_FALSE(ASSERT_RESULT(HandleLeaderMoves(&placeholder, &placeholder, &placeholder)));
 
     // Move 1 leader to ts2.
-    for (const auto tablet : tablets_) {
+    for (const auto& tablet : tablets_) {
       if (tablet.get()->id() == placeholder) {
         MoveTabletLeader(tablet.get(), ts_descs_[2]);
         break;
@@ -444,7 +444,7 @@ class TestLoadBalancerBase {
     SetupClusterConfig({"a", "b", "c"}, &replication_info_);
 
     // Remove the only tablet peer from AZ "c".
-    for (const auto tablet : tablets_) {
+    for (const auto& tablet : tablets_) {
       TabletInfo::ReplicaMap replica_map;
       tablet->GetReplicaLocations(&replica_map);
       replica_map.erase(ts_descs_[2]->permanent_uuid());
@@ -600,7 +600,7 @@ class TestLoadBalancerBase {
     SetupClusterConfig({"a", "b", "c"}, &replication_info_);
 
     // Remove the only tablet peer from AZ "c".
-    for (const auto tablet : tablets_) {
+    for (const auto& tablet : tablets_) {
       TabletInfo::ReplicaMap replica_map;
       tablet->GetReplicaLocations(&replica_map);
       replica_map.erase(ts_descs_[2]->permanent_uuid());
@@ -655,7 +655,7 @@ class TestLoadBalancerBase {
   void TestBalancingLeaders() NO_THREAD_SAFETY_ANALYSIS /* disabling for controlled test */ {
     LOG(INFO) << "Testing moving overloaded leaders";
     // Move all leaders to ts0.
-    for (const auto tablet : tablets_) {
+    for (const auto& tablet : tablets_) {
       MoveTabletLeader(tablet.get(), ts_descs_[0]);
     }
     LOG(INFO) << "Leader distribution: 4 0 0";
@@ -734,7 +734,7 @@ class TestLoadBalancerBase {
   void TestBalancingLeadersWithThreshold() {
     LOG(INFO) << "Testing moving overloaded leaders with threshold = 2";
     // Move all leaders to ts0.
-    for (const auto tablet : tablets_) {
+    for (const auto& tablet : tablets_) {
       MoveTabletLeader(tablet.get(), ts_descs_[0]);
     }
     LOG(INFO) << "Leader distribution: 4 0 0";
@@ -853,7 +853,7 @@ class TestLoadBalancerBase {
     ts_descs_ = ts_descs;
 
     // Reset the tablet map tablets.
-    for (const auto tablet : tablets_) {
+    for (const auto& tablet : tablets_) {
       tablet_map_[tablet->tablet_id()] = tablet;
     }
 

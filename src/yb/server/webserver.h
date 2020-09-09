@@ -51,6 +51,7 @@
 #include <boost/thread/shared_mutex.hpp>
 #include "yb/server/webserver_options.h"
 #include "yb/util/net/sockaddr.h"
+#include "yb/util/net/net_util.h"
 #include "yb/util/status.h"
 #include "yb/util/web_callback_registry.h"
 
@@ -80,6 +81,9 @@ class Webserver : public WebCallbackRegistry {
   // Return the addresses that this server has successfully
   // bound to. Requires that the server has been Start()ed.
   CHECKED_STATUS GetBoundAddresses(std::vector<Endpoint>* addrs) const;
+
+  // Return the single HostPort that this server was asked to bind on
+  CHECKED_STATUS GetInputHostPort(HostPort* hp) const;
 
   virtual void RegisterPathHandler(const std::string& path, const std::string& alias,
                                    const PathHandlerCallback& callback,

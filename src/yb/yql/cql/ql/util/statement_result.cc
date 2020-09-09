@@ -79,7 +79,7 @@ shared_ptr<vector<ColumnSchema>> GetColumnSchemasFromOp(const YBqlOp& op, const 
       shared_ptr<vector<ColumnSchema>> column_schemas = make_shared<vector<ColumnSchema>>();
       const auto& write_op = static_cast<const YBqlWriteOp&>(op);
       column_schemas->reserve(write_op.response().column_schemas_size());
-      for (const auto column_schema : write_op.response().column_schemas()) {
+      for (const auto& column_schema : write_op.response().column_schemas()) {
         column_schemas->emplace_back(ColumnSchemaFromPB(column_schema));
       }
       return column_schemas;

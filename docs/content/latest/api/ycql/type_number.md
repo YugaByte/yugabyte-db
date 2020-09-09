@@ -2,7 +2,6 @@
 title: Non-integer data types (FLOAT, DOUBLE, and DECIMAL) [YCQL]
 headerTitle: Non-integer
 linkTitle: Non-integer
-summary: FLOAT, DOUBLE, and DECIMAL
 description: Use the non-integer (floating-point and fixed-point) data types to specify non-integer numbers. 
 menu:
   latest:
@@ -23,7 +22,7 @@ Data type | Description | Decimal precision |
 ---------|-----|-----|
 `FLOAT` | Inexact 32-bit floating point number | 7 |
 `DOUBLE` | Inexact 64-bit floating point number | 15 |
-`DECIMAL` | Exact fixed-point number | 99 |
+`DECIMAL` | Arbitrary-precision number  | no upper-bound |
 
 ## Syntax
 

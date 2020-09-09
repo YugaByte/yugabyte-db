@@ -40,6 +40,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import org.pac4j.play.CallbackController;
+import org.pac4j.play.store.PlayCacheSessionStore;
+import org.pac4j.play.store.PlaySessionStore;
+
 import static com.yugabyte.yw.common.ApiUtils.getTestUserIntent;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -73,12 +77,19 @@ public class KubernetesCommandExecutorTest extends SubTaskBaseTest {
   int numNodes = 3;
   Map<String, String> config= new HashMap<String, String>();
 
+  protected CallbackController mockCallbackController;
+  protected PlayCacheSessionStore mockSessionStore;
+
   @Override
   protected Application provideApplication() {
     kubernetesManager = mock(KubernetesManager.class);
+    mockCallbackController = mock(CallbackController.class);
+    mockSessionStore = mock(PlayCacheSessionStore.class);
     return new GuiceApplicationBuilder()
         .configure((Map) Helpers.inMemoryDatabase())
         .overrides(bind(KubernetesManager.class).toInstance(kubernetesManager))
+        .overrides(bind(CallbackController.class).toInstance(mockCallbackController))
+        .overrides(bind(PlaySessionStore.class).toInstance(mockSessionStore))
         .build();
   }
 
@@ -95,8 +106,7 @@ public class KubernetesCommandExecutorTest extends SubTaskBaseTest {
     defaultUniverse = updateUniverseDetails("small");
     defaultCert = CertificateInfo.get(CertificateHelper.createRootCA(
         defaultUniverse.getUniverseDetails().nodePrefix,
-        defaultProvider.customerUUID, "/tmp/certs",
-        true));
+        defaultProvider.customerUUID, "/tmp/certs"));
     defaultUniverse.setConfig(ImmutableMap.of(Universe.HELM2_LEGACY,
                                               Universe.HelmLegacy.V3.toString()));
   }
@@ -218,6 +228,7 @@ public class KubernetesCommandExecutorTest extends SubTaskBaseTest {
     if (defaultUserIntent.enableNodeToNodeEncrypt || defaultUserIntent.enableClientToNodeEncrypt) {
       Map<String, Object> tlsInfo = new HashMap<>();
       tlsInfo.put("enabled", true);
+      tlsInfo.put("insecure", true);
       Map<String, Object> rootCA = new HashMap<>();
       rootCA.put("cert", CertificateHelper.getCertPEM(defaultCert));
       rootCA.put("key", CertificateHelper.getKeyPEM(defaultCert));
@@ -233,10 +244,6 @@ public class KubernetesCommandExecutorTest extends SubTaskBaseTest {
     masterOverrides.put("placement_zone", defaultAZ.code);
     // masterOverrides.put("placement_uuid", defaultUniverse.getUniverseDetails().getPrimaryCluster().uuid);
     masterOverrides.put("placement_uuid", hackPlacementUUID.toString());
-    if (defaultUserIntent.enableClientToNodeEncrypt || defaultUserIntent.enableNodeToNodeEncrypt) {
-      masterOverrides.put("use_node_to_node_encryption", true);
-      masterOverrides.put("allow_insecure_connections", true);
-    }
     gflagOverrides.put("master", masterOverrides);
 
     // Tserver flags.
@@ -246,11 +253,6 @@ public class KubernetesCommandExecutorTest extends SubTaskBaseTest {
     tserverOverrides.put("placement_zone", defaultAZ.code);
     // tserverOverrides.put("placement_uuid", defaultUniverse.getUniverseDetails().getPrimaryCluster().uuid);
     tserverOverrides.put("placement_uuid", hackPlacementUUID.toString());
-    if (defaultUserIntent.enableClientToNodeEncrypt || defaultUserIntent.enableNodeToNodeEncrypt) {
-      tserverOverrides.put("use_node_to_node_encryption", true);
-      tserverOverrides.put("allow_insecure_connections", true);
-      tserverOverrides.put("use_client_to_server_encryption", true);
-    }
 
     gflagOverrides.put("tserver", tserverOverrides);
     // Put all the flags together.

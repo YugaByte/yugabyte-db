@@ -1,0 +1,42 @@
+name: yb-ctl-test
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '**/yb-ctl*'
+
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '**/yb-ctl*'
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  yb-ctl-test:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ macos-latest, ubuntu-18.04 ]
+        python-version: [ 2.7, 3.8 ]
+
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: actions/checkout@v2
+
+      - name: Run yb-ctl-test
+        run: |
+          set -x
+          tmpdir=$(mktemp -d)
+          cp -r scripts/installation "${tmpdir}/"
+          cd "${tmpdir}/installation"
+          test/yb-ctl-test.sh

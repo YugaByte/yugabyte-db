@@ -21,6 +21,7 @@
 #include "yb/util/yb_pg_errcodes.h"
 
 using namespace std::placeholders;
+using namespace std::literals;
 
 DEFINE_test_flag(uint64, transaction_delay_status_reply_usec_in_tests, 0,
                  "For tests only. Delay handling status reply by specified amount of usec.");
@@ -39,7 +40,8 @@ RunningTransaction::RunningTransaction(TransactionMetadata metadata,
       remove_intents_task_(&context->applier_, &context->participant_context_, context,
                            metadata_.transaction_id),
       get_status_handle_(context->rpcs_.InvalidHandle()),
-      abort_handle_(context->rpcs_.InvalidHandle()) {
+      abort_handle_(context->rpcs_.InvalidHandle()),
+      apply_intents_task_(&context->applier_, context, &apply_data_) {
 }
 
 RunningTransaction::~RunningTransaction() {
@@ -155,7 +157,7 @@ std::string RunningTransaction::ToString() const {
 
 void RunningTransaction::ScheduleRemoveIntents(const RunningTransactionPtr& shared_self) {
   if (remove_intents_task_.Prepare(shared_self)) {
-    context_.participant_context_.Enqueue(&remove_intents_task_);
+    context_.participant_context_.StrandEnqueue(&remove_intents_task_);
     VLOG_WITH_PREFIX(1) << "Intents should be removed asynchronously";
   }
 }
@@ -383,6 +385,38 @@ Status MakeAbortedStatus(const TransactionId& id) {
   return STATUS(
       TryAgain, Format("Transaction aborted: $0", id), Slice(),
       PgsqlError(YBPgErrorCode::YB_PG_T_R_SERIALIZATION_FAILURE));
+}
+
+void RunningTransaction::SetApplyData(const docdb::ApplyTransactionState& apply_state,
+                                      const TransactionApplyData* data) {
+  apply_state_ = apply_state;
+  bool active = apply_state_.active();
+
+  if (data) {
+    apply_data_ = *data;
+    apply_data_.apply_state = &apply_state_;
+
+    LOG_IF_WITH_PREFIX(DFATAL, local_commit_time_ != data->commit_ht)
+        << "Commit time does not match: " << local_commit_time_ << " vs " << data->commit_ht;
+
+    if (apply_intents_task_.Prepare(shared_from_this())) {
+      context_.participant_context_.StrandEnqueue(&apply_intents_task_);
+    } else {
+      LOG_WITH_PREFIX(DFATAL) << "Unable to prepare apply intents task";
+    }
+  }
+
+  if (!active) {
+    VLOG_WITH_PREFIX(3) << "Finished applying intents";
+
+    MinRunningNotifier min_running_notifier(&context_.applier_);
+    std::lock_guard<std::mutex> lock(context_.mutex_);
+    context_.RemoveUnlocked(id(), "applied large"s, &min_running_notifier);
+  }
+}
+
+bool RunningTransaction::ProcessingApply() const {
+  return apply_state_.active();
 }
 
 } // namespace tablet

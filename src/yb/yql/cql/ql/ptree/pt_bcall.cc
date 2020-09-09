@@ -59,6 +59,12 @@ PTBcall::PTBcall(MemoryContext *memctx,
 PTBcall::~PTBcall() {
 }
 
+void PTBcall::CollectReferencedIndexColnames(MCSet<string> *col_names) const {
+  for (auto arg : args_->node_list()) {
+    arg->CollectReferencedIndexColnames(col_names);
+  }
+}
+
 string PTBcall::QLName(QLNameOption option) const {
   string arg_names;
   string keyspace;

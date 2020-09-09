@@ -31,7 +31,7 @@ isTocNested: true
 
 </ul>
 
-The Yugabyte SQL API (YSQL) passed [Jepsen testing, performed by Kyle Kingsbury](https://jepsen.io/services), on YugabyteDB v1.3.1.2, with the exception of transactional DDL support, which virtually no other distributed SQL database vendor supports. [Note: Yugabyte plans to support transactional DDL soon.] The real-world impact of the open issue ([GitHub issue #2021](https://github.com/YugaByte/yugabyte-db/issues/2021)) is small as it is limited to cases where DML happens before DDL has fully finished.
+The Yugabyte SQL API (YSQL) passed [Jepsen testing, performed by Kyle Kingsbury](https://jepsen.io/services), on YugabyteDB v1.3.1.2, with the exception of transactional DDL support, which virtually no other distributed SQL database supports. The impact of this issue is minor as it is limited to cases where DML happens before DDL has fully finished. [GitHub issue #2021](https://github.com/yugabyte/yugabyte-db/issues/2021) has already been fixed to take care of this issue.
 
 YugabyteDB supports serializable and snapshot isolation for transactions. The previous v1.2 release shipped with the Jepsen verification of YCQL, the Cassandra-inspired, semi-relational Yugabyte YCQL API. Because the YugabyteDB underlying distributed document store (DocDB), is common across both the YCQL and YSQL APIs, there was no surprise that YSQL relatively easily passed almost all of the official Jepsen safety tests (except for transactional DDL support).
 

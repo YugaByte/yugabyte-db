@@ -333,7 +333,7 @@ public class NodeInstanceControllerTest extends FakeDBApplication {
       assertOk(r);
       JsonNode json = Json.parse(contentAsString(r));
       assertValue(json, "taskUUID", fakeTaskUUID.toString());
-      CustomerTask ct = CustomerTask.find.where().eq("task_uuid", fakeTaskUUID).findUnique();
+      CustomerTask ct = CustomerTask.find.query().where().eq("task_uuid", fakeTaskUUID).findOne();
       assertNotNull(ct);
       assertEquals(CustomerTask.TargetType.Node, ct.getTarget());
       assertEquals(nodeActionType.getCustomerTask(), ct.getType());

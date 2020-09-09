@@ -54,7 +54,6 @@
 
 namespace yb {
 
-class DnsResolver;
 class HostPort;
 
 namespace master {
@@ -92,23 +91,27 @@ class YBClient::Data {
   CHECKED_STATUS IsCreateNamespaceInProgress(YBClient* client,
                                 const std::string& namespace_name,
                                 const boost::optional<YQLDatabase>& database_type,
+                                const std::string& namespace_id,
                                 CoarseTimePoint deadline,
                                 bool *create_in_progress);
 
   CHECKED_STATUS WaitForCreateNamespaceToFinish(YBClient* client,
                                 const std::string& namespace_name,
                                 const boost::optional<YQLDatabase>& database_type,
+                                const std::string& namespace_id,
                                 CoarseTimePoint deadline);
 
   CHECKED_STATUS IsDeleteNamespaceInProgress(YBClient* client,
                                              const std::string& namespace_name,
                                              const boost::optional<YQLDatabase>& database_type,
+                                             const std::string& namespace_id,
                                              CoarseTimePoint deadline,
                                              bool *delete_in_progress);
 
   CHECKED_STATUS WaitForDeleteNamespaceToFinish(YBClient* client,
                                                 const std::string& namespace_name,
                                                 const boost::optional<YQLDatabase>& database_type,
+                                                const std::string& namespace_id,
                                                 CoarseTimePoint deadline);
 
   CHECKED_STATUS CreateTable(YBClient* client,
@@ -178,13 +181,17 @@ class YBClient::Data {
                                            string table_id,
                                            CoarseTimePoint deadline);
 
-  // Take one of table id or name.
-  // TODO(jason): it would be nice to have this take a list of table_names or table_ids.
-  CHECKED_STATUS FlushTable(YBClient* client,
-                            const YBTableName& table_name,
-                            const std::string& table_id,
-                            const CoarseTimePoint deadline,
-                            const bool is_compaction);
+  CHECKED_STATUS FlushTables(YBClient* client,
+                             const vector<YBTableName>& table_names,
+                             bool add_indexes,
+                             const CoarseTimePoint deadline,
+                             const bool is_compaction);
+
+  CHECKED_STATUS FlushTables(YBClient* client,
+                             const vector<TableId>& table_ids,
+                             bool add_indexes,
+                             const CoarseTimePoint deadline,
+                             const bool is_compaction);
 
   CHECKED_STATUS IsFlushTableInProgress(YBClient* client,
                                         const FlushRequestId& flush_id,
@@ -344,7 +351,6 @@ class YBClient::Data {
   rpc::Messenger* messenger_ = nullptr;
   std::unique_ptr<rpc::Messenger> messenger_holder_;
   std::unique_ptr<rpc::ProxyCache> proxy_cache_;
-  gscoped_ptr<DnsResolver> dns_resolver_;
   scoped_refptr<internal::MetaCache> meta_cache_;
   scoped_refptr<MetricEntity> metric_entity_;
 
@@ -429,6 +435,10 @@ class YBClient::Data {
   std::atomic<int> tserver_count_cached_{0};
 
  private:
+  CHECKED_STATUS FlushTablesHelper(YBClient* client,
+                          const CoarseTimePoint deadline,
+                          const master::FlushTablesRequestPB req);
+
   DISALLOW_COPY_AND_ASSIGN(Data);
 };
 

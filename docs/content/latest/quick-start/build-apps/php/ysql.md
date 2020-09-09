@@ -27,15 +27,15 @@ showAsideToc: true
 
 </ul>
 
-## Install the [`php-pgsql`](https://www.php.net/manual/en/book.pgsql.php) driver
+## Install the php-pgsql driver
 
-See instructions to install [`php-pgsql`](https://www.php.net/manual/en/pgsql.installation.php) for your platform.
+To install, see [`php-pgsql` - Installation](https://www.php.net/manual/en/pgsql.installation.php).
 
-For example, for CentOS, use `sudo yum install php-pgsql` or Ubuntu use `sudo apt-get install php-pgsql`.
+For example, for CentOS, use `sudo yum install php-pgsql` For Ubuntu, use `sudo apt-get install php-pgsql`.
 
-## Add sample PHP code
+## Create the sample PHP application
 
-Create a file `yb-sql-sample.php` with the following content.
+Create a file `yb-sql-sample.php` and copy the following content into it.
 
 ```php
 <?php

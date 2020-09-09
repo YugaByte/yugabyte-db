@@ -6,7 +6,7 @@ description: Transform the list of key names in the supplied JSON object into a 
 menu:
   latest:
     identifier: jsonb-object-keys
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 160
 isTocNested: true
 showAsideToc: true
@@ -23,7 +23,7 @@ return value:      SETOF text
 
 **Notes:** Each function in this pair requires that the supplied JSON value is an _object_. The returned keys are ordered alphabetically.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   object constant jsonb :=

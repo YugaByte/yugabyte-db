@@ -17,7 +17,7 @@ showAsideToc: true
 
 [TablePlus](https://tableplus.io/) is an increasingly popular database developer console with built-in integrations with major databases including PostgreSQL, Cassandra, and Redis. It is free to get started with the option of upgrading to a [perpetual paid license](https://tableplus.io/pricing) for a small cost.
 
-In this tutorial, we will show how to connect TablePlus with all three YugabyteDB APIs on a local cluster. TablePlus works without any issues with YugabyteDB because the YugabyteDB APIs are compatible at the wire protocol level with databases already supported by TablePlus.
+In this tutorial, you will show how to connect TablePlus with all three YugabyteDB APIs on a local cluster. TablePlus works without any issues with YugabyteDB because the YugabyteDB APIs are compatible at the wire protocol level with databases already supported by TablePlus.
 
 ## Download TablePlus
 
@@ -41,7 +41,7 @@ Optionally, run the following command to initialize the YEDIS API.
 $ ./bin/yb-ctl setup_redis
 ```
 
-At this point, we have YSQL running on 127.0.0.1:5433, YCQL on 127.0.0.1:9042 and YEDIS on 127.0.0.1:6379. We are now ready to connect these API endpoints with TablePlus.
+At this point, you have YSQL running on 127.0.0.1:5433, YCQL on 127.0.0.1:9042 and YEDIS on 127.0.0.1:6379. We are now ready to connect these API endpoints with TablePlus.
 
 ## Connect with PostgreSQL-compatible YSQL
 

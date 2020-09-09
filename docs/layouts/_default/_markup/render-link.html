@@ -1,2 +1,2 @@
 <a href="{{ .Destination | safeURL }}" {{ if strings.HasPrefix .Destination "http" }} target="_blank"
-    {{ end }}>{{ .Text | safeHTML }} {{ if strings.HasPrefix .Destination "http"}}<i class="fas fa-external-link-alt"></i>{{ end }}</a>
+    {{ end }}>{{ .Text | safeHTML }}{{ if strings.HasPrefix .Destination "http"}}&nbsp;<i class="fas fa-external-link-alt"></i>{{ end }}</a>

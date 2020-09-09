@@ -5272,5 +5272,15 @@ TEST_F(TestRedisService, KeysWithFlush) {
   VerifyCallbacks();
 }
 
+TEST_F(TestRedisService, SortedSetsIncr) {
+  DoRedisTestInt(__LINE__, {"ZADD", "z_key", "1", "v1"}, 1);
+  SyncClient();
+  DoRedisTestInt(__LINE__, {"ZADD", "z_key", "incr", "1", "v1"}, 0);
+  SyncClient();
+  DoRedisTestScoreValueArray(__LINE__, {"ZRANGEBYSCORE", "z_key", "-inf", "+inf", "WITHSCORES"},
+                                       {2}, {"v1"});
+  SyncClient();
+}
+
 }  // namespace redisserver
 }  // namespace yb

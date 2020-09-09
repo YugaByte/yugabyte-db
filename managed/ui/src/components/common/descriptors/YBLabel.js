@@ -40,7 +40,7 @@ export default class YBLabel extends Component {
     }
     let containerClassList = `form-group ${ hasError ? 'has-error' : ''} ${ this.props.type === "hidden" ? 'form-group-hidden' : ''}`;
     if (classOverrides) {
-      containerClassList = `${containerClassList.trim()} ${classOverrides}`
+      containerClassList = `${containerClassList.trim()} ${classOverrides}`;
     }
     return (
       <div className={containerClassList} data-yb-label={label} onClick={onLabelClick}>

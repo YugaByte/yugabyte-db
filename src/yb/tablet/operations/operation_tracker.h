@@ -112,9 +112,12 @@ class OperationTracker {
   // Decrements relevant metric counters.
   void DecrementCounters(const OperationDriver& driver) const;
 
+  std::vector<scoped_refptr<OperationDriver>> GetPendingOperationsUnlocked() const REQUIRES(mutex_);
+
   const std::string log_prefix_;
 
-  mutable simple_spinlock lock_;
+  mutable std::mutex mutex_;
+  mutable std::condition_variable cond_;
 
   // Per-operation state that is tracked along with the operation itself.
   struct State {
@@ -128,7 +131,7 @@ class OperationTracker {
       State,
       ScopedRefPtrHashFunctor,
       ScopedRefPtrEqualsFunctor> OperationMap;
-  OperationMap pending_operations_;
+  OperationMap pending_operations_ GUARDED_BY(mutex_);
 
   gscoped_ptr<Metrics> metrics_;
 

@@ -42,28 +42,55 @@
 #include "yb/util/net/sockaddr.h"
 #include "yb/util/test_util.h"
 
-using std::vector;
+using namespace std::literals;
 
 namespace yb {
 
 class DnsResolverTest : public YBTest {
  protected:
-  DnsResolver resolver_;
+  void SetUp() override {
+    io_thread_ = CHECK_RESULT(Thread::Make("io_thread", "io_thread", [this] {
+      boost::system::error_code ec;
+      io_service_.run(ec);
+      LOG_IF(ERROR, ec) << "Failed to run io service: " << ec;
+    }));
+  }
+
+  void TearDown() override {
+    work_.reset();
+    Join();
+  }
+
+ protected:
+  void Join() {
+    auto deadline = std::chrono::steady_clock::now() + 15s;
+    while (!io_service_.stopped()) {
+      if (std::chrono::steady_clock::now() >= deadline) {
+        LOG(ERROR) << "Io service failed to stop";
+        io_service_.stop();
+        break;
+      }
+      std::this_thread::sleep_for(10ms);
+    }
+    io_thread_->Join();
+  }
+
+  ThreadPtr io_thread_;
+  IoService io_service_;
+  boost::optional<IoService::work> work_{io_service_};
+
+  DnsResolver resolver_{&io_service_};
 };
 
 TEST_F(DnsResolverTest, TestResolution) {
-  vector<Endpoint> addrs;
-  Synchronizer s;
-  {
-    HostPort hp("localhost", 12345);
-    resolver_.ResolveAddresses(hp, &addrs, s.AsStatusCallback());
-  }
-  ASSERT_OK(s.Wait());
-  ASSERT_TRUE(!addrs.empty());
-  for (const auto& addr : addrs) {
-    LOG(INFO) << "Address: " << addr;
+  auto future = resolver_.ResolveFuture("localhost");
+  ASSERT_EQ(future.wait_for(1s), std::future_status::ready);
+  auto addr = ASSERT_RESULT(future.get());
+  LOG(INFO) << "Address: " << addr;
+  if (addr.is_v4()) {
     EXPECT_TRUE(HasPrefixString(ToString(addr), "127."));
-    EXPECT_TRUE(HasSuffixString(ToString(addr), ":12345"));
+  } else if (addr.is_v6()) {
+    EXPECT_TRUE(HasPrefixString(ToString(addr), "[::1]"));
   }
 }
 

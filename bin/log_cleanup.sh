@@ -77,6 +77,7 @@ disk_size_kb=$(df -k | awk 'NR==2{print $2}')
 permitted_disk_usage_kb=$(($disk_size_kb * $logs_disk_percent_max / 100))
 
 delete_gz_files() {
+  set -f
   local log_dir=$1
   local find_regex=$2
   local permitted_usage=$3

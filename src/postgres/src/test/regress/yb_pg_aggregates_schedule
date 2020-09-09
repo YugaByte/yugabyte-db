@@ -1,0 +1,20 @@
+# src/test/regress/yb_pg_aggregates_schedule
+#
+####################################################################################################
+# This includes tests for Aggregates Functions
+####################################################################################################
+# Dependencies for `yb_pg_aggregates`
+test: yb_pg_int4
+test: yb_pg_int8
+
+# Chain of dependencies for `yb_pg_aggregates`
+test: yb_pg_create_function_1
+test: yb_pg_create_type
+test: yb_pg_create_table
+test: yb_pg_copy
+
+# Dependency for `yb_pg_aggregates`
+test: yb_pg_create_aggregate
+
+test: yb_pg_aggregates
+test: yb_aggregates

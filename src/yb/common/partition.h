@@ -110,11 +110,26 @@ class Partition {
         (partition_key_end().empty() || partition_key < partition_key_end());
   }
 
+  // Checks if this partition is a superset or is exactly the same as another partition.
   template <class T>
   bool ContainsPartition(const T& other) const {
     return other.partition_key_start() >= partition_key_start() &&
            (partition_key_end().empty() || (!other.partition_key_end().empty() &&
-                                            other.partition_key_end() < partition_key_end()));
+                                            other.partition_key_end() <= partition_key_end()));
+  }
+
+  // Checks if this and another partitions have equal bounds.
+  template <class T>
+  bool BoundsEqualToPartition(const T& other) const {
+    return partition_key_start() == other.partition_key_start() &&
+           partition_key_end() == other.partition_key_end();
+  }
+
+  // Checks if this partition is a strict superset of another partition (shouldn't be exactly the
+  // same).
+  template <class T>
+  bool ContainsPartitionStrict(const T& other) const {
+    return ContainsPartition(other) && !BoundsEqualToPartition(other);
   }
 
   std::string ToString() const {

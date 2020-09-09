@@ -32,7 +32,6 @@
 
 DECLARE_bool(trace_docdb_calls);
 DECLARE_bool(ysql_disable_index_backfill);
-DECLARE_int64(retryable_rpc_single_call_timeout_ms);
 
 DEFINE_double(ysql_scan_timeout_multiplier, 0.5,
               "YSQL read scan timeout multipler of retryable_rpc_single_call_timeout_ms.");
@@ -277,14 +276,22 @@ Status PgsqlWriteOperation::ApplyUpdate(const DocOperationApplyData& data) {
 }
 
 Status PgsqlWriteOperation::ApplyDelete(const DocOperationApplyData& data) {
+  int num_deleted = 1;
   QLTableRow table_row;
   RETURN_NOT_OK(ReadColumns(data, &table_row));
-  // TODO(jason): only ignore empty when dealing with index backfill DELETE permissions, not for
-  // _all_ tables when the flag ysql_disable_index_backfill is set.
-  if (table_row.IsEmpty() && FLAGS_ysql_disable_index_backfill) {
+  if (table_row.IsEmpty()) {
     // Row not found.
     response_->set_skipped(true);
-    return Status::OK();
+    // Return early unless we still want to apply the delete for backfill purposes.  Deletes to
+    // nonexistent rows are expected to get written to the index when the index has the delete
+    // permission during an online schema migration.
+    // TODO(jason): apply deletes only when this is an index table going through a schema migration,
+    // not just when backfill is enabled.
+    if (FLAGS_ysql_disable_index_backfill) {
+      return Status::OK();
+    } else {
+      num_deleted = 0;
+    }
   }
 
   // TODO(neil) Add support for WHERE clause.
@@ -296,7 +303,7 @@ Status PgsqlWriteOperation::ApplyDelete(const DocOperationApplyData& data) {
 
   RETURN_NOT_OK(PopulateResultSet(table_row));
 
-  response_->set_rows_affected_count(1);
+  response_->set_rows_affected_count(num_deleted);
   response_->set_status(PgsqlResponsePB::PGSQL_STATUS_OK);
   return Status::OK();
 }
@@ -424,16 +431,41 @@ Result<size_t> PgsqlReadOperation::Execute(const common::YQLStorageIf& ql_storag
   VLOG(4) << "Read, read time: " << read_time << ", txn: " << txn_op_context_;
 
   // Fetching data.
+  bool has_paging_state = false;
   if (request_.batch_arguments_size() > 0) {
-    fetched_rows = VERIFY_RESULT(ExecuteBatch(
-        ql_storage, deadline, read_time, schema, result_buffer, restart_read_ht));
-    if (FLAGS_trace_docdb_calls) {
-      TRACE("Fetched $0 rows.", fetched_rows);
+    if (request_.has_ybctid_column_value()) {
+      fetched_rows = VERIFY_RESULT(ExecuteBatchYbctid(
+          ql_storage, deadline, read_time, schema, result_buffer, restart_read_ht));
+    } else {
+      fetched_rows = VERIFY_RESULT(ExecuteBatch(ql_storage, deadline, read_time, schema,
+                                                index_schema, result_buffer, restart_read_ht,
+                                                &has_paging_state));
     }
-    *restart_read_ht = table_iter_->RestartReadHt();
-    return fetched_rows;
+  } else {
+    fetched_rows = VERIFY_RESULT(ExecuteScalar(ql_storage, deadline, read_time, schema,
+                                               index_schema, -1 /* batch_arg_index */,
+                                               result_buffer, restart_read_ht, &has_paging_state));
   }
 
+  if (FLAGS_trace_docdb_calls) {
+    TRACE("Fetched $0 rows. $1 paging state", fetched_rows, (has_paging_state ? "No" : "Has"));
+  }
+  *restart_read_ht = table_iter_->RestartReadHt();
+  return fetched_rows;
+}
+
+Result<size_t> PgsqlReadOperation::ExecuteScalar(const common::YQLStorageIf& ql_storage,
+                                                 CoarseTimePoint deadline,
+                                                 const ReadHybridTime& read_time,
+                                                 const Schema& schema,
+                                                 const Schema *index_schema,
+                                                 int64_t batch_arg_index,
+                                                 faststring *result_buffer,
+                                                 HybridTime *restart_read_ht,
+                                                 bool *has_paging_state) {
+  *has_paging_state = false;
+
+  size_t fetched_rows = 0;
   size_t row_count_limit = std::numeric_limits<std::size_t>::max();
   if (request_.has_limit()) {
     if (request_.limit() == 0) {
@@ -452,14 +484,16 @@ Result<size_t> PgsqlReadOperation::Execute(const common::YQLStorageIf& ql_storag
   const Schema* scan_schema;
 
   RETURN_NOT_OK(CreateProjection(schema, request_.column_refs(), &projection));
-  RETURN_NOT_OK(ql_storage.GetIterator(request_, projection, schema, txn_op_context_,
+  RETURN_NOT_OK(ql_storage.GetIterator(request_, batch_arg_index,
+                                       projection, schema, txn_op_context_,
                                        deadline, read_time, &table_iter_));
 
   ColumnId ybbasectid_id;
   if (request_.has_index_request()) {
     const PgsqlReadRequestPB& index_request = request_.index_request();
     RETURN_NOT_OK(CreateProjection(*index_schema, index_request.column_refs(), &index_projection));
-    RETURN_NOT_OK(ql_storage.GetIterator(index_request, index_projection, *index_schema,
+    RETURN_NOT_OK(ql_storage.GetIterator(index_request, batch_arg_index,
+                                         index_projection, *index_schema,
                                          txn_op_context_, deadline, read_time, &index_iter_));
     iter = index_iter_.get();
     const size_t idx = index_schema->find_column("ybidxbasectid");
@@ -477,9 +511,6 @@ Result<size_t> PgsqlReadOperation::Execute(const common::YQLStorageIf& ql_storag
 
   // Set scan start time.
   bool scan_time_exceeded = false;
-  const int64 scan_time_limit =
-    FLAGS_retryable_rpc_single_call_timeout_ms * FLAGS_ysql_scan_timeout_multiplier;
-  const MonoTime start_time = MonoTime::Now();
 
   // Fetching data.
   int match_count = 0;
@@ -525,8 +556,7 @@ Result<size_t> PgsqlReadOperation::Execute(const common::YQLStorageIf& ql_storag
 
     // Check every row_count_limit matches whether we've exceeded our scan time.
     if (match_count % row_count_limit == 0) {
-      const MonoDelta elapsed_time = MonoTime::Now().GetDeltaSince(start_time);
-      scan_time_exceeded = elapsed_time.ToMilliseconds() > scan_time_limit;
+      scan_time_exceeded = CoarseMonoClock::now() >= deadline;
     }
   }
 
@@ -540,14 +570,8 @@ Result<size_t> PgsqlReadOperation::Execute(const common::YQLStorageIf& ql_storag
     SleepFor(MonoDelta::FromMilliseconds(FLAGS_TEST_slowdown_pgsql_aggregate_read_ms));
   }
 
-  if (FLAGS_trace_docdb_calls) {
-    TRACE("Fetched $0 rows.", fetched_rows);
-  }
-  *restart_read_ht = iter->RestartReadHt();
-
-  RETURN_NOT_OK(SetPagingStateIfNecessary(
-      iter, fetched_rows, row_count_limit, scan_time_exceeded, scan_schema));
-
+  RETURN_NOT_OK(SetPagingStateIfNecessary(iter, fetched_rows, row_count_limit, scan_time_exceeded,
+                                          scan_schema, batch_arg_index, has_paging_state));
   return fetched_rows;
 }
 
@@ -555,8 +579,33 @@ Result<size_t> PgsqlReadOperation::ExecuteBatch(const common::YQLStorageIf& ql_s
                                                 CoarseTimePoint deadline,
                                                 const ReadHybridTime& read_time,
                                                 const Schema& schema,
+                                                const Schema *index_schema,
                                                 faststring *result_buffer,
-                                                HybridTime *restart_read_ht) {
+                                                HybridTime *restart_read_ht,
+                                                bool *has_paging_state) {
+  size_t fetched_rows = 0;
+  bool exec_has_paging_state = false;
+
+  int32_t batch_arg_count = request_.batch_arguments_size();
+  int64_t batch_arg_index = 0;
+  while (!exec_has_paging_state && batch_arg_index < batch_arg_count) {
+    fetched_rows += VERIFY_RESULT(ExecuteScalar(ql_storage, deadline, read_time, schema,
+                                                index_schema, batch_arg_index, result_buffer,
+                                                restart_read_ht, &exec_has_paging_state));
+    batch_arg_index++;
+  }
+  *has_paging_state = exec_has_paging_state;
+
+  response_.set_batch_arg_count(batch_arg_index);
+  return fetched_rows;
+}
+
+Result<size_t> PgsqlReadOperation::ExecuteBatchYbctid(const common::YQLStorageIf& ql_storage,
+                                                      CoarseTimePoint deadline,
+                                                      const ReadHybridTime& read_time,
+                                                      const Schema& schema,
+                                                      faststring *result_buffer,
+                                                      HybridTime *restart_read_ht) {
   Schema projection;
   RETURN_NOT_OK(CreateProjection(schema, request_.column_refs(), &projection));
 
@@ -588,7 +637,15 @@ Status PgsqlReadOperation::SetPagingStateIfNecessary(const common::YQLRowwiseIte
                                                      size_t fetched_rows,
                                                      const size_t row_count_limit,
                                                      const bool scan_time_exceeded,
-                                                     const Schema* schema) {
+                                                     const Schema* schema,
+                                                     int64_t batch_arg_index,
+                                                     bool *has_paging_state) {
+  *has_paging_state = false;
+  if (!request_.return_paging_state()) {
+    return Status::OK();
+  }
+
+  // Set the paging state for next row.
   if (fetched_rows >= row_count_limit || scan_time_exceeded) {
     SubDocKey next_row_key;
     RETURN_NOT_OK(iter->GetNextReadSubDocKey(&next_row_key));
@@ -596,19 +653,18 @@ Status PgsqlReadOperation::SetPagingStateIfNecessary(const common::YQLRowwiseIte
     // return the partition key and row key of the next row to read in the paging state if there are
     // still more rows to read. Otherwise, leave the paging state empty which means we are done
     // reading from this tablet.
-    if (request_.return_paging_state()) {
-      if (!next_row_key.doc_key().empty()) {
-        const auto& keybytes = next_row_key.Encode();
-        PgsqlPagingStatePB* paging_state = response_.mutable_paging_state();
-        DSCHECK(schema != nullptr, IllegalState, "Missing schema");
-        if (schema->num_hash_key_columns() > 0) {
-          paging_state->set_next_partition_key(
-              PartitionSchema::EncodeMultiColumnHashValue(next_row_key.doc_key().hash()));
-        } else {
-          paging_state->set_next_partition_key(keybytes.ToStringBuffer());
-        }
-        paging_state->set_next_row_key(keybytes.ToStringBuffer());
+    if (!next_row_key.doc_key().empty()) {
+      const auto& keybytes = next_row_key.Encode();
+      PgsqlPagingStatePB* paging_state = response_.mutable_paging_state();
+      DSCHECK(schema != nullptr, IllegalState, "Missing schema");
+      if (schema->num_hash_key_columns() > 0) {
+        paging_state->set_next_partition_key(
+           PartitionSchema::EncodeMultiColumnHashValue(next_row_key.doc_key().hash()));
+      } else {
+        paging_state->set_next_partition_key(keybytes.ToStringBuffer());
       }
+      paging_state->set_next_row_key(keybytes.ToStringBuffer());
+      *has_paging_state = true;
     }
   }
 
@@ -657,25 +713,53 @@ Status PgsqlReadOperation::PopulateAggregate(const QLTableRow& table_row,
   return Status::OK();
 }
 
-Status PgsqlReadOperation::GetIntents(const Schema& schema, KeyValueWriteBatchPB* out) {
+Status PgsqlReadOperation::GetPartitionIntent(
+    const Schema& schema,
+    const google::protobuf::RepeatedPtrField<PgsqlExpressionPB> &column_values,
+    KeyValueWriteBatchPB* out) {
   auto pair = out->mutable_read_pairs()->Add();
 
+  std::vector<PrimitiveValue> hashed_components;
+  RETURN_NOT_OK(InitKeyColumnPrimitiveValues(
+      column_values, schema, 0 /* start_idx */, &hashed_components));
+
+  DocKey doc_key(schema, request_.hash_code(), hashed_components);
+  pair->set_key(doc_key.Encode().ToStringBuffer());
+  pair->set_value(std::string(1, ValueTypeAsChar::kNullLow));
+
+  return Status::OK();
+}
+
+Status PgsqlReadOperation::GetIntents(const Schema& schema, KeyValueWriteBatchPB* out) {
   if (request_.partition_column_values().empty()) {
     // Empty components mean that we don't have primary key at all, but request
     // could still contain hash_code as part of tablet routing.
     // So we should ignore it.
     DocKey doc_key(schema);
+    auto pair = out->mutable_read_pairs()->Add();
     pair->set_key(doc_key.Encode().ToStringBuffer());
-  } else {
-    std::vector<PrimitiveValue> hashed_components;
-    RETURN_NOT_OK(InitKeyColumnPrimitiveValues(
-        request_.partition_column_values(), schema, 0 /* start_idx */, &hashed_components));
-
-    DocKey doc_key(schema, request_.hash_code(), hashed_components);
-    pair->set_key(doc_key.Encode().ToStringBuffer());
+    pair->set_value(std::string(1, ValueTypeAsChar::kNullLow));
+    return Status::OK();
   }
 
-  pair->set_value(std::string(1, ValueTypeAsChar::kNullLow));
+  // Use "true" condition as DocDB only supports scalar argument currently.
+  if (true) {
+    // Executing scalar argument.
+    return GetPartitionIntent(schema, request_.partition_column_values(), out);
+
+  } else {
+    // Executing batch argument.
+    // Currently, this code is still an experiment for executing requests in parallel.
+    // NOTE: Batch arguments are used for parallelism execution by partitions, so the partition
+    //       field must be present in each batch_argument.
+    DCHECK_GT(request_.batch_arguments_size(), 0) << "Batch argument was not provided";
+
+    for (const PgsqlBatchArgumentPB& batch_argument : request_.batch_arguments()) {
+      DCHECK_GT(batch_argument.partition_column_values_size(), 0);
+      RETURN_NOT_OK(GetPartitionIntent(schema, batch_argument.partition_column_values(), out));
+    }
+  }
+
   return Status::OK();
 }
 

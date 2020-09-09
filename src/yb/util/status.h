@@ -579,6 +579,12 @@ inline std::ostream& operator<<(std::ostream& out, const Status& status) {
             __LINE__, \
             ::yb::Format(__VA_ARGS__)))
 
+#define STATUS_EC_FORMAT(status_type, error_code, ...) \
+    (::yb::Status(::yb::Status::BOOST_PP_CAT(k, status_type), \
+            __FILE__, \
+            __LINE__, \
+            ::yb::Format(__VA_ARGS__), error_code))
+
 // Utility macros to perform the appropriate check. If the check fails,
 // returns the specified (error) Status, with the given message.
 #define SCHECK_OP(var1, op, var2, type, msg) \

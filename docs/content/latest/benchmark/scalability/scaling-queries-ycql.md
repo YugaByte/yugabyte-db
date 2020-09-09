@@ -31,14 +31,14 @@ isTocNested: true
 
 </ul>
 
-As a part of our efforts to push the limits of the systems we build, Yugabyte ran some large cluster benchmarks to scale YugabyteDB to million of reads and writes per second while retaining low latencies. This topic covers the details about our 50-node cluster benchmarks. [Results of the earlier benchmark tests performed on a 25-node cluster](https://forum.yugabyte.com/t/large-cluster-perf-1-25-nodes/58) are available in the Yugabyte Community forum.
+As a part of our efforts to push the limits of the systems you build, Yugabyte ran some large cluster benchmarks to scale YugabyteDB to million of reads and writes per second while retaining low latencies. This topic covers the details about our 50-node cluster benchmarks. [Results of the earlier benchmark tests performed on a 25-node cluster](https://forum.yugabyte.com/t/large-cluster-perf-1-25-nodes/58) are available in the Yugabyte Community forum.
 
 ![YCQL key-value workload](/images/benchmark/scalability/key-value-workload-ycql.png)
 Writes are RF of `3` with strong consistency, reads are leader-only data strongly consistent reads.
 
 The graph above shows how you can achieve linear scalability with YugabyteDB. The read and write throughput doubles when the cluster size doubles from 25 to 50 nodes, while the latencies remain low in the order of couple milliseconds. For details about how reads and writes work, see [YugabyteDB architecture](../../../architecture/) and [YugabyteDB IO operations](../../../architecture/core-functions/).
 
-This test was performed in [Google Cloud Platform (GCP)](https://cloud.google.com/gcp/). Since YugabyteDB is a cloud-native database, it can deliver similar performance results on other public clouds and on-premise data centers.
+This test was performed in [Google Cloud Platform (GCP)](https://cloud.google.com/gcp/). Since YugabyteDB is a cloud-native database, it can deliver similar performance results on other public clouds and on-premises data centers.
 
 The sections below cover the experimental setup and the details of the read and write performance metrics.
 

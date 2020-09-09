@@ -335,8 +335,7 @@ TEST_F(DeleteTableTest, TestDeleteEmptyTable) {
     ASSERT_OK(cluster_->master_proxy()->GetTabletLocations(req, &resp, &rpc));
     SCOPED_TRACE(resp.DebugString());
     ASSERT_EQ(1, resp.errors_size());
-    ASSERT_STR_CONTAINS(resp.errors(0).ShortDebugString(),
-                        "code: NOT_FOUND message: \"Tablet deleted: Table deleted");
+    ASSERT_STR_CONTAINS(resp.errors(0).ShortDebugString(), "code: NOT_FOUND");
   }
 
   // 4) The master 'dump-entities' page should not list the deleted table or tablets.

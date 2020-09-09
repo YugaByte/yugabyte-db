@@ -16,7 +16,7 @@
 
 #include "yb/common/transaction.h"
 
-#include "yb/rpc/thread_pool.h"
+#include "yb/rpc/strand.h"
 
 #include "yb/tablet/tablet_fwd.h"
 
@@ -24,7 +24,7 @@ namespace yb {
 namespace tablet {
 
 // Used by TransactionParticipant to remove intents of specified transaction.
-class CleanupIntentsTask : public rpc::ThreadPoolTask {
+class CleanupIntentsTask : public rpc::StrandTask {
  public:
   CleanupIntentsTask(
       TransactionParticipantContext* participant_context, TransactionIntentApplier* applier,

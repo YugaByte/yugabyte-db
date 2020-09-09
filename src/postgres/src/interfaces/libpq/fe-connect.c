@@ -118,7 +118,6 @@ static int ldapServiceLookup(const char *purl, PQconninfoOption *options,
  * fall back options if they are not specified by arguments or defined
  * by environment variables
  */
-#define DefaultHost		"localhost"
 #define DefaultTty		""
 #define DefaultOption	""
 #define DefaultAuthtype		  ""
@@ -1132,7 +1131,7 @@ connectOptions2(PGconn *conn)
 	{
 		if (conn->dbName)
 			free(conn->dbName);
-		conn->dbName = strdup(conn->pguser);
+		conn->dbName = strdup("yugabyte");
 		if (!conn->dbName)
 			goto oom_error;
 	}
@@ -5379,6 +5378,16 @@ conninfo_add_defaults(PQconninfoOption *options, PQExpBuffer errorMessage)
 		if (strcmp(option->keyword, "user") == 0)
 		{
 		  /* YugaByte default username to "postgres" */
+			option->val = strdup("yugabyte");
+			continue;
+		}
+
+		/*
+		 * Special handling for "dbname" option.		 
+		 */
+		if (strcmp(option->keyword, "dbname") == 0)
+		{
+		  /* YugaByte default dbname to "yugabyte" */
 			option->val = strdup("yugabyte");
 			continue;
 		}

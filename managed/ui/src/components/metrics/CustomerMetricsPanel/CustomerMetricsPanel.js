@@ -9,11 +9,11 @@ import { showOrRedirect } from '../../../utils/LayoutUtils';
 
 const graphPanelTypes = {
   "universe": {
-    data: ['ysql_ops', 'ycql_ops', 'yedis_ops', 'container', 'server', 'cql', 'redis', 'tserver', 'lsmdb'],
+    data: ['ysql_ops', 'ycql_ops', 'yedis_ops', 'container', 'server', 'cql', 'redis', 'tserver', 'master', 'lsmdb'],
     isOpen: [true, true, false, false, false, false, false, false, false]
   },
   "customer": {
-    data: ['ysql_ops', 'ycql_ops', 'yedis_ops', 'container', 'server', 'cql', 'redis', 'tserver', 'lsmdb'],
+    data: ['ysql_ops', 'ycql_ops', 'yedis_ops', 'container', 'server', 'cql', 'redis', 'tserver', 'master', 'lsmdb'],
     isOpen: [true, true, false, false, false, false, false, false, false]
   },
   "table": {

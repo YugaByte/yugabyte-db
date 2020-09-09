@@ -42,9 +42,6 @@ class MultiStageAlterTable {
   // table info, upon the completion of an alter table round if we are in the
   // middle of an index backfill. Will update the IndexPermission from
   // INDEX_PERM_DELETE_ONLY -> INDEX_PERM_WRITE_AND_DELETE -> BACKFILL
-  // Returns true if the next version of table schema/info was kicked off.
-  // Returns false otherwise -- so that the alter table operation can be
-  // considered to have completed.
   static Status LaunchNextTableInfoVersionIfNecessary(
       CatalogManager* mgr, const scoped_refptr<TableInfo>& Info, uint32_t current_version);
 
@@ -54,9 +51,16 @@ class MultiStageAlterTable {
   static Status ClearAlteringState(
       CatalogManager* mgr, const scoped_refptr<TableInfo>& table, uint32_t expected_version);
 
+  // Copies the current schema, schema_version, indexes and index_info
+  // into their fully_applied_* equivalents. This is useful to ensure
+  // that the master returns the fully applied version of the table schema
+  // while the next alter table is in progress.
+  static void CopySchemaDetailsToFullyApplied(SysTablesEntryPB* state);
+
   // Updates and persists the IndexPermission corresponding to the index_table_id for
   // the indexed_table's TableInfo.
-  static Status UpdateIndexPermission(
+  // Returns whether any permissions were actually updated (leading to a version being incremented).
+  static Result<bool> UpdateIndexPermission(
       CatalogManager* mgr, const scoped_refptr<TableInfo>& indexed_table,
       const std::unordered_map<TableId, IndexPermissions>& perm_mapping,
       boost::optional<uint32_t> current_version = boost::none);
@@ -79,7 +83,8 @@ class BackfillTable : public std::enable_shared_from_this<BackfillTable> {
  public:
   BackfillTable(Master *master, ThreadPool *callback_pool,
                 const scoped_refptr<TableInfo> &indexed_table,
-                std::vector<IndexInfoPB> indexes);
+                std::vector<IndexInfoPB> indexes,
+                const scoped_refptr<NamespaceInfo> &ns_info);
 
   void Launch();
 
@@ -119,6 +124,8 @@ class BackfillTable : public std::enable_shared_from_this<BackfillTable> {
   int64_t leader_term() const {
     return leader_term_;
   }
+
+  const std::string GetNamespaceName() const;
 
  private:
   void LaunchComputeSafeTimeForRead();
@@ -161,6 +168,7 @@ class BackfillTable : public std::enable_shared_from_this<BackfillTable> {
   std::shared_ptr<BackfillTableJob> backfill_job_;
   mutable simple_spinlock mutex_;
   HybridTime read_time_for_backfill_ GUARDED_BY(mutex_){HybridTime::kMin};
+  const scoped_refptr<NamespaceInfo> ns_info_;
 };
 
 class BackfillTableJob : public MonitoredTask {
@@ -232,6 +240,8 @@ class BackfillTablet : public std::enable_shared_from_this<BackfillTablet> {
   bool done() const {
     return done_.load(std::memory_order_acquire);
   }
+
+  const std::string GetNamespaceName() const { return backfill_table_->GetNamespaceName(); }
 
  private:
   std::shared_ptr<BackfillTable> backfill_table_;

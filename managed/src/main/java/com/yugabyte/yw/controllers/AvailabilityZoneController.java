@@ -45,7 +45,7 @@ public class AvailabilityZoneController extends AuthenticatedController {
     }
 
     try {
-      List<AvailabilityZone>  zoneList = AvailabilityZone.find.where()
+      List<AvailabilityZone>  zoneList = AvailabilityZone.find.query().where()
           .eq("region", region)
           .findList();
       return ApiResponse.success(zoneList);
@@ -102,8 +102,8 @@ public class AvailabilityZoneController extends AuthenticatedController {
       ApiResponse.error(BAD_REQUEST, "Invalid PlacementRegion/Provider UUID");
     }
 
-    AvailabilityZone az = AvailabilityZone.find.where().
-            idEq(azUUID).eq("region_uuid", regionUUID).findUnique();
+    AvailabilityZone az = AvailabilityZone.find.query().where().
+            idEq(azUUID).eq("region_uuid", regionUUID).findOne();
 
     if (az == null) {
       return ApiResponse.error(BAD_REQUEST, "Invalid Region/AZ UUID:" + azUUID);

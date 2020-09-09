@@ -68,7 +68,7 @@ public class TestSystemTables extends BaseCQLTest {
     HostAndPort leaderMaster = client.getLeaderMasterHostAndPort();
     Map<HostAndPort, MiniYBDaemon> masters = miniCluster.getMasters();
     for (Map.Entry<HostAndPort, MiniYBDaemon> master : masters.entrySet()) {
-      Metrics metrics = new Metrics(master.getKey().getHostText(),master.getValue().getWebPort(),
+      Metrics metrics = new Metrics(master.getKey().getHost(),master.getValue().getWebPort(),
         "server");
       long numOps = metrics.getHistogram(TSERVER_READ_METRIC).totalCount;
       if (leaderMaster.equals(master.getKey())) {
@@ -96,6 +96,7 @@ public class TestSystemTables extends BaseCQLTest {
         assertNotNull(row.getUUID("host_id"));
         assertNotNull(row.getString("data_center"));
         assertNotNull(row.getString("rack"));
+        assertEquals(row.getString("release_version"), RELEASE_VERSION);
       }
       assertTrue(found);
     }

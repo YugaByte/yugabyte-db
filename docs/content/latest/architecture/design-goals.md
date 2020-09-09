@@ -36,7 +36,7 @@ YugabyteDB supports single-row linearizable writes. Linearizability is one of th
 
 YugabyteDB supports multi-row transactions with both Serializable and Snapshot isolation.
 
-- The [YSQL](../../api/ysql/) API supports both Serializable and Snapshot Isolation using the PostgreSQL isolation level syntax of `SERIALIZABLE` and `REPEATABLE READS` (default) respectively. 
+- The [YSQL](../../api/ysql/) API supports both Serializable and Snapshot Isolation using the PostgreSQL isolation level syntax of `SERIALIZABLE` and `REPEATABLE READ` (default) respectively. 
 - The [YCQL](../../api/ycql/dml_transaction/) API supports only Snapshot Isolation using the `BEGIN TRANSACTION` syntax.
 
 {{< tip title="Read more about consistency" >}}
@@ -54,7 +54,7 @@ YugabyteDB does not reinvent data client APIs. It is wire-compatible with existi
 
 ### YSQL
 
-[YSQL](../../api/ysql/) is a fully-relational SQL API that is wire compatible with the SQL language in PostgreSQL. It is best fit for RDBMS workloads that need horizontal write scalability and global data distribution while also using relational modeling features such as JOINs, distributed transactions and referential integrity (such as foreign keys). Note that [reuses the native query layer](https://blog.yugabyte.com/why-we-built-yugabytedb-by-reusing-the-postgresql-query-layer/) of the PostgreSQL open source project.
+[YSQL](../../api/ysql/) is a fully-relational SQL API that is wire compatible with the SQL language in PostgreSQL. It is best fit for RDBMS workloads that need horizontal write scalability and global data distribution while also using relational modeling features such as JOINs, distributed transactions and referential integrity (such as foreign keys). Note that YSQL [reuses the native query layer](https://blog.yugabyte.com/why-we-built-yugabytedb-by-reusing-the-postgresql-query-layer/) of the PostgreSQL open source project.
 
 - New changes do not break existing PostgreSQL functionality
 
@@ -73,7 +73,7 @@ YugabyteDB does not reinvent data client APIs. It is wire-compatible with existi
 
 ### YCQL
 
-[YCQL](../../api/ycql/) is a SQL-based flexible-schema API that is best fit for internet-scale OLTP apps needing a semi-relational API highly optimized for write-intensive applications as well as blazing-fast queries. It supports distributed transactions, strongly consistent secondary indexes and a native JSON column type. YCQL has its roots in the Cassandra Query Language. 
+[YCQL](../../api/ycql/) is a semi-relational SQL API that is best fit for internet-scale OLTP and HTAP apps needing massive write scalability as well as blazing-fast queries. It supports distributed transactions, strongly consistent secondary indexes and a native JSON column type. YCQL has its roots in the Cassandra Query Language. 
 
 {{< tip title="Read more" >}}
 
@@ -116,7 +116,7 @@ YugabyteDB is a cloud-native database. It has been designed with the following c
 
 ### Run on commodity hardware
 
-- Run on any public cloud or on-premise data center. This means YugabyteDB should be able to run on commodity hardware on bare metal machines, VMs or containers.
+- Run on any public cloud or on-premises data center. This means YugabyteDB should be able to run on commodity hardware on bare metal machines, VMs or containers.
 - No hard external dependencies. For example, YugabyteDB should not rely on atomic clocks, but should be able to utilize one if available.
 
 ### Kubernetes ready

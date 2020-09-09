@@ -22,13 +22,13 @@ You can read more about these notions in the PostgreSQL documentation here:
 
 - Section [43.3.5. Record Types](https://www.postgresql.org/docs/11/plpgsql-declarations.html#PLPGSQL-DECLARATION-RECORDS)
 
-You need first to understand how to write a literal for a _"row"_ type value before you can understand, as the [The literal for an array of "row" type values](../array-of-rows/) section explains, how to write the literal for an array of such values.
+You need first to understand how to write a literal for a _"row"_ type value before you can understand, as [The literal for an array of "row" type values](../array-of-rows/) explains, how to write the literal for an array of such values.
 
-This section uses the same approach as the [The literal for an array of primitive values](../array-of-primitive-values/) section: first it states the rules; and then it illustrates these with examples.
+This section uses the same approach as [The literal for an array of primitive values](../array-of-primitive-values/): first it states the rules; and then it illustrates these with examples.
 
 ## Statement of the rules
 
-Just as in the [Statement of the rules](../array-of-primitive-values/#statement-of-the-rules) subsection in the _"The literal for an array of primitive values"_ section, the statement of these rules depends on understanding the notion of the canonical form of a literal.
+Just as in [Statement of the rules](../array-of-primitive-values/#statement-of-the-rules) in the _"The literal for an array of primitive values"_ section, the statement of these rules depends on understanding the notion of the canonical form of a literal.
 
 If you follow the rules that are stated here, and illustrated in the demonstrations below, then you will always produce a syntactically valid literal which expresses the semantics that you intend. It turns out that many other variants, especially for `text[]` values, are legal and can produce the result that you intend. However, the rules that govern these exotic uses will not be documented because it is always sufficient to create your literals in canonical form.
 
@@ -66,7 +66,7 @@ Use the _"row"_ type constructor to create representative values of each kind an
 
 This example demonstrates the principle:
 
-```postgresql
+```plpgsql
 create type row_t as (f1 int, f2 int, f3 int);
 create table t(k serial primary key, v1 row_t, v2 row_t);
 insert into t(v1) values (row(1, 2, 3)::row_t);
@@ -76,7 +76,7 @@ select v1::text as text_typecast from t where k = 1
 ```
 The keyword `ROW` names the _"row"_ type constructor function. It is optional, but is used here for emphasis.
 
-The `\gset` metacommand was used first in this _"Array data types and functionality"_ major section in the section [`array_agg()` and `unnest()`](../../functions-operators/array-agg-unnest). 
+The `\gset` metacommand was used first in this _"Array data types and functionality"_ major section in [`array_agg()` and `unnest()`](../../functions-operators/array-agg-unnest). 
 
 Notice that, in this example, the `SELECT` statement is terminated by the `\gset` metacommand on the next line rather than by the usual semicolon. The `\gset` metacommand is silent. The `\echo` metacommand shows this:
 
@@ -94,7 +94,7 @@ You can see the general form already:
 The next section, [_"Row"_ type with `text` fields](./#row-type-with-text-fields), shows that more needs to be said. But the two rules that you have already noticed always hold.
 
 To use the text of the literal that was produced to create a value, you must enquote it and typecast it. Do this with the `\set` metacommand:
-```postgresql
+```plpgsql
 \set canonical_literal '\'':result_text_typecast'\''::row_t
 \echo :canonical_literal
 ```
@@ -103,7 +103,7 @@ To use the text of the literal that was produced to create a value, you must enq
 '(1,2,3)'::row_t
 ```
 Next, use the canonical literal that you produced to update _"t.v2"_ to confirm that the value that the row constructor created was recreated:
-```postgresql
+```plpgsql
 update t set v2 = :canonical_literal where k = 1;
 select (v1 = v2)::text as "v1 = v2" from t where k = 1;
 ```
@@ -117,12 +117,12 @@ As promised, the canonical form of the _"row"_ type literal does indeed recreate
 
 ### "Row" type with text fields
 
-Use the [_"Row"_ type with `int` fields](./#row-type-with-text-fields) example as a template for this and the subsequent sections. The example sets array values each of which, apart from the single character `a`, needs some discussion. These are the characters (or, in one case, character sequence), listed here "bare" and with ten spaces between each:
+Use [_"Row"_ type with `int` fields](./#row-type-with-text-fields) as a template for this and the subsequent sections. The example sets array values each of which, apart from the single character `a`, needs some discussion. These are the characters (or, in one case, character sequence), listed here "bare" and with ten spaces between each:
 ```
      a       '       a b       ()       ,       "       \       null
 ```
 
-```postgresql
+```plpgsql
 create type row_t as (f1 text, f2 text, f3 text, f4 text, f5 text, f6 text, f7 text, f8 text);
 create table t(k serial primary key, v1 row_t, v2 row_t);
 insert into t(v1) values (
@@ -157,7 +157,7 @@ In addition to the first two rules, you notice the following.
 There's another rule that the present example does not show. Though not every comma-separated value was surrounded by double quotes, it's _never harmful_ to do this. You can confirm this with your own test, Yugabyte recommends that, for consistency, you always surround every `text` value within the parentheses of a _"row"_ type literal with double quotes.
 
 To use the text of the literal that was produced to create a value, you must enquote it and typecast it. Do this, as you did for the `int` example above, with the `\set` metacommand. But you must use dollar quotes because the literal itself has an interior single quote.
-```postgresql
+```plpgsql
 \set canonical_literal '$$':result_text_typecast'$$'::row_t
 \echo :canonical_literal
 ```
@@ -166,7 +166,7 @@ The `\echo` metacommand now shows this:
 $$(a,',"a b","()",",","""","\\",)$$::row_t
 ```
 Next, use the canonical literal that you produced to update _"t.v2"_ to confirm that the value that the row constructor created was recreated:
-```postgresql
+```plpgsql
 update t set v2 = :canonical_literal where k = 1;
 select (v1 = v2)::text as "v1 = v2" from t where k = 1;
 ```
@@ -179,7 +179,7 @@ It shows this:
 So, again as promised, the canonical form of the array literal does indeed recreate the identical value that the _"row"_ type constructor created.
 
 Finally in this section, consider the meaning-changing effect of surrounding the comma delimiters with whitespace. Try this:
-```postgresql
+```plpgsql
 create type row_t as (f1 text, f2 text, f3 text);
 select '(   a   ,   "(a b)"   ,   c   )'::row_t;;
 ```
@@ -197,7 +197,7 @@ This rule is different from the rule for an array literal. It's also different f
 
 This example demonstrates the principle:
 
-```postgresql
+```plpgsql
 create type row_t as (f1 timestamp, f2 timestamp);
 create table t(k serial primary key, v1 row_t, v2 row_t);
 insert into t(v1) values (('2019-01-27 11:48:33', '2020-03-30 14:19:21')::row_t);
@@ -211,7 +211,7 @@ The `\echo` metacommand shows this:
 ("2019-01-27 11:48:33","2020-03-30 14:19:21")
 ```
 To use the text of the literal that was produced to create a value, you must enquote it and typecast it. Do this with the `\set` metacommand:
-```postgresql
+```plpgsql
 \set canonical_literal '\'':result_text_typecast'\''::row_t
 \echo :canonical_literal
 ```
@@ -220,7 +220,7 @@ To use the text of the literal that was produced to create a value, you must enq
 '("2019-01-27 11:48:33","2020-03-30 14:19:21")'::row_t
 ```
 Next, use the canonical literal that you produced to update _"t.v2"_ to confirm that you have recreated the value that the row constructor created:
-```postgresql
+```plpgsql
 update t set v2 = :canonical_literal where k = 1;
 select (v1 = v2)::text as "v1 = v2" from t where k = 1;
 ```
@@ -236,7 +236,7 @@ Once again, as promised, the canonical form of the array literal does indeed rec
 
 This example demonstrates the principle:
 
-```postgresql
+```plpgsql
 create type row_t as (f1 boolean, f2 boolean, f3 boolean);
 create table t(k serial primary key, v1 row_t, v2 row_t);
 insert into t(v1) values ((true, false, null)::row_t);
@@ -249,7 +249,7 @@ The `\echo` metacommand shows this:
  (t,f,)
 ```
 To use the text of the literal that was produced to create a value, you must enquote it and typecast it. Do this with the `\set` metacommand:
-```postgresql
+```plpgsql
 \set canonical_literal '\'':result_text_typecast'\''::row_t
 \echo :canonical_literal
 ```
@@ -258,7 +258,7 @@ To use the text of the literal that was produced to create a value, you must enq
 '(t,f,)'::row_t
 ```
 Next, use the canonical literal that you produced to update _"t.v2"_ to confirm that the value that the row constructor created was recreated:
-```postgresql
+```plpgsql
 update t set v2 = :canonical_literal where k = 1;
 select (v1 = v2)::text as "v1 = v2" from t where k = 1;
 ```
@@ -282,7 +282,7 @@ The rules for such cases can be determined by induction from the rules that this
 
 The two notions, _type constructor_ and _literal_, are functionally critically different. You can demonstrate the difference using a `DO` block, because this lets you use a declared variable. It's more effort to do this using a SQL statement because you'd have to use a scalar subquery in place of the PL/pgSQL variable. The `ROW` keyword is deliberately omitted here to emphasize its optional status.
 
-```postgresql
+```plpgsql
 create type rt as (n numeric, s text, t timestamp, b boolean);
 
 do $body$
@@ -298,4 +298,4 @@ begin
 end;
 $body$;
 ```
-You can use the _"row"_ type constructor as an expression in the [`array[]` value constructor](../../array-constructor)). But, of course, you can use only the literal for a _"row"_ type value within the the _literal_ for an array. The section [The literal for an array of _"row"_ type values](../array-of-rows/) explains this.
+You can use the _"row"_ type constructor as an expression in the [`array[]` value constructor](../../array-constructor)). But, of course, you can use only the literal for a _"row"_ type value within the _literal_ for an array. [The literal for an array of _"row"_ type values](../array-of-rows/) explains this.

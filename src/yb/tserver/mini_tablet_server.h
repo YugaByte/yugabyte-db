@@ -56,9 +56,10 @@ class TabletServer;
 // An in-process tablet server meant for use in test cases.
 class MiniTabletServer {
  public:
-  static Result<std::unique_ptr<MiniTabletServer>> CreateMiniTabletServer(const string& fs_root,
-                                                                          uint16_t rpc_port,
-                                                                          int index = 0);
+  static Result<std::unique_ptr<MiniTabletServer>> CreateMiniTabletServer(
+      const string& fs_root,
+      uint16_t rpc_port,
+      int index = 0);
 
   MiniTabletServer(const std::string& fs_root, uint16_t rpc_port,
                    const TabletServerOptions& extra_opts, int index = 0);
@@ -95,14 +96,16 @@ class MiniTabletServer {
   // Add a new tablet to the test server, use the default consensus configuration.
   //
   // Requires that the server has already been started with Start().
-  CHECKED_STATUS AddTestTablet(const std::string& table_id,
+  CHECKED_STATUS AddTestTablet(const std::string& ns_id,
+                       const std::string& table_id,
                        const std::string& tablet_id,
                        const Schema& schema,
                        TableType table_type);
 
   // Add a new tablet to the test server and specify the consensus configuration
   // for the tablet.
-  CHECKED_STATUS AddTestTablet(const std::string& table_id,
+  CHECKED_STATUS AddTestTablet(const std::string& ns_id,
+                       const std::string& table_id,
                        const std::string& tablet_id,
                        const Schema& schema,
                        const consensus::RaftConfigPB& config,

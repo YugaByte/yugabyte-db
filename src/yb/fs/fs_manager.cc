@@ -122,25 +122,25 @@ FsManagerOpts::~FsManagerOpts() {
 }
 
 FsManager::FsManager(Env* env, const string& root_path, const std::string& server_type)
-  : env_(DCHECK_NOTNULL(env)),
-    read_only_(false),
-    wal_fs_roots_({ root_path }),
-    data_fs_roots_({ root_path }),
-    server_type_(server_type),
-    metric_entity_(nullptr),
-    initted_(false) {
+    : env_(DCHECK_NOTNULL(env)),
+      read_only_(false),
+      wal_fs_roots_({ root_path }),
+      data_fs_roots_({ root_path }),
+      server_type_(server_type),
+      metric_entity_(nullptr),
+      initted_(false) {
 }
 
 FsManager::FsManager(Env* env,
                      const FsManagerOpts& opts)
-  : env_(DCHECK_NOTNULL(env)),
-    read_only_(opts.read_only),
-    wal_fs_roots_(opts.wal_paths),
-    data_fs_roots_(opts.data_paths),
-    server_type_(opts.server_type),
-    metric_entity_(opts.metric_entity),
-    parent_mem_tracker_(opts.parent_mem_tracker),
-    initted_(false) {
+    : env_(DCHECK_NOTNULL(env)),
+      read_only_(opts.read_only),
+      wal_fs_roots_(opts.wal_paths),
+      data_fs_roots_(opts.data_paths),
+      server_type_(opts.server_type),
+      metric_entity_(opts.metric_entity),
+      parent_mem_tracker_(opts.parent_mem_tracker),
+      initted_(false) {
 }
 
 FsManager::~FsManager() {
@@ -281,10 +281,10 @@ Status FsManager::DeleteLockFiles() {
   return Status::OK();
 }
 
-Status FsManager::DeleteFileSystemLayout(bool delete_logs_also) {
+Status FsManager::DeleteFileSystemLayout(ShouldDeleteLogs also_delete_logs) {
   CHECK(!read_only_);
   set<string> removal_set;
-  if (delete_logs_also) {
+  if (also_delete_logs) {
     removal_set = canonicalized_all_fs_roots_;
   } else {
     auto removal_list = GetWalRootDirs();

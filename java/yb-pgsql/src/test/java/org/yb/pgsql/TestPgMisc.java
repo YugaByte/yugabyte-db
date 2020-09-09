@@ -148,8 +148,9 @@ public class TestPgMisc extends BasePgSQLTest {
   }
 
   private void executeQueryInTemplate(String query) throws Exception {
-    try (Connection connection = createConnection(0, "template1");
-         Statement statement = connection.createStatement()) {
+    try (Connection connection = getConnectionBuilder().withTServer(0).withDatabase("template1")
+        .connect();
+        Statement statement = connection.createStatement()) {
       statement.execute(query);
     }
   }

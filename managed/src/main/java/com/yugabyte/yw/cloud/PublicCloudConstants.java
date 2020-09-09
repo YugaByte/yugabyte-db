@@ -15,7 +15,7 @@ public class PublicCloudConstants {
   public static final String IO1_SIZE = "io1.size";
   public static final String IO1_PIOPS = "io1.piops";
   public static final String GP2_SIZE = "gp2.size";
-	public enum Tenancy {
+  public enum Tenancy {
     Shared,
     Dedicated,
     Host
@@ -30,7 +30,10 @@ public class PublicCloudConstants {
     IO1(Common.CloudType.aws),
     GP2(Common.CloudType.aws),
     Scratch(Common.CloudType.gcp),
-    Persistent(Common.CloudType.gcp);
+    Persistent(Common.CloudType.gcp),
+    StandardSSD_LRS(Common.CloudType.azu),
+    Premium_LRS(Common.CloudType.azu),
+    UltraSSD_LRS(Common.CloudType.azu);
 
     private Common.CloudType cloudType;
 

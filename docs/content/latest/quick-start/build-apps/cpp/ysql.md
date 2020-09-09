@@ -42,7 +42,7 @@ The tutorial assumes that you have:
 - have a 32-bit (x86) or 64-bit (x64) architecture machine.
 - have `gcc` 4.1.2 or later, clang 3.4 or later installed.
 
-## Install the C++ driver (libpqxx)
+## Install the libpqxx driver
 
 Download the source from the [libpqxx](https://github.com/jtv/libpqxx) and build the binaries as follows. If needed, detailed steps are provided in the [README](https://github.com/jtv/libpqxx/blob/master/README.md) file.
 
@@ -69,9 +69,9 @@ $ make
 $ make install
 ```
 
-## Working example
+## Create a sample C++ application
 
-### Sample C++ code
+### Add the C++ code
 
 Create a file `ybsql_hello_world.cpp` and copy the contents below:
 
@@ -138,13 +138,13 @@ int main(int, char *argv[])
 
 ### Run the application
 
-You can compile the file using `gcc` or `clang`. Note that C++ 11 is the minimum supported C++ version. Make sure your compiler supports this, and if necessary, that you have support for C++11 configured. For gcc, you can use:
+You can compile the file using `gcc` or `clang`. Note that C++ 11 is the minimum supported C++ version. Make sure your compiler supports this, and if necessary, that you have support for C++11 configured. For `gcc`, run the following command:
 
 ```sh
 $ g++ -std=c++11 ybsql_hello_world.cpp -lpqxx -lpq -I<yugabyte-install-dir>/postgres/include -o ybsql_hello_world
 ```
 
-Run with:
+Use the application by running the following command:
 
 ```sh
 $ ./ybsql_hello_world

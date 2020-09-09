@@ -6,7 +6,7 @@ description: Aggregate a SETOF values into a JSON object.
 menu:
   latest:
     identifier: jsonb-object-agg
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 155
 isTocNested: true
 showAsideToc: true
@@ -22,7 +22,7 @@ return value:      jsonb
 ```
 
 **Notes:** The syntax _"order by... nulls first"_ within the parentheses of the aggregate function (a generic feature of aggregate functions) isn't useful here because the order of the _key-value_ pairs of a JSON _object_ has no semantic significance. (The `::text` typecast of a `jsonb` _object_ uses the convention of ordering the pairs alphabetically by the key_.
-```postgresql
+```plpgsql
 do $body$
 declare
   object_agg jsonb not null := '"?"';
@@ -46,7 +46,7 @@ $body$;
 ```
 
 An _object_ is a set of key-value pairs where each key is unique and the order is undefined and insignificant. (As explained earlier, when a JSON literal is This example emphasizes the property of a JSON _object_ that _keys_ are unique. (See the accounts of the [`jsonb_set()` and `jsonb_insert()`](../jsonb-set-jsonb-insert) functions.) This means that if a _key-value_ pair is specified more than once, then the one that is most recently specified wins. You see the same rule at work here:
-```postgresql
+```plpgsql
 select ('{"f2": 42, "f7": 7, "f2": null}'::jsonb)::text;
 ```
 It shows this:
@@ -56,7 +56,7 @@ It shows this:
  {"f2": null, "f7": 7}
 ```
 The `DO` block specifies both the value for _key "f2_" and the value for _key "f7_" twice:
-```postgresql
+```plpgsql
 do $body$
 declare
   object_agg jsonb not null := '"?"';

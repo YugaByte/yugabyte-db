@@ -105,7 +105,8 @@ public class CloudBootstrap extends CloudTaskBase {
     subTaskGroupQueue = new SubTaskGroupQueue(userTaskUUID);
     Provider p = Provider.get(taskParams().providerUUID);
     if (p.code.equals(Common.CloudType.gcp.toString())
-        || p.code.equals(Common.CloudType.aws.toString())) {
+        || p.code.equals(Common.CloudType.aws.toString())
+        || p.code.equals(Common.CloudType.azu.toString())) {
       createCloudSetupTask()
         .setSubTaskGroupType(UserTaskDetails.SubTaskGroupType.BootstrappingCloud);
     }

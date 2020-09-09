@@ -16,6 +16,9 @@ import scala.concurrent.ExecutionContext;
 import scala.concurrent.duration.Duration;
 
 import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -154,9 +157,11 @@ public class Scheduler {
           CronParser unixCronParser =
               new CronParser(CronDefinitionBuilder.instanceDefinitionFor(UNIX));
           Cron parsedUnixCronExpression = unixCronParser.parse(cronExpression);
-          ZonedDateTime now = ZonedDateTime.now();
+          Instant now = Instant.now();
+          // LocalDateTime now = LocalDateTime.ofInstant(Instant.now(), ZoneId.of("UTC"));
+          ZonedDateTime utcNow = now.atZone(ZoneId.of("UTC"));
           ExecutionTime executionTime = ExecutionTime.forCron(parsedUnixCronExpression);
-          long timeFromLastExecution = executionTime.timeFromLastExecution(now).get().getSeconds();
+          long timeFromLastExecution = executionTime.timeFromLastExecution(utcNow).get().getSeconds();
           if (timeFromLastExecution < YB_SCHEDULER_INTERVAL * MIN_TO_SEC) {
             // In case the last task was completed, or the last task was never even scheduled,
             // we run the task. If the task was scheduled, but didn't complete, we skip this
@@ -165,7 +170,7 @@ public class Scheduler {
               runTask = true;
             } else if (lastScheduledTime != null) {
               LOG.warn("Previous scheduled task still running, skipping this iteration's task. " +
-                       "Will try again next at {}.", executionTime.nextExecution(now).get());
+                       "Will try again next at {}.", executionTime.nextExecution(utcNow).get());
             }
           }
         }

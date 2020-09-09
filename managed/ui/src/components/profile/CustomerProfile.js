@@ -76,7 +76,7 @@ export default class CustomerProfile extends Component {
           {[
             <Tab.Pane
               eventKey={"general"}
-              title="General"
+              tabtitle="General"
               key="general-tab"
               mountOnEnter={true}
               unmountOnExit={true}
@@ -89,7 +89,7 @@ export default class CustomerProfile extends Component {
             </Tab.Pane>,
             <Tab.Pane
               eventKey={"health-alerting"}
-              title="Health & Alerting"
+              tabtitle="Health & Alerting"
               key="health-alerting-tab"
               mountOnEnter={true}
               unmountOnExit={true}
@@ -102,16 +102,13 @@ export default class CustomerProfile extends Component {
             </Tab.Pane>,
             <Tab.Pane
               eventKey={"manage-users"}
-              title="Users"
+              tabtitle="Users"
               key="manage-users"
               mountOnEnter={true}
               unmountOnExit={true}
-              disabled={isDisabled(customer.data.features, "main.profile")}>
-              <UserList customer={this.props.customer}
-                customerProfile={customerProfile}
-                apiToken={apiToken}
-                handleProfileUpdate={this.handleProfileUpdate}
-                {...this.props} />
+              disabled={isDisabled(customer.data.features, "main.profile")}
+            >
+              <UserList {...this.props} />
             </Tab.Pane>
           ]}
         </YBTabsWithLinksPanel>

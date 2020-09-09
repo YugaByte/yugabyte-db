@@ -801,6 +801,7 @@ determine_test_timeout() {
   else
     if [[ $rel_test_binary == "tests-pgwrapper/create_initial_sys_catalog_snapshot" || \
           $rel_test_binary == "tests-pgwrapper/pg_libpq-test" || \
+          $rel_test_binary == "tests-pgwrapper/pg_libpq_err-test" || \
           $rel_test_binary == "tests-pgwrapper/pg_mini-test" || \
           $rel_test_binary == "tests-pgwrapper/pg_wrapper-test" ]]; then
       timeout_sec=$INCREASED_TEST_TIMEOUT_SEC

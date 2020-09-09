@@ -1,7 +1,7 @@
 // Copyright (c) YugaByte, Inc.
 package com.yugabyte.yw.models;
 
-import com.avaje.ebean.*;
+import io.ebean.*;
 import com.yugabyte.yw.forms.NodeInstanceFormData.NodeInstanceData;
 
 import java.util.HashMap;
@@ -41,6 +41,9 @@ public class NodeInstance extends Model {
   }
 
   @Column(nullable = false)
+  public String instanceName;
+
+  @Column(nullable = false)
   public UUID zoneUuid;
 
   @Column(nullable = false)
@@ -75,12 +78,13 @@ public class NodeInstance extends Model {
     return nodeDetailsJson;
   }
 
-  public static final Find<UUID, NodeInstance> find = new Find<UUID, NodeInstance>(){};
+  public static final Finder<UUID, NodeInstance> find =
+    new Finder<UUID, NodeInstance>(NodeInstance.class){};
 
   public static List<NodeInstance> listByZone(UUID zoneUuid, String instanceTypeCode) {
     List<NodeInstance> nodes = null;
     // Search in the proper AZ.
-    ExpressionList<NodeInstance> exp = NodeInstance.find.where().eq("zone_uuid", zoneUuid);
+    ExpressionList<NodeInstance> exp = NodeInstance.find.query().where().eq("zone_uuid", zoneUuid);
     // Search only for nodes not in use.
     exp.where().eq("in_use", false);
     // Filter by instance type if asked to.
@@ -156,7 +160,7 @@ public class NodeInstance extends Model {
   // TODO: this is a temporary hack until we manage to plumb through the node UUID through the task
   // framework.
   public static NodeInstance getByName(String name) {
-    List<NodeInstance> nodes = NodeInstance.find.where().eq("node_name", name).findList();
+    List<NodeInstance> nodes = NodeInstance.find.query().where().eq("node_name", name).findList();
     if (nodes == null || nodes.size() != 1) {
       throw new RuntimeException("Expecting to find a single node with name: " + name);
     }
@@ -168,6 +172,9 @@ public class NodeInstance extends Model {
     node.zoneUuid = zoneUuid;
     node.inUse = false;
     node.instanceTypeCode = formData.instanceType;
+    String instanceName = formData.instanceName;
+    if (instanceName == null) instanceName = "";
+    node.instanceName = instanceName;
     node.setDetails(formData);
     node.setNodeName("");
     node.save();

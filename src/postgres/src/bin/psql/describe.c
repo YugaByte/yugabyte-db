@@ -34,6 +34,8 @@ static bool describeOneTableDetails(const char *schemaname,
 						bool verbose);
 static void add_tablespace_footer(printTableContent *const cont, char relkind,
 					  Oid tablespace, const bool newline);
+static void add_tablegroup_footer(printTableContent *const cont, char relkind,
+					  Oid tablegroup, const bool newline);
 static void add_role_attribute(PQExpBuffer buf, const char *const str);
 static bool listTSParsersVerbose(const char *pattern);
 static bool describeOneTSParser(const char *oid, const char *nspname,
@@ -1106,7 +1108,7 @@ listDefaultACLs(const char *pattern)
 	printfPQExpBuffer(&buf,
 					  "SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS \"%s\",\n"
 					  "  n.nspname AS \"%s\",\n"
-					  "  CASE d.defaclobjtype WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' END AS \"%s\",\n"
+					  "  CASE d.defaclobjtype WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' END AS \"%s\",\n"
 					  "  ",
 					  gettext_noop("Owner"),
 					  gettext_noop("Schema"),
@@ -1120,6 +1122,8 @@ listDefaultACLs(const char *pattern)
 					  gettext_noop("type"),
 					  DEFACLOBJ_NAMESPACE,
 					  gettext_noop("schema"),
+					  DEFACLOBJ_TABLEGROUP,
+					  gettext_noop("tablegroup"),
 					  gettext_noop("Type"));
 
 	printACLColumn(&buf, "d.defaclacl");
@@ -1447,6 +1451,7 @@ describeOneTableDetails(const char *schemaname,
 	bool		retval = false;
 	PQExpBufferData buf;
 	PGresult   *res = NULL;
+	PGresult   *tgres = NULL;
 	printTableOpt myopt = pset.popt.topt;
 	printTableContent cont;
 	bool		printTableInitialized = false;
@@ -1455,6 +1460,7 @@ describeOneTableDetails(const char *schemaname,
 	char	   *headers[11];
 	PQExpBufferData title;
 	PQExpBufferData tmpbuf;
+	PQExpBufferData tablegroupbuf;
 	int			cols;
 	int			attname_col = -1,	/* column indexes in "res" */
 				atttype_col = -1,
@@ -1484,6 +1490,7 @@ describeOneTableDetails(const char *schemaname,
 		char	   *reloftype;
 		char		relpersistence;
 		char		relreplident;
+		Oid			tablegroup;
 	}			tableinfo;
 	bool		show_column_details = false;
 
@@ -1494,6 +1501,7 @@ describeOneTableDetails(const char *schemaname,
 	initPQExpBuffer(&buf);
 	initPQExpBuffer(&title);
 	initPQExpBuffer(&tmpbuf);
+	initPQExpBuffer(&tablegroupbuf);
 
 	/* Get general table info */
 	if (pset.sversion >= 90500)
@@ -1641,6 +1649,25 @@ describeOneTableDetails(const char *schemaname,
 		*(PQgetvalue(res, 0, 12)) : 'd';
 	PQclear(res);
 	res = NULL;
+
+
+	/* Get information about tablegroup (if any) */
+	printfPQExpBuffer(&tablegroupbuf,
+					  "SELECT SUBSTRING(unnest(reloptions) from '.*tablegroup=(\\d*).*') AS tablegroup\n"
+					  "FROM pg_catalog.pg_class WHERE oid = '%s';",
+					  oid);
+
+	tgres = PSQLexec(tablegroupbuf.data);
+
+	if (tgres && PQntuples(tgres) > 0)
+	{
+		tableinfo.tablegroup = atooid(PQgetvalue(tgres, 0, 0));
+	}
+	else
+		tableinfo.tablegroup = 0;
+
+	PQclear(tgres);
+	tgres = NULL;
 
 	/*
 	 * If it's a sequence, deal with it here separately.
@@ -2203,6 +2230,8 @@ describeOneTableDetails(const char *schemaname,
 			printTableAddFooter(&cont, tmpbuf.data);
 			add_tablespace_footer(&cont, tableinfo.relkind,
 								  tableinfo.tablespace, true);
+			add_tablegroup_footer(&cont, tableinfo.relkind,
+								  tableinfo.tablegroup, true);
 		}
 
 		PQclear(result);
@@ -2318,6 +2347,27 @@ describeOneTableDetails(const char *schemaname,
 						add_tablespace_footer(&cont, RELKIND_INDEX,
 											  atooid(PQgetvalue(result, i, 11)),
 											  false);
+
+					/* Get information about tablegroup (if any) */
+					printfPQExpBuffer(&tablegroupbuf,
+									  "SELECT SUBSTRING(unnest(reloptions) from '.*tablegroup=(\\d*).*') AS tablegroup\n"
+									  "FROM pg_catalog.pg_class WHERE relname = '%s';",
+									  PQgetvalue(result, i, 0));
+
+					tgres = PSQLexec(tablegroupbuf.data);
+					Oid idx_tablegroup;
+					if (tgres && PQntuples(tgres) > 0)
+					{
+						idx_tablegroup = atooid(PQgetvalue(tgres, 0, 0));
+					}
+					else
+						idx_tablegroup = 0;
+
+					PQclear(tgres);
+					tgres = NULL;
+
+					/* Print tablegroup of the index on the same line */
+					add_tablegroup_footer(&cont, RELKIND_INDEX, idx_tablegroup, false);
 				}
 			}
 			PQclear(result);
@@ -3117,6 +3167,9 @@ describeOneTableDetails(const char *schemaname,
 		/* Tablespace info */
 		add_tablespace_footer(&cont, tableinfo.relkind, tableinfo.tablespace,
 							  true);
+		/* Tablespace info */
+		add_tablegroup_footer(&cont, tableinfo.relkind, tableinfo.tablegroup,
+							  true);
 	}
 
 	/* reloptions, if verbose */
@@ -3141,6 +3194,7 @@ error_return:
 	termPQExpBuffer(&buf);
 	termPQExpBuffer(&title);
 	termPQExpBuffer(&tmpbuf);
+	termPQExpBuffer(&tablegroupbuf);
 
 	if (view_def)
 		free(view_def);
@@ -3205,6 +3259,65 @@ add_tablespace_footer(printTableContent *const cont, char relkind,
 					   translator: before this string there's an index description like
 					   '"foo_pkey" PRIMARY KEY, btree (a)' */
 					appendPQExpBuffer(&buf, _(", tablespace \"%s\""),
+									  PQgetvalue(result, 0, 0));
+					printTableSetFooter(cont, buf.data);
+				}
+			}
+			PQclear(result);
+			termPQExpBuffer(&buf);
+		}
+	}
+}
+
+/*
+ * Add a tablegroup description to a footer.  If 'newline' is true, it is added
+ * in a new line; otherwise it's appended to the current value of the last
+ * footer.
+ */
+static void
+add_tablegroup_footer(printTableContent *const cont, char relkind,
+					  Oid tablegroup, const bool newline)
+{
+	/* relkinds for which we support tablegroups */
+	if (relkind == RELKIND_RELATION ||
+		relkind == RELKIND_INDEX)
+	{
+		// Ignore InvalidOid
+		if (tablegroup != 0)
+		{
+			PGresult   *result = NULL;
+			PQExpBufferData buf;
+
+			initPQExpBuffer(&buf);
+			printfPQExpBuffer(&buf,
+							  "SELECT grpname FROM pg_catalog.pg_tablegroup\n"
+							  "WHERE oid = '%u';", tablegroup);
+			result = PSQLexec(buf.data);
+			if (!result)
+			{
+				termPQExpBuffer(&buf);
+				return;
+			}
+			/* Should always be the case, but.... */
+			if (PQntuples(result) > 0)
+			{
+				if (newline)
+				{
+					/* Add the tablegroup as a new footer */
+					printfPQExpBuffer(&buf, _("Tablegroup: \"%s\""),
+									  PQgetvalue(result, 0, 0));
+					printTableAddFooter(cont, buf.data);
+				}
+				else
+				{
+					/* Append the tablegoup to the latest footer */
+					printfPQExpBuffer(&buf, "%s", cont->footer->data);
+
+					/*
+					 translator: before this string there's an index description like
+					 '"foo_pkey" PRIMARY KEY, btree (a)'
+					 */
+					appendPQExpBuffer(&buf, _(", tablegroup \"%s\""),
 									  PQgetvalue(result, 0, 0));
 					printTableSetFooter(cont, buf.data);
 				}
@@ -4198,6 +4311,152 @@ listSchemas(const char *pattern, bool verbose, bool showSystem)
 	return true;
 }
 
+/*
+ * \dgr and \dgrt
+ *
+ * These describe tablegroups. Usage is \dgr[t][+] [tablegroup_name] where the inclusion of 't' additionally describes
+ * the tables within each tablegroup and the usage of '+' acts as a toggle for verbosity.
+ * Explicit specification of a tablegroup name restricts the output to the contents of that tablegroup.
+ *
+ * \dgr displays the name and owner for each tablegroup.
+ * \dgr+ displays the access privilegs, object description, and group options.
+ *
+ * \dgrt outputs a row for each relation that is in a tablegroup. In addition to the info about the relations's
+ * tablegroup, it also includes the name, relkind, and owner of the table.
+ * \dgrt+ also includes the relation's object description and size.
+
+ */
+bool
+listTablegroups(const char *pattern, bool verbose, bool showRelations)
+{
+	PQExpBufferData buf;
+	PGresult   *res;
+	printQueryOpt myopt = pset.popt;
+
+	initPQExpBuffer(&buf);
+
+	// Show relations is true when '\dgrt' or '\dgrt+' is used.
+	if (showRelations)
+	{
+		printfPQExpBuffer(&buf,
+					  "SELECT grpname AS \"%s\",\n"
+					  "  pg_catalog.pg_get_userbyid(grpowner) AS \"%s\", \n",
+					  gettext_noop("Group Name"),
+					  gettext_noop("Group Owner"));
+
+		// If '+' is included, add the tablegroup's description and options
+		if (verbose)
+		{
+			printACLColumn(&buf, "g.grpacl");
+			appendPQExpBuffer(&buf,
+							  ",\n  pg_catalog.obj_description(g.oid, 'pg_tablegroup') AS \"%s\"",
+							  gettext_noop("Group Description"));
+			appendPQExpBuffer(&buf,
+							  ",\n  g.grpoptions AS \"%s\",\n",
+							  gettext_noop("Group Options"));
+		}
+
+		// Get info about the table from pg_class
+		appendPQExpBuffer(&buf,
+					  "  c.relname AS \"%s\", \n"
+					  "  CASE c.relkind"
+					  " WHEN " CppAsString2(RELKIND_RELATION) " THEN '%s'"
+					  " WHEN " CppAsString2(RELKIND_VIEW) " THEN '%s'"
+					  " WHEN " CppAsString2(RELKIND_MATVIEW) " THEN '%s'"
+					  " WHEN " CppAsString2(RELKIND_INDEX) " THEN '%s'"
+					  " WHEN " CppAsString2(RELKIND_SEQUENCE) " THEN '%s'"
+					  " WHEN 's' THEN '%s'"
+					  " WHEN " CppAsString2(RELKIND_FOREIGN_TABLE) " THEN '%s'"
+					  " WHEN " CppAsString2(RELKIND_PARTITIONED_TABLE) " THEN '%s'"
+					  " WHEN " CppAsString2(RELKIND_PARTITIONED_INDEX) " THEN '%s'"
+					  " END as \"%s\",\n"
+					  "  pg_catalog.pg_get_userbyid(c.relowner) AS \"%s\"",
+					  gettext_noop("Name"),
+					  gettext_noop("table"),
+					  gettext_noop("view"),
+					  gettext_noop("materialized view"),
+					  gettext_noop("index"),
+					  gettext_noop("sequence"),
+					  gettext_noop("special"),
+					  gettext_noop("foreign table"),
+					  gettext_noop("table"),	/* partitioned table */
+					  gettext_noop("index"),	/* partitioned index */
+					  gettext_noop("Type"),
+					  gettext_noop("Owner"));
+
+		// If '+' is included, add the table's size and description
+		if (verbose)
+		{
+			appendPQExpBuffer(&buf,
+							  ",\n  pg_catalog.obj_description(c.oid, 'pg_class') AS \"%s\",",
+							  gettext_noop("Rel Description"));
+			appendPQExpBuffer(&buf,
+							  "\n  pg_catalog.pg_size_pretty(pg_catalog.pg_table_size(c.oid)) as \"%s\"",
+							  gettext_noop("Size"));
+		}
+	}
+	else
+	{
+		printfPQExpBuffer(&buf,
+					  "SELECT g.grpname AS \"%s\",\n"
+					  "  pg_catalog.pg_get_userbyid(g.grpowner) AS \"%s\"",
+					  gettext_noop("Name"),
+					  gettext_noop("Owner"));
+
+		// If '+' is included, add the tablegroup's description and options
+		if (verbose)
+		{
+			appendPQExpBufferStr(&buf, ",\n  ");
+			printACLColumn(&buf, "g.grpacl");
+			appendPQExpBuffer(&buf,
+							  ",\n  pg_catalog.obj_description(g.oid, 'pg_tablegroup') AS \"%s\"",
+							  gettext_noop("Description"));
+			appendPQExpBuffer(&buf,
+							  ",\n  g.grpoptions AS \"%s\"",
+							  gettext_noop("Options"));
+		}
+	}
+
+	appendPQExpBufferStr(&buf,
+						 "\nFROM pg_catalog.pg_tablegroup g\n");
+
+	// If 't' is included, need to do the join based on pg_class reloptions
+	if (showRelations)
+	{
+		appendPQExpBufferStr(&buf,
+							 "\nJOIN (SELECT oid, relname, relkind, relowner, unnest(pg_catalog.pg_class.reloptions) " \
+							 "AS relopt FROM pg_catalog.pg_class) c");
+		appendPQExpBufferStr(&buf,
+							 "\nON c.relopt LIKE CONCAT('%tablegroup=%', CAST(g.oid AS TEXT), '%')\n");
+	}
+
+	processSQLNamePattern(pset.db, &buf, pattern, false, false,
+						  					NULL, "grpname", NULL, NULL);
+
+	appendPQExpBufferStr(&buf, "ORDER BY 1;");
+
+	res = PSQLexec(buf.data);
+	termPQExpBuffer(&buf);
+	if (!res)
+		return false;
+
+	myopt.nullPrint = NULL;
+	if (showRelations)
+	{
+		myopt.title = _("List of tablegroup tables");
+	}
+	else
+	{
+		myopt.title = _("List of tablegroups");
+	}
+
+	myopt.translate_header = true;
+
+	printQuery(res, &myopt, pset.queryFout, false, pset.logfile);
+
+	PQclear(res);
+	return true;
+}
 
 /*
  * \dFp

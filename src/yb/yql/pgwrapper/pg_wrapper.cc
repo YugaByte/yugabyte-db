@@ -62,6 +62,10 @@ DEFINE_string(ysql_log_statement, "",
               "Sets which types of ysql statements should be logged");
 DEFINE_string(ysql_log_min_messages, "",
               "Sets the lowest ysql message level to log");
+DEFINE_string(ysql_log_min_duration_statement, "",
+              "Sets the duration of each completed ysql statement to be logged if the statement" \
+              " ran for at least the specified number of milliseconds.");
+
 
 // Catch-all postgres configuration flags.
 DEFINE_string(ysql_pg_conf, "",
@@ -164,6 +168,10 @@ Result<string> WritePostgresConfig(const PgProcessConf& conf) {
 
   if (!FLAGS_ysql_log_min_messages.empty()) {
     lines.push_back("log_min_messages=" + FLAGS_ysql_log_min_messages);
+  }
+
+  if (!FLAGS_ysql_log_min_duration_statement.empty()) {
+    lines.push_back("log_min_duration_statement=" + FLAGS_ysql_log_min_duration_statement);
   }
 
   string conf_path = JoinPathSegments(conf.data_dir, "ysql_pg.conf");

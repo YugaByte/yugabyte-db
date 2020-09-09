@@ -16,6 +16,7 @@
 #include <limits>
 #include <map>
 
+#include "yb/util/net/net_util.h"
 #include "yb/util/random.h"
 #include "yb/util/random_util.h"
 #include "yb/util/test_macros.h"
@@ -376,8 +377,7 @@ TEST(PrimitiveValueTest, TestCopy) {
   TestCopy(PrimitiveValue::Int32(1000), 1000, 1000);
   TestCopy(PrimitiveValue::UInt64(1000), 1000, 1000);
   TestCopy(PrimitiveValue(Timestamp(1000)), 1000, 1000);
-  InetAddress addr;
-  ASSERT_OK(addr.FromString("1.2.3.4"));
+  InetAddress addr(ASSERT_RESULT(ParseIpAddress("1.2.3.4")));
   TestCopy(PrimitiveValue(addr), 1000, 1000);
   TestCopy(PrimitiveValue(HybridTime(1000)), 1000, 1000);
 }
@@ -389,8 +389,7 @@ TEST(PrimitiveValueTest, TestMove) {
   TestMove(PrimitiveValue::Int32(1000), 1000, 1000);
   TestMove(PrimitiveValue::UInt64(1000), 1000, 1000);
   TestMove(PrimitiveValue(Timestamp(1000)), 1000, 1000);
-  InetAddress addr;
-  ASSERT_OK(addr.FromString("1.2.3.4"));
+  InetAddress addr(ASSERT_RESULT(ParseIpAddress("1.2.3.4")));
   TestMove(PrimitiveValue(addr), 1000, 1000);
   TestMove(PrimitiveValue(HybridTime(1000)), 1000, 1000);
 }

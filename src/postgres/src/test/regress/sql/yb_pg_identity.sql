@@ -244,10 +244,10 @@ CREATE TABLE itest12 OF itest_type (f1 WITH OPTIONS GENERATED ALWAYS AS IDENTITY
 DROP TYPE itest_type CASCADE;
 
 
--- table partitions (currently not supported)
+-- table partitions
 
--- CREATE TABLE itest_parent (f1 date NOT NULL, f2 text, f3 bigint) PARTITION BY RANGE (f1);
--- CREATE TABLE itest_child PARTITION OF itest_parent (
---    f3 WITH OPTIONS GENERATED ALWAYS AS IDENTITY
--- ) FOR VALUES FROM ('2016-07-01') TO ('2016-08-01'); -- error
--- DROP TABLE itest_parent;
+CREATE TABLE itest_parent (f1 date NOT NULL, f2 text, f3 bigint) PARTITION BY RANGE (f1);
+CREATE TABLE itest_child PARTITION OF itest_parent (
+   f3 WITH OPTIONS GENERATED ALWAYS AS IDENTITY
+) FOR VALUES FROM ('2016-07-01') TO ('2016-08-01'); -- error
+DROP TABLE itest_parent;

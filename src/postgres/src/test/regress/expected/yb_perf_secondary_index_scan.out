@@ -5,7 +5,7 @@
 -- Logical test on small size table, using column-ref expression index.
 --   * The text_books test case is commented out because DocDB misbehaved on ASAN build.
 --   * This test has been split to yb_secondary_index_scan.sql to be run in different session.
---   * See Github issue 4488. Once the issue is fixed we can merge them back together.
+--   * See Github issue #4488. Once the issue is fixed we can merge them back together.
 --
 -- CREATE TABLE text_books ( id int PRIMARY KEY, author text, year int);
 -- CREATE INDEX text_books_author_first_name ON text_books (author);

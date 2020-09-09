@@ -6,7 +6,7 @@ description: Return the data type of the JSON value as a SQL text value.
 menu:
   latest:
     identifier: jsonb-typeof
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 250
 isTocNested: true
 showAsideToc: true
@@ -23,7 +23,7 @@ return value:      text
 
 **Notes:** Possible return values are _string_, _number_, _boolean_, _null_,  _object_, and _array_, as follows.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_string   constant jsonb := '"dog"';

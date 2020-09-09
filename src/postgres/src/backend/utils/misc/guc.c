@@ -80,6 +80,7 @@
 #include "utils/builtins.h"
 #include "utils/bytea.h"
 #include "utils/guc_tables.h"
+#include "utils/float.h"
 #include "utils/memutils.h"
 #include "utils/pg_locale.h"
 #include "utils/plancache.h"
@@ -1835,12 +1836,45 @@ static struct config_bool ConfigureNamesBool[] =
 	},
 
 	{
-		{"yb_debug_mode", PGC_USERSET, DEVELOPER_OPTIONS,
-			gettext_noop("Enable yb debugging."),
+		{"yb_debug_report_error_stacktrace", PGC_USERSET, DEVELOPER_OPTIONS,
+			gettext_noop("Append stacktrace information for error messages."),
 			NULL,
 			GUC_NOT_IN_SAMPLE
 		},
-		&yb_debug_mode,
+		&yb_debug_report_error_stacktrace,
+		false,
+		NULL, NULL, NULL
+	},
+
+	{
+		{"yb_debug_log_catcache_events", PGC_USERSET, DEVELOPER_OPTIONS,
+			gettext_noop("Log details for every catalog cache event such as a cache miss or cache invalidation/refresh."),
+			NULL,
+			GUC_NOT_IN_SAMPLE
+		},
+		&yb_debug_log_catcache_events,
+		false,
+		NULL, NULL, NULL
+	},
+
+	{
+		{"yb_debug_log_internal_restarts", PGC_USERSET, DEVELOPER_OPTIONS,
+			gettext_noop("Log details for internal restarts such as read-restarts, cache-invalidation restarts, or txn restarts."),
+			NULL,
+			GUC_NOT_IN_SAMPLE
+		},
+		&yb_debug_log_internal_restarts,
+		false,
+		NULL, NULL, NULL
+	},
+
+	{
+		{"yb_debug_log_docdb_requests", PGC_USERSET, DEVELOPER_OPTIONS,
+			gettext_noop("Log the contents of all internal (protobuf) requests to DocDB."),
+			NULL,
+			GUC_NOT_IN_SAMPLE
+		},
+		&yb_debug_log_docdb_requests,
 		false,
 		NULL, NULL, NULL
 	},

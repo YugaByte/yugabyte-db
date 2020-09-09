@@ -302,10 +302,17 @@ dd {
   transition: visibility 0s 2s, opacity 1s linear 1s;
 }
 
-.user-list-container .table-actions-cell {
-  overflow: inherit;
-
-  div {
+.user-list-container {
+  .table-actions-cell {
     overflow: inherit;
+    height: 64px;
+
+    div {
+      overflow: inherit;
+    }
+  }
+
+  .table > tbody > tr > td {
+    vertical-align: middle;
   }
 }

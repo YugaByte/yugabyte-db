@@ -6,7 +6,7 @@ description: Transform JSON values of a JSON array into a SQL table of jsonb val
 menu:
   latest:
     identifier: jsonb-array-elements
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 60
 isTocNested: true
 showAsideToc: true
@@ -24,7 +24,7 @@ return value:      SETOF jsonb
 
 Notice that the JSON value _null_ becomes a genuine SQL `NULL`. However, SQL array comparison and `record` comparison use `IS NOT DISTINCT FROM` semantics, and not the semantics that the comparison of scalars uses. So the simple `ASSERT` that `elements = expected_elements` is `TRUE` is sufficient. See the section [Operators for comparing two arrays](../../..//type_array/functions-operators/comparison/).
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_array constant jsonb := '["cat", "dog house", 42, true, {"x": 17}, null]';

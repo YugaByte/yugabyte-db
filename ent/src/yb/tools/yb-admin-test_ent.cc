@@ -133,7 +133,7 @@ Result<ListSnapshotsResponsePB> WaitForAllSnapshots(MasterBackupServiceProxy* pr
       WaitFor([proxy, &req, &resp]() -> Result<bool> {
                 RpcController rpc;
                 RETURN_NOT_OK(proxy->ListSnapshots(req, &resp, &rpc));
-                for (auto const snapshot : resp.snapshots()) {
+                for (auto const& snapshot : resp.snapshots()) {
                   if (snapshot.entry().state() != SysSnapshotEntryPB::COMPLETE) {
                     return false;
                   }
@@ -397,7 +397,7 @@ Result<SysSnapshotEntryPB::State> WaitForRestoration(MasterBackupServiceProxy* p
       WaitFor([proxy, &req, &resp]() -> Result<bool> {
         RpcController rpc;
         RETURN_NOT_OK(proxy->ListSnapshotRestorations(req, &resp, &rpc));
-        for (auto const restoration : resp.restorations()) {
+        for (auto const& restoration : resp.restorations()) {
           if (restoration.entry().state() == SysSnapshotEntryPB::RESTORING) {
             return false;
           }

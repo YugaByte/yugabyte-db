@@ -111,7 +111,8 @@ void TabletServerTestBase::StartTabletServer() {
   CHECK_OK(mini_server_->Start());
 
   // Set up a tablet inside the server.
-  CHECK_OK(mini_server_->AddTestTablet(kTableName.table_name(), kTabletId, schema_, table_type_));
+  CHECK_OK(mini_server_->AddTestTablet(
+      kTableName.namespace_name(), kTableName.table_name(), kTabletId, schema_, table_type_));
   CHECK(mini_server_->server()->tablet_manager()->LookupTablet(kTabletId, &tablet_peer_));
 
   // Creating a tablet is async, we wait here instead of having to handle errors later.

@@ -152,6 +152,23 @@ const char* MetricType::Name(MetricType::Type type) {
   }
 }
 
+namespace {
+
+const char* MetricLevelName(MetricLevel level) {
+  switch (level) {
+    case MetricLevel::kDebug:
+      return "debug";
+    case MetricLevel::kInfo:
+      return "info";
+    case MetricLevel::kWarn:
+      return "warn";
+    default:
+      return "UNKNOWN LEVEL";
+  }
+}
+
+} // anonymous namespace
+
 //
 // MetricEntityPrototype
 //
@@ -288,7 +305,8 @@ Status MetricEntity::WriteAsJson(JsonWriter* writer,
   return Status::OK();
 }
 
-CHECKED_STATUS MetricEntity::WriteForPrometheus(PrometheusWriter* writer) const {
+CHECKED_STATUS MetricEntity::WriteForPrometheus(PrometheusWriter* writer,
+                                                const MetricPrometheusOptions& opts) const {
   // We want the keys to be in alphabetical order when printing, so we use an ordered map here.
   typedef std::map<const char*, scoped_refptr<Metric> > OrderedMetricMap;
   OrderedMetricMap metrics;
@@ -313,26 +331,32 @@ CHECKED_STATUS MetricEntity::WriteForPrometheus(PrometheusWriter* writer) const 
   if (strcmp(prototype_->name(), "tablet") == 0)  {
     prometheus_attr["table_id"] = attrs["table_id"];
     prometheus_attr["table_name"] = attrs["table_name"];
+    prometheus_attr["namespace_name"] = attrs["namespace_name"];
   } else if (strcmp(prototype_->name(), "server") == 0 ||
       strcmp(prototype_->name(), "cluster") == 0) {
     prometheus_attr = attrs;
     // This is tablet_id in the case of tablet, but otherwise names the server type, eg: yb.master
     prometheus_attr["metric_id"] = id_;
+  } else if (strcmp(prototype_->name(), "cdc") == 0) {
+    prometheus_attr["table_id"] = attrs["table_id"];
+    prometheus_attr["table_name"] = attrs["table_name"];
+    prometheus_attr["namespace_name"] = attrs["namespace_name"];
+    prometheus_attr["stream_id"] = attrs["stream_id"];
   } else {
     return Status::OK();
   }
-  // This is currently tablet / server / cluster.
+  // This is currently tablet / server / cluster / cdc.
   prometheus_attr["metric_type"] = prototype_->name();
   prometheus_attr["exported_instance"] = FLAGS_metric_node_name;
 
   for (OrderedMetricMap::value_type& val : metrics) {
-    WARN_NOT_OK(val.second->WriteForPrometheus(writer, prometheus_attr),
+    WARN_NOT_OK(val.second->WriteForPrometheus(writer, prometheus_attr, opts),
                 strings::Substitute("Failed to write $0 as Prometheus", val.first));
 
   }
   // Run the external metrics collection callback if there is one set.
   for (const ExternalPrometheusMetricsCb& cb : external_metrics_cbs) {
-    cb(writer);
+    cb(writer, opts);
   }
 
   return Status::OK();
@@ -433,7 +457,7 @@ Status MetricRegistry::WriteAsJson(JsonWriter* writer,
   }
 
   writer->StartArray();
-  for (const EntityMap::value_type e : entities) {
+  for (const EntityMap::value_type& e : entities) {
     if (TabletHasBeenShutdown(e.second)) {
       continue;
     }
@@ -453,19 +477,20 @@ Status MetricRegistry::WriteAsJson(JsonWriter* writer,
   return Status::OK();
 }
 
-CHECKED_STATUS MetricRegistry::WriteForPrometheus(PrometheusWriter* writer) const {
+CHECKED_STATUS MetricRegistry::WriteForPrometheus(PrometheusWriter* writer,
+                                                  const MetricPrometheusOptions& opts) const {
   EntityMap entities;
   {
     std::lock_guard<simple_spinlock> l(lock_);
     entities = entities_;
   }
 
-  for (const EntityMap::value_type e : entities) {
+  for (const EntityMap::value_type& e : entities) {
     if (TabletHasBeenShutdown(e.second)) {
       continue;
     }
 
-    WARN_NOT_OK(e.second->WriteForPrometheus(writer),
+    WARN_NOT_OK(e.second->WriteForPrometheus(writer, opts),
                 Substitute("Failed to write entity $0 as Prometheus", e.second->id()));
   }
   RETURN_NOT_OK(writer->FlushAggregatedValues());
@@ -592,6 +617,9 @@ void MetricPrototype::WriteFields(JsonWriter* writer,
 
     writer->String("description");
     writer->String(description());
+
+    writer->String("level");
+    writer->String(MetricLevelName(level()));
   }
 }
 
@@ -643,6 +671,10 @@ Metric::~Metric() {
 
 Status Gauge::WriteAsJson(JsonWriter* writer,
                           const MetricJsonOptions& opts) const {
+  if (prototype_->level() < opts.level) {
+    return Status::OK();
+  }
+
   writer->StartObject();
 
   prototype_->WriteFields(writer, opts);
@@ -677,7 +709,12 @@ void StringGauge::WriteValue(JsonWriter* writer) const {
 }
 
 CHECKED_STATUS StringGauge::WriteForPrometheus(
-    PrometheusWriter* writer, const MetricEntity::AttributeMap& attr) const {
+    PrometheusWriter* writer, const MetricEntity::AttributeMap& attr,
+    const MetricPrometheusOptions& opts) const {
+  if (prototype_->level() < opts.level) {
+    return Status::OK();
+  }
+
   // TODO(bogdan): don't think we need this?
   // return writer->WriteSingleEntry(attr, prototype_->name(), value());
   return Status::OK();
@@ -709,6 +746,10 @@ void Counter::IncrementBy(int64_t amount) {
 
 Status Counter::WriteAsJson(JsonWriter* writer,
                             const MetricJsonOptions& opts) const {
+  if (prototype_->level() < opts.level) {
+    return Status::OK();
+  }
+
   writer->StartObject();
 
   prototype_->WriteFields(writer, opts);
@@ -721,10 +762,68 @@ Status Counter::WriteAsJson(JsonWriter* writer,
 }
 
 CHECKED_STATUS Counter::WriteForPrometheus(
-    PrometheusWriter* writer, const MetricEntity::AttributeMap& attr) const {
+    PrometheusWriter* writer, const MetricEntity::AttributeMap& attr,
+    const MetricPrometheusOptions& opts) const {
+  if (prototype_->level() < opts.level) {
+    return Status::OK();
+  }
+
   return writer->WriteSingleEntry(attr, prototype_->name(), value());
 }
 
+//
+// MillisLag
+//
+
+scoped_refptr<MillisLag> MillisLagPrototype::Instantiate(
+    const scoped_refptr<MetricEntity>& entity) {
+  return entity->FindOrCreateMillisLag(this);
+}
+
+MillisLag::MillisLag(const MillisLagPrototype* proto) : Metric(proto) {
+}
+
+Status MillisLag::WriteAsJson(JsonWriter* writer, const MetricJsonOptions& opts) const {
+  if (prototype_->level() < opts.level) {
+    return Status::OK();
+  }
+
+  writer->StartObject();
+
+  prototype_->WriteFields(writer, opts);
+
+  writer->String("value");
+  writer->Int64(lag_ms());
+
+  writer->EndObject();
+  return Status::OK();
+}
+
+Status MillisLag::WriteForPrometheus(
+    PrometheusWriter* writer, const MetricEntity::AttributeMap& attr,
+    const MetricPrometheusOptions& opts) const {
+  if (prototype_->level() < opts.level) {
+    return Status::OK();
+  }
+
+  return writer->WriteSingleEntry(attr, prototype_->name(), lag_ms());
+}
+
+Status AtomicMillisLag::WriteAsJson(JsonWriter* writer, const MetricJsonOptions& opts) const {
+  if (prototype_->level() < opts.level) {
+    return Status::OK();
+  }
+
+  writer->StartObject();
+
+  prototype_->WriteFields(writer, opts);
+
+  writer->String("value");
+  writer->Int64(this->lag_ms());
+
+  writer->EndObject();
+  return Status::OK();
+}
 
 /////////////////////////////////////////////////
 // HistogramPrototype
@@ -771,6 +870,9 @@ void Histogram::IncrementBy(int64_t value, int64_t amount) {
 
 Status Histogram::WriteAsJson(JsonWriter* writer,
                               const MetricJsonOptions& opts) const {
+  if (prototype_->level() < opts.level) {
+    return Status::OK();
+  }
 
   HistogramSnapshotPB snapshot;
   RETURN_NOT_OK(GetAndResetHistogramSnapshotPB(&snapshot, opts));
@@ -779,7 +881,12 @@ Status Histogram::WriteAsJson(JsonWriter* writer,
 }
 
 CHECKED_STATUS Histogram::WriteForPrometheus(
-    PrometheusWriter* writer, const MetricEntity::AttributeMap& attr) const {
+    PrometheusWriter* writer, const MetricEntity::AttributeMap& attr,
+    const MetricPrometheusOptions& opts) const {
+  if (prototype_->level() < opts.level) {
+    return Status::OK();
+  }
+
   HdrHistogram snapshot(*histogram_);
   // HdrHistogram reports percentiles based on all the data points from the
   // begining of time. We are interested in the percentiles based on just
@@ -831,6 +938,7 @@ Status Histogram::GetAndResetHistogramSnapshotPB(HistogramSnapshotPB* snapshot_p
     snapshot_pb->set_label(prototype_->label());
     snapshot_pb->set_unit(MetricUnit::Name(prototype_->unit()));
     snapshot_pb->set_description(prototype_->description());
+    snapshot_pb->set_level(MetricLevelName(prototype_->level()));
     snapshot_pb->set_max_trackable_value(snapshot.highest_trackable_value());
     snapshot_pb->set_num_significant_digits(snapshot.num_significant_digits());
   }

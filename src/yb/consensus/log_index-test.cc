@@ -40,7 +40,6 @@ namespace yb {
 namespace log {
 
 using consensus::MakeOpId;
-using consensus::OpId;
 
 class LogIndexTest : public YBTest {
  public:
@@ -50,7 +49,7 @@ class LogIndexTest : public YBTest {
   }
 
  protected:
-  Status AddEntry(const OpId& op_id, int64_t segment, int64_t offset) {
+  Status AddEntry(const OpIdPB& op_id, int64_t segment, int64_t offset) {
     LogIndexEntry entry;
     entry.op_id = yb::OpId::FromPB(op_id);
     entry.segment_sequence_number = segment;
@@ -58,7 +57,7 @@ class LogIndexTest : public YBTest {
     return index_->AddEntry(entry);
   }
 
-  void VerifyEntry(const OpId& op_id, int64_t segment, int64_t offset) {
+  void VerifyEntry(const OpIdPB& op_id, int64_t segment, int64_t offset) {
     SCOPED_TRACE(op_id);
     LogIndexEntry result;
     EXPECT_OK(index_->GetEntry(op_id.index(), &result));

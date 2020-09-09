@@ -261,6 +261,11 @@ activate_virtualenv() {
   unset PYTHONPATH
 }
 
+create_virtualenv_package() {
+  cd $yb_devops_home
+  tar -czf $virtualenv_package $YB_VIRTUALENV_BASENAME
+}
+
 # Somehow permissions got corrupted for some files in the virtualenv, possibly due to sudo
 # installations of Python packages. While it is unclear if the root cause of this is still present,
 # we proactively fix these before installing Python requirements.
@@ -483,3 +488,4 @@ export ANSIBLE_HOST_KEY_CHECKING=False
 log_dir=$HOME/logs
 
 readonly virtualenv_dir=$yb_devops_home/$YB_VIRTUALENV_BASENAME
+readonly virtualenv_package=$yb_devops_home/yb_platform_virtualenv.tar.gz

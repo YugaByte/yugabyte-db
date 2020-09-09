@@ -59,11 +59,11 @@ DocumentKey1 = {
 }
 ```
 
-Keys we store in RocksDB consist of a number of components, where the first component is a "document
+Keys stored in RocksDB consist of a number of components, where the first component is a "document
 key", followed by a few scalar components, and finally followed by a MVCC timestamp (sorted in
 reverse order). Each component in the DocumentKey, SubKey, and Value, are PrimitiveValues, which are
-just (type, value) pairs, which can be encoded to and decoded from strings. When we encode primitive
-values in keys, we use a binary-comparable encoding for the value, so that sort order of the
+just (type, value) pairs, which can be encoded to and decoded from strings. When encoding primitive
+values in keys, a binary-comparable encoding is used for the value, so that sort order of the
 encoding is the same as the sort order of the value.
 
 #### Updates and deletes
@@ -283,47 +283,3 @@ T2: UPDATE page_views
 (hash1, 'abc.com'), views_column_id, T1 -> (TTL = 86400) 10
 <b>(hash1, 'abc.com'), category_column_id, T2 -> (TTL = 3600) 'news'</b></code>
 </pre>
-
-## Mapping YEDIS data to DocDB
-
-Redis is a schemaless data store. There is only one primitive type (string) and some collection
-types. In this case, the documents are pretty simple. For primitive values, the document consists of
-only one value. The document key is just a string prefixed with a hash. Redis collections are single
-level documents. Maps correspond to SubDocuments which are discussed above. Sets are stored as maps
-with empty values, and Lists have indexes as keys. For non-primitive values (e.g., hash, set type),
-we store the type in parent level initial value, which is sorted before the subkeys. Any redis value
-can have a TTL, which is stored in the RocksDB-value.
-
-![redis_docdb_overview](/images/architecture/redis_docdb_overview.png)
-
-### Redis example
-
-| Timestamp | Command                                   | New Key-Value pairs added in RocksDB                                                                            |
-|:---------:|:-----------------------------------------:|:---------------------------------------------------------------------------------------------------------------:|
-|T1         |SET key1 value1 EX 15                      |(h1, key1), T1 -> 15, value1                                                                                     |
-|T2         |HSET key2 subkey1 value1                   |(h2, key2), T2 -> [Redis-Hash-Type]<br/>(h2, key2), subkey1, T2 -> value1                                        |
-|T3         |HSET key2 subkey2 value2                   |(h2, key2), subkey2, T3 -> value2                                                                                |
-|T4         |DEL key2                                   |(h2, key2), T4 -> Tombstone                                                                                      |
-|T5         |HMSET key2 subkey1 new_val1 subkey3 value3 |(h2, key2), T2 -> [Redis-Hash-Type]<br/>(h2, key2), subkey1, T5 -> new_val1<br/>(h2, key2), subkey3, T5 -> value3|
-|T6         |SADD key3 value4 value5                    |(h3, key3), T6 -> [Redis-Set-Type]<br/>(h3, key3), value4, T6 -> [NULL]<br/>(h3, key3), value5, T6 -> [NULL]     |
-|T7         |SADD key3 value6                           |(h3, key3), value6, T7 -> [NULL]                                                                                 |
-
-Although they are added out of order, we get a sorted view of the items in the key value store when
-reading, as shown below:
-
-```
-(h1, key1), T1 -> 15, value1
-(h2, key2), T5 -> [Redis-Hash-Type]
-(h2, key2), T4 -> Tombstone
-(h2, key2), T2 -> [Redis-Hash-Type]
-(h2, key2), subkey1, T5 -> new_val1
-(h2, key2), subkey1, T2 -> value1
-(h2, key2), subkey2, T3 -> value2
-(h2, key2), subkey3, T5 -> value3
-(h3, key3), T6 -> [Redis-Set-Type]
-(h3, key3), value6, T7 -> [NULL]
-(h3, key3), value4, T6 -> [NULL]
-(h3, key3), value5, T6 -> [NULL]
-```
-
-Using an iterator, it is easy to reconstruct the hash and set contents efficiently.

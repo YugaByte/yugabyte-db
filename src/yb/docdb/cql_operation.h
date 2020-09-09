@@ -43,15 +43,10 @@ class QLWriteOperation :
     public DocOperationBase<DocOperationType::QL_WRITE_OPERATION, QLWriteRequestPB>,
     public DocExprExecutor {
  public:
-  QLWriteOperation(const Schema& schema,
+  QLWriteOperation(std::shared_ptr<const Schema> schema,
                    const IndexMap& index_map,
                    const Schema* unique_index_key_schema,
-                   const TransactionOperationContextOpt& txn_op_context)
-      : schema_(schema),
-        index_map_(index_map),
-        unique_index_key_schema_(unique_index_key_schema),
-        txn_op_context_(txn_op_context)
-  {}
+                   const TransactionOperationContextOpt& txn_op_context);
 
   // Construct a QLWriteOperation. Content of request will be swapped out by the constructor.
   CHECKED_STATUS Init(QLWriteRequestPB* request, QLResponsePB* response);
@@ -145,7 +140,7 @@ class QLWriteOperation :
                                     QLWriteRequestPB::QLStmtType type,
                                     const QLTableRow& new_row);
 
-  const Schema& schema_;
+  std::shared_ptr<const Schema> schema_;
   const IndexMap& index_map_;
   const Schema* unique_index_key_schema_ = nullptr;
 

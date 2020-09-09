@@ -10,9 +10,9 @@
 
 package com.yugabyte.yw.models;
 
-import com.avaje.ebean.Model;
-import com.avaje.ebean.annotation.DbJson;
-import com.avaje.ebean.annotation.JsonIgnore;
+import io.ebean.*;
+import io.ebean.annotation.DbJson;
+import io.ebean.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yugabyte.yw.common.kms.EncryptionAtRestManager;
@@ -26,7 +26,6 @@ import play.libs.Json;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -58,12 +57,14 @@ public class KmsConfig extends Model {
     @Column(nullable = false)
     public int version;
 
-    public static final Find<UUID, KmsConfig> find = new Find<UUID, KmsConfig>(){};
+    public static final Finder<UUID, KmsConfig> find =
+      new Finder<UUID, KmsConfig>(KmsConfig.class){};
 
     public static KmsConfig get(UUID configUUID) {
-        return KmsConfig.find.where()
+        if (configUUID == null) return null;
+        return KmsConfig.find.query().where()
                 .idEq(configUUID)
-                .findUnique();
+                .findOne();
     }
 
     public static KmsConfig createKMSConfig(
@@ -82,20 +83,14 @@ public class KmsConfig extends Model {
         return kmsConfig;
     }
 
-    public static KmsConfig getKMSConfig(UUID configUUID) {
-        return KmsConfig.find.where()
-                .idEq(configUUID)
-                .findUnique();
-    }
-
     public static ObjectNode getKMSAuthObj(UUID configUUID) {
-        KmsConfig config = getKMSConfig(configUUID);
+        KmsConfig config = get(configUUID);
         if (config == null) return null;
         return (ObjectNode) config.authConfig.deepCopy();
     }
 
     public static List<KmsConfig> listKMSConfigs(UUID customerUUID) {
-        return KmsConfig.find.where()
+        return KmsConfig.find.query().where()
                 .eq("customer_uuid", customerUUID)
                 .eq("version", SCHEMA_VERSION)
                 .findList();

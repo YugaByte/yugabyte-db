@@ -6,7 +6,7 @@ description: Test if two jsonb values are equal using the JSON equality operator
 menu:
   latest:
     identifier: equality-operator
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 15
 isTocNested: true
 showAsideToc: true
@@ -29,7 +29,7 @@ lhs_json_value::text = rhs_json_value::text
 
 Example:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j1 constant jsonb := '["a","b","c"]';
@@ -51,7 +51,7 @@ If you need to test two `json` values for equality, then you must `::text` typec
 
 See the account of the `::text` operator when the input is a `json` value. The `json` representation preserves semantically insignificant whitespace and repeats occurrences of the same keys in an _object_. This implies that the equality comparison of two `json` values would in general be unpredictable and therefore meaningless. This is why the `=` operator doesn't have a `json` overload and is is another reason to prefer consistently to choose to use `jsonb`.
 
-```postgresql 
+```plpgsql 
 do $body$
 declare
   j1 constant json := '["a","b","c"]';

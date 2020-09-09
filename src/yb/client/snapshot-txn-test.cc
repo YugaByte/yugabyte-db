@@ -41,6 +41,7 @@ DECLARE_uint64(max_clock_skew_usec);
 DECLARE_int32(TEST_inject_load_transaction_delay_ms);
 DECLARE_int32(TEST_inject_status_resolver_delay_ms);
 DECLARE_int32(log_min_seconds_to_retain);
+DECLARE_int32(txn_max_apply_batch_records);
 DECLARE_uint64(max_transactions_in_status_request);
 
 namespace yb {
@@ -61,6 +62,7 @@ class SnapshotTxnTest : public TransactionCustomLogSegmentSizeTest<0, Transactio
   void TestBankAccountsThread(
      int accounts, std::atomic<bool>* stop, std::atomic<int64_t>* updates, TransactionPool* pool);
   void TestRemoteBootstrap();
+  void TestMultiWriteWithRestart();
 };
 
 void SnapshotTxnTest::TestBankAccountsThread(
@@ -601,7 +603,7 @@ bool IntermittentTxnFailure(const Status& status) {
 // Concurrently execute multiple transaction, each of them writes the same key multiple times.
 // And perform tserver restarts in parallel to it.
 // This test checks that transaction participant state correctly restored after restart.
-TEST_F(SnapshotTxnTest, MultiWriteWithRestart) {
+void SnapshotTxnTest::TestMultiWriteWithRestart() {
   constexpr int kNumWritesPerKey = 10;
 
   FLAGS_TEST_inject_load_transaction_delay_ms = 25;
@@ -710,6 +712,15 @@ TEST_F(SnapshotTxnTest, MultiWriteWithRestart) {
   ASSERT_GE(good_keys.load(std::memory_order_relaxed), key.load(std::memory_order_relaxed) * 0.7);
 
   LOG(INFO) << "Done";
+}
+
+TEST_F(SnapshotTxnTest, MultiWriteWithRestart) {
+  TestMultiWriteWithRestart();
+}
+
+TEST_F(SnapshotTxnTest, MultiWriteWithRestartAndLongApply) {
+  FLAGS_txn_max_apply_batch_records = 3;
+  TestMultiWriteWithRestart();
 }
 
 using RemoteBootstrapOnStartBase = TransactionCustomLogSegmentSizeTest<128, SnapshotTxnTest>;

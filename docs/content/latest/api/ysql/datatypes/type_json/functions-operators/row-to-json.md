@@ -6,7 +6,7 @@ description: Create a JSON object from a SQL record.
 menu:
   latest:
     identifier: row-to-json
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 270
 isTocNested: true
 showAsideToc: true
@@ -24,7 +24,7 @@ return value:      json
 
 **Notes:** This has only the `json` variant. The first (mandatory) formal parameter is any SQL `record` whose fields might be compound values. The second formal parameter is optional. When it is _true_, line feeds are added between fields. Use this `ysqlsh` script to create the required type _"t"_ and then to execute the `ASSERT`.
 
-```postgresql
+```plpgsql
 create type t as (a int, b text);
 
 do $body$

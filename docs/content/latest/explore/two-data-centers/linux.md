@@ -34,13 +34,9 @@ showAsideToc: true
 
 By default, YugabyteDB provides synchronous replication and strong consistency across geo-distributed data centers. But sometimes asynchronous replication will meet your need for disaster recovery, auditing and compliance, and other applications. For more information, see [Two data center (2DC) deployments](../../../architecture/2dc-deployments/) in the Architecture section.
 
-This tutorial simulates a geo-distributed two data center (2DC) deployment using two local YugabyteDB clusters, one representing "Data Center - East" and the other representing "Data Center - West." You can explore unidirectional (master-follower) asynchronous replication and bidirectional (multi-master) asynchronous replication using the `yb-ctl` and `yb-admin` utilities.
+This tutorial simulates a geo-distributed two data center (2DC) deployment using two local YugabyteDB clusters, one representing "Data Center - East" and the other representing "Data Center - West." You can explore unidirectional (master-follower) asynchronous replication and bidirectional (multi-master) asynchronous replication using the [yb-ctl](../../../admin/yb-ctl) and [yb-admin](../../../admin/yb-admin) utilities.
 
 ## Prerequisites
-
-- YugabyteDB is installed and ready for use. If you are new to YugabyteDB, you can create a local YugabyteDB cluster by following the steps in the [Quick start](../../../quick-start/install/).
-
-- Verify that you have the required extra loopback addresses by reviewing the Configure section.
 
 - For the tutorial, use the default database `yugabyte` and the default user `yugabyte`.
 
@@ -62,7 +58,7 @@ Waiting for cluster to be ready.
 ----------------------------------------------------------------------------------------------------
 | JDBC                : jdbc:postgresql://127.0.0.1:5433/postgres                                  |
 | YSQL Shell          : bin/ysqlsh                                                                 |
-| YCQL Shell          : bin/ycqlsh                                                                  |
+| YCQL Shell          : bin/ycqlsh                                                                 |
 | YEDIS Shell         : bin/redis-cli                                                              |
 | Web UI              : http://127.0.0.1:7000/                                                     |
 | Cluster Data        : /Users/yugabyte_user/yugabyte/yb-datacenter-east                           |

@@ -32,6 +32,7 @@ DECLARE_bool(use_client_to_server_encryption);
 DECLARE_bool(use_node_to_node_encryption);
 DECLARE_bool(allow_insecure_connections);
 DECLARE_string(certs_dir);
+DECLARE_string(TEST_public_hostname_suffix);
 
 namespace yb {
 
@@ -44,6 +45,7 @@ class SecureConnectionTest : public client::KeyValueTableTest {
     FLAGS_use_node_to_node_encryption = true;
     FLAGS_use_client_to_server_encryption = true;
     FLAGS_allow_insecure_connections = false;
+    FLAGS_TEST_public_hostname_suffix = ".ip.yugabyte";
     const auto sub_dir = JoinPathSegments("ent", "test_certs");
     auto root_dir = env_util::GetRootDir(sub_dir);
     FLAGS_certs_dir = JoinPathSegments(root_dir, sub_dir);

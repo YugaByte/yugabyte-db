@@ -109,11 +109,11 @@ export class YBRadioButtonLine extends Component {
           {options.map((value, index) => (
             <li key={`option-${index}`}>
               <input type="radio" id={`radio-option-${index}`} name="selector"
-                checked={this.state.selectedOption == index} onChange={() => this.handleSelect(index)}
+                checked={this.state.selectedOption === index} onChange={() => this.handleSelect(index)}
               />
               <div className="check"></div>
               <label htmlFor={`radio-options-${index}`} onClick={() => this.handleSelect(index)}>{value}</label>
-          </li>
+            </li>
           ))}
         </ul>
         <div className={"connecting-line"} style={lineStyle}></div>

@@ -12,9 +12,10 @@ import { UniverseResources } from '../UniverseResources';
 import { FlexContainer, FlexShrink } from '../../common/flexbox/YBFlexBox';
 import './UniverseForm.scss';
 import ClusterFields from './ClusterFields';
-import { getPrimaryCluster, getReadOnlyCluster } from "../../../utils/UniverseUtils";
+import { getPrimaryCluster, getReadOnlyCluster, getClusterByType } from "../../../utils/UniverseUtils";
 import { DeleteUniverseContainer } from '../../universes';
 import { getPromiseState } from '../../../utils/PromiseUtils';
+import { isEmptyObject } from '../../../utils/ObjectUtils';
 import pluralize from 'pluralize';
 
 const initialState = {
@@ -101,8 +102,9 @@ class UniverseForm extends Component {
     const { type } = this.props;
     setTimeout(this.props.fetchCustomerTasks, 2000);
     if (type === "Create") {
-      this.createUniverse();
-      this.transitionToDefaultRoute();
+      this.createUniverse().then(() => {
+        this.transitionToDefaultRoute();
+      });
     } else if (type === "Async") {
       const { universe: { currentUniverse: { data: { universeDetails }}}} = this.props;
       const readOnlyCluster = universeDetails && getReadOnlyCluster(universeDetails.clusters);
@@ -118,8 +120,79 @@ class UniverseForm extends Component {
     }
   }
 
+  getCurrentUserIntent = (clusterType) => {
+    const {formValues } = this.props;
+    if (formValues[clusterType]) {
+      const intent = {
+        universeName: formValues[clusterType].universeName,
+        numNodes: formValues[clusterType].numNodes,
+        provider: formValues[clusterType].provider,
+        providerType: this.getCurrentProvider(formValues[clusterType].provider) ?
+          this.getCurrentProvider(formValues[clusterType].provider).code :
+          null,
+        regionList: formValues[clusterType].regionList.map((a)=>(a.value)),
+        instanceType: formValues[clusterType].instanceType,
+        ybSoftwareVersion: formValues[clusterType].ybSoftwareVersion,
+        replicationFactor: formValues[clusterType].replicationFactor,
+        deviceInfo: {
+          volumeSize: formValues[clusterType].volumeSize,
+          numVolumes: formValues[clusterType].numVolumes,
+          diskIops: formValues[clusterType].diskIops,
+          mountPoints: formValues[clusterType].mountPoints,
+          storageType: formValues[clusterType].storageType
+        },
+        accessKeyCode: formValues[clusterType].accessKeyCode,
+        instanceTags: formValues[clusterType].instanceTags,
+        useTimeSync: formValues[clusterType].useTimeSync,
+        assignPublicIP: formValues[clusterType].assignPublicIP,
+        enableYSQL: formValues[clusterType].enableYSQL,
+        enableNodeToNodeEncrypt: formValues[clusterType].enableNodeToNodeEncrypt,
+        enableClientToNodeEncrypt: formValues[clusterType].enableClientToNodeEncrypt
+      };
+
+      if (isNonEmptyObject(formValues[clusterType].masterGFlags)) {
+        intent["masterGFlags"] = formValues[clusterType].masterGFlags;
+      }
+      if (isNonEmptyObject(formValues[clusterType].tserverGFlags)) {
+        intent["tserverGFlags"] = formValues[clusterType].tserverGFlags;
+      }
+      return intent;
+    }
+  };
+
+  updateTaskParams = (universeTaskParams, userIntent, clusterType, isEdit) => {
+    const cluster = getClusterByType(universeTaskParams.clusters, clusterType);
+    universeTaskParams.currentClusterType = clusterType.toUpperCase();
+
+    if (isDefinedNotNull(cluster)) {
+      cluster.userIntent = userIntent;
+    } else {
+      if (isEmptyObject(universeTaskParams.clusters)) {
+        universeTaskParams.clusters = [];
+      }
+      universeTaskParams.clusters.push({
+        clusterType: clusterType.toUpperCase(),
+        userIntent: userIntent
+      });
+    }
+    universeTaskParams.clusterOperation = isEdit ? "EDIT": "CREATE";
+  }
+
   createUniverse = () => {
-    this.props.submitCreateUniverse(this.getFormPayload());
+    const { formValues, universe } = this.props;
+    if (isNonEmptyObject(formValues['primary'])) {
+      const { universeConfigTemplate } = universe;
+      const primaryCluster = getPrimaryCluster(universeConfigTemplate.data.clusters);
+      if (formValues['primary'].universeName !== primaryCluster.userIntent.universeName) {
+        // Universe name is out of sync, send a configure call
+        const universeTaskParams = _.cloneDeep(universeConfigTemplate.data);
+        this.updateTaskParams(universeTaskParams, this.getCurrentUserIntent('primary'), 'primary', false);
+        return this.props.submitConfigureUniverse(universeTaskParams).then(response => {
+          return this.props.submitCreateUniverse(_.merge(this.getFormPayload(), response.payload.data));
+        });
+      }
+      return this.props.submitCreateUniverse(this.getFormPayload());
+    }
   }
 
   editUniverse = () => {
@@ -280,6 +353,25 @@ class UniverseForm extends Component {
           submitPayload.encryptionAtRestConfig = {
             "key_op": formValues['primary'].enableEncryptionAtRest ? "ENABLE" : "UNDEFINED"
           };
+
+          submitPayload.communicationPorts = {
+            "masterHttpPort": formValues['primary'].masterHttpPort,
+            "masterRpcPort": formValues['primary'].masterRpcPort,
+            "tserverHttpPort": formValues['primary'].tserverHttpPort,
+            "tserverRpcPort": formValues['primary'].tserverRpcPort,
+            "redisServerHttpPort": formValues['primary'].redisHttpPort,
+            "redisServerRpcPort": formValues['primary'].redisRpcPort,
+            "yqlServerHttpPort": formValues['primary'].yqlHttpPort,
+            "yqlServerRpcPort": formValues['primary'].yqlRpcPort,
+            "ysqlServerHttpPort": formValues['primary'].ysqlHttpPort,
+            "ysqlServerRpcPort": formValues['primary'].ysqlRpcPort,
+            "nodeExporterPort": formValues['primary'].nodeExporterPort
+          };
+
+          submitPayload.extraDependencies = {
+            "installNodeExporter": formValues['primary'].installNodeExporter
+          };
+
           // Ensure a configuration was actually selected
           if (kmsConfigUUID !== null) {
             submitPayload.encryptionAtRestConfig['configUUID'] = kmsConfigUUID;
@@ -433,6 +525,8 @@ class UniverseForm extends Component {
       fetchUniverseTasks: this.props.fetchUniverseTasks,
       handleHasFieldChanged: this.handleHasFieldChanged,
       toggleDisableSubmit: this.toggleDisableSubmit,
+      getCurrentUserIntent: this.getCurrentUserIntent,
+      updateTaskParams: this.updateTaskParams,
       reset: this.props.reset, fetchUniverseMetadata: this.props.fetchUniverseMetadata,
       fetchCustomerTasks: this.props.fetchCustomerTasks,
       getExistingUniverseConfiguration: this.props.getExistingUniverseConfiguration,

@@ -45,6 +45,7 @@ set(CQLSERVER_SRCS
   cql_server_options.cc
   cql_service.cc
   cql_statement.cc
+  system_query_cache.cc
 )
 
 add_library(yb-cql ${CQLSERVER_SRCS})

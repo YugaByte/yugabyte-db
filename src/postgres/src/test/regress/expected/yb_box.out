@@ -249,7 +249,7 @@ SELECT * FROM box_temp WHERE f1 << '(10,20),(30,40)' ORDER BY height(f1), width(
 EXPLAIN (COSTS OFF) SELECT * FROM box_temp WHERE f1 << '(10,20),(30,40)';
                 QUERY PLAN
 ------------------------------------------
- Foreign Scan on box_temp
+ Seq Scan on box_temp
    Filter: (f1 << '(30,40),(10,20)'::box)
 (2 rows)
 
@@ -269,7 +269,7 @@ SELECT * FROM box_temp WHERE f1 &< '(10,4.333334),(5,100)' ORDER BY height(f1), 
 EXPLAIN (COSTS OFF) SELECT * FROM box_temp WHERE f1 &< '(10,4.333334),(5,100)';
                    QUERY PLAN
 ------------------------------------------------
- Foreign Scan on box_temp
+ Seq Scan on box_temp
    Filter: (f1 &< '(10,100),(5,4.333334)'::box)
 (2 rows)
 
@@ -298,7 +298,7 @@ SELECT * FROM box_temp WHERE f1 && '(15,20),(25,30)' ORDER BY height(f1), width(
 EXPLAIN (COSTS OFF) SELECT * FROM box_temp WHERE f1 && '(15,20),(25,30)';
                 QUERY PLAN
 ------------------------------------------
- Foreign Scan on box_temp
+ Seq Scan on box_temp
    Filter: (f1 && '(25,30),(15,20)'::box)
 (2 rows)
 
@@ -321,7 +321,7 @@ SELECT * FROM box_temp WHERE f1 &> '(40,30),(45,50)' ORDER BY height(f1), width(
 EXPLAIN (COSTS OFF) SELECT * FROM box_temp WHERE f1 &> '(40,30),(45,50)';
                 QUERY PLAN
 ------------------------------------------
- Foreign Scan on box_temp
+ Seq Scan on box_temp
    Filter: (f1 &> '(45,50),(40,30)'::box)
 (2 rows)
 
@@ -343,7 +343,7 @@ SELECT * FROM box_temp WHERE f1 >> '(30,40),(40,30)' ORDER BY height(f1), width(
 EXPLAIN (COSTS OFF) SELECT * FROM box_temp WHERE f1 >> '(30,40),(40,30)';
                 QUERY PLAN
 ------------------------------------------
- Foreign Scan on box_temp
+ Seq Scan on box_temp
    Filter: (f1 >> '(40,40),(30,30)'::box)
 (2 rows)
 
@@ -358,7 +358,7 @@ SELECT * FROM box_temp WHERE f1 <<| '(10,4.33334),(5,100)' ORDER BY height(f1), 
 EXPLAIN (COSTS OFF) SELECT * FROM box_temp WHERE f1 <<| '(10,4.33334),(5,100)';
                    QUERY PLAN
 ------------------------------------------------
- Foreign Scan on box_temp
+ Seq Scan on box_temp
    Filter: (f1 <<| '(10,100),(5,4.33334)'::box)
 (2 rows)
 
@@ -373,7 +373,7 @@ SELECT * FROM box_temp WHERE f1 &<| '(10,4.3333334),(5,1)' ORDER BY height(f1), 
 EXPLAIN (COSTS OFF) SELECT * FROM box_temp WHERE f1 &<| '(10,4.3333334),(5,1)';
                    QUERY PLAN
 ------------------------------------------------
- Foreign Scan on box_temp
+ Seq Scan on box_temp
    Filter: (f1 &<| '(10,4.3333334),(5,1)'::box)
 (2 rows)
 
@@ -387,7 +387,7 @@ SELECT * FROM box_temp WHERE f1 |&> '(49.99,49.99),(49.99,49.99)' ORDER BY heigh
 EXPLAIN (COSTS OFF) SELECT * FROM box_temp WHERE f1 |&> '(49.99,49.99),(49.99,49.99)';
                       QUERY PLAN
 -------------------------------------------------------
- Foreign Scan on box_temp
+ Seq Scan on box_temp
    Filter: (f1 |&> '(49.99,49.99),(49.99,49.99)'::box)
 (2 rows)
 
@@ -410,7 +410,7 @@ SELECT * FROM box_temp WHERE f1 |>> '(37,38),(39,40)' ORDER BY height(f1), width
 EXPLAIN (COSTS OFF) SELECT * FROM box_temp WHERE f1 |>> '(37,38),(39,40)';
                 QUERY PLAN
 -------------------------------------------
- Foreign Scan on box_temp
+ Seq Scan on box_temp
    Filter: (f1 |>> '(39,40),(37,38)'::box)
 (2 rows)
 
@@ -426,7 +426,7 @@ SELECT * FROM box_temp WHERE f1 @> '(10,11),(15,16)' ORDER BY height(f1), width(
 EXPLAIN (COSTS OFF) SELECT * FROM box_temp WHERE f1 @> '(10,11),(15,15)';
                 QUERY PLAN
 ------------------------------------------
- Foreign Scan on box_temp
+ Seq Scan on box_temp
    Filter: (f1 @> '(15,15),(10,11)'::box)
 (2 rows)
 
@@ -439,7 +439,7 @@ SELECT * FROM box_temp WHERE f1 <@ '(10,15),(30,35)' ORDER BY height(f1), width(
 EXPLAIN (COSTS OFF) SELECT * FROM box_temp WHERE f1 <@ '(10,15),(30,35)';
                 QUERY PLAN
 ------------------------------------------
- Foreign Scan on box_temp
+ Seq Scan on box_temp
    Filter: (f1 <@ '(30,35),(10,15)'::box)
 (2 rows)
 
@@ -452,7 +452,7 @@ SELECT * FROM box_temp WHERE f1 ~= '(20,20),(40,40)' ORDER BY height(f1), width(
 EXPLAIN (COSTS OFF) SELECT * FROM box_temp WHERE f1 ~= '(20,20),(40,40)';
                 QUERY PLAN
 ------------------------------------------
- Foreign Scan on box_temp
+ Seq Scan on box_temp
    Filter: (f1 ~= '(40,40),(20,20)'::box)
 (2 rows)
 

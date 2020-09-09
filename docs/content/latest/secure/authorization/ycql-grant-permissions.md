@@ -28,9 +28,9 @@ showAsideToc: true
   </li>
 </ul>
 
-In this tutorial, we shall run through a scenario. Assume a company has an engineering organization, with three sub-teams - developers, qa and DB admins. We are going to create a role for each of these entities.
+In this tutorial, you shall run through a scenario. Assume a company has an engineering organization, with three sub-teams - developers, qa and DB admins. We are going to create a role for each of these entities.
 
-Here is what we want to achieve from a role-based access control (RBAC) perspective.
+Here is what you want to achieve from a role-based access control (RBAC) perspective.
 
 - All members of engineering should be able to read data from any keyspace and table.
 - Both developers and qa should be able to modify data in existing tables in the keyspace `dev_keyspace`.
@@ -121,17 +121,17 @@ You should see something like the following output.
 (5 rows)
 ```
 
-The above shows the various permissions the `cassandra` role has. Since `cassandra` is a superuser, it has all permissions on all keyspaces, including `ALTER`, `AUTHORIZE` and `DROP` on the roles we created (`engineering`, `developer`, `qa` and `db_admin`).
+The above shows the various permissions the `cassandra` role has. Since `cassandra` is a superuser, it has all permissions on all keyspaces, including `ALTER`, `AUTHORIZE` and `DROP` on the roles you created (`engineering`, `developer`, `qa` and `db_admin`).
 
 {{< note title="Note" >}}
 
-For the sake of brevity, we will drop the `cassandra` role related entries in the remainder of this article.
+For the sake of brevity, you will drop the `cassandra` role related entries in the remainder of this article.
 
 {{< /note >}}
 
 ## 3. Grant permissions to roles
 
-In this section, we will grant permissions to achieve the following as mentioned in the beginning of this tutorial:
+In this section, you will grant permissions to achieve the following as mentioned in the beginning of this tutorial:
 
 + All members of engineering should be able to read data from any keyspace and table.
 + Both developers and qa should be able to modify data in existing tables in the keyspace `dev_keyspace`.
@@ -152,7 +152,7 @@ We can now verify that the `engineering` role has `SELECT` permission as follows
 cassandra@ycqlsh> SELECT * FROM system_auth.role_permissions;
 ```
 
-The output should look similar to below, where we see that the `engineering` role has `SELECT` permission on the `data` resource.
+The output should look similar to below, where you see that the `engineering` role has `SELECT` permission on the `data` resource.
 
 ```
  role        | resource          | permissions
@@ -267,7 +267,7 @@ We should see the following, which grants the all permissions on the resource `d
 
 ## 4. Revoke permissions from roles
 
-Let us say we want to revoke the `AUTHORIZE` permission from the DB admins so that they can no longer change permissions for other roles. This can be done as follows.
+Let us say you want to revoke the `AUTHORIZE` permission from the DB admins so that they can no longer change permissions for other roles. This can be done as follows.
 
 ```sql
 cassandra@ycqlsh> REVOKE AUTHORIZE ON ALL KEYSPACES FROM db_admin;

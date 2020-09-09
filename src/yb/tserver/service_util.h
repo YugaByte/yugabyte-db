@@ -18,6 +18,8 @@
 
 #include <boost/optional.hpp>
 
+#include "yb/consensus/consensus_error.h"
+
 #include "yb/rpc/rpc_context.h"
 #include "yb/server/clock.h"
 
@@ -39,11 +41,17 @@ inline void SetupErrorAndRespond(TabletServerErrorPB* error,
                           TabletServerErrorPB::Code code,
                           rpc::RpcContext* context) {
   // Generic "service unavailable" errors will cause the client to retry later.
-  if (code == TabletServerErrorPB::UNKNOWN_ERROR && s.IsServiceUnavailable()) {
-    TabletServerDelay delay(s);
-    if (!delay.value().Initialized()) {
-      context->RespondRpcFailure(rpc::ErrorStatusPB::ERROR_SERVER_TOO_BUSY, s);
-      return;
+  if (code == TabletServerErrorPB::UNKNOWN_ERROR) {
+    if (s.IsServiceUnavailable()) {
+      TabletServerDelay delay(s);
+      if (!delay.value().Initialized()) {
+        context->RespondRpcFailure(rpc::ErrorStatusPB::ERROR_SERVER_TOO_BUSY, s);
+        return;
+      }
+    }
+    consensus::ConsensusError consensus_error(s);
+    if (consensus_error.value() == consensus::ConsensusErrorPB::TABLET_SPLIT) {
+      code = TabletServerErrorPB::TABLET_SPLIT;
     }
   }
 

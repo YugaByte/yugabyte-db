@@ -68,8 +68,7 @@ Status PgSelectIndex::PrepareQuery(PgsqlReadRequestPB *read_req) {
   } else {
     auto read_op = target_desc_->NewPgsqlSelect();
     read_req_ = read_op->mutable_request();
-    doc_op_ = make_shared<PgDocReadOp>(pg_session_, target_desc_,
-                                       target_desc_->num_hash_key_columns(), std::move(read_op));
+    doc_op_ = make_shared<PgDocReadOp>(pg_session_, target_desc_, std::move(read_op));
   }
 
   // Prepare index key columns.

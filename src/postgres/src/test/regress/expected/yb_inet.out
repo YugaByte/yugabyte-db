@@ -400,7 +400,7 @@ SELECT i FROM inet_tbl WHERE i << '192.168.1.0/24'::cidr ORDER BY c, i;
 -----------------------------------------------
  Sort
    Sort Key: c, i
-   ->  Foreign Scan on inet_tbl
+   ->  Seq Scan on inet_tbl
          Filter: (i << '192.168.1.0/24'::inet)
 (4 rows)
 
@@ -550,7 +550,7 @@ SELECT i FROM inet_tbl WHERE i << '192.168.1.0/24'::cidr ORDER BY c, i;
 -----------------------------------------------
  Sort
    Sort Key: c, i
-   ->  Foreign Scan on inet_tbl
+   ->  Seq Scan on inet_tbl
          Filter: (i << '192.168.1.0/24'::inet)
 (4 rows)
 

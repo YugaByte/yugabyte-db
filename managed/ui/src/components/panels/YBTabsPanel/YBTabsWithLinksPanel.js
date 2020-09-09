@@ -41,9 +41,17 @@ class YBTabsWithLinksPanel extends Component {
   render() {
     const { activeTab, defaultTab } = this.props;
     const activeTabKey = activeTab || this.queryTabHandler() || defaultTab;
-    const links = this.props.children.map((item) => {
-      return <NavItem key={item.props.eventKey} eventKey={item.props.eventKey} href={item.props.eventKey} onClick={(e) => {e.preventDefault();this.tabSelect(item.props.eventKey);}}>{item.props.title}</NavItem>;
-    });
+    const links = this.props.children.map((item) => (
+      <NavItem
+        key={item.props.eventKey}
+        eventKey={item.props.eventKey}
+        href={item.props.eventKey}
+        onClick={(e) => {e.preventDefault(); this.tabSelect(item.props.eventKey);}}
+      >
+        {item.props.tabtitle || item.props.title}
+      </NavItem>
+    ));
+
     return (
       <Tab.Container
         defaultActiveKey={defaultTab}

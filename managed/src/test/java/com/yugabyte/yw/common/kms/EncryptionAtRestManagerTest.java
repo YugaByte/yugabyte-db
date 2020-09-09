@@ -48,23 +48,6 @@ public class EncryptionAtRestManagerTest extends FakeDBApplication {
                 .put("base_url", "some_base_url")
         );
         keyConfig = new EncryptionAtRestConfig();
-
-        when(mockApiHelper.postRequest(
-                eq("https://some_base_url/sys/v1/session/auth"),
-                eq(null),
-                any(Map.class)
-        )).thenReturn(Json.newObject().put("access_token", "some_access_token"));
-        when(mockApiHelper.postRequest(
-                eq("https://some_base_url/crypto/v1/keys"),
-                any(JsonNode.class),
-                any(Map.class)
-        )).thenReturn(Json.newObject().put("kid", "some_key_id"));
-        when(mockApiHelper.getRequest(
-                eq("https://some_base_url/crypto/v1/keys/some_key_id/export"),
-                any(Map.class)
-        )).thenReturn(Json.newObject().put(
-                "value", "RjZiNzVGekljNFh5Zmh0NC9FQ1dpM0FaZTlMVGFTbW1Wa1dnaHRzdDhRVT0="
-        ));
     }
 
     @Test

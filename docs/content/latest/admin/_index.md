@@ -2,7 +2,7 @@
 title: CLIs and command line tools
 headerTitle: CLIs
 linkTitle: CLIs
-description: Use these CLIs and other command line tools to manage YugabyteDB clusters.
+description: Use these CLIs and command line tools to interact with YugabyteDB.
 image: /images/section_icons/index/admin.png
 headcontent: Command line interfaces (CLIs) and tools reference.
 type: page

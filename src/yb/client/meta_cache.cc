@@ -38,6 +38,7 @@
 #include <glog/logging.h>
 
 #include "yb/client/client.h"
+#include "yb/client/client_error.h"
 #include "yb/client/client-internal.h"
 #include "yb/client/table.h"
 
@@ -50,7 +51,11 @@
 #include "yb/master/master.proxy.h"
 #include "yb/rpc/messenger.h"
 #include "yb/rpc/rpc.h"
+
+#include "yb/tserver/local_tablet_server.h"
 #include "yb/tserver/tserver_service.proxy.h"
+
+#include "yb/util/algorithm_util.h"
 #include "yb/util/flag_tags.h"
 #include "yb/util/net/dns_resolver.h"
 #include "yb/util/net/net_util.h"
@@ -72,6 +77,12 @@ DEFINE_test_flag(bool, verify_all_replicas_alive, false,
 
 DEFINE_int32(retry_failed_replica_ms, 60 * 1000,
              "Time in milliseconds to wait for before retrying a failed replica");
+
+DEFINE_int64(meta_cache_lookup_throttling_step_ms, 5,
+             "Step to increment delay between calls during lookup throttling.");
+
+DEFINE_int64(meta_cache_lookup_throttling_max_delay_ms, 1000,
+             "Max delay between calls during lookup throttling.");
 
 METRIC_DEFINE_histogram(
   server, dns_resolve_latency_during_init_proxy,
@@ -109,6 +120,8 @@ const size_t kPartitionGroupSize = 64;
 #else
 const size_t kPartitionGroupSize = 4;
 #endif
+
+std::atomic<int64_t> lookup_serial_{1};
 
 } // namespace
 
@@ -263,11 +276,26 @@ void RemoteTablet::Refresh(
     const google::protobuf::RepeatedPtrField<TabletLocationsPB_ReplicaPB>& replicas) {
   // Adopt the data from the successful response.
   std::lock_guard<rw_spinlock> lock(mutex_);
+  std::vector<std::string> old_uuids;
+  old_uuids.reserve(replicas_.size());
+  for (const auto& replica : replicas_) {
+    old_uuids.push_back(replica.ts->permanent_uuid());
+  }
+  std::sort(old_uuids.begin(), old_uuids.end());
   replicas_.clear();
+  bool has_new_replica = false;
   for (const TabletLocationsPB_ReplicaPB& r : replicas) {
     auto it = tservers.find(r.ts_info().permanent_uuid());
     CHECK(it != tservers.end());
     replicas_.emplace_back(it->second.get(), r.role());
+    has_new_replica =
+        has_new_replica ||
+        !std::binary_search(old_uuids.begin(), old_uuids.end(), r.ts_info().permanent_uuid());
+  }
+  if (has_new_replica) {
+    lookups_without_new_replicas_ = 0;
+  } else {
+    ++lookups_without_new_replicas_;
   }
   stale_ = false;
   refresh_time_.store(MonoTime::Now(), std::memory_order_release);
@@ -473,7 +501,7 @@ std::string RemoteTablet::ReplicasAsStringUnlocked() const {
 }
 
 std::string RemoteTablet::ToString() const {
-  return YB_CLASS_TO_STRING(tablet_id, split_depth);
+  return YB_CLASS_TO_STRING(tablet_id, partition, split_depth);
 }
 
 ////////////////////////////////////////////////////////////
@@ -521,9 +549,8 @@ void MetaCache::UpdateTabletServerUnlocked(const master::TSInfoPB& pb) {
 class LookupRpc : public Rpc {
  public:
   LookupRpc(const scoped_refptr<MetaCache>& meta_cache,
-            CoarseTimePoint deadline,
-            Messenger* messenger,
-            rpc::ProxyCache* proxy_cache);
+            int64_t request_no,
+            CoarseTimePoint deadline);
 
   virtual ~LookupRpc();
 
@@ -534,7 +561,7 @@ class LookupRpc : public Rpc {
 
   void ResetMasterLeaderAndRetry();
 
-  virtual void Notify(const Result<RemoteTabletPtr>& result) = 0;
+  virtual void NotifyFailure(const Status& status) = 0;
 
   std::shared_ptr<MasterServiceProxy> master_proxy() const {
     return client()->data_->master_proxy();
@@ -548,10 +575,20 @@ class LookupRpc : public Rpc {
     return yb::ToString(this) + ": ";
   }
 
+  int64_t request_no() const {
+    return request_no_;
+  }
+
+  rpc::Rpcs::Handle* RpcHandle() {
+    return &retained_self_;
+  }
+
  private:
   virtual void DoSendRpc() = 0;
 
   void NewLeaderMasterDeterminedCb(const Status& status);
+
+  const int64_t request_no_;
 
   // Pointer back to the tablet cache. Populated with location information
   // if the lookup finishes successfully.
@@ -567,10 +604,10 @@ class LookupRpc : public Rpc {
 };
 
 LookupRpc::LookupRpc(const scoped_refptr<MetaCache>& meta_cache,
-                     CoarseTimePoint deadline,
-                     Messenger* messenger,
-                     rpc::ProxyCache* proxy_cache)
-    : Rpc(deadline, messenger, proxy_cache),
+                     int64_t request_no,
+                     CoarseTimePoint deadline)
+    : Rpc(deadline, meta_cache->client_->messenger(), &meta_cache->client_->proxy_cache()),
+      request_no_(request_no),
       meta_cache_(meta_cache),
       retained_self_(meta_cache_->rpcs_.InvalidHandle()) {
   DCHECK(deadline != CoarseTimePoint());
@@ -583,8 +620,6 @@ LookupRpc::~LookupRpc() {
 }
 
 void LookupRpc::SendRpc() {
-  meta_cache_->rpcs_.Register(shared_from_this(), &retained_self_);
-
   if (!has_permit_) {
     has_permit_ = meta_cache_->AcquireMasterLookupPermit();
   }
@@ -600,7 +635,7 @@ void LookupRpc::SendRpc() {
     Finished(STATUS(TimedOut, "timed out after deadline expired"));
     return;
   }
-  mutable_retrier()->PrepareController(MonoDelta());
+  mutable_retrier()->PrepareController();
 
   DoSendRpc();
 }
@@ -627,6 +662,9 @@ void LookupRpc::NewLeaderMasterDeterminedCb(const Status& status) {
 template <class Response>
 void LookupRpc::DoFinished(
     const Status& status, const Response& resp, const std::string* partition_group_start) {
+  VLOG_WITH_FUNC(4) << "partition_group_start: "
+                    << (partition_group_start ? Slice(*partition_group_start).ToDebugHexString()
+                                              : "None");
   if (status.ok() && resp.has_error()) {
     LOG_WITH_PREFIX(INFO)
         << "Failed, got resp error " << master::MasterErrorPB::Code_Name(resp.error().code());
@@ -682,96 +720,104 @@ void LookupRpc::DoFinished(
   auto retained_self = meta_cache_->rpcs_.Unregister(&retained_self_);
 
   if (new_status.ok()) {
-    Notify(meta_cache_->ProcessTabletLocations(resp.tablet_locations(), partition_group_start));
-  } else {
-    LOG_WITH_PREFIX(WARNING) << new_status;
+    new_status = meta_cache_->ProcessTabletLocations(
+        resp.tablet_locations(), partition_group_start, request_no());
+  }
+  if (!new_status.ok()) {
+    YB_LOG_WITH_PREFIX_EVERY_N_SECS(WARNING, 1) << new_status;
     new_status = new_status.CloneAndPrepend(Substitute("$0 failed", ToString()));
-    Notify(new_status);
+    NotifyFailure(new_status);
   }
 }
 
 namespace {
 
-Status CheckTabletLocationsGaps(
+Status CheckTabletLocations(
     const google::protobuf::RepeatedPtrField<master::TabletLocationsPB>& locations) {
   const std::string* prev_partition_end = nullptr;
   for (const TabletLocationsPB& loc : locations) {
-    if (prev_partition_end && *prev_partition_end != loc.partition().partition_key_start()) {
+    if (prev_partition_end && *prev_partition_end > loc.partition().partition_key_start()) {
       LOG(DFATAL)
-          << "There should be no gaps and overlaps in tablet partitions and they should be sorted "
+          << "There should be no overlaps in tablet partitions and they should be sorted "
           << "by partition_key_start. Prev partition end: "
           << Slice(*prev_partition_end).ToDebugHexString() << ", current partition start: "
           << Slice(loc.partition().partition_key_start()).ToDebugHexString()
           << ". Tablet locations: " << AsString(locations);
-      return STATUS(IllegalState, "Wrong order or gaps in partitions");
+      return STATUS(IllegalState, "Wrong order or overlaps in partitions");
     }
     prev_partition_end = &loc.partition().partition_key_end();
   }
   return Status::OK();
 }
 
-Status CheckColocatedTabletSplit(const TabletLocationsPB& location) {
-  if (location.table_ids_size() == 1) {
-    return Status::OK();
-  }
-  const auto error_msg = Format(
-      "Tablet splitting is not supported for colocated tables, tablet_id: $0",
-      location.tablet_id());
-  LOG(DFATAL) << error_msg;
-  return STATUS(IllegalState, error_msg);
-}
+class TabletIdLookup : public ToStringable {
+ public:
+  explicit TabletIdLookup(const TabletId& tablet_id) : tablet_id_(tablet_id) {}
 
-Status PreSplitTabletNotCoveredError(
-    const RemoteTabletPtr& pre_split_tablet,
-    const google::protobuf::RepeatedPtrField<master::TabletLocationsPB>& locations) {
-  const auto error_msg = Format(
-      "Pre-split tablet $0 partition: $1 is not exactly covered with post-split tablets "
-      "partitions: $2", pre_split_tablet->tablet_id(), pre_split_tablet->partition(),
-      AsString(locations));
-  LOG(DFATAL) << error_msg;
-  return STATUS(IllegalState, error_msg);
-}
+  std::string ToString() const override {
+    return Format("Tablet: $0", tablet_id_);
+  }
+
+ private:
+  const TabletId& tablet_id_;
+};
+
+class TablePartitionLookup : public ToStringable {
+ public:
+  explicit TablePartitionLookup(const TableId& table_id, const std::string& partition_group_start)
+      : table_id_(table_id), partition_group_start_(partition_group_start) {}
+
+  std::string ToString() const override {
+    return Format("Table: $0, partition: $1",
+                  table_id_, Slice(partition_group_start_).ToDebugHexString());
+  }
+
+ private:
+  const TableId& table_id_;
+  const std::string& partition_group_start_;
+};
 
 } // namespace
 
-Result<RemoteTabletPtr> MetaCache::ProcessTabletLocations(
+Status MetaCache::ProcessTabletLocations(
     const google::protobuf::RepeatedPtrField<master::TabletLocationsPB>& locations,
-    const std::string* partition_group_start) {
-  VLOG(2) << "Processing master response " << ToString(locations);
+    const std::string* partition_group_start,
+    int64_t request_no) {
+  if (VLOG_IS_ON(2)) {
+    auto group_start =
+        partition_group_start ? Slice(*partition_group_start).ToDebugHexString() : "<NULL>";
+    for (const auto& loc : locations) {
+      for (const auto& table_id : loc.table_ids()) {
+        VLOG_WITH_FUNC(2) << loc.tablet_id() << ", " << table_id << "/" << group_start;
+      }
+    }
+    VLOG_WITH_FUNC(4) << AsString(locations) << ", " << group_start;
+  }
 
-  RETURN_NOT_OK(CheckTabletLocationsGaps(locations));
+  RETURN_NOT_OK(CheckTabletLocations(locations));
 
-  RemoteTabletPtr result;
-  bool first = true;
   std::vector<std::pair<LookupTabletCallback, internal::RemoteTabletPtr>> to_notify;
-
   {
     std::lock_guard<decltype(mutex_)> lock(mutex_);
 
-    std::unordered_set<TableId> table_ids_to_reset;
-    auto se = ScopeExit([this, &table_ids_to_reset]() NO_THREAD_SAFETY_ANALYSIS {
-      // Reset the cache for partially updated tables to avoid inconsistent state.
-      for (const auto& table_id : table_ids_to_reset) {
-        tables_.erase(table_id);
-      }
-    });
-
-    RemoteTabletPtr current_pre_split_tablet;
+    std::unordered_map<TableId, std::unordered_map<std::string, RemoteTabletPtr>> processed_tables;
 
     for (const TabletLocationsPB& loc : locations) {
+      const std::string& tablet_id = loc.tablet_id();
+      // Next, update the tablet caches.
+      RemoteTabletPtr remote = FindPtrOrNull(tablets_by_id_, tablet_id);
+
+      // First, update the tserver cache, needed for the Refresh calls below.
+      for (const TabletLocationsPB_ReplicaPB& r : loc.replicas()) {
+        UpdateTabletServerUnlocked(r.ts_info());
+      }
+
       for (const std::string& table_id : loc.table_ids()) {
-        table_ids_to_reset.insert(table_id);
+        auto& processed_table = processed_tables[table_id];
 
         auto& table_data = tables_[table_id];
         auto& tablets_by_key = table_data.tablets_by_partition;
-        // First, update the tserver cache, needed for the Refresh calls below.
-        for (const TabletLocationsPB_ReplicaPB& r : loc.replicas()) {
-          UpdateTabletServerUnlocked(r.ts_info());
-        }
 
-        // Next, update the tablet caches.
-        const std::string& tablet_id = loc.tablet_id();
-        RemoteTabletPtr remote = FindPtrOrNull(tablets_by_id_, tablet_id);
         if (remote) {
           // Partition should not have changed.
           DCHECK_EQ(loc.partition().partition_key_start(),
@@ -784,22 +830,24 @@ Result<RemoteTabletPtr> MetaCache::ProcessTabletLocations(
           // We need to add this tablet to the current table's tablets_by_key map.
           tablets_by_key[remote->partition().partition_key_start()] = remote;
 
-          VLOG(3) << "Refreshing tablet " << tablet_id << ": " << loc.ShortDebugString();
+          VLOG(5) << "Refreshing tablet " << tablet_id << ": " << loc.ShortDebugString();
         } else {
-          VLOG(3) << "Caching tablet " << tablet_id << ": " << loc.ShortDebugString();
+          VLOG(5) << "Caching tablet " << tablet_id << ": " << loc.ShortDebugString();
 
           Partition partition;
           Partition::FromPB(loc.partition(), &partition);
           remote = new RemoteTablet(tablet_id, partition, loc.split_depth());
 
           CHECK(tablets_by_id_.emplace(tablet_id, remote).second);
-          // TODO(tsplit): cover this functionality with test.
           auto emplace_result = tablets_by_key.emplace(partition.partition_key_start(), remote);
           if (!emplace_result.second) {
             const auto& old_tablet = emplace_result.first->second;
             if (old_tablet->split_depth() < remote->split_depth()) {
               // Only replace with tablet of higher split_depth.
-              current_pre_split_tablet = old_tablet;
+              // TODO(tsplit): add cleanup for table_data.split_tablets, we don't need to keep
+              // pre-split tablet info after it has been fully covered by post-split tablets
+              // in meta cache.
+              table_data.split_tablets[partition.partition_key_start()].push_back(old_tablet);
               emplace_result.first->second = remote;
             } else {
               // If split_depth is the same - it should be the same tablet.
@@ -810,162 +858,285 @@ Result<RemoteTabletPtr> MetaCache::ProcessTabletLocations(
                     old_tablet->tablet_id(), tablet_id, loc.partition().partition_key_start(),
                     old_tablet->split_depth());
                 LOG(DFATAL) << error_msg;
-                return STATUS(IllegalState, error_msg);
+                // Just skip updating this tablet for release build.
               }
             }
           }
-          if (current_pre_split_tablet) {
-            RETURN_NOT_OK(CheckColocatedTabletSplit(loc));
-            if (!current_pre_split_tablet->partition().ContainsPartition(partition)) {
-              return PreSplitTabletNotCoveredError(current_pre_split_tablet, locations);
-            }
-            client_->data_->tablet_requests_[remote->tablet_id()].request_id_seq =
-                client_->data_->tablet_requests_[current_pre_split_tablet->tablet_id()]
-                    .request_id_seq;
-            if (current_pre_split_tablet->partition().partition_key_end() ==
-                partition.partition_key_end()) {
-              // `remote` is the last part of pre_split_tablet split, so we should finish pre-split
-              // tablet replacement.
-              current_pre_split_tablet = nullptr;
-            }
-          }
+          MaybeUpdateClientRequests(table_data, *remote);
         }
         remote->Refresh(ts_cache_, loc.replicas());
 
-        if (first) {
-          result = remote;
-          first = false;
-        }
-
         if (partition_group_start) {
-          auto lookup_by_group_iter =
-              table_data.tablet_lookups_by_group.find(*partition_group_start);
-          if (lookup_by_group_iter != table_data.tablet_lookups_by_group.end()) {
-            auto& lookups_by_partition_key = lookup_by_group_iter->second;
-            auto lookups_iter =
-                lookups_by_partition_key.find(loc.partition().partition_key_start());
-            if (lookups_iter != lookups_by_partition_key.end()) {
-              for (auto& lookup : lookups_iter->second) {
-                to_notify.emplace_back(std::move(lookup.callback), remote);
-              }
-              lookups_by_partition_key.erase(lookups_iter);
-            }
-            if (lookups_by_partition_key.empty()) {
-              table_data.tablet_lookups_by_group.erase(lookup_by_group_iter);
-            }
-          }
+          processed_table.emplace(loc.partition().partition_key_start(), remote);
+        }
+      }
+
+      auto it = tablet_lookups_by_id_.find(tablet_id);
+      if (it != tablet_lookups_by_id_.end()) {
+        while (auto* lookup = it->second.lookups.Pop()) {
+          to_notify.emplace_back(std::move(lookup->callback), remote);
+          delete lookup;
+        }
+        if (!partition_group_start) {
+          it->second.Finished(request_no, TabletIdLookup(tablet_id));
         }
       }
     }
 
-    if (current_pre_split_tablet) {
-      return PreSplitTabletNotCoveredError(current_pre_split_tablet, locations);
+    if (partition_group_start) {
+      for (const auto& processed_table : processed_tables) {
+        auto& table_data = tables_[processed_table.first];
+        const auto lookup_by_group_iter =
+            table_data.tablet_lookups_by_group.find(*partition_group_start);
+        if (lookup_by_group_iter != table_data.tablet_lookups_by_group.end()) {
+          VLOG_WITH_FUNC(4) << "Checking tablet_lookups_by_group for partition_group_start: "
+                            << Slice(*partition_group_start).ToDebugHexString();
+          auto& lookups_group = lookup_by_group_iter->second;
+          while (auto* lookup = lookups_group.lookups.Pop()) {
+            auto remote_it = processed_table.second.find(*lookup->partition_start);
+            to_notify.emplace_back(
+                std::move(lookup->callback),
+                remote_it != processed_table.second.end() ? remote_it->second : nullptr);
+            delete lookup;
+          }
+          lookups_group.Finished(
+              request_no, TablePartitionLookup(processed_table.first, *partition_group_start),
+              processed_tables.size() != 1);
+        }
+      }
     }
-
-    table_ids_to_reset.clear();
   }
 
   for (const auto& callback_and_remote_tablet : to_notify) {
-    callback_and_remote_tablet.first(callback_and_remote_tablet.second);
+    if (callback_and_remote_tablet.second) {
+      callback_and_remote_tablet.first(callback_and_remote_tablet.second);
+    } else {
+      static auto status = STATUS(TryAgain, "Tablet for requested partition is not yet running");
+      callback_and_remote_tablet.first(status);
+    }
   }
 
-  CHECK_NOTNULL(result.get());
-  return result;
+  return Status::OK();
+}
+
+RemoteTabletPtr MetaCache::GetNearestSplitAncestorUnlocked(
+    const TableData& table_data, const RemoteTablet& tablet) {
+  VLOG_WITH_FUNC(3) << Format("tablet: $0", tablet);
+  if (tablet.split_depth() == 0) {
+    // Tablet is not a result of another tablet split, it couldn't have split ancestor.
+    return nullptr;
+  }
+
+  const auto& partition = tablet.partition();
+  const auto& partition_key_start = partition.partition_key_start();
+
+  VLOG_WITH_FUNC(4) << "table_data.tablets_by_partition: "
+                    << AsString(table_data.tablets_by_partition);
+  VLOG_WITH_FUNC(4) << "table_data.split_tablets: " << AsString(table_data.split_tablets);
+
+  RemoteTabletPtr nearest_split_ancestor;
+
+  {
+    // Try to find the deepest tablet X in table_data.tablets_by_partition whose partition strictly
+    // contains tablet's (T) partition.
+    //
+    // If such tablet X exists it will have the maximum possible X.partition_key_start <=
+    // T.partition_key_start.
+    //
+    // Proof: Lets assume there is another tablet Y != X in the map that strictly contains
+    // T.partition, but it has Y.partition_key_start < X.partition_key_start.
+    // That means:
+    // Y.partition_key_end >= T.partition_key_end > T.partition_key_start >= X.partition_key_start
+    //  => Y.partition_key_end > X.partition_key_start
+    // So, Y.partition overlaps with X.partition and Y.partition_key_start < X.partition_key_start.
+    // Due to the nature of tablet splitting, there could be no partial overlap of tablet partition
+    // key ranges. Then Y should strictly contains X and that means Y is not the
+    // deepest tablet available strictly containing T.partition.
+    const auto it = GetLastLessOrEqual(table_data.tablets_by_partition, partition_key_start);
+    if (it != table_data.tablets_by_partition.end()) {
+      VLOG_WITH_FUNC(3) << Format(
+          "Nearest_split_ancestor candidate: $0",
+          it != table_data.tablets_by_partition.end() ? AsString(it->second) : "None");
+      if (it->second->partition().ContainsPartitionStrict(partition)) {
+        nearest_split_ancestor = it->second;
+        VLOG_WITH_FUNC(3) << Format(
+            "Found nearest split ancestor tablet: $0", nearest_split_ancestor);
+      }
+    }
+  }
+
+  if (!nearest_split_ancestor) {
+    // Nearest split ancestor could be already replaced and moved to table_data.split_tablets,
+    // so try to find it there starting with largest depth.
+    const auto it = GetLastLessOrEqual(table_data.split_tablets, partition_key_start);
+    if (it != table_data.split_tablets.end()) {
+      for (auto tablet_it = it->second.rbegin(); tablet_it != it->second.rend(); ++tablet_it) {
+        VLOG_WITH_FUNC(3) << Format(
+            "Nearest_split_ancestor candidate: $0", tablet_it->get());
+        if (tablet_it->get()->partition().ContainsPartition(partition)) {
+          nearest_split_ancestor = tablet_it->get();
+          VLOG_WITH_FUNC(3) << Format(
+              "Found nearest split ancestor tablet: $0", nearest_split_ancestor);
+          break;
+        }
+      }
+    }
+  }
+
+  if (!nearest_split_ancestor) {
+    VLOG_WITH_FUNC(3) << Format("No nearest split ancestor tablet for: $0", tablet);
+    return nullptr;
+  }
+
+  if (nearest_split_ancestor->split_depth() >= tablet.split_depth()) {
+    LOG(DFATAL) << Format(
+        "Nearest split ancestor $0 (split_depth: $1, partition: $2) should have smaller"
+        " split depth than $3 (split_depth: $4, partition: $5)",
+        nearest_split_ancestor->tablet_id(), nearest_split_ancestor->split_depth(),
+        nearest_split_ancestor->partition(), tablet.tablet_id(), tablet.split_depth(),
+        tablet.partition());
+    return nullptr;
+  }
+
+  return nearest_split_ancestor;
+}
+
+void MetaCache::MaybeUpdateClientRequests(const TableData& table_data, const RemoteTablet& tablet) {
+  const auto nearest_split_ancestor = GetNearestSplitAncestorUnlocked(table_data, tablet);
+
+  if (!nearest_split_ancestor) {
+    return;
+  }
+
+  // TODO: MetaCache is a friend of Client and tablet_requests_mutex_ with tablet_requests_ are
+  // public members of YBClient::Data. Consider refactoring that.
+  std::lock_guard<simple_spinlock> request_lock(client_->data_->tablet_requests_mutex_);
+  auto& tablet_requests = client_->data_->tablet_requests_;
+  const auto requests_it = tablet_requests.find(nearest_split_ancestor->tablet_id());
+  if (requests_it == tablet_requests.end()) {
+    LOG(DFATAL) << "Not found tablet requests structure for tablet "
+                << nearest_split_ancestor->tablet_id();
+    return;
+  }
+  tablet_requests[tablet.tablet_id()].request_id_seq = requests_it->second.request_id_seq;
 }
 
 void MetaCache::InvalidateTableCache(const TableId& table_id) {
-  std::lock_guard<decltype(mutex_)> lock(mutex_);
-  auto it = tables_.find(table_id);
-  if (it != tables_.end()) {
-    it->second.stale = true;
-    // TODO(tsplit): Instead of silently removing callbacks for lookups in progress - handle
-    // this case appropriately.
-    // TODO(tsplit): Optimize to retry only necessary lookups inside ProcessTabletLocations,
-    // detect which need to be retried by GetTableLocationsResponsePB.partition_version.
-    it->second.tablet_lookups_by_group.clear();
+  VLOG_WITH_FUNC(1) << "table: " << table_id;
+
+  std::vector<LookupTabletCallback> to_notify;
+
+  {
+    std::lock_guard<decltype(mutex_)> lock(mutex_);
+    auto it = tables_.find(table_id);
+    if (it != tables_.end()) {
+      auto& table_data = it->second;
+      // Some partitions could be mapped to tablets that have been split and we need to re-fetch
+      // info about tablets serving partitions.
+      for (auto& tablet : table_data.tablets_by_partition) {
+        tablet.second->MarkStale();
+      }
+      // TODO(tsplit): Optimize to retry only necessary lookups inside ProcessTabletLocations,
+      // detect which need to be retried by GetTableLocationsResponsePB.partitions_version.
+      for (auto& group_lookups : table_data.tablet_lookups_by_group) {
+        while (auto* lookup = group_lookups.second.lookups.Pop()) {
+          to_notify.push_back(std::move(lookup->callback));
+          delete lookup;
+        }
+      }
+      table_data.tablet_lookups_by_group.clear();
+    }
+  }
+  for (const auto& callback : to_notify) {
+    callback(STATUS_FORMAT(TryAgain, "MetaCache for table $0 has been invalidated.", table_id));
   }
 }
 
-void MetaCache::LookupFailed(
-    const YBTable* table, const std::string& partition_group_start, const Status& status) {
-  VLOG(1) << "Lookup for table " << table->id() << " and partition "
-          << Slice(partition_group_start).ToDebugHexString() << ", failed with: " << status;
+class MetaCache::CallbackNotifier {
+ public:
+  explicit CallbackNotifier(const Status& status) : status_(status) {}
 
-  std::vector<LookupTabletCallback> to_notify;
+  void Add(LookupTabletCallback&& callback) {
+    callbacks_.push_back(std::move(callback));
+  }
+
+  ~CallbackNotifier() {
+    for (const auto& callback : callbacks_) {
+      callback(status_);
+    }
+  }
+ private:
+  std::vector<LookupTabletCallback> callbacks_;
+  Status status_;
+};
+
+template <class Key>
+CoarseTimePoint MetaCache::LookupFailed(
+    const Key& key, const Status& status, int64_t request_no, const ToStringable& lookup_id,
+    std::unordered_map<Key, LookupDataGroup>* key_to_group_lookup_data,
+    CallbackNotifier* notifier) {
+  auto key_to_group_lookup_data_iterator = key_to_group_lookup_data->find(key);
+  if (key_to_group_lookup_data_iterator == key_to_group_lookup_data->end()) {
+    return CoarseTimePoint();
+  }
+  auto& lookup_data_group = key_to_group_lookup_data_iterator->second;
+  std::vector<LookupData*> retry;
+  auto now = CoarseMonoClock::Now();
   CoarseTimePoint max_deadline;
-  {
-    std::lock_guard<decltype(mutex_)> lock(mutex_);
-    auto it = tables_.find(table->id());
-    if (it == tables_.end()) {
-      return;
-    }
 
-    auto gi = it->second.tablet_lookups_by_group.find(partition_group_start);
-    if (gi == it->second.tablet_lookups_by_group.end()) {
-      return;
-    }
-    auto& lookups = gi->second;
-
-    if (!status.IsTimedOut()) {
-      for (const auto& pair : lookups) {
-        for (auto& data : pair.second) {
-          to_notify.push_back(std::move(data.callback));
-        }
-      }
-      it->second.tablet_lookups_by_group.erase(gi);
+  while (auto* lookup = lookup_data_group.lookups.Pop()) {
+    if (!status.IsTimedOut() || lookup->deadline <= now) {
+      notifier->Add(std::move(lookup->callback));
+      delete lookup;
     } else {
-      auto now = CoarseMonoClock::Now();
-      for (auto j = lookups.begin(); j != lookups.end();) {
-        auto w = j->second.begin();
-        for (auto i = j->second.begin(); i != j->second.end(); ++i) {
-          if (i->deadline <= now) {
-            to_notify.push_back(std::move(i->callback));
-          } else {
-            max_deadline = std::max(max_deadline, i->deadline);
-            if (i != w) {
-              *w = std::move(*i);
-            }
-            ++w;
-          }
-        }
-        if (w != j->second.begin()) {
-          j->second.erase(w, j->second.end());
-          ++j;
-        } else {
-          j = lookups.erase(j);
-        }
-      }
-      if (max_deadline == CoarseTimePoint()) {
-        it->second.tablet_lookups_by_group.erase(gi);
-      }
+      max_deadline = std::max(max_deadline, lookup->deadline);
+      retry.push_back(lookup);
     }
   }
 
-  for (const auto& callback : to_notify) {
-    callback(status);
+  if (retry.empty()) {
+    lookup_data_group.Finished(request_no, lookup_id);
+  } else {
+    for (auto* lookup : retry) {
+      lookup_data_group.lookups.Push(lookup);
+    }
   }
 
-  if (max_deadline != CoarseTimePoint()) {
-    rpc::StartRpc<LookupByKeyRpc>(
-        this, table, partition_group_start, max_deadline, client_->data_->messenger_,
-        client_->data_->proxy_cache_.get());
-  }
+  return max_deadline;
 }
 
 class LookupByIdRpc : public LookupRpc {
  public:
   LookupByIdRpc(const scoped_refptr<MetaCache>& meta_cache,
-                LookupTabletCallback user_cb,
-                TabletId tablet_id,
+                const TabletId& tablet_id,
+                int64_t request_no,
                 CoarseTimePoint deadline,
-                Messenger* messenger,
-                rpc::ProxyCache* proxy_cache)
-      : LookupRpc(meta_cache, deadline, messenger, proxy_cache),
-        user_cb_(std::move(user_cb)),
-        tablet_id_(std::move(tablet_id)) {}
+                int64_t lookups_without_new_replicas)
+      : LookupRpc(meta_cache, request_no, deadline),
+        tablet_id_(tablet_id) {
+    if (lookups_without_new_replicas != 0) {
+      send_delay_ = std::min(
+          lookups_without_new_replicas * FLAGS_meta_cache_lookup_throttling_step_ms,
+          FLAGS_meta_cache_lookup_throttling_max_delay_ms) * 1ms;
+    }
+  }
 
   std::string ToString() const override {
     return Format("LookupByIdRpc(tablet: $0, num_attempts: $1)", tablet_id_, num_attempts());
+  }
+
+  void SendRpc() override {
+    if (send_delay_) {
+      auto delay = send_delay_;
+      send_delay_ = MonoDelta();
+      auto status = mutable_retrier()->DelayedRetry(this, Status::OK(), delay);
+      if (!status.ok()) {
+        Finished(status);
+      }
+      return;
+    }
+
+    LookupRpc::SendRpc();
   }
 
   void DoSendRpc() override {
@@ -983,15 +1154,9 @@ class LookupByIdRpc : public LookupRpc {
     DoFinished(status, resp_, nullptr /* partition_group_start */);
   }
 
-  void Notify(const Result<RemoteTabletPtr>& remote_tablet) override {
-    user_cb_(remote_tablet);
+  void NotifyFailure(const Status& status) override {
+    meta_cache()->LookupByIdFailed(tablet_id_, request_no(), status);
   }
-
-
-  // User-specified callback to invoke when the lookup finishes.
-  //
-  // Always invoked, regardless of success or failure.
-  LookupTabletCallback user_cb_;
 
   // Tablet to lookup.
   TabletId tablet_id_;
@@ -1001,19 +1166,20 @@ class LookupByIdRpc : public LookupRpc {
 
   // Response body.
   master::GetTabletLocationsResponsePB resp_;
+
+  MonoDelta send_delay_;
 };
 
 class LookupByKeyRpc : public LookupRpc {
  public:
   LookupByKeyRpc(const scoped_refptr<MetaCache>& meta_cache,
                  const YBTable* table,
-                 MetaCache::PartitionGroupKey partition_group_start,
-                 CoarseTimePoint deadline,
-                 Messenger* messenger,
-                 rpc::ProxyCache* proxy_cache)
-      : LookupRpc(meta_cache, deadline, messenger, proxy_cache),
+                 const MetaCache::PartitionGroupKey& partition_group_start,
+                 int64_t request_no,
+                 CoarseTimePoint deadline)
+      : LookupRpc(meta_cache, request_no, deadline),
         table_(table->shared_from_this()),
-        partition_group_start_(std::move(partition_group_start)) {
+        partition_group_start_(partition_group_start) {
   }
 
   std::string ToString() const override {
@@ -1043,14 +1209,28 @@ class LookupByKeyRpc : public LookupRpc {
 
  private:
   void Finished(const Status& status) override {
+    const auto table_partitions_version = table_->GetPartitionsVersion();
+    VLOG_WITH_FUNC(4) << Format(
+        "Received table $0 partitions version: $1, ours is: $2", table_->id(),
+        resp_.partitions_version(), table_partitions_version);
+    if (resp_.partitions_version() != table_partitions_version) {
+      DoFinished(
+          STATUS_EC_FORMAT(
+              TryAgain,
+              ClientError(
+                  resp_.partitions_version() > table_partitions_version
+                      ? ClientErrorCode::kTablePartitionsAreStale
+                      : ClientErrorCode::kGotOldTablePartitions),
+              "Received table $0 partitions version: $1, ours is: $2", table_->id(),
+              resp_.partitions_version(), table_partitions_version),
+          resp_, &partition_group_start_);
+      return;
+    }
     DoFinished(status, resp_, &partition_group_start_);
   }
 
-  void Notify(const Result<RemoteTabletPtr>& result) override {
-    if (result.ok()) {
-      return; // This case is handled by LookupTabletByKeyFastPathUnlocked.
-    }
-    meta_cache()->LookupFailed(table_.get(), partition_group_start_, result.status());
+  void NotifyFailure(const Status& status) override {
+    meta_cache()->LookupByKeyFailed(table_.get(), partition_group_start_, request_no(), status);
   }
 
   // Table to lookup.
@@ -1066,11 +1246,57 @@ class LookupByKeyRpc : public LookupRpc {
   GetTableLocationsResponsePB resp_;
 };
 
+void MetaCache::LookupByKeyFailed(
+    const YBTable* table, const std::string& partition_group_start, int64_t request_no,
+    const Status& status) {
+  VLOG(1) << "Lookup for table " << table->id() << " and partition "
+          << Slice(partition_group_start).ToDebugHexString() << ", failed with: " << status;
+
+  CallbackNotifier notifier(status);
+  CoarseTimePoint max_deadline;
+  {
+    std::lock_guard<decltype(mutex_)> lock(mutex_);
+    auto it = tables_.find(table->id());
+    if (it == tables_.end()) {
+      return;
+    }
+
+    max_deadline = LookupFailed(
+        partition_group_start, status, request_no,
+        TablePartitionLookup(table->id(), partition_group_start),
+        &it->second.tablet_lookups_by_group, &notifier);
+  }
+
+  if (max_deadline != CoarseTimePoint()) {
+    auto rpc = std::make_shared<LookupByKeyRpc>(
+        this, table, partition_group_start, request_no, max_deadline);
+    rpcs_.RegisterAndStart(rpc, rpc->RpcHandle());
+  }
+}
+
+void MetaCache::LookupByIdFailed(
+    const TabletId& tablet_id, int64_t request_no, const Status& status) {
+  VLOG(1) << "Lookup for tablet " << tablet_id << ", failed with: " << status;
+
+  CallbackNotifier notifier(status);
+  CoarseTimePoint max_deadline;
+  {
+    std::lock_guard<decltype(mutex_)> lock(mutex_);
+    max_deadline = LookupFailed(tablet_id, status, request_no, TabletIdLookup(tablet_id),
+                                &tablet_lookups_by_id_, &notifier);
+  }
+
+  if (max_deadline != CoarseTimePoint()) {
+    auto rpc = std::make_shared<LookupByIdRpc>(this, tablet_id, request_no, max_deadline, 0);
+    rpcs_.RegisterAndStart(rpc, rpc->RpcHandle());
+  }
+}
+
 RemoteTabletPtr MetaCache::LookupTabletByKeyFastPathUnlocked(const YBTable* table,
                                                              const std::string& partition_key) {
   auto it = tables_.find(table->id());
-  if (PREDICT_FALSE(it == tables_.end() || it->second.stale)) {
-    // No cache available for this table or it is stale.
+  if (PREDICT_FALSE(it == tables_.end())) {
+    // No cache available for this table.
     return nullptr;
   }
 
@@ -1098,65 +1324,117 @@ RemoteTabletPtr MetaCache::LookupTabletByKeyFastPathUnlocked(const YBTable* tabl
 }
 
 // We disable thread safety analysis in this function due to manual conditional locking.
-template <class Lock>
-bool MetaCache::FastLookupTabletByKeyUnlocked(
+RemoteTabletPtr MetaCache::FastLookupTabletByKeyUnlocked(
     const YBTable* table,
-    const std::string& partition_start,
-    const LookupTabletCallback& callback,
-    Lock* lock) NO_THREAD_SAFETY_ANALYSIS {
+    const std::string& partition_start) {
   // Fast path: lookup in the cache.
   auto result = LookupTabletByKeyFastPathUnlocked(table, partition_start);
   if (result && result->HasLeader()) {
-    lock->unlock();
     VLOG(4) << "Fast lookup: found tablet " << result->tablet_id();
-    callback(result);
-    return true;
+    return result;
   }
 
+  return nullptr;
+}
+
+template <class Mutex>
+bool IsUniqueLock(std::lock_guard<Mutex>*) {
+  return true;
+}
+
+template <class Mutex>
+bool IsUniqueLock(SharedLock<Mutex>*) {
   return false;
+}
+
+template <class Lock>
+bool MetaCache::DoLookupTabletByKey(
+    const YBTable* table, const std::string& partition_start, CoarseTimePoint deadline,
+    LookupTabletCallback* callback, const std::string** partition_group_start) {
+  RemoteTabletPtr tablet;
+  auto scope_exit = ScopeExit([callback, &tablet] {
+    if (tablet) {
+      (*callback)(tablet);
+    }
+  });
+  int64_t request_no;
+  {
+    Lock lock(mutex_);
+    tablet = FastLookupTabletByKeyUnlocked(table, partition_start);
+    if (tablet) {
+      return true;
+    }
+
+    if (!*partition_group_start) {
+      *partition_group_start = &table->FindPartitionStart(partition_start, kPartitionGroupSize);
+    }
+
+    auto table_it = tables_.find(table->id());
+    if (table_it == tables_.end()) {
+      if (!IsUniqueLock(&lock)) {
+        return false;
+      }
+      table_it = tables_.emplace(table->id(), TableData()).first;
+    }
+    auto& tablet_lookups_by_group = table_it->second.tablet_lookups_by_group;
+    LookupDataGroup* lookups_group;
+    {
+      auto lookups_group_it = tablet_lookups_by_group.find(**partition_group_start);
+      if (lookups_group_it == tablet_lookups_by_group.end()) {
+        if (!IsUniqueLock(&lock)) {
+          return false;
+        }
+        lookups_group = &tablet_lookups_by_group[**partition_group_start];
+      } else {
+        lookups_group = &lookups_group_it->second;
+      }
+    }
+    lookups_group->lookups.Push(new LookupData(callback, deadline, &partition_start));
+    request_no = lookup_serial_.fetch_add(1, std::memory_order_acq_rel);
+    int64_t expected = 0;
+    if (!lookups_group->running_request_number.compare_exchange_strong(
+            expected, request_no, std::memory_order_acq_rel)) {
+      VLOG_WITH_FUNC(4)
+          << "Lookup is already running for table: " << table->ToString()
+          << ", partition_group_start: " << Slice(**partition_group_start).ToDebugHexString();
+      return true;
+    }
+  }
+
+  VLOG_WITH_FUNC(4)
+      << "Start lookup for table: " << table->ToString()
+      << ", partition_group_start: " << Slice(**partition_group_start).ToDebugHexString();
+
+  auto rpc = std::make_shared<LookupByKeyRpc>(
+      this, table, **partition_group_start, request_no, deadline);
+  rpcs_.RegisterAndStart(rpc, rpc->RpcHandle());
+  return true;
 }
 
 // We disable thread safety analysis in this function due to manual conditional locking.
 void MetaCache::LookupTabletByKey(const YBTable* table,
                                   const string& partition_key,
                                   CoarseTimePoint deadline,
-                                  LookupTabletCallback callback) NO_THREAD_SAFETY_ANALYSIS {
+                                  LookupTabletCallback callback) {
   const auto& partition_start = table->FindPartitionStart(partition_key);
-  VLOG_WITH_FUNC(4) << "partition_key: " << Slice(partition_key).ToDebugHexString()
-                    << " partition_start: " << Slice(partition_start).ToDebugHexString();
+  VLOG_WITH_FUNC(4) << "Table: " << table->ToString()
+                    << ", partition_key: " << Slice(partition_key).ToDebugHexString()
+                    << ", partition_start: " << Slice(partition_start).ToDebugHexString();
 
-  rpc::Rpcs::Handle rpc;
-  {
-    std::shared_lock<boost::shared_mutex> lock(mutex_);
-    if (FastLookupTabletByKeyUnlocked(table, partition_start, callback, &lock)) {
-      return;
-    }
+  const std::string* partition_group_start = nullptr;
+  if (DoLookupTabletByKey<SharedLock<boost::shared_mutex>>(
+          table, partition_start, deadline, &callback, &partition_group_start)) {
+    return;
   }
 
-  const std::string& partition_group_start =
-      table->FindPartitionStart(partition_start, kPartitionGroupSize);
-  {
-    std::unique_lock<boost::shared_mutex> lock(mutex_);
-    if (FastLookupTabletByKeyUnlocked(table, partition_start, callback, &lock)) {
-      return;
-    }
-
-    auto& table_data = tables_[table->id()];
-    auto& lookup = table_data.tablet_lookups_by_group[partition_group_start];
-    bool was_empty = lookup.empty();
-    lookup[partition_start].push_back({std::move(callback), deadline});
-    if (!was_empty) {
-      return;
-    }
-  }
-
-  rpc::StartRpc<LookupByKeyRpc>(
-      this, table, partition_group_start, deadline, client_->data_->messenger_,
-      client_->data_->proxy_cache_.get());
+  bool result = DoLookupTabletByKey<std::lock_guard<boost::shared_mutex>>(
+      table, partition_start, deadline, &callback, &partition_group_start);
+  LOG_IF(DFATAL, !result)
+      << "Lookup was not started for table " << table->ToString()
+      << ", partition_key: " << Slice(partition_key).ToDebugHexString();
 }
 
-RemoteTabletPtr MetaCache::LookupTabletByIdFastPath(const TabletId& tablet_id) {
-  SharedLock<decltype(mutex_)> lock(mutex_);
+RemoteTabletPtr MetaCache::LookupTabletByIdFastPathUnlocked(const TabletId& tablet_id) {
   auto it = tablets_by_id_.find(tablet_id);
   if (it != tablets_by_id_.end()) {
     return it->second;
@@ -1164,23 +1442,76 @@ RemoteTabletPtr MetaCache::LookupTabletByIdFastPath(const TabletId& tablet_id) {
   return nullptr;
 }
 
+template <class Lock>
+bool MetaCache::DoLookupTabletById(
+    const TabletId& tablet_id, CoarseTimePoint deadline, UseCache use_cache,
+    LookupTabletCallback* callback) {
+  RemoteTabletPtr tablet;
+  auto scope_exit = ScopeExit([callback, &tablet] {
+    if (tablet) {
+      (*callback)(tablet);
+    }
+  });
+  int64_t request_no;
+  int64_t lookups_without_new_replicas = 0;
+  {
+    Lock lock(mutex_);
+
+    // Fast path: lookup in the cache.
+    tablet = LookupTabletByIdFastPathUnlocked(tablet_id);
+    if (tablet) {
+      if (use_cache && tablet->HasLeader()) {
+        VLOG(4) << "Fast lookup: found tablet " << tablet->tablet_id();
+        return true;
+      }
+      lookups_without_new_replicas = tablet->lookups_without_new_replicas();
+      tablet = nullptr;
+    }
+
+    LookupDataGroup* lookup;
+    {
+      auto lookup_it = tablet_lookups_by_id_.find(tablet_id);
+      if (lookup_it == tablet_lookups_by_id_.end()) {
+        if (!IsUniqueLock(&lock)) {
+          return false;
+        }
+        lookup = &tablet_lookups_by_id_[tablet_id];
+      } else {
+        lookup = &lookup_it->second;
+      }
+    }
+    lookup->lookups.Push(new LookupData(callback, deadline, nullptr));
+    request_no = lookup_serial_.fetch_add(1, std::memory_order_acq_rel);
+    int64_t expected = 0;
+    if (!lookup->running_request_number.compare_exchange_strong(
+            expected, request_no, std::memory_order_acq_rel)) {
+      VLOG_WITH_FUNC(4) << "Lookup already running for tablet: " << tablet_id;
+      return true;
+    }
+  }
+
+  VLOG_WITH_FUNC(4) << "Start lookup for tablet " << tablet_id << ": " << request_no;
+
+  auto rpc = std::make_shared<LookupByIdRpc>(
+      this, tablet_id, request_no, deadline, lookups_without_new_replicas);
+  rpcs_.RegisterAndStart(rpc, rpc->RpcHandle());
+  return true;
+}
+
 void MetaCache::LookupTabletById(const TabletId& tablet_id,
                                  CoarseTimePoint deadline,
                                  LookupTabletCallback callback,
                                  UseCache use_cache) {
-  if (use_cache) {
-    // Fast path: lookup in the cache.
-    scoped_refptr<RemoteTablet> result = LookupTabletByIdFastPath(tablet_id);
-    if (result && result->HasLeader()) {
-      VLOG(4) << "Fast lookup: found tablet " << result->tablet_id();
-      callback(result);
-      return;
-    }
+  VLOG_WITH_FUNC(4) << "(" << tablet_id << ", " << use_cache << ")";
+
+  if (DoLookupTabletById<SharedLock<decltype(mutex_)>>(
+          tablet_id, deadline, use_cache, &callback)) {
+    return;
   }
 
-  rpc::StartRpc<LookupByIdRpc>(
-      this, std::move(callback), tablet_id, deadline, client_->data_->messenger_,
-      client_->data_->proxy_cache_.get());
+  auto result = DoLookupTabletById<std::lock_guard<decltype(mutex_)>>(
+      tablet_id, deadline, use_cache, &callback);
+  LOG_IF(DFATAL, !result) << "Lookup was not started for tablet " << tablet_id;
 }
 
 void MetaCache::MarkTSFailed(RemoteTabletServer* ts,
@@ -1204,6 +1535,23 @@ bool MetaCache::AcquireMasterLookupPermit() {
 
 void MetaCache::ReleaseMasterLookupPermit() {
   master_lookup_sem_.Release();
+}
+
+void MetaCache::LookupDataGroup::Finished(
+    int64_t request_no, const ToStringable& id, bool allow_absence) {
+  int64_t expected = request_no;
+  if (!running_request_number.compare_exchange_strong(expected, 0, std::memory_order_acq_rel)) {
+    if ((expected == 0 && max_completed_request_number <= request_no) && !allow_absence) {
+      LOG(DFATAL) << "Lookup was not running for " << id.ToString() << ", expected: " << request_no;
+    } else {
+      LOG(INFO)
+          << "Finished lookup for " << id.ToString() << ": " << request_no << ", while "
+          << expected << " was running, could happen during tablet split";
+    }
+  } else {
+    max_completed_request_number = std::max(max_completed_request_number, request_no);
+    VLOG_WITH_FUNC(2) << "Finished lookup for " << id.ToString() << ", no: " << request_no;
+  }
 }
 
 } // namespace internal

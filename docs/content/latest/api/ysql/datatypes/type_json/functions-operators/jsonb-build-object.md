@@ -6,7 +6,7 @@ description: Build a JSON object from a variadic list that specifies keys with v
 menu:
   latest:
     identifier: jsonb-build-object
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 100
 isTocNested: true
 showAsideToc: true
@@ -36,7 +36,7 @@ keyN::text, valueN::the_data_typeN
 
 Use this `ysqlsh` script to create the required type _"t"_ and then to execute the `ASSERT`.
 
-```postgresql
+```plpgsql
 create type t as (a int, b text);
 
 do $body$
@@ -65,7 +65,7 @@ Just as with [`jsonb_build_array()`](../jsonb-build-array), using `jsonb_build_o
 
 The following `ysqlsh` script shows a feasible general workaround for this use case. The helper function _"f()"_ generates the variadic argument list as the text representation of a comma-separated list of SQL literals of various data types. Then it invokes `jsonb_build_object()` dynamically. Obviously this brings a performance cost. But you might not have an alternative.
 
-```postgresql
+```plpgsql
 create function f(variadic_array_elements in text) returns jsonb
   immutable
   language plpgsql

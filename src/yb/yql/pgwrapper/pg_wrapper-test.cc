@@ -18,9 +18,7 @@
 #include "yb/util/path_util.h"
 #include "yb/util/net/net_util.h"
 #include "yb/util/subprocess.h"
-#include "yb/util/string_trim.h"
 #include "yb/util/enums.h"
-#include "yb/util/env_util.h"
 #include "yb/common/wire_protocol.h"
 
 #include "yb/master/master.pb.h"
@@ -45,9 +43,6 @@ using std::string;
 using std::vector;
 using std::unique_ptr;
 
-using yb::util::TrimStr;
-using yb::util::TrimTrailingWhitespaceFromEveryLine;
-using yb::util::LeftShiftTextBlock;
 using yb::client::YBTableName;
 using yb::rpc::RpcController;
 
@@ -57,15 +52,6 @@ namespace yb {
 namespace pgwrapper {
 namespace {
 
-string TrimSqlOutput(string output) {
-  return TrimStr(TrimTrailingWhitespaceFromEveryLine(LeftShiftTextBlock(output)));
-}
-
-string CertsDir() {
-  const auto sub_dir = JoinPathSegments("ent", "test_certs");
-  return JoinPathSegments(env_util::GetRootDir(sub_dir), sub_dir);
-}
-
 template<bool Auth, bool Encrypted>
 struct ConnectionStrategy {
   static const bool UseAuth = Auth;
@@ -73,67 +59,9 @@ struct ConnectionStrategy {
 };
 
 template<class Strategy>
-class PgWrapperTestHelper: public PgWrapperTestBase {
+class PgWrapperTestHelper: public PgCommandTestBase {
  protected:
-  void RunPsqlCommand(const std::string &statement, const std::string &expected_output) {
-    std::string tmp_dir;
-    ASSERT_OK(Env::Default()->GetTestDirectory(&tmp_dir));
-
-    std::unique_ptr<WritableFile> tmp_file;
-    std::string tmp_file_name;
-    ASSERT_OK(
-        Env::Default()->NewTempWritableFile(
-            WritableFileOptions(),
-            tmp_dir + "/psql_statementXXXXXX",
-            &tmp_file_name,
-            &tmp_file));
-    ASSERT_OK(tmp_file->Append(statement));
-    ASSERT_OK(tmp_file->Close());
-
-    vector<string> argv{
-        GetPostgresInstallRoot() + "/bin/ysqlsh",
-        "-h", pg_ts->bind_host(),
-        "-p", std::to_string(pg_ts->pgsql_rpc_port()),
-        "-U", "yugabyte",
-        "-f", tmp_file_name
-    };
-
-    if (Strategy::EncryptConnection) {
-      argv.push_back(Format(
-          "sslmode=require sslcert=$0/ysql.crt sslrootcert=$0/ca.crt sslkey=$0/ysql.key",
-          CertsDir()));
-    }
-
-    Subprocess proc(argv.front(), argv);
-    if (Strategy::UseAuth) {
-      proc.SetEnv("PGPASSWORD", "yugabyte");
-    }
-
-    string psql_stdout;
-    LOG(INFO) << "Executing statement: " << statement;
-    ASSERT_OK(proc.Call(&psql_stdout));
-    LOG(INFO) << "Output from statement {{ " << statement << " }}:\n"
-              << psql_stdout;
-    ASSERT_EQ(TrimSqlOutput(expected_output), TrimSqlOutput(psql_stdout));
-  }
-
-  void UpdateMiniClusterOptions(ExternalMiniClusterOptions* options) override {
-    PgWrapperTestBase::UpdateMiniClusterOptions(options);
-    if (Strategy::EncryptConnection) {
-      const vector<string> common_flags{"--use_node_to_node_encryption=true",
-                                        "--certs_dir=" + CertsDir()};
-      for (auto flags : {&options->extra_master_flags, &options->extra_tserver_flags}) {
-        flags->insert(flags->begin(), common_flags.begin(), common_flags.end());
-      }
-      options->extra_tserver_flags.push_back("--use_client_to_server_encryption=true");
-      options->extra_tserver_flags.push_back("--allow_insecure_connections=false");
-      options->use_even_ips = true;
-    }
-
-    if (Strategy::UseAuth) {
-      options->extra_tserver_flags.push_back("--ysql_enable_auth");
-    }
-  }
+  PgWrapperTestHelper() : PgCommandTestBase(Strategy::UseAuth, Strategy::EncryptConnection) {}
 };
 
 } // namespace
@@ -143,22 +71,6 @@ YB_DEFINE_ENUM(FlushOrCompaction, (kFlush)(kCompaction));
 
 class PgWrapperTest : public PgWrapperTestHelper<ConnectionStrategy<false, false>> {
  protected:
-  void CreateTable(string statement) {
-    RunPsqlCommand(statement, "CREATE TABLE");
-  }
-
-  void InsertRows(const std::string& statement, size_t expected_rows) {
-    RunPsqlCommand(statement, Format("INSERT 0 $0", expected_rows));
-  }
-
-  void InsertOneRow(const std::string& statement) {
-    InsertRows(statement, 1 /* expected_rows */);
-  }
-
-  void UpdateOneRow(string statement) {
-    RunPsqlCommand(statement, "UPDATE 1");
-  }
-
   void FlushOrCompact(string table_id, FlushOrCompaction flush_or_compaction) {
     RpcController rpc;
     auto master_proxy = cluster_->master_proxy();

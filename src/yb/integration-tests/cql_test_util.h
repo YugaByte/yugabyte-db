@@ -136,6 +136,7 @@ typedef std::unique_ptr<
 
 class CassandraPrepared {
  public:
+  CassandraPrepared() = default;
   explicit CassandraPrepared(const CassPrepared* prepared) : prepared_(prepared) {}
 
   CassandraStatement Bind();

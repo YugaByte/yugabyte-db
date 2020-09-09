@@ -131,8 +131,7 @@ class PgsqlScanSpec : public YQLScanSpec {
  public:
   typedef std::unique_ptr<common::PgsqlScanSpec> UniPtr;
 
-  explicit PgsqlScanSpec(QLClient client_type,
-                         const PgsqlExpressionPB *where_expr,
+  explicit PgsqlScanSpec(const PgsqlExpressionPB *where_expr,
                          QLExprExecutorPtr executor = nullptr);
 
   virtual ~PgsqlScanSpec();

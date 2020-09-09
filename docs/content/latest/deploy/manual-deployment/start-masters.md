@@ -94,4 +94,4 @@ Remember to add the command with which you launched `yb-master` to a cron to res
 
 {{< /tip >}}
 
-Now we are ready to start the YB-TServers.
+Now you are ready to start the YB-TServers.

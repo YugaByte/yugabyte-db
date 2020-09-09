@@ -26,6 +26,7 @@
 #include "access/tuptoaster.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
+#include "commands/tablegroup.h"
 #include "commands/tablespace.h"
 #include "commands/view.h"
 #include "nodes/makefuncs.h"
@@ -359,7 +360,15 @@ static relopt_int intRelOpts[] =
 		},
 		-1, 0, 1024
 	},
-
+	{
+		{
+			"tablegroup",
+			"Tablegroup oid for this relation.",
+			RELOPT_KIND_HEAP,
+			AccessExclusiveLock
+		},
+		-1, 0, INT_MAX
+	},
 	/* list terminator */
 	{{NULL}}
 };
@@ -1396,6 +1405,7 @@ default_reloptions(Datum reloptions, bool validate, relopt_kind kind)
 		offsetof(StdRdOptions, vacuum_cleanup_index_scale_factor)},
 		{"colocated", RELOPT_TYPE_BOOL,
 		offsetof(StdRdOptions, colocated)},
+		{"tablegroup", RELOPT_TYPE_INT, offsetof(StdRdOptions, tablegroup)},
 	};
 
 	options = parseRelOptions(reloptions, validate, kind, &numoptions);

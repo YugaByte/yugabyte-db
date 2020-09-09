@@ -26,4 +26,4 @@ set -euo pipefail
 set_sanitizer_runtime_options
 
 # Invoke the actual yb-ctl script.
-"$YB_SRC_ROOT"/submodules/yugabyte-installation/bin/yb-ctl "$@"
+"$YB_SRC_ROOT"/scripts/installation/bin/yb-ctl "$@"

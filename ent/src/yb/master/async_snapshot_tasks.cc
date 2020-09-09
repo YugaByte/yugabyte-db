@@ -52,7 +52,8 @@ AsyncTabletSnapshotOp::AsyncTabletSnapshotOp(Master *master,
 }
 
 string AsyncTabletSnapshotOp::description() const {
-  return Format("$0 Tablet Snapshot Operation $1 RPC", *tablet_, operation_);
+  return Format("$0 Tablet Snapshot Operation $1 RPC",
+                *tablet_, tserver::TabletSnapshotOpRequestPB::Operation_Name(operation_));
 }
 
 TabletId AsyncTabletSnapshotOp::tablet_id() const {

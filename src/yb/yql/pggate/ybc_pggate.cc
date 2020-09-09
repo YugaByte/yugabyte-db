@@ -10,6 +10,7 @@
 // or implied.  See the License for the specific language governing permissions and limitations
 // under the License.
 
+#include <algorithm>
 #include <string>
 
 #include <cds/init.h> // NOLINT
@@ -106,12 +107,12 @@ YBCPgMemctx YBCPgCreateMemctx() {
   return pgapi->CreateMemctx();
 }
 
-void YBCPgDestroyMemctx(YBCPgMemctx memctx) {
-  return pgapi->DestroyMemctx(memctx);
+YBCStatus YBCPgDestroyMemctx(YBCPgMemctx memctx) {
+  return ToYBCStatus(pgapi->DestroyMemctx(memctx));
 }
 
-void YBCPgResetMemctx(YBCPgMemctx memctx) {
-  return pgapi->ResetMemctx(memctx);
+YBCStatus YBCPgResetMemctx(YBCPgMemctx memctx) {
+  return ToYBCStatus(pgapi->ResetMemctx(memctx));
 }
 
 YBCStatus YBCPgInvalidateCache() {
@@ -200,12 +201,51 @@ YBCStatus YBCPgGetCatalogMasterVersion(uint64_t *version) {
   return ToYBCStatus(pgapi->GetCatalogMasterVersion(version));
 }
 
-// Statement Operations ----------------------------------------------------------------------------
-
-YBCStatus YBCPgDeleteStatement(YBCPgStatement handle) {
-  return ToYBCStatus(Status::OK());
-  // return ToYBCStatus(pgapi->DeleteStatement(handle));
+void YBCPgInvalidateTableCache(
+    const YBCPgOid database_oid,
+    const YBCPgOid table_oid) {
+  const PgObjectId table_id(database_oid, table_oid);
+  pgapi->InvalidateTableCache(table_id);
 }
+
+YBCStatus YBCPgInvalidateTableCacheByTableId(const char *table_id) {
+  if (table_id == NULL) {
+    return ToYBCStatus(STATUS(InvalidArgument, "table_id is null"));
+  }
+  std::string table_id_str = table_id;
+  const PgObjectId pg_object_id(table_id_str);
+  pgapi->InvalidateTableCache(pg_object_id);
+  return YBCStatusOK();
+}
+
+// Tablegroup Operations ---------------------------------------------------------------------------
+
+YBCStatus YBCPgNewCreateTablegroup(const char *database_name,
+                                   YBCPgOid database_oid,
+                                   YBCPgOid tablegroup_oid,
+                                   YBCPgStatement *handle) {
+  return ToYBCStatus(pgapi->NewCreateTablegroup(database_name,
+                                                database_oid,
+                                                tablegroup_oid,
+                                                handle));
+}
+
+YBCStatus YBCPgExecCreateTablegroup(YBCPgStatement handle) {
+  return ToYBCStatus(pgapi->ExecCreateTablegroup(handle));
+}
+
+YBCStatus YBCPgNewDropTablegroup(YBCPgOid database_oid,
+                                 YBCPgOid tablegroup_oid,
+                                 YBCPgStatement *handle) {
+  return ToYBCStatus(pgapi->NewDropTablegroup(database_oid,
+                                              tablegroup_oid,
+                                              handle));
+}
+YBCStatus YBCPgExecDropTablegroup(YBCPgStatement handle) {
+  return ToYBCStatus(pgapi->ExecDropTablegroup(handle));
+}
+
+// Statement Operations ----------------------------------------------------------------------------
 
 YBCStatus YBCPgClearBinds(YBCPgStatement handle) {
   return ToYBCStatus(pgapi->ClearBinds(handle));
@@ -269,11 +309,13 @@ YBCStatus YBCPgNewCreateTable(const char *database_name,
                               bool if_not_exist,
                               bool add_primary_key,
                               const bool colocated,
+                              const YBCPgOid tablegroup_oid,
                               YBCPgStatement *handle) {
   const PgObjectId table_id(database_oid, table_oid);
+  const PgObjectId tablegroup_id(database_oid, tablegroup_oid);
   return ToYBCStatus(pgapi->NewCreateTable(
       database_name, schema_name, table_name, table_id, is_shared_table,
-      if_not_exist, add_primary_key, colocated, handle));
+      if_not_exist, add_primary_key, colocated, tablegroup_id, handle));
 }
 
 YBCStatus YBCPgCreateTableAddColumn(YBCPgStatement handle, const char *attr_name, int attr_num,
@@ -390,6 +432,31 @@ YBCStatus YBCPgIsTableColocated(const YBCPgOid database_oid,
   }
 }
 
+YBCStatus YBCPgGetTableProperties(YBCPgTableDesc table_desc,
+                                  YBCPgTableProperties *properties) {
+  CHECK_NOTNULL(properties)->num_tablets = table_desc->GetPartitionCount();
+  properties->num_hash_key_columns = table_desc->num_hash_key_columns();
+  properties->is_colocated = table_desc->IsColocated();
+  return YBCStatusOK();
+}
+
+YBCStatus YBCPgTableExists(const YBCPgOid database_oid,
+                           const YBCPgOid table_oid,
+                           bool *exists) {
+  const PgObjectId table_id(database_oid, table_oid);
+  const auto result = pgapi->LoadTable(table_id);
+
+  if (result.ok()) {
+    *exists = true;
+    return YBCStatusOK();
+  } else if (result.status().IsNotFound()) {
+    *exists = false;
+    return YBCStatusOK();
+  } else {
+    return ToYBCStatus(result.status());
+  }
+}
+
 // Index Operations -------------------------------------------------------------------------------
 
 YBCStatus YBCPgNewCreateIndex(const char *database_name,
@@ -400,12 +467,16 @@ YBCStatus YBCPgNewCreateIndex(const char *database_name,
                               const YBCPgOid table_oid,
                               bool is_shared_index,
                               bool is_unique_index,
+                              const bool skip_index_backfill,
                               bool if_not_exist,
+                              const YBCPgOid tablegroup_oid,
                               YBCPgStatement *handle) {
   const PgObjectId index_id(database_oid, index_oid);
   const PgObjectId table_id(database_oid, table_oid);
+  const PgObjectId tablegroup_id(database_oid, tablegroup_oid);
   return ToYBCStatus(pgapi->NewCreateIndex(database_name, schema_name, index_name, index_id,
-                                           table_id, is_shared_index, is_unique_index, if_not_exist,
+                                           table_id, is_shared_index, is_unique_index,
+                                           skip_index_backfill, if_not_exist, tablegroup_id,
                                            handle));
 }
 
@@ -418,6 +489,11 @@ YBCStatus YBCPgCreateIndexAddColumn(YBCPgStatement handle, const char *attr_name
 
 YBCStatus YBCPgCreateIndexSetNumTablets(YBCPgStatement handle, int32_t num_tablets) {
   return ToYBCStatus(pgapi->CreateIndexSetNumTablets(handle, num_tablets));
+}
+
+YBCStatus YBCPgCreateIndexAddSplitRow(YBCPgStatement handle, int num_cols,
+                                      YBCPgTypeEntity **types, uint64_t *data) {
+  return ToYBCStatus(pgapi->CreateIndexAddSplitRow(handle, num_cols, types, data));
 }
 
 YBCStatus YBCPgExecCreateIndex(YBCPgStatement handle) {
@@ -456,6 +532,13 @@ YBCStatus YBCPgWaitUntilIndexPermissionsAtLeast(
   }
   *actual_index_permissions = static_cast<uint32_t>(returned_index_permissions);
   return YBCStatusOK();
+}
+
+YBCStatus YBCPgAsyncUpdateIndexPermissions(
+    const YBCPgOid database_oid,
+    const YBCPgOid indexed_table_oid) {
+  const PgObjectId indexed_table_id(database_oid, indexed_table_oid);
+  return ToYBCStatus(pgapi->AsyncUpdateIndexPermissions(indexed_table_id));
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -543,6 +626,16 @@ YBCStatus YBCPgExecInsert(YBCPgStatement handle) {
 
 YBCStatus YBCPgInsertStmtSetUpsertMode(YBCPgStatement handle) {
   return ToYBCStatus(pgapi->InsertStmtSetUpsertMode(handle));
+}
+
+YBCStatus YBCPgInsertStmtSetWriteTime(YBCPgStatement handle, const uint64_t write_time) {
+  HybridTime write_hybrid_time;
+  YBCStatus status = ToYBCStatus(write_hybrid_time.FromUint64(write_time));
+  if (status) {
+    return status;
+  } else {
+    return ToYBCStatus(pgapi->InsertStmtSetWriteTime(handle, write_hybrid_time));
+  }
 }
 
 // UPDATE Operations -------------------------------------------------------------------------------
@@ -752,6 +845,10 @@ void YBCInitFlags() {
 
 YBCStatus YBCPgIsInitDbDone(bool* initdb_done) {
   return ExtractValueFromResult(pgapi->IsInitDbDone(), initdb_done);
+}
+
+const bool YBCGetDisableTransparentCacheRefreshRetry() {
+  return pgapi->GetDisableTransparentCacheRefreshRetry();
 }
 
 YBCStatus YBCGetSharedCatalogVersion(uint64_t* catalog_version) {

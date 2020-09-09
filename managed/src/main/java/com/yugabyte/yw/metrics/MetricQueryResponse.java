@@ -65,6 +65,18 @@ public class MetricQueryResponse {
               validLabels = false;
               // Java conversion from Iterator to Iterable...
               for (JsonNode metricEntry : (Iterable<JsonNode>)() -> metricInfo.elements()) {
+                // In case we want to graph per server, we want to display the node name.
+                if (layout.yaxis.alias.containsKey("useInstanceName")) {
+                  metricGraphData.name = metricInfo.get("exported_instance").asText();
+                  // If the alias contains more entries, we want to highlight it via the
+                  // saved name of the metric.
+                  if (layout.yaxis.alias.entrySet().size() > 1) {
+                    metricGraphData.name = metricGraphData.name + "-" +
+                                           metricInfo.get("saved_name").asText();
+                  }
+                  validLabels = false;
+                  break;
+                }
                 if (metricEntry.asText().equals(key)) {
                   validLabels = true;
                   break;

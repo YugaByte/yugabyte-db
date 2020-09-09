@@ -13,7 +13,7 @@ showAsideToc: true
 These functions require that the to-be-searched array is one-dimensional. They return the index values of the specified to-be-searched-for value in the specified to-be-searched array.
 
 Create _"view v"_ now. The examples below use it.
-```postgresql
+```plpgsql
 create view v as
 select array[
     'sun', -- 1
@@ -40,7 +40,7 @@ return value:      int
 **Note:** The optional third parameter specifies the _inclusive_ index value at which to start the search.
 
 **Example:**
-```postgresql
+```plpgsql
 select array_position(
   (select arr from v)::text[],  -- #1. The to-be-searched array.
 
@@ -68,7 +68,7 @@ input value:       anyarray, anyelement
 return value:      integer[] 
 ```
 **Example:**
-```postgresql
+```plpgsql
 select array_positions(
   (select arr from v)::text[],  -- #1. The to-be-searched array.
 

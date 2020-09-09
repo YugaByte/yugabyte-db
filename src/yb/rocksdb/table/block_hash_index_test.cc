@@ -83,7 +83,7 @@ TEST_F(BlockTest, BasicTest) {
                                    "0806", "0807", "0808", "0809", };
 
   Data data_entries;
-  for (const auto key : keys) {
+  for (const auto& key : keys) {
     data_entries.insert({key, key});
   }
 

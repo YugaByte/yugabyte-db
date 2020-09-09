@@ -93,7 +93,7 @@ $ TSGET cpu_usage 1509474505
 ```
 "75"
 ```
-Set a TTL of 3600 seconds (1 hour) for an entry that we add.
+Set a TTL of 3600 seconds (1 hour) for an entry that you add.
 
 ```sh
 $ TSADD cpu_usage 60 "70" EXPIRE_IN 3600

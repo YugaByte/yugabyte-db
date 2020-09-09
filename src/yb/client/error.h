@@ -31,6 +31,7 @@ class YBError {
 
   // Return the operation which failed.
   const YBOperation& failed_op() const;
+  YBOperation& failed_op();
 
   // In some cases, it's possible that the server did receive and successfully
   // perform the requested operation, but the client can't tell whether or not

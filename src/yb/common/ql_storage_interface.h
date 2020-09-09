@@ -81,6 +81,7 @@ class YQLStorageIf {
 
   // Create iterator for querying by partition and range key.
   virtual CHECKED_STATUS GetIterator(const PgsqlReadRequestPB& request,
+                                     int64_t batch_arg_index,
                                      const Schema& projection,
                                      const Schema& schema,
                                      const TransactionOperationContextOpt& txn_op_context,

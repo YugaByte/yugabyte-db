@@ -220,6 +220,7 @@ void LeaderElection::Run() {
 
     LeaderElectionPtr retained_self = this;
     if (!suppress_vote_request_) {
+      state->rpc.set_invoke_callback_mode(rpc::InvokeCallbackMode::kThreadPoolHigh);
       state->proxy->RequestConsensusVoteAsync(
           &state->request, &state->response, &state->rpc,
           std::bind(&LeaderElection::VoteResponseRpcCallback, this, voter_uuid, retained_self));

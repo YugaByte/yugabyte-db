@@ -17,6 +17,13 @@ showAsideToc: true
 
 Use the `COPY` statement to transfer data between tables and files. `COPY TO` copies from tables to files. `COPY FROM` copies from files to tables. `COPY` outputs the number of rows that were copied.
 
+{{< note title="Note" >}}
+
+The `COPY` statement can be used with files residing locally to the YB-TServer that you connect to. To work with files that reside on the client, use `\copy` in [`ysqlsh` cli](../../../../admin/ysqlsh#copy-table-column-list-query-from-to-filename-program-command-stdin-stdout-pstdin-pstdout-with-option).
+
+{{< /note >}}
+
+
 ## Syntax
 
 <ul class="nav nav-tabs nav-tabs-yb">
@@ -63,6 +70,58 @@ Specify the path of the file to be copied. An input file name can be an absolute
 
 ## Examples
 
-- Errors are raised if the table does not exist.
+The examples below assume a table like this:
+
+```postgresql
+yugabyte=# CREATE TABLE users(id BIGSERIAL PRIMARY KEY, name TEXT);
+yugabyte=# INSERT INTO users(name) VALUES ('John Doe'), ('Jane Doe'), ('Dorian Gray');
+yugabyte=# SELECT * FROM users;
+ id |    name
+----+-------------
+  3 | Dorian Gray
+  2 | Jane Doe
+  1 | John Doe
+(3 rows)
+```
+
+### Export an entire table
+
+Copy the entire table to a CSV file using an absolute path, with column names in the header.
+
+```postgresql
+yugabyte=# COPY users TO '/home/yuga/Desktop/users.txt.sql' DELIMITER ',' CSV HEADER;
+```
+
+### Export a partial table using the WHERE clause with column selection
+
+In the following example, a `WHERE` clause is used to filter the rows and only the `name` column.
+
+
+```postgresql
+yugabyte=# COPY (SELECT name FROM users where name='Dorian Gray') TO '/home/yuga/Desktop/users.txt.sql' DELIMITER
+ ',' CSV HEADER;
+```
+
+### Import from CSV files
+
+In the following example, the data exported in the previous examples are imported in the `users` table.
+
+```postgresql
+yugabyte=# COPY users FROM '/home/yuga/Desktop/users.txt.sql' DELIMITER ',' CSV HEADER;
+```
+
+
+### Import a large table using smaller transactions
+
+When importing a very large table, Yugabyte recommends using many smaller transactions (rather than one large transaction).
+This can be achieved natively by using the `ROWS_PER_TRANSACTION` option.
+
+```postgresql
+yugabyte=# COPY large_table FROM '/home/yuga/Desktop/large_table.csv'
+               WITH (FORMAT CSV, HEADER, ROWS_PER_TRANSACTION 1000);
+```
+
+
+- If the table does not exist, errors are raised.
 - `COPY TO` can only be used with regular tables.
-- `COPY FROM` can be used with tables, foreign tables, or views.
+- `COPY FROM` can be used with tables, foreign tables, and views.

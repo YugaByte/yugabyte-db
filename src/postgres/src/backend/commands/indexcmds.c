@@ -37,6 +37,7 @@
 #include "commands/event_trigger.h"
 #include "commands/tablecmds.h"
 #include "commands/tablespace.h"
+#include "commands/tablegroup.h"
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
@@ -394,22 +395,47 @@ DefineIndex(Oid relationId,
 						INDEX_MAX_KEYS)));
 
 	/*
-	 * An index build should be concurent when
+	 * An index build should be concurent when all of the following hold:
 	 * - index backfill is enabled
 	 * - the index is secondary
 	 * - the indexed table is not temporary
+	 * - we are not in bootstrap mode
 	 * Otherwise, it should not be concurrent.  This logic works because
-	 * - primary keys can't be altered after `CREATE TABLE`, so there is no
-	 *   need for index backfill.
+	 * - primary key indexes are on the main table, and index backfill doesn't
+	 *   apply to them.
 	 * - temporary tables cannot have concurrency issues when building indexes.
+	 * - system table indexes created during initdb cannot have concurrency
+	 *   issues.
+	 * Concurrent index build is currently disabled for
+	 * - indexes in nested DDL
+	 * - unique indexes
+	 * - system table indexes (implied by disallowing on bootstrap mode)
 	 */
 	stmt->concurrent = (!YBCGetDisableIndexBackfill()
 						&& !stmt->primary
-						&& IsYBRelationById(relationId));
-	if (stmt->concurrent)
-		ereport(LOG,
-				(errmsg("creating index concurrently for table with oid %d",
-						relationId)));
+						&& IsYBRelationById(relationId) &&
+						!IsBootstrapProcessingMode());
+	/* Use fast path create index when in nested DDL.  This is desired
+	 * when there would be no concurrency issues (e.g. `CREATE TABLE
+	 * ... (... UNIQUE (...))`).  However, there may be cases where it
+	 * is unsafe to use the fast path.  For now, just use the fast path
+	 * in all cases.
+	 * TODO(jason): support backfill for nested DDL, and use the online
+	 * path for the appropriate statements (issue #4786).
+	 */
+	if (stmt->concurrent && YBGetDdlNestingLevel() > 1)
+		stmt->concurrent = false;
+	/*
+	 * Backfilling unique indexes is currently not supported.  This is desired
+	 * when there would be no concurrency issues (e.g. `CREATE TABLE ... (...
+	 * UNIQUE (...))`).  However, it is not desired in cases where there could
+	 * be concurrency issues (e.g. `CREATE UNIQUE INDEX ...`, `ALTER TABLE ...
+	 * ADD UNIQUE (...)`).  For now, just use the fast path in all cases.
+	 * TODO(jason): support backfill for unique indexes, and use the online
+	 * path for the appropriate statements (issue #4899).
+	 */
+	if (stmt->concurrent && stmt->unique)
+		stmt->concurrent = false;
 
 	/*
 	 * Only SELECT ... FOR UPDATE/SHARE are allowed while doing a standard
@@ -428,6 +454,14 @@ DefineIndex(Oid relationId,
 	 */
 	lockmode = stmt->concurrent ? ShareUpdateExclusiveLock : ShareLock;
 	rel = heap_open(relationId, lockmode);
+
+	/*
+	 * Ensure that system tables don't go through online schema change.  This
+	 * is curently guaranteed because
+	 * - initdb (bootstrap mode) is prevented from being concurrent
+	 * - users cannot create indexes on system tables
+	 */
+	Assert(!(stmt->concurrent && IsSystemRelation(rel)));
 
 	relationId = RelationGetRelid(rel);
 	namespaceId = RelationGetNamespace(rel);
@@ -541,6 +575,69 @@ DefineIndex(Oid relationId,
 		if (aclresult != ACLCHECK_OK)
 			aclcheck_error(aclresult, OBJECT_TABLESPACE,
 						   get_tablespace_name(tablespaceId));
+	}
+
+	/*
+	 * Select tablegroup to use. Default to the tablegroup of the indexed table.
+	 * If no tablegroup for the indexed table then set to InvalidOid (no tablegroup).
+	 * If tablegroup specified then perform a lookup unless has_tablegroup is false.
+	 */
+	Oid tablegroupId = InvalidOid;
+	if (TablegroupCatalogExists)
+	{
+		if (!stmt->tablegroup)
+		{
+			// If NULL tablegroup, follow tablegroup of indexed table.
+			tablegroupId = get_tablegroup_oid_by_table_oid(relationId);
+			if (OidIsValid(tablegroupId) && stmt->split_options)
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+				 		errmsg("Cannot use TABLEGROUP with SPLIT."),
+				 		errdetail("Please supply NO TABLEGROUP to opt-out of indexed table's tablegroup.")));
+			}
+		}
+		else
+		{
+			OptTableGroup *grp = stmt->tablegroup;
+			if (grp->has_tablegroup)
+			{
+				if (stmt->split_options)
+				{
+					ereport(ERROR,
+							(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+					 		errmsg("Cannot use TABLEGROUP with SPLIT.")));
+				}
+				tablegroupId = get_tablegroup_oid(grp->tablegroup_name, false);
+			}
+		}
+	}
+
+	/*
+	 * Check permissions for tablegroup. To create an index within a tablegroup, a user must
+	 * either be a superuser, the owner of the tablegroup, or have create perms on it.
+	 */
+	if (OidIsValid(tablegroupId) && !pg_tablegroup_ownercheck(tablegroupId, GetUserId()))
+	{
+		AclResult  aclresult;
+
+		aclresult = pg_tablegroup_aclcheck(tablegroupId, GetUserId(), ACL_CREATE);
+		if (aclresult != ACLCHECK_OK)
+			aclcheck_error(aclresult, OBJECT_TABLEGROUP,
+						   get_tablegroup_name(tablegroupId));
+	}
+
+	/*
+	 * Prepend to stmt->options to be parsed for reloptions if tablegroupId is valid.
+	 * We set this here instead of in parse_utilcmd since we need to do the above
+	 * preprocessing and RBAC checks first. This still happens before transformReloptions
+	 * so this option is included in the reloptions text array.
+	 */
+	if (OidIsValid(tablegroupId))
+	{
+		stmt->options = lcons(makeDefElem("tablegroup",
+										  (Node *) makeInteger(tablegroupId), -1),
+										  stmt->options);
 	}
 
 	/*
@@ -906,7 +1003,8 @@ DefineIndex(Oid relationId,
 					 coloptions, reloptions,
 					 flags, constr_flags,
 					 allowSystemTableMods, !check_rights,
-					 &createdConstraintId, stmt->split_options);
+					 &createdConstraintId, stmt->split_options,
+					 !stmt->concurrent, tablegroupId);
 
 	ObjectAddressSet(address, RelationRelationId, indexRelationId);
 
@@ -1186,6 +1284,7 @@ DefineIndex(Oid relationId,
 	 * TODO(jason): retry backfill or revert schema changes instead of failing
 	 * through HandleYBStatus.
 	 */
+	HandleYBStatus(YBCPgAsyncUpdateIndexPermissions(MyDatabaseId, relationId));
 	elog(LOG, "waiting for YB_INDEX_PERM_WRITE_AND_DELETE");
 	HandleYBStatus(YBCPgWaitUntilIndexPermissionsAtLeast(MyDatabaseId,
 														 relationId,
@@ -1214,10 +1313,13 @@ DefineIndex(Oid relationId,
 	YBIncrementDdlNestingLevel();
 	StartTransactionCommand();
 
+	/* TODO(jason): handle exclusion constraints, possibly not here. */
+
 	/*
 	 * TODO(jason): retry backfill or revert schema changes instead of failing
 	 * through HandleYBStatus.
 	 */
+	HandleYBStatus(YBCPgAsyncUpdateIndexPermissions(MyDatabaseId, relationId));
 	elog(LOG, "waiting for Yugabyte index read permission");
 	HandleYBStatus(YBCPgWaitUntilIndexPermissionsAtLeast(MyDatabaseId,
 														 relationId,
@@ -1228,9 +1330,6 @@ DefineIndex(Oid relationId,
 	 * TODO(jason): handle bad actual_index_permissions, like
 	 * YB_INDEX_PERM_WRITE_AND_DELETE_WHILE_REMOVING.
 	 */
-
-	/* We should now definitely not be advertising any xmin. */
-	Assert(MyPgXact->xmin == InvalidTransactionId);
 
 	/*
 	 * Index can now be marked valid -- update its pg_index entry
@@ -1369,6 +1468,12 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
 		RelationClose(rel);
 	}
 
+	/* Get whether the index is part of a tablegroup */
+	Oid tablegroupId = InvalidOid;
+	if (TablegroupCatalogExists && IsYugaByteEnabled() &&
+		!IsBootstrapProcessingMode() && !YBIsPreparingTemplates())
+		tablegroupId = get_tablegroup_oid_by_table_oid(relId);
+
 	/*
 	 * process attributeList
 	 */
@@ -1398,7 +1503,7 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
 						 * colocated tables, the first attribute defaults to
 						 * ASC.
 						 */
-						if (attn > 0 || colocated)
+						if (attn > 0 || colocated || tablegroupId != InvalidOid)
 						{
 							range_index = true;
 							break;
@@ -1672,7 +1777,7 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
 			if (use_yb_ordering &&
 				attn == 0 &&
 				attribute->ordering == SORTBY_DEFAULT &&
-				!colocated)
+				!colocated && tablegroupId == InvalidOid)
 				colOptionP[attn] |= INDOPTION_HASH;
 
 			/* default null ordering is LAST for ASC, FIRST for DESC */
@@ -2648,4 +2753,61 @@ IndexSetParentIndex(Relation partitionIdx, Oid parentOid)
 		/* make our updates visible */
 		CommandCounterIncrement();
 	}
+}
+
+void
+BackfillIndex(BackfillIndexStmt *stmt)
+{
+	IndexInfo  *indexInfo;
+	ListCell   *cell;
+	Oid			heapId;
+	Oid			indexId;
+	Relation	heapRel;
+	Relation	indexRel;
+
+	if (YBCGetDisableIndexBackfill())
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("backfill is not enabled")));
+
+	/*
+	 * Examine oid list.  Currently, we only allow it to be a single oid, but
+	 * later it should handle multiple oids of indexes on the same indexed
+	 * table.
+	 * TODO(jason): fix from here downwards for issue #4785.
+	 */
+	if (list_length(stmt->oid_list) != 1)
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("only a single oid is allowed in BACKFILL INDEX (see"
+						" issue #4785)")));
+
+	foreach(cell, stmt->oid_list)
+	{
+		indexId = lfirst_oid(cell);
+	}
+
+	heapId = IndexGetRelation(indexId, false);
+	// TODO(jason): why ShareLock instead of ShareUpdateExclusiveLock?
+	heapRel = heap_open(heapId, ShareLock);
+	indexRel = index_open(indexId, ShareLock);
+
+	indexInfo = BuildIndexInfo(indexRel);
+	/*
+	 * The index should be ready for writes because it should be on the
+	 * BACKFILLING permission.
+	 */
+	Assert(indexInfo->ii_ReadyForInserts);
+	indexInfo->ii_Concurrent = true;
+	indexInfo->ii_BrokenHotChain = false;
+
+	index_backfill(heapRel,
+				   indexRel,
+				   indexInfo,
+				   false,
+				   &stmt->read_time,
+				   stmt->row_bounds);
+
+	index_close(indexRel, ShareLock);
+	heap_close(heapRel, ShareLock);
 }

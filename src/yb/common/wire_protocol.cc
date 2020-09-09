@@ -35,6 +35,7 @@
 #include <string>
 #include <vector>
 
+#include "yb/common/entity_ids.h"
 #include "yb/common/row.h"
 #include "yb/gutil/port.h"
 #include "yb/gutil/stl_util.h"
@@ -63,7 +64,6 @@ DEFINE_string(use_private_ip, "never",
               "zone - would use private IP if destination node is located in the same cloud, "
                   "region and zone."
               "never - would never use private IP if broadcast address is specified.");
-
 namespace yb {
 
 namespace {
@@ -284,10 +284,12 @@ Status AddHostPortPBs(const std::vector<Endpoint>& addrs,
     HostPortPB* pb = pbs->Add();
     pb->set_port(addr.port());
     if (addr.address().is_unspecified()) {
+      VLOG(4) << " Asked to add unspecified address: " << addr.address();
       auto status = GetFQDN(pb->mutable_host());
       if (!status.ok()) {
         std::vector<IpAddress> locals;
-        if (!GetLocalAddresses(&locals, AddressFilter::EXTERNAL).ok() || locals.empty()) {
+        if (!GetLocalAddresses(FLAGS_net_address_filter, &locals).ok() ||
+            locals.empty()) {
           return status;
         }
         for (auto& address : locals) {
@@ -296,18 +298,33 @@ Status AddHostPortPBs(const std::vector<Endpoint>& addrs,
             pb->set_port(addr.port());
           }
           pb->set_host(address.to_string());
+          VLOG(4) << "Adding local address: " << pb->host();
           pb = nullptr;
         }
+      } else {
+        VLOG(4) << "Adding FQDN " << pb->host();
       }
     } else {
       pb->set_host(addr.address().to_string());
+      VLOG(4) << "Adding specific address: " << pb->host();
     }
   }
   return Status::OK();
 }
 
+void SchemaToColocatedTableIdentifierPB(
+    const Schema& schema, ColocatedTableIdentifierPB* colocated_pb) {
+  if (schema.has_pgtable_id()) {
+    colocated_pb->set_pgtable_id(schema.pgtable_id());
+  } else if (schema.has_cotable_id()) {
+    colocated_pb->set_cotable_id(schema.cotable_id().ToString());
+  }
+
+}
+
 void SchemaToPB(const Schema& schema, SchemaPB *pb, int flags) {
   pb->Clear();
+  SchemaToColocatedTableIdentifierPB(schema, pb->mutable_colocated_table_id());
   SchemaToColumnPBs(schema, pb->mutable_columns(), flags);
   schema.table_properties().ToTablePropertiesPB(pb->mutable_table_properties());
 }
@@ -326,7 +343,24 @@ Status SchemaFromPB(const SchemaPB& pb, Schema *schema) {
 
   // Convert the table properties.
   TableProperties table_properties = TableProperties::FromTablePropertiesPB(pb.table_properties());
-  return schema->Reset(columns, column_ids, num_key_columns, table_properties);
+  RETURN_NOT_OK(schema->Reset(columns, column_ids, num_key_columns, table_properties));
+
+  if (pb.has_colocated_table_id()) {
+    switch (pb.colocated_table_id().value_case()) {
+      case ColocatedTableIdentifierPB::kCotableId: {
+        Uuid cotable_id;
+        RETURN_NOT_OK(cotable_id.FromString(pb.colocated_table_id().cotable_id()));
+        schema->set_cotable_id(cotable_id);
+        break;
+      }
+      case ColocatedTableIdentifierPB::kPgtableId:
+        schema->set_pgtable_id(pb.colocated_table_id().pgtable_id());
+        break;
+      case ColocatedTableIdentifierPB::VALUE_NOT_SET:
+        break;
+    }
+  }
+  return Status::OK();
 }
 
 void ColumnSchemaToPB(const ColumnSchema& col_schema, ColumnSchemaPB *pb, int flags) {

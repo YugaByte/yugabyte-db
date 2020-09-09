@@ -1,6 +1,5 @@
 ---
 title: TEXT data type [YCQL]
-summary: String of Unicode characters
 headerTitle: TEXT type
 linkTitle: TEXT
 description: Use the TEXT data type to specify data of a string of Unicode characters.

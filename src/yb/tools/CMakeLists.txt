@@ -81,6 +81,17 @@ target_link_libraries(fs_tool
   consensus
   tablet)
 
+add_executable(ldb ldb.cc)
+target_link_libraries(ldb
+  rocksdb_tools
+  yb_docdb)
+
+add_executable(rocksdb_dump rocksdb_dump.cc)
+target_link_libraries(rocksdb_dump
+  rocksdb
+  rocksdb_tools
+  yb_docdb)
+
 add_executable(yb-fs_list fs_list-tool.cc)
 target_link_libraries(yb-fs_list
   ${LINK_LIBS}
@@ -170,6 +181,8 @@ ADD_YB_TEST_DEPENDENCIES(yb-admin-multi-master-test
 ADD_YB_TEST(yb-ts-cli-test)
 ADD_YB_TEST_DEPENDENCIES(yb-ts-cli-test
   yb-ts-cli)
+ADD_YB_TEST(ldb_test)
+ADD_YB_TEST(rocksdb_dump_test)
 
 add_executable(run-with-timeout run-with-timeout.cc)
 
@@ -181,6 +194,10 @@ target_link_libraries(run-with-timeout yb_util ${YB_BASE_LIBS})
 if(YB_ENT_CURRENT_SOURCE_DIR)
   # Set the test source file folder.
   set(CMAKE_CURRENT_LIST_DIR ${YB_ENT_CURRENT_SOURCE_DIR})
+
+  set(YB_TEST_LINK_LIBS
+    ${TOOLS_EXTENSIONS_TEST_LINK_LIBS}
+    ${YB_TEST_LINK_LIBS})
 
   foreach(test ${TOOLS_EXTENSIONS_TESTS})
     ADD_YB_TEST(${test})

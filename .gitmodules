@@ -1,6 +1,3 @@
-[submodule "submodules/yugabyte-installation"]
-	path = submodules/yugabyte-installation
-	url = https://github.com/yugabyte/yugabyte-installation.git
 [submodule "submodules/yugabyte-bash-common"]
 	path = submodules/yugabyte-bash-common
 	url = https://github.com/yugabyte/yugabyte-bash-common.git

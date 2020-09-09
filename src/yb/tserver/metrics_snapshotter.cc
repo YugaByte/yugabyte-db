@@ -321,7 +321,7 @@ Status MetricsSnapshotter::Thread::DoMetricsSnapshot() {
   NMSWriter::EntityMetricsMap table_metrics;
   NMSWriter::MetricsMap server_metrics;
   NMSWriter nmswriter{&table_metrics, &server_metrics};
-  WARN_NOT_OK(server_->metric_registry()->WriteForPrometheus(&nmswriter),
+  WARN_NOT_OK(server_->metric_registry()->WriteForPrometheus(&nmswriter, MetricPrometheusOptions()),
       "Couldn't write metrics for native metrics storage");
   for (const auto& kv : server_metrics) {
     if (tserver_metrics_whitelist_.find(kv.first) != tserver_metrics_whitelist_.end()) {

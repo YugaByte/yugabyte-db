@@ -133,7 +133,7 @@ $ az aks create \
 --resource-group yugabytedbRG \
 --name yugabytedbAKSCluster \
 --node-count 3 \
---node-vm-size Standard_D2s_v3 \
+--node-vm-size Standard_D4_v3 \
 --enable-addons monitoring \
 --generate-ssh-keys
 ```
@@ -164,7 +164,7 @@ $ az aks create \
 --resource-group yugabytedbRG \
 --name yugabytedbAKSCluster \
 --node-count 3 \
---node-vm-size Standard_D2s_v3 \
+--node-vm-size Standard_D4_v3 \
 --enable-addons monitoring \
 --ssh-key-value <path_to>id_rsa.pub
 ```
@@ -202,7 +202,7 @@ You can also view the details of the cluster in the Kubernetes Dashboard by runn
 First, run the following `kubectl` command:
 
 ```sh
-$ kubectl create clusterrolebinding kubernetes-dashboard --clusterrole=cluster-admin --serviceaccount=kube-system:kubernetes-dashboard
+$ kubectl create clusterrolebinding yb-kubernetes-dashboard --clusterrole=cluster-admin --serviceaccount=kube-system:kubernetes-dashboard --user=clusterUser
 ```
 
 And then run the following Azure CLI command:
@@ -269,17 +269,19 @@ Next, install YugabyteDB in the `yb-demo` namespace by running the following com
 
 ```sh
 $ helm install yb-demo -n yb-demo yugabytedb/yugabyte \
---set storage.master.count=1 \
---set storage.tserver.count=1 \
---set resource.master.requests.cpu=0.5 \
---set resource.master.requests.memory=1Gi \
---set resource.tserver.requests.cpu=0.5 \
---set resource.tserver.requests.memory=1Gi \
---set resource.master.limits.cpu=0.8 \
---set resource.master.limits.memory=1Gi \
---set resource.tserver.limits.cpu=0.8 \
---set resource.tserver.limits.memory=1Gi \
---timeout=15m
+ --set storage.master.count=1 \
+ --set storage.tserver.count=1 \
+ --set storage.master.storageClass=default \
+ --set storage.tserver.storageClass=default \
+ --set resource.master.requests.cpu=1 \
+ --set resource.master.requests.memory=1Gi \
+ --set resource.tserver.requests.cpu=1 \
+ --set resource.tserver.requests.memory=1Gi \
+ --set resource.master.limits.cpu=1 \
+ --set resource.master.limits.memory=1Gi \
+ --set resource.tserver.limits.cpu=1 \
+ --set resource.tserver.limits.memory=1Gi \
+ --timeout=15m
 ```
 
 Depending on your resources, it may take some time to get everything installed, deployed, and configured. 

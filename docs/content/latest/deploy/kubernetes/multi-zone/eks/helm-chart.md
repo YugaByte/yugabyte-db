@@ -229,7 +229,7 @@ gflags:
     placement_zone: "us-east-1b"
 ```
 
-Copy the contents below to a file named `overrides-us-east-1b.yaml`.
+Copy the contents below to a file named `overrides-us-east-1c.yaml`.
 
 ```sh
 isMultiAz: True
@@ -337,14 +337,14 @@ Default replica placement policy treats every yb-tserver as equal irrespective o
 
 ![before-zoneaware](/images/deploy/kubernetes/gke-aws-multizone-before-zoneaware.png)
 
-Run the following command to make the replica placement zone aware so that one replica is placed on each zone.
+To make the replica placement zone-aware, so that one replica is placed in each zone, run the following command:
 
 ```sh
-kubectl exec -it -n yb-demo-us-east-1a yb-master-0 bash \
--- -c "/home/yugabyte/master/bin/yb-admin --master_addresses yb-master-0.yb-masters.yb-demo-us-east-1a.svc.cluster.local:7100,yb-master-0.yb-masters.yb-demo-us-east-1b.svc.cluster.local:7100,yb-master-0.yb-masters.yb-demo-us-east-1c.svc.cluster.local:7100 modify_placement_info aws.us-east-1.us-east-1a,aws.us-east-1.us-east-1b,aws.us-east-1.us-east-1c 3"
+kubectl exec -it -n yb-demo-us-east-1a yb-master-0 -- bash \
+-c "/home/yugabyte/master/bin/yb-admin --master_addresses yb-master-0.yb-masters.yb-demo-us-east-1a.svc.cluster.local:7100,yb-master-0.yb-masters.yb-demo-us-east-1b.svc.cluster.local:7100,yb-master-0.yb-masters.yb-demo-us-east-1c.svc.cluster.local:7100 modify_placement_info aws.us-east-1.us-east-1a,aws.us-east-1.us-east-1b,aws.us-east-1.us-east-1c 3"
 ```
 
-Go to `http://<external-ip>:7000/cluster-config` to see the new configuration.
+To see the new configuration, go to `http://<external-ip>:7000/cluster-config`.
 
 ![after-zoneaware](/images/deploy/kubernetes/aws-multizone-after-zoneaware.png)
 
@@ -355,14 +355,14 @@ To connect and use the YSQL Shell (`ysqlsh`), run the following command.
 us-east-1a,us-east-1b,us-east-1c \
 
 ```sh
-$ kubectl exec -n yb-demo-us-east-1a -it yb-tserver-0 -- /home/yugabyte/bin/ysqlsh \
+$ kubectl exec -n yb-demo-us-east-1a -it yb-tserver-0 -- ysqlsh \
   -h yb-tserver-0.yb-tservers.yb-demo-us-east-1a
 ```
 
-To connect and use the YCQL Shell (`ycqlsh`), run the following command.
+To connect and use the YCQL Shell (`ycqlsh`), run the following command:
 
 ```sh
-$ kubectl exec -n yb-demo-us-east-1a -it yb-tserver-0 /home/yugabyte/bin/ycqlsh \
+$ kubectl exec -n yb-demo-us-east-1a -it yb-tserver-0 -- ycqlsh \
 yb-tserver-0.yb-tservers.yb-demo-us-east-1a
 ```
 

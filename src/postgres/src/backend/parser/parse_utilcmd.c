@@ -339,6 +339,12 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
 						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 							errmsg("Users cannot create system catalog tables.")));
 		}
+		else if (strcmp(def->defname, "tablegroup") == 0)
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("Cannot supply tablegroup through WITH clause.")));
+		}
 		else if (strcmp(def->defname, "colocated") == 0)
 			(void) defGetBoolean(def);
 		else
@@ -2646,6 +2652,24 @@ transformIndexStmt(Oid relid, IndexStmt *stmt, const char *queryString)
 	/* Set up pstate */
 	pstate = make_parsestate(NULL);
 	pstate->p_sourcetext = queryString;
+
+	/*
+	 * We must ensure that no tablegroup option was supplied in the WITH clause.
+	 * Tablegroups cannot be supplied directly for indexes. We check here instead
+	 * of ybccmds as we supply the reloption for the tablegroup of the indexed table
+	 * in DefineIndex(.) if there exists one.
+	 */
+	ListCell *cell;
+	foreach(cell, stmt->options)
+	{
+		DefElem *def = (DefElem*) lfirst(cell);
+		if (strcmp(def->defname, "tablegroup") == 0)
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("Cannot supply tablegroup through WITH clause.")));
+		}
+	}
 
 	/*
 	 * Put the parent table into the rtable so that the expressions can refer

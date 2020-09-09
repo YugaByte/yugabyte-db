@@ -224,8 +224,8 @@ class Messenger : public ProxyContext {
 
   const Protocol* DefaultProtocol() override { return listen_protocol_; }
 
-  rpc::ThreadPool& CallbackThreadPool() override {
-    return ThreadPool(ServicePriority::kNormal);
+  rpc::ThreadPool& CallbackThreadPool(ServicePriority priority) override {
+    return ThreadPool(priority);
   }
 
   CHECKED_STATUS QueueEventOnAllReactors(
@@ -276,6 +276,10 @@ class Messenger : public ProxyContext {
 
   IoService& io_service() override {
     return io_thread_pool_.io_service();
+  }
+
+  DnsResolver& resolver() override {
+    return *resolver_;
   }
 
   rpc::ThreadPool& ThreadPool(ServicePriority priority = ServicePriority::kNormal);
@@ -370,6 +374,8 @@ class Messenger : public ProxyContext {
 
   // This could be used for high-priority services such as Consensus.
   AtomicUniquePtr<rpc::ThreadPool> high_priority_thread_pool_;
+
+  std::unique_ptr<DnsResolver> resolver_;
 
   std::unique_ptr<RpcMetrics> rpc_metrics_;
 

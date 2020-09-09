@@ -148,6 +148,7 @@ AutoVacuumShmemStruct
 AutoVacuumWorkItem
 AutoVacuumWorkItemType
 AuxProcType
+BackfillIndexStmt
 BF_ctx
 BF_key
 BF_word
@@ -437,6 +438,7 @@ CreateStmt
 CreateStmtContext
 CreateSubscriptionStmt
 CreateTableAsStmt
+CreateTableGroupStmt
 CreateTableSpaceStmt
 CreateTransformStmt
 CreateTrigStmt
@@ -520,6 +522,7 @@ DropReplicationSlotCmd
 DropRoleStmt
 DropStmt
 DropSubscriptionStmt
+DropTableGroupStmt
 DropTableSpaceStmt
 DropUserMappingStmt
 DropdbStmt
@@ -716,6 +719,7 @@ FormData_pg_statistic
 FormData_pg_statistic_ext
 FormData_pg_subscription
 FormData_pg_subscription_rel
+FormData_pg_tablegroup
 FormData_pg_tablespace
 FormData_pg_transform
 FormData_pg_trigger
@@ -773,6 +777,7 @@ Form_pg_statistic
 Form_pg_statistic_ext
 Form_pg_subscription
 Form_pg_subscription_rel
+Form_pg_tablegroup
 Form_pg_tablespace
 Form_pg_transform
 Form_pg_trigger
@@ -2001,6 +2006,7 @@ RoleSpec
 RoleSpecType
 RoleStmtType
 RollupData
+RowBounds
 RowCompareExpr
 RowCompareType
 RowExpr

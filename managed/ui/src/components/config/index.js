@@ -1,14 +1,12 @@
 // Copyright (c) YugaByte, Inc.
 
 export { default as DataCenterConfiguration } from './ConfigProvider/DataCenterConfiguration';
-export { default as AzureProviderConfiguration } from './PublicCloud/Azure/AzureProviderConfiguration';
 export { default as DockerProviderConfiguration } from './PublicCloud/Docker/DockerProviderConfiguration';
 export { default as OnPremConfigJSON } from './OnPrem/json/OnPremConfigJSON';
 export { default as OnPremConfiguration } from './OnPrem/OnPremConfiguration';
 export { default as OnPremConfigurationContainer } from './OnPrem/OnPremConfigurationContainer';
 export { default as DataCenterConfigurationContainer } from './ConfigProvider/DataCenterConfigurationContainer';
 
-export { default as AzureProviderConfigurationContainer } from './PublicCloud/Azure/AzureProviderConfigurationContainer';
 export { default as DockerProviderConfigurationContainer } from './PublicCloud/Docker/DockerProviderConfigurationContainer';
 export { default as KubernetesProviderConfiguration } from './PublicCloud/Kubernetes/KubernetesProviderConfiguration';
 export { default as KubernetesProviderConfigurationContainer } from './PublicCloud/Kubernetes/KubernetesProviderConfigurationContainer';

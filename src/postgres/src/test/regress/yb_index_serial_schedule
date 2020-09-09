@@ -2,8 +2,8 @@
 #
 ####################################################################################################
 # This testsuite includes miscellaneous tests that are not yet characterized to a proper testsuite.
-# Other than the dependencies, the tests in this schedule are not ported from PostgreSQL original
-# tests.
+# The tests in this schedule are not ported from PostgreSQL original tests except for those that
+# are prefixed with "yb_pg".
 ####################################################################################################
 # Chain of dependencies for `yb_create_index`
 test: yb_pg_create_function_1

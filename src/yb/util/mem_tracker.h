@@ -299,14 +299,22 @@ class MemTracker : public std::enable_shared_from_this<MemTracker> {
   // Like LimitExceeded() but may also return true if the soft memory limit is exceeded.
   // The greater the excess, the higher the chance that it returns true.
   // If score is not 0, then it is used to determine positive result.
-  SoftLimitExceededResult SoftLimitExceeded(double score);
+  SoftLimitExceededResult SoftLimitExceeded(double* score);
+
+  SoftLimitExceededResult SoftLimitExceeded(double score) {
+    return SoftLimitExceeded(&score);
+  }
 
   // Combines the semantics of AnyLimitExceeded() and SoftLimitExceeded().
   //
   // Note: if there's more than one soft limit defined, the probability of it being
   // exceeded in at least one tracker is much higher (as each soft limit check is an
   // independent event).
-  SoftLimitExceededResult AnySoftLimitExceeded(double score);
+  SoftLimitExceededResult AnySoftLimitExceeded(double* score);
+
+  SoftLimitExceededResult AnySoftLimitExceeded(double score) {
+    return AnySoftLimitExceeded(&score);
+  }
 
   // Returns the maximum consumption that can be made without exceeding the limit on
   // this tracker or any of its parents. Returns int64_t::max() if there are no
@@ -604,6 +612,19 @@ const MemTrackerData& CollectMemTrackerData(const MemTrackerPtr& tracker, int de
 
 std::string DumpMemoryUsage();
 
+// Checks whether it is ok to proceed with action having specified score under current memory
+// conditions.
+// Returns true when action should proceed, false if it should be rejected.
+// score - score to reject action, should be in the range (0.0, 1.0],
+// the higher the score - the greater probability that action should be rejected.
+// Score 0.0 is a special value, meaning that random value should be picked for score.
+//
+// Suppose we have soft limit A and hard limit B. Where A < B.
+// And current memory usage X.
+//
+// If X < A => this function always return true.
+// If X >= B => this function always return false.
+// If A < X < B, then we reject if used score > (B - X) / (B - A).
 bool CheckMemoryPressureWithLogging(
     const MemTrackerPtr& mem_tracker, double score, const char* error_prefix);
 

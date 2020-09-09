@@ -30,6 +30,7 @@
 // under the License.
 //
 
+#include <cstddef>
 #include <glog/logging.h>
 
 #include "yb/common/schema.h"
@@ -38,7 +39,10 @@
 #include "yb/fs/fs_manager.h"
 #include "yb/gutil/ref_counted.h"
 #include "yb/tablet/local_tablet_writer.h"
+#include "yb/tablet/operations/snapshot_operation.h"
+#include "yb/tablet/tablet_snapshots.h"
 #include "yb/tablet/tablet-test-util.h"
+#include "yb/util/opid.h"
 
 namespace yb {
 namespace tablet {
@@ -109,6 +113,41 @@ TEST_F(TestRaftGroupMetadata, TestLoadFromSuperBlock) {
             << superblock_pb_1.DebugString();
 }
 
+TEST_F(TestRaftGroupMetadata, TestDeleteTabletDataClearsDisk) {
+  auto tablet = harness_->tablet();
+
+  // Write some data to the tablet and flush.
+  QLWriteRequestPB req;
+  BuildPartialRow(0, 0, "foo", &req);
+  ASSERT_OK(writer_->Write(&req));
+  ASSERT_OK(tablet->Flush(tablet::FlushMode::kSync));
+
+  // Create one more row. Write and flush.
+  BuildPartialRow(1, 1, "bar", &req);
+  ASSERT_OK(writer_->Write(&req));
+  ASSERT_OK(tablet->Flush(tablet::FlushMode::kSync));
+
+  const string snapshotId = "0123456789ABCDEF0123456789ABCDEF";
+  tserver::TabletSnapshotOpRequestPB request;
+  request.set_snapshot_id(snapshotId);
+  tablet::SnapshotOperationState tx_state(tablet.get(), &request);
+  tx_state.set_hybrid_time(tablet->clock()->Now());
+  auto* op_id = tx_state.mutable_op_id();
+  op_id->set_index(2);
+  op_id->set_term(-1);
+  ASSERT_OK(tablet->snapshots().Create(&tx_state));
+
+  ASSERT_TRUE(env_->DirExists(tablet->metadata()->rocksdb_dir()));
+  ASSERT_TRUE(env_->DirExists(tablet->metadata()->intents_rocksdb_dir()));
+  ASSERT_TRUE(env_->DirExists(tablet->metadata()->snapshots_dir()));
+
+  CHECK_OK(tablet->metadata()->DeleteTabletData(
+    TabletDataState::TABLET_DATA_DELETED, yb::OpId::FromPB(*op_id)));
+
+  ASSERT_FALSE(env_->DirExists(tablet->metadata()->rocksdb_dir()));
+  ASSERT_FALSE(env_->DirExists(tablet->metadata()->intents_rocksdb_dir()));
+  ASSERT_FALSE(env_->DirExists(tablet->metadata()->snapshots_dir()));
+}
 
 } // namespace tablet
 } // namespace yb

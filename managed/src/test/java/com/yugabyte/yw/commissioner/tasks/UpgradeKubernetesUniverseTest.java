@@ -5,15 +5,12 @@ package com.yugabyte.yw.commissioner.tasks;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.net.HostAndPort;
 import com.yugabyte.yw.commissioner.Commissioner;
 import com.yugabyte.yw.commissioner.tasks.UpgradeUniverse;
 import com.yugabyte.yw.commissioner.tasks.UpgradeUniverse.UpgradeTaskType;
 import com.yugabyte.yw.common.ApiUtils;
 import com.yugabyte.yw.common.RegexMatcher;
-import com.yugabyte.yw.common.ShellProcessHandler;
 import com.yugabyte.yw.common.ShellProcessHandler.ShellResponse;
-import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.UserIntent;
 import com.yugabyte.yw.models.AvailabilityZone;
 import com.yugabyte.yw.models.InstanceType;
@@ -44,20 +41,16 @@ import static com.yugabyte.yw.commissioner.tasks.subtasks.KubernetesWaitForPod.C
 import static com.yugabyte.yw.common.ApiUtils.getTestUserIntent;
 import static com.yugabyte.yw.common.AssertHelper.assertJsonEqual;
 import static com.yugabyte.yw.common.ModelFactory.createUniverse;
-import static com.yugabyte.yw.models.TaskInfo.State.Failure;
 import static com.yugabyte.yw.models.TaskInfo.State.Success;
 
 import static org.junit.Assert.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
 
 @RunWith(MockitoJUnitRunner.class)
 public class UpgradeKubernetesUniverseTest extends CommissionerBaseTest {
@@ -96,19 +89,19 @@ public class UpgradeKubernetesUniverseTest extends CommissionerBaseTest {
     ShellResponse responseEmpty = new ShellResponse();
     ShellResponse responsePod = new ShellResponse();
     when(mockKubernetesManager.helmUpgrade(any(), any(), any())).thenReturn(responseEmpty);
-    
-    responsePod.message = 
+
+    responsePod.message =
         "{\"status\": { \"phase\": \"Running\", \"conditions\": [{\"status\": \"True\"}]}}";
     when(mockKubernetesManager.getPodStatus(any(), any(), any())).thenReturn(responsePod);
 
     mockClient = mock(YBClient.class);
-    when(mockYBClient.getClient(any(), any())).thenReturn(mockClient);
-    when(mockClient.waitForServer(any(), anyInt())).thenReturn(true);
-
+    when(mockClient.waitForServer(any(), anyLong())).thenReturn(true);
     IsServerReadyResponse okReadyResp = new IsServerReadyResponse(0, "", null, 0, 0);
     try {
-      when(mockClient.isServerReady(any(HostAndPort.class), anyBoolean())).thenReturn(okReadyResp);
+      when(mockClient.isServerReady(any(), anyBoolean())).thenReturn(okReadyResp);
     } catch (Exception ex) {}
+    when(mockYBClient.getClient(any(), any())).thenReturn(mockClient);
+
   }
 
   private void setupUniverseSingleAZ(boolean setMasters) {
@@ -369,14 +362,14 @@ public class UpgradeKubernetesUniverseTest extends CommissionerBaseTest {
     ArgumentCaptor<String> expectedOverrideFile = ArgumentCaptor.forClass(String.class);
     ArgumentCaptor<String> expectedPodName = ArgumentCaptor.forClass(String.class);
     ArgumentCaptor<HashMap> expectedConfig = ArgumentCaptor.forClass(HashMap.class);
-    
+
     String overrideFileRegex = "(.*)" + defaultUniverse.universeUUID + "(.*).yml";
-    
+
     UpgradeKubernetesUniverse.Params taskParams = new UpgradeKubernetesUniverse.Params();
     taskParams.masterGFlags = ImmutableMap.of("master-flag", "m1");
     taskParams.tserverGFlags = ImmutableMap.of("tserver-flag", "t1");
     TaskInfo taskInfo = submitTask(taskParams, UpgradeTaskType.GFlags);
-    
+
     verify(mockKubernetesManager, times(6)).helmUpgrade(expectedConfig.capture(),
         expectedNodePrefix.capture(), expectedOverrideFile.capture());
     verify(mockKubernetesManager, times(6)).getPodStatus(expectedConfig.capture(),
@@ -436,14 +429,14 @@ public class UpgradeKubernetesUniverseTest extends CommissionerBaseTest {
     ArgumentCaptor<String> expectedOverrideFile = ArgumentCaptor.forClass(String.class);
     ArgumentCaptor<String> expectedPodName = ArgumentCaptor.forClass(String.class);
     ArgumentCaptor<HashMap> expectedConfig = ArgumentCaptor.forClass(HashMap.class);
-    
+
     String overrideFileRegex = "(.*)" + defaultUniverse.universeUUID + "(.*).yml";
-    
+
     UpgradeKubernetesUniverse.Params taskParams = new UpgradeKubernetesUniverse.Params();
     taskParams.masterGFlags = ImmutableMap.of("master-flag", "m1");
     taskParams.tserverGFlags = ImmutableMap.of("tserver-flag", "t1");
     TaskInfo taskInfo = submitTask(taskParams, UpgradeTaskType.GFlags);
-    
+
     verify(mockKubernetesManager, times(6)).helmUpgrade(expectedConfig.capture(),
         expectedNodePrefix.capture(), expectedOverrideFile.capture());
     verify(mockKubernetesManager, times(6)).getPodStatus(expectedConfig.capture(),

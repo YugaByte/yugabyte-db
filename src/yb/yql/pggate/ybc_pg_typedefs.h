@@ -216,8 +216,12 @@ typedef struct PgExecParameters {
   // For now we only support one rowmark.
 #ifdef __cplusplus
   int rowmark = -1;
+  uint64_t read_time = 0;
+  char *partition_key = NULL;
 #else
   int rowmark;
+  uint64_t read_time;
+  char *partition_key;
 #endif
 } YBCPgExecParameters;
 
@@ -232,6 +236,12 @@ typedef struct PgCallbacks {
   void (*FetchUniqueConstraintName)(YBCPgOid, char*, size_t);
   YBCPgMemctx (*GetCurrentYbMemctx)();
 } YBCPgCallbacks;
+
+typedef struct PgTableProperties {
+  uint32_t num_tablets;
+  uint32_t num_hash_key_columns;
+  bool is_colocated;
+} YBCPgTableProperties;
 
 #ifdef __cplusplus
 }  // extern "C"

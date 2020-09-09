@@ -210,12 +210,9 @@ export default class Importer extends Component {
             this.submitForm(payload);
             setSubmitting(false);
           }}
-          render={({
-            handleSubmit,
-            isSubmitting
-          }) => (
-            <form name="ImportUniverse"
-              onSubmit={handleSubmit}>
+        >
+          {({ handleSubmit, isSubmitting }) => (
+            <form name="ImportUniverse" onSubmit={handleSubmit}>
               <Row>
                 <h2 className="content-title">Import Existing Universe</h2>
                 <Col md={8} sm={12}>
@@ -247,7 +244,7 @@ export default class Importer extends Component {
               </Row>
             </form>
           )}
-        />
+        </Formik>
       </div>
     );
   }

@@ -2,7 +2,6 @@
 title: Simple expressions [YCQL]
 headerTitle: Simple expressions
 linkTitle: Simple expressions
-summary: Columns, constants, and null.
 description: A simple expression can be a column, constant, or NULL.
 menu:
   latest:

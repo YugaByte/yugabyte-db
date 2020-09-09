@@ -52,7 +52,6 @@
 
 #include "yb/util/concurrent_value.h"
 #include "yb/util/flag_tags.h"
-#include "yb/util/kernel_stack_watchdog.h"
 #include "yb/util/memory/memory.h"
 #include "yb/util/pb_util.h"
 #include "yb/util/trace.h"

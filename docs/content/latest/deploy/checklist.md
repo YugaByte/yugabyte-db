@@ -105,7 +105,7 @@ Below is a minimal list of default ports (along with the network access required
 
 - To use the database from the app, the following ports need to be accessible from the app (or CLIs).
 
-      9042 for YSQL
+      5433 for YSQL
       9042 for YCQL
       6379 for YEDIS
 
@@ -125,19 +125,23 @@ For YugabyteDB to preserve data consistency, the clock drift and clock skew acro
 
 ### Clock skew
 
-Set a safe value for the maximum clock skew parameter (`--max_clock_skew_usec`) when starting the YugabyteDB servers. We recommend setting this parameter to twice the expected maximum clock skew between any two nodes in your deployment.
+Set a safe value for the maximum clock skew flag (`--max_clock_skew_usec`) for YB-TServers and YB-Masters when starting the YugabyteDB servers. The recommended value is two times the expected maximum clock skew between any two nodes in your deployment.
 
-For example, if the maximum clock skew across nodes is expected to be no more than 250ms, then set the parameter to 500ms (`--max_clock_skew_usec=500000`).
+For example, if the maximum clock skew across nodes is expected to be no more than 250 microseconds, then set the parameter to 500 microseconds (`--max_clock_skew_usec=500000`).
 
 ### Clock drift
 
-The maximum clock drift on any node should be bounded to no more than 500 PPM (or *parts per million*). This means that the clock on any node should drift by no more than 0.5ms per second. Note that 0.5ms per second is the standard assumption of clock drift in Linux.
+The maximum clock drift on any node should be bounded to no more than 500 PPM (or *parts per million*). This means that the clock on any node should drift by no more than 0.5 ms per second. Note that 0.5 ms per second is the standard assumption of clock drift in Linux.
 
 {{< note title="Note" >}}
 
 In practice, the clock drift would have to be orders of magnitude higher in order to cause correctness issues.
 
 {{< /note >}}
+
+## Security checklist
+
+For a list of best practices, see [security checklist](../../secure/security-checklist).
 
 ## Running on public clouds
 

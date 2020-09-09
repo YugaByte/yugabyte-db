@@ -235,6 +235,8 @@ class SysCatalogTable {
   // Thread pool for appender tasks
   gscoped_ptr<ThreadPool> append_pool_;
 
+  std::unique_ptr<ThreadPool> allocation_pool_;
+
   std::shared_ptr<tablet::TabletPeer> tablet_peer_;
 
   Master* master_;

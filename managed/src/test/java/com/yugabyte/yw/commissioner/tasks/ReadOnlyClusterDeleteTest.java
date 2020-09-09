@@ -90,13 +90,9 @@ public class ReadOnlyClusterDeleteTest extends CommissionerBaseTest {
     modifyUC = mock(ModifyUniverseConfig.class);
     amuc = mock(AbstractModifyMasterClusterConfig.class);
     try {
-      doNothing().when(modifyUC).doCall();
-      when(modifyUC.modifyConfig(any())).thenReturn(null);
-      doNothing().when(amuc).doCall();
       GetMasterClusterConfigResponse gcr = new GetMasterClusterConfigResponse(0, "", null, null);
       when(mockClient.getMasterClusterConfig()).thenReturn(gcr);
       ChangeMasterClusterConfigResponse ccr = new ChangeMasterClusterConfigResponse(1111, "", null);
-      when(mockClient.changeMasterClusterConfig(any())).thenReturn(ccr);
     } catch (Exception e) {}
 
     UniverseDefinitionTaskParams taskParams = new UniverseDefinitionTaskParams();

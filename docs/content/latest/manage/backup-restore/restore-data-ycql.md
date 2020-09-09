@@ -78,8 +78,8 @@ There are a number of useful options in the `COPY FROM` command used to perform 
 
 ## Example
 
-Let us restore the backup we had performed in the [example section of backing up data](/manage/backup-restore/backing-up-data/#example), 
-where we had walked through how to create the `myapp_schema.cql` schema backup and the `myapp_data.csv` data backup files. 
+Let us restore the backup you had performed in the [example section of backing up data](/manage/backup-restore/backing-up-data/#example), 
+where you had walked through how to create the `myapp_schema.cql` schema backup and the `myapp_data.csv` data backup files. 
 
 If you have created the keyspace and the table with the data, remember to drop them using cqlsh. You can drop the table by running the following query:
 

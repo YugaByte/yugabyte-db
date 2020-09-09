@@ -185,9 +185,20 @@ TEST_F(YBAdminMultiMasterTest, TestMasterLeaderStepdown) {
   const auto new_leader_id = ASSERT_RESULT(
       regex_fetch_first(R"(\s+([a-z0-9]{32})\s+\S+\s+\S+\s+FOLLOWER)"));
   ASSERT_OK(call_admin({"master_leader_stepdown", new_leader_id}));
-  ASSERT_OK(call_admin({"list_all_masters"}));
-  ASSERT_EQ(new_leader_id, ASSERT_RESULT(
-      regex_fetch_first(R"(\s+([a-z0-9]{32})\s+\S+\s+\S+\s+LEADER)")));
+
+  ASSERT_OK(WaitFor([&]() -> Result<bool> {
+    RETURN_NOT_OK(call_admin({"list_all_masters"}));
+    return new_leader_id ==
+        VERIFY_RESULT(regex_fetch_first(R"(\s+([a-z0-9]{32})\s+\S+\s+\S+\s+LEADER)"));
+  }, 5s, "Master leader stepdown"));
+
+  ASSERT_OK(call_admin({"master_leader_stepdown"}));
+
+  ASSERT_OK(WaitFor([&]() -> Result<bool> {
+    RETURN_NOT_OK(call_admin({"list_all_masters"}));
+    return new_leader_id !=
+      VERIFY_RESULT(regex_fetch_first(R"(\s+([a-z0-9]{32})\s+\S+\s+\S+\s+LEADER)"));
+  }, 5s, "Master leader stepdown"));
 }
 
 }  // namespace tools

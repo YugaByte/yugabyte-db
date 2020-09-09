@@ -19,13 +19,13 @@ showAsideToc: true
 
 <ul class="nav nav-tabs-alt nav-tabs-yb">
   <li>
-    <a href="/latest/deploy/docker/docker-compose" class="nav-link active">
+    <a href="{{< relref "./docker-compose.md" >}}" class="nav-link active">
       <i class="fab fa-docker" aria-hidden="true"></i>
       Docker Compose
     </a>
   </li>
   <li >
-    <a href="/latest/deploy/docker/docker-swarm" class="nav-link">
+    <a href="{{< relref "./docker-swarm.md" >}}" class="nav-link">
       <i class="fas fa-layer-group"></i>
       Docker Swarm
     </a>
@@ -83,7 +83,6 @@ services:
                 "--tserver_master_addrs=yb-master-n1:7100"]
       ports:
       - "9042:9042"
-      - "6379:6379"
       - "5433:5433"
       - "9000:9000"
       environment:
@@ -105,15 +104,9 @@ $ docker-compose -f ./docker-compose.yaml up -d
 
 YCQL and YSQL APIs are enabled by default on the cluster.
 
-Optionally, you can enable YEDIS API by running the following command.
-
-```sh
-$ docker exec -it yb-master-n1 /home/yugabyte/bin/yb-admin --master_addresses yb-master-n1:7100 setup_redis_table
-```
-
 ## 3. Test the APIs
 
-Clients can now connect to the YSQL API at localhost:5433, YCQL API at localhost:9042 and YEDIS API at localhost:6379. The yb-master admin service is available at http://localhost:7000.
+Clients can now connect to the YSQL API at localhost:5433 and the YCQL API at localhost:9042. The yb-master admin service is available at http://localhost:7000.
 
 ### Connect to YSQL
 
@@ -198,7 +191,6 @@ services:
                 ]
       ports:
       - "9042:9042"
-      - "6379:6379"
       - "5433:5433"
       - "9000:9000"
       environment:

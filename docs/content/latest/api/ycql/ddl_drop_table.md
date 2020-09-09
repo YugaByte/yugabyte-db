@@ -2,7 +2,6 @@
 title: DROP TABLE statement [YCQL]
 headerTitle: DROP TABLE
 linkTitle: DROP TABLE
-summary: Remove a table
 description: Use the DROP TABLE statement to remove a table and all of its data from the database.
 menu:
   latest:

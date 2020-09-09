@@ -465,7 +465,7 @@ string GetOp(int argc, char** argv) {
 
 static int TsCliMain(int argc, char** argv) {
   FLAGS_logtostderr = 1;
-  FLAGS_minloglevel = 1;
+  FLAGS_minloglevel = 2;
   SetUsage(argv[0]);
   ParseCommandLineFlags(&argc, &argv, true);
   InitGoogleLoggingSafe(argv[0]);

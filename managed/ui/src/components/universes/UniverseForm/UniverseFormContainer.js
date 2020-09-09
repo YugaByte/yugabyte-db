@@ -27,8 +27,8 @@ const mapDispatchToProps = (dispatch) => {
   return {
     submitConfigureUniverse: (values) => {
       dispatch(configureUniverseTemplateLoading());
-      dispatch(configureUniverseTemplate(values)).then((response) => {
-        dispatch(configureUniverseTemplateResponse(response.payload));
+      return dispatch(configureUniverseTemplate(values)).then((response) => {
+        return dispatch(configureUniverseTemplateResponse(response.payload));
       });
     },
 
@@ -39,11 +39,11 @@ const mapDispatchToProps = (dispatch) => {
     },
 
     submitCreateUniverse: (values) => {
-      dispatch(createUniverse(values)).then((response) => {
-        dispatch(createUniverseResponse(response.payload));
+      return dispatch(createUniverse(values)).then((response) => {
         dispatch(getTlsCertificates()).then((response) => {
           dispatch(getTlsCertificatesResponse(response.payload));
         });
+        return dispatch(createUniverseResponse(response.payload));
       });
     },
 
@@ -225,7 +225,7 @@ function mapStateToProps(state, ownProps) {
       "accessKeyCode": "yugabyte-default",
       "assignPublicIP":  true,
       "useTimeSync": false,
-      "enableYSQL": false,
+      "enableYSQL": true,
       "enableNodeToNodeEncrypt": false,
       "enableClientToNodeEncrypt": false,
       "enableEncryptionAtRest": false,
@@ -238,7 +238,7 @@ function mapStateToProps(state, ownProps) {
       "isMultiAZ": true,
       "assignPublicIP":  true,
       "useTimeSync": false,
-      "enableYSQL": false,
+      "enableYSQL": true,
       "enableNodeToNodeEncrypt": false,
       "enableClientToNodeEncrypt": false
     }
@@ -263,17 +263,25 @@ function mapStateToProps(state, ownProps) {
     accessKeys: state.cloud.accessKeys,
     initialValues: data,
     formValues: selector(state,
-      'formType', 'primary.universeName', 'primary.provider', 'primary.providerType', 'primary.regionList',
-      'primary.numNodes', 'primary.instanceType', 'primary.replicationFactor', 'primary.ybSoftwareVersion', 'primary.accessKeyCode',
-      'primary.masterGFlags', 'primary.tserverGFlags', 'primary.instanceTags', 'primary.diskIops', 'primary.numVolumes', 'primary.volumeSize', 'primary.storageType',
-      'primary.diskIops', 'primary.assignPublicIP', 'primary.mountPoints', 'primary.useTimeSync', 'primary.enableYSQL',
-      'primary.enableNodeToNodeEncrypt', 'primary.enableClientToNodeEncrypt', 'primary.enableEncryptionAtRest',
-      'primary.selectEncryptionAtRestConfig', 'primary.tlsCertificateId', 'primary.awsArnString', 'async.universeName',
-      'async.provider', 'async.providerType', 'async.regionList', 'async.replicationFactor',
-      'async.numNodes', 'async.instanceType', 'async.deviceInfo', 'async.ybSoftwareVersion',
-      'async.accessKeyCode', 'async.diskIops', 'async.numVolumes', 'async.volumeSize',  'async.storageType',
-      'async.assignPublicIP', 'async.enableYSQL', 'async.enableNodeToNodeEncrypt', 'async.enableClientToNodeEncrypt',
-      'async.mountPoints', 'async.useTimeSync', 'masterGFlags', 'tserverGFlags', 'instanceTags'
+      'formType', 'primary.universeName', 'primary.provider', 'primary.providerType',
+      'primary.regionList', 'primary.numNodes', 'primary.instanceType', 'primary.replicationFactor',
+      'primary.ybSoftwareVersion', 'primary.accessKeyCode', 'primary.masterGFlags',
+      'primary.tserverGFlags', 'primary.instanceTags', 'primary.diskIops', 'primary.numVolumes',
+      'primary.volumeSize', 'primary.storageType', 'primary.diskIops', 'primary.assignPublicIP',
+      'primary.mountPoints', 'primary.useTimeSync', 'primary.enableYSQL',
+      'primary.enableNodeToNodeEncrypt', 'primary.enableClientToNodeEncrypt',
+      'primary.enableEncryptionAtRest', 'primary.selectEncryptionAtRestConfig',
+      'primary.tlsCertificateId', 'primary.awsArnString', 'primary.masterHttpPort',
+      'primary.masterRpcPort', 'primary.tserverHttpPort', 'primary.tserverRpcPort',
+      'primary.redisHttpPort', 'primary.redisRpcPort', 'primary.yqlHttpPort', 'primary.yqlRpcPort',
+      'primary.ysqlHttpPort', 'primary.ysqlRpcPort', 'primary.nodeExporterPort',
+      'async.universeName', 'async.provider', 'async.providerType', 'async.regionList',
+      'async.replicationFactor', 'async.numNodes', 'async.instanceType', 'async.deviceInfo',
+      'async.ybSoftwareVersion', 'async.accessKeyCode', 'async.diskIops', 'async.numVolumes',
+      'async.volumeSize',  'async.storageType', 'async.assignPublicIP', 'async.enableYSQL',
+      'async.enableNodeToNodeEncrypt', 'async.enableClientToNodeEncrypt', 'async.mountPoints',
+      'async.useTimeSync', 'masterGFlags', 'tserverGFlags', 'instanceTags',
+      'primary.installNodeExporter'
     )
   };
 }

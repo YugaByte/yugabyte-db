@@ -446,6 +446,14 @@ AsyncTabletLeaderTask::AsyncTabletLeaderTask(
       tablet_(tablet) {
 }
 
+AsyncTabletLeaderTask::AsyncTabletLeaderTask(
+    Master* master, ThreadPool* callback_pool, const scoped_refptr<TabletInfo>& tablet,
+    const scoped_refptr<TableInfo>& table)
+    : RetryingTSRpcTask(
+          master, callback_pool, gscoped_ptr<TSPicker>(new PickLeaderReplica(tablet)), table),
+      tablet_(tablet) {
+}
+
 std::string AsyncTabletLeaderTask::description() const {
   return type_name() + " RPC for " + tablet_->ToString();
 }
@@ -478,6 +486,8 @@ AsyncCreateReplica::AsyncCreateReplica(Master *master,
   req_.set_tablet_id(tablet->tablet_id());
   req_.set_table_type(tablet->table()->metadata().state().pb.table_type());
   req_.mutable_partition()->CopyFrom(tablet_pb.partition());
+  req_.set_namespace_id(table_lock->data().pb.namespace_id());
+  req_.set_namespace_name(table_lock->data().pb.namespace_name());
   req_.set_table_name(table_lock->data().pb.name());
   req_.mutable_schema()->CopyFrom(table_lock->data().pb.schema());
   req_.mutable_partition_schema()->CopyFrom(table_lock->data().pb.partition_schema());
@@ -626,7 +636,7 @@ void AsyncAlterTable::HandleResponse(int attempt) {
   if (state() == MonitoredTaskState::kComplete) {
     // TODO: proper error handling here. Not critical, since TSHeartbeat will retry on failure.
     WARN_NOT_OK(master_->catalog_manager()->HandleTabletSchemaVersionReport(
-        tablet_.get(), schema_version_),
+        tablet_.get(), schema_version_, table()),
         yb::Format(
             "$0 for $1 failed while running AsyncAlterTable::HandleResponse. response $2",
             description(), tablet_->ToString(), resp_.DebugString()));
@@ -647,6 +657,7 @@ bool AsyncAlterTable::SendRequest(int attempt) {
   req.set_schema_version(l->data().pb.version());
   req.set_dest_uuid(permanent_uuid());
   req.set_tablet_id(tablet_->tablet_id());
+  req.set_alter_table_id(table_->id());
 
   if (l->data().pb.has_wal_retention_secs()) {
     req.set_wal_retention_secs(l->data().pb.wal_retention_secs());

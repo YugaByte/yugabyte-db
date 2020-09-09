@@ -7,7 +7,7 @@ image: /images/section_icons/index/troubleshoot.png
 headcontent:
 aliases:
   - /troubleshoot/
-section: USER GUIDES
+section: YUGABYTEDB CORE
 menu:
   latest:
     identifier: troubleshoot
@@ -48,18 +48,6 @@ menu:
       </div>
       <div class="body">
         Diagnose and solve issues on an individual YugabyteDB node.
-      </div>
-    </a>
-  </div>
-
-  <div class="col-12 col-md-6 col-lg-12 col-xl-6">
-    <a class="section-link icon-offset" href="enterprise-edition">
-      <div class="head">
-        <img class="icon" src="/images/section_icons/manage/enterprise.png" aria-hidden="true" />
-        <div class="title">Yugabyte Platform</div>
-      </div>
-      <div class="body">
-        Tools and issues specific to the Yugabyte Platform.
       </div>
     </a>
   </div>

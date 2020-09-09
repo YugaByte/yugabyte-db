@@ -58,12 +58,12 @@ public class TestNetUtil {
   public void testParseString() {
     String aStringWithPort = "1.2.3.4:1234";
     HostAndPort hostAndPortForAStringWithPort = NetUtil.parseString(aStringWithPort, 0);
-    assertEquals(hostAndPortForAStringWithPort.getHostText(), "1.2.3.4");
+    assertEquals(hostAndPortForAStringWithPort.getHost(), "1.2.3.4");
     assertEquals(hostAndPortForAStringWithPort.getPort(), 1234);
 
     String aStringWithoutPort = "1.2.3.4";
     HostAndPort hostAndPortForAStringWithoutPort = NetUtil.parseString(aStringWithoutPort, 12345);
-    assertEquals(hostAndPortForAStringWithoutPort.getHostText(), aStringWithoutPort);
+    assertEquals(hostAndPortForAStringWithoutPort.getHost(), aStringWithoutPort);
     assertEquals(hostAndPortForAStringWithoutPort.getPort(), 12345);
   }
 

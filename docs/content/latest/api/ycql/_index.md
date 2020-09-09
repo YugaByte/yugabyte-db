@@ -2,7 +2,7 @@
 title: Yugabyte Cloud Query Language (YCQL)
 headerTitle: Yugabyte Cloud Query Language (YCQL)
 linkTitle: YCQL
-description: YCQL is a SQL-based, semi-relational API that is best fit for internet-scale OLTP applications.
+description: YCQL is a semi-relational API that is best fit for internet-scale OLTP & HTAP applications.
 summary: Reference for the YCQL API
 image: /images/section_icons/api/ycql.png
 headcontent:
@@ -20,7 +20,7 @@ showAsideToc: true
 
 ## Introduction
 
-Yugabyte Cloud Query Language (YCQL) is a SQL-based, semi-relational API that is best fit for internet-scale OLTP applications needing massive data ingestion and blazing-fast queries. It supports strongly consistent secondary indexes, a native JSON column type, and distributed transactions. It has its roots in the [Cassandra Query Language (CQL)](http://cassandra.apache.org/doc/latest/cql/index.html). 
+Yugabyte Cloud Query Language (YCQL) is a semi-relational SQL API that is best fit for internet-scale OLTP and HTAP applications needing massive data ingestion and blazing-fast queries. It supports strongly consistent secondary indexes, a native JSON column type, and distributed transactions. It has its roots in the [Cassandra Query Language (CQL)](http://cassandra.apache.org/doc/latest/cql/index.html). 
 
 This page covers the following YCQL features.
 
@@ -122,7 +122,7 @@ Primitive Type | Allowed in Key | Type Parameters | Description |
 [`BLOB`](type_blob) | Yes | - | String of binary characters |
 [`BOOLEAN`](type_bool) | Yes | - | Boolean |
 [`COUNTER`](type_int) | No | - | 64-bit signed integer |
-[`DECIMAL`](type_number) | Yes | - | Exact, fixed-point number |
+[`DECIMAL`](type_number) | Yes | - | Exact, arbitrary-precision number, no upper-bound on decimal precision |
 [`DATE`](type_datetime) | Yes | - | Date |
 [`DOUBLE`](type_number) | Yes | - | 64-bit, inexact, floating-point number |
 [`FLOAT`](type_number) | Yes | - | 64-bit, inexact, floating-point number |

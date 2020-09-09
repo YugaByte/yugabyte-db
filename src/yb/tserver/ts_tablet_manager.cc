@@ -218,6 +218,9 @@ DEFINE_int32(tserver_yb_client_default_timeout_ms, kTServerYbClientDefaultTimeou
              "Default timeout for the YBClient embedded into the tablet server that is used "
              "for distributed transactions.");
 
+DEFINE_bool(enable_restart_transaction_status_tablets_first, true,
+            "Set to true to prioritize bootstrapping transaction status tablets first.");
+
 namespace yb {
 namespace tserver {
 
@@ -270,7 +273,6 @@ METRIC_DEFINE_histogram(server, ts_bootstrap_time, "TServer Bootstrap Time",
 
 using consensus::ConsensusMetadata;
 using consensus::ConsensusStatePB;
-using consensus::OpId;
 using consensus::RaftConfigPB;
 using consensus::RaftPeerPB;
 using consensus::StartRemoteBootstrapRequestPB;
@@ -417,15 +419,22 @@ TSTabletManager::TSTabletManager(FsManager* fs_manager,
   // However, the effective upper bound is the number of replicas as each will
   // submit its own tasks via a dedicated token.
   CHECK_OK(ThreadPoolBuilder("raft")
+               .set_min_threads(1)
                .unlimited_threads()
                .Build(&raft_pool_));
   CHECK_OK(ThreadPoolBuilder("prepare")
+               .set_min_threads(1)
                .unlimited_threads()
                .Build(&tablet_prepare_pool_));
   CHECK_OK(ThreadPoolBuilder("append")
+               .set_min_threads(1)
                .unlimited_threads()
                .set_idle_timeout(MonoDelta::FromMilliseconds(10000))
                .Build(&append_pool_));
+  CHECK_OK(ThreadPoolBuilder("log-alloc")
+               .set_min_threads(1)
+               .unlimited_threads()
+               .Build(&allocation_pool_));
   ThreadPoolMetrics read_metrics = {
       METRIC_op_read_queue_length.Instantiate(server_->metric_entity()),
       METRIC_op_read_queue_time.Instantiate(server_->metric_entity()),
@@ -549,7 +558,7 @@ Status TSTabletManager::Init() {
 
   InitLocalRaftPeerPB();
 
-  vector<RaftGroupMetadataPtr> metas;
+  deque<RaftGroupMetadataPtr> metas;
 
   // First, load all of the tablet metadata. We do this before we start
   // submitting the actual OpenTablet() tasks so that we don't have to compete
@@ -566,8 +575,18 @@ Status TSTabletManager::Init() {
     RegisterDataAndWalDir(
         fs_manager_, meta->table_id(), meta->raft_group_id(), meta->data_root_dir(),
         meta->wal_root_dir());
-    metas.push_back(meta);
+    if (FLAGS_enable_restart_transaction_status_tablets_first) {
+      // Prioritize bootstrapping transaction status tablets first.
+      if (meta->table_type() == TRANSACTION_STATUS_TABLE_TYPE) {
+        metas.push_front(meta);
+      } else {
+        metas.push_back(meta);
+      }
+    } else {
+      metas.push_back(meta);
+    }
   }
+
   MonoDelta elapsed = MonoTime::Now().GetDeltaSince(start);
   LOG(INFO) << "Loaded metadata for " << tablet_ids.size() << " tablet in "
             << elapsed.ToMilliseconds() << " ms";
@@ -668,16 +687,17 @@ TSTabletManager::StartTabletStateTransitionForCreation(const TabletId& tablet_id
 }
 
 Status TSTabletManager::CreateNewTablet(
-    const string &table_id,
-    const string &tablet_id,
-    const Partition &partition,
-    const string &table_name,
+    const string& table_id,
+    const string& tablet_id,
+    const Partition& partition,
+    const string& namespace_name,
+    const string& table_name,
     TableType table_type,
-    const Schema &schema,
-    const PartitionSchema &partition_schema,
+    const Schema& schema,
+    const PartitionSchema& partition_schema,
     const boost::optional<IndexInfo>& index_info,
     RaftConfigPB config,
-    TabletPeerPtr *tablet_peer,
+    TabletPeerPtr* tablet_peer,
     const bool colocated) {
   if (state() != MANAGER_RUNNING) {
     return STATUS_FORMAT(IllegalState, "Manager is not running: $0", state());
@@ -704,6 +724,7 @@ Status TSTabletManager::CreateNewTablet(
   Status create_status = RaftGroupMetadata::CreateNew(fs_manager_,
                                                    table_id,
                                                    tablet_id,
+                                                   namespace_name,
                                                    table_name,
                                                    table_type,
                                                    schema,
@@ -1155,9 +1176,14 @@ Status TSTabletManager::StartRemoteBootstrap(const StartRemoteBootstrapRequestPB
 Result<TabletPeerPtr> TSTabletManager::CreateAndRegisterTabletPeer(
     const RaftGroupMetadataPtr& meta, RegisterTabletPeerMode mode) {
   TabletPeerPtr tablet_peer(new tablet::TabletPeer(
-      meta, local_peer_pb_, scoped_refptr<server::Clock>(server_->clock()), fs_manager_->uuid(),
+      meta,
+      local_peer_pb_,
+      scoped_refptr<server::Clock>(server_->clock()),
+      fs_manager_->uuid(),
       Bind(&TSTabletManager::ApplyChange, Unretained(this), meta->raft_group_id()),
-      metric_registry_, this));
+      metric_registry_,
+      this,
+      async_client_init_->get_client_future()));
   RETURN_NOT_OK(RegisterTablet(meta->raft_group_id(), tablet_peer, mode));
   return tablet_peer;
 }
@@ -1335,13 +1361,13 @@ void TSTabletManager::OpenTablet(const RaftGroupMetadataPtr& meta,
   yb::OpId split_op_id;
 
   LOG_TIMING_PREFIX(INFO, kLogPrefix, "bootstrapping tablet") {
-  if (CompareAndSetFlag(&FLAGS_TEST_force_single_tablet_failure,
-                        true /* expected */, false /* val */)) {
-    LOG(ERROR) << "Setting the state of a tablet to FAILED";
-    tablet_peer->SetFailed(STATUS(InternalError, "Setting tablet to failed state for test",
-                                  tablet_id));
-    return;
-  }
+    if (CompareAndSetFlag(&FLAGS_TEST_force_single_tablet_failure,
+                          true /* expected */, false /* val */)) {
+      LOG(ERROR) << "Setting the state of a tablet to FAILED";
+      tablet_peer->SetFailed(STATUS(InternalError, "Setting tablet to failed state for test",
+                                    tablet_id));
+      return;
+    }
 
     // TODO: handle crash mid-creation of tablet? do we ever end up with a
     // partially created tablet here?
@@ -1375,6 +1401,7 @@ void TSTabletManager::OpenTablet(const RaftGroupMetadataPtr& meta,
       .tablet_init_data = tablet_init_data,
       .listener = tablet_peer->status_listener(),
       .append_pool = append_pool(),
+      .allocation_pool = allocation_pool_.get(),
       .retryable_requests = &retryable_requests,
     };
     s = BootstrapTablet(data, &tablet, &log, &bootstrap_info);
@@ -1390,7 +1417,6 @@ void TSTabletManager::OpenTablet(const RaftGroupMetadataPtr& meta,
     TRACE("Initializing tablet peer");
     auto s = tablet_peer->InitTabletPeer(
         tablet,
-        async_client_init_->get_client_future(),
         server_->mem_tracker(),
         server_->messenger(),
         &server_->proxy_cache(),
@@ -1517,6 +1543,8 @@ void TSTabletManager::CompleteShutdown() {
   {
     std::lock_guard<RWMutex> l(mutex_);
     tablet_map_.clear();
+
+    std::lock_guard<std::mutex> dir_assignment_lock(dir_assignment_mutex_);
     table_data_assignment_map_.clear();
     table_wal_assignment_map_.clear();
 
@@ -1659,45 +1687,11 @@ void TSTabletManager::MarkTabletBeingRemoteBootstrapped(
   std::lock_guard<RWMutex> lock(mutex_);
   tablets_being_remote_bootstrapped_.insert(tablet_id);
   tablets_being_remote_bootstrapped_per_table_[table_id].insert(tablet_id);
-
-  if (PREDICT_FALSE(FLAGS_TEST_crash_if_remote_bootstrap_sessions_greater_than > 0) &&
-      tablets_being_remote_bootstrapped_.size() >
-          FLAGS_TEST_crash_if_remote_bootstrap_sessions_greater_than) {
-    string tablets;
-    for (const auto& tablet_id : tablets_being_remote_bootstrapped_) {
-      if (!tablets.empty()) {
-        tablets += ", ";
-      }
-      tablets += tablet_id;
-    }
-    LOG(FATAL) << "Exceeded the specified maximum number of concurrent remote bootstrap sessions. "
-               << "Specified: " << FLAGS_TEST_crash_if_remote_bootstrap_sessions_greater_than
-               << ", number concurrent remote bootstrap sessions: "
-               << tablets_being_remote_bootstrapped_.size() << ", for tablets: " << tablets;
-  }
-
-  int rbs_per_table = tablets_being_remote_bootstrapped_per_table_[table_id].size();
-  if (PREDICT_FALSE(FLAGS_TEST_crash_if_remote_bootstrap_sessions_per_table_greater_than > 0) &&
-      rbs_per_table > FLAGS_TEST_crash_if_remote_bootstrap_sessions_per_table_greater_than) {
-    string tablets;
-    for (const auto& tablet_id : tablets_being_remote_bootstrapped_per_table_[table_id]) {
-      if (!tablets.empty()) {
-        tablets += ", ";
-      }
-      tablets += tablet_id;
-    }
-    LOG(FATAL) << "Exceeded the specified maximum number of concurrent remote bootstrap "
-               << "sessions per table. Specified: "
-               << FLAGS_TEST_crash_if_remote_bootstrap_sessions_per_table_greater_than
-               << ", number of concurrent remote bootstrap sessions for table " << table_id << ": "
-               << rbs_per_table
-               << ", for tablets: " << tablets;
-  }
-
+  MaybeDoChecksForTests(table_id);
   LOG(INFO) << "Concurrent remote bootstrap sessions: "
             << tablets_being_remote_bootstrapped_.size()
             << "Concurrent remote bootstrap sessions for table " << table_id
-            << ": " << rbs_per_table;
+            << ": " << tablets_being_remote_bootstrapped_per_table_[table_id].size();
 }
 
 void TSTabletManager::UnmarkTabletBeingRemoteBootstrapped(
@@ -1959,7 +1953,7 @@ void TSTabletManager::GetAndRegisterDataAndWalDir(FsManager* fs_manager,
   }
   LOG(INFO) << "Get and update data/wal directory assignment map for table: " \
             << table_id << " and tablet " << tablet_id;
-  MutexLock l(dir_assignment_lock_);
+  std::lock_guard<std::mutex> dir_assignment_lock(dir_assignment_mutex_);
   // Initialize the map if the directory mapping does not exist.
   auto data_root_dirs = fs_manager->GetDataRootDirs();
   CHECK(!data_root_dirs.empty()) << "No data root directories found";
@@ -2022,7 +2016,7 @@ void TSTabletManager::RegisterDataAndWalDir(FsManager* fs_manager,
   }
   LOG(INFO) << "Update data/wal directory assignment map for table: "
             << table_id << " and tablet " << tablet_id;
-  MutexLock l(dir_assignment_lock_);
+  std::lock_guard<std::mutex> dir_assignment_lock(dir_assignment_mutex_);
   // Initialize the map if the directory mapping does not exist.
   auto data_root_dirs = fs_manager->GetDataRootDirs();
   CHECK(!data_root_dirs.empty()) << "No data root directories found";
@@ -2067,7 +2061,7 @@ void TSTabletManager::RegisterDataAndWalDir(FsManager* fs_manager,
   }
 }
 
-TSTabletManager::TableDiskAssignmentMap* TSTabletManager::GetTableDiskAssignmentMap(
+TSTabletManager::TableDiskAssignmentMap* TSTabletManager::GetTableDiskAssignmentMapUnlocked(
     TabletDirType dir_type) {
   switch (dir_type) {
     case TabletDirType::kData:
@@ -2080,7 +2074,9 @@ TSTabletManager::TableDiskAssignmentMap* TSTabletManager::GetTableDiskAssignment
 
 Result<const std::string&> TSTabletManager::GetAssignedRootDirForTablet(
     TabletDirType dir_type, const TableId& table_id, const TabletId& tablet_id) {
-  TableDiskAssignmentMap* table_assignment_map = GetTableDiskAssignmentMap(dir_type);
+  std::lock_guard<std::mutex> dir_assignment_lock(dir_assignment_mutex_);
+
+  TableDiskAssignmentMap* table_assignment_map = GetTableDiskAssignmentMapUnlocked(dir_type);
   auto tablets_by_root_dir = table_assignment_map->find(table_id);
   if (tablets_by_root_dir == table_assignment_map->end()) {
     return STATUS_FORMAT(
@@ -2106,7 +2102,7 @@ void TSTabletManager::UnregisterDataWalDir(const string& table_id,
   }
   LOG(INFO) << "Unregister data/wal directory assignment map for table: "
             << table_id << " and tablet " << tablet_id;
-  MutexLock l(dir_assignment_lock_);
+  std::lock_guard<std::mutex> lock(dir_assignment_mutex_);
   auto table_data_assignment_iter = table_data_assignment_map_.find(table_id);
   if (table_data_assignment_iter == table_data_assignment_map_.end()) {
     // It is possible that we can't find an assignment for the table if the operations followed in
@@ -2148,6 +2144,68 @@ void TSTabletManager::UnregisterDataWalDir(const string& table_id,
 
 client::YBClient& TSTabletManager::client() {
   return *async_client_init_->client();
+}
+
+void TSTabletManager::MaybeDoChecksForTests(const TableId& table_id) {
+  // First check that the global RBS limits are respected if the flag is non-zero.
+  if (PREDICT_FALSE(FLAGS_TEST_crash_if_remote_bootstrap_sessions_greater_than > 0) &&
+      tablets_being_remote_bootstrapped_.size() >
+      FLAGS_TEST_crash_if_remote_bootstrap_sessions_greater_than) {
+    string tablets;
+    // The purpose of limiting the number of remote bootstraps is to cap how much
+    // network bandwidth all the RBS sessions use.
+    // When we finish transferring the files, we wait until the role of the new peer
+    // has been changed from PRE_VOTER to VOTER before we remove the tablet_id
+    // from tablets_being_remote_bootstrapped_. Since it's possible to be here
+    // because a few tablets are already open, and in the RUNNING state, but still
+    // in the tablets_being_remote_bootstrapped_ list, we check the state of each
+    // tablet before deciding if the load balancer has violated the concurrent RBS limit.
+    int count = 0;
+    for (const auto& tablet_id : tablets_being_remote_bootstrapped_) {
+      TabletPeerPtr* tablet_peer = FindOrNull(tablet_map_, tablet_id);
+      if (tablet_peer && (*tablet_peer)->state() == RaftGroupStatePB::RUNNING) {
+        continue;
+      }
+      if (!tablets.empty()) {
+        tablets += ", ";
+      }
+      tablets += tablet_id;
+      count++;
+    }
+    if (count > FLAGS_TEST_crash_if_remote_bootstrap_sessions_greater_than) {
+      LOG(FATAL) << "Exceeded the specified maximum number of concurrent remote bootstrap sessions."
+                 << " Specified: " << FLAGS_TEST_crash_if_remote_bootstrap_sessions_greater_than
+                 << ", number concurrent remote bootstrap sessions: "
+                 << tablets_being_remote_bootstrapped_.size() << ", for tablets: " << tablets;
+    }
+  }
+
+  // Check that the per-table RBS limits are respected if the flag is non-zero.
+  if (PREDICT_FALSE(FLAGS_TEST_crash_if_remote_bootstrap_sessions_per_table_greater_than > 0) &&
+      tablets_being_remote_bootstrapped_per_table_[table_id].size() >
+          FLAGS_TEST_crash_if_remote_bootstrap_sessions_per_table_greater_than) {
+    string tablets;
+    int count = 0;
+    for (const auto& tablet_id : tablets_being_remote_bootstrapped_per_table_[table_id]) {
+      TabletPeerPtr* tablet_peer = FindOrNull(tablet_map_, tablet_id);
+      if (tablet_peer && (*tablet_peer)->state() == RaftGroupStatePB::RUNNING) {
+        continue;
+      }
+      if (!tablets.empty()) {
+        tablets += ", ";
+      }
+      tablets += tablet_id;
+      count++;
+    }
+    if (count > FLAGS_TEST_crash_if_remote_bootstrap_sessions_per_table_greater_than) {
+      LOG(FATAL) << "Exceeded the specified maximum number of concurrent remote bootstrap "
+                 << "sessions per table. Specified: "
+                 << FLAGS_TEST_crash_if_remote_bootstrap_sessions_per_table_greater_than
+                 << ", number of concurrent remote bootstrap sessions for table " << table_id
+                 << ": " << tablets_being_remote_bootstrapped_per_table_[table_id].size()
+                 << ", for tablets: " << tablets;
+    }
+  }
 }
 
 size_t GetLogCacheSize(TabletPeer* peer) {

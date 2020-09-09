@@ -6,7 +6,7 @@ description:  Test whether one jsonb value contains another jsonb value using th
 menu:
   latest:
     identifier: containment-operators
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 16
 isTocNested: true
 showAsideToc: true
@@ -28,7 +28,7 @@ return value:       boolean
 
 **Notes:** Each of these operators requires that the inputs are presented as `jsonb` values. There are no `json` overloads.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_left  constant jsonb := '{"a": 1, "b": 2}';

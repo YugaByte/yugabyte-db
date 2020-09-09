@@ -26,7 +26,7 @@
       "bin/yb-check-consistency.py",
       "bin/yugabyted",
       "build-support/post_install.sh",
-      "submodules/yugabyte-installation/bin/yb-ctl",
+      "scripts/installation/bin/yb-ctl",
       "thirdparty/installed/common/bin/redis-cli",
       "thirdparty/installed/common/cqlsh/bin/cqlsh",
       "thirdparty/installed/common/cqlsh/bin/ycqlsh",

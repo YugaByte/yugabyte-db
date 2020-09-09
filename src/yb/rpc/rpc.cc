@@ -53,8 +53,6 @@ DEFINE_int64(rpcs_shutdown_timeout_ms, 15000 * yb::kTimeMultiplier,
              "Timeout for a batch of multiple RPCs invoked in parallel to shutdown.");
 DEFINE_int64(rpcs_shutdown_extra_delay_ms, 5000 * yb::kTimeMultiplier,
              "Extra allowed time for a single RPC command to complete after its deadline.");
-DEFINE_int64(retryable_rpc_single_call_timeout_ms, 2500 * yb::kTimeMultiplier,
-             "Timeout of single RPC call in retryable RPC command.");
 DEFINE_int32(min_backoff_ms_exponent, 7,
              "Min amount of backoff delay if the server responds with TOO BUSY (default: 128ms). "
              "Set this to some amount, during which the server might have recovered.");
@@ -268,12 +266,8 @@ std::string RpcRetrier::ToString() const {
                 deadline_);
 }
 
-RpcController* RpcRetrier::PrepareController(MonoDelta single_call_timeout) {
-  if (!single_call_timeout) {
-    single_call_timeout = MonoDelta::FromMilliseconds(FLAGS_retryable_rpc_single_call_timeout_ms);
-  }
-  controller_.set_timeout(std::min<MonoDelta>(
-      deadline_ - CoarseMonoClock::now(), single_call_timeout));
+RpcController* RpcRetrier::PrepareController() {
+  controller_.set_timeout(deadline_ - CoarseMonoClock::now());
   return &controller_;
 }
 

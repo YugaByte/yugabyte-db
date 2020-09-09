@@ -26,6 +26,7 @@
 
 #include "yb/util/blocking_queue.h"
 #include "yb/util/logging.h"
+#include "yb/util/scope_exit.h"
 #include "yb/util/status.h"
 #include "yb/util/taskstream.h"
 #include "yb/util/threadpool.h"
@@ -40,6 +41,8 @@ class ThreadPoolToken;
 
 template <typename T>
 class TaskStreamImpl;
+
+YB_DEFINE_ENUM(TaskStreamRunState, (kIdle)(kSubmit)(kDrain)(kProcess)(kComplete)(kFinish));
 
 template <typename T>
 // TaskStream has a thread pool token in the given thread pool.
@@ -65,38 +68,33 @@ class TaskStream {
 
   CHECKED_STATUS TEST_SubmitFunc(const std::function<void()>& func);
 
- private:
-  std::unique_ptr<TaskStreamImpl<T>> impl_;
-};
+  std::string GetRunThreadStack() {
+    auto result = ThreadStack(run_tid_);
+    if (!result.ok()) {
+      return result.status().ToString();
+    }
+    return (*result).Symbolize();
+  }
 
-
-// ------------------------------------------------------------------------------------------------
-// TaskStreamImpl
-
-template <typename T>
-class TaskStreamImpl {
- public:
-  explicit TaskStreamImpl(std::function<void(T*)> process_item,
-                          ThreadPool* thread_pool,
-                          int32_t queue_max_size,
-                          const MonoDelta& queue_max_wait);
-  ~TaskStreamImpl();
-  CHECKED_STATUS Start();
-  void Stop();
-
-  CHECKED_STATUS Submit(T* task);
-  CHECKED_STATUS TEST_SubmitFunc(const std::function<void()>& func);
+  std::string ToString() const {
+    return YB_CLASS_TO_STRING(queue, run_state, stopped, stop_requested);
+  }
 
  private:
+  using RunState = TaskStreamRunState;
+
+  void ChangeRunState(RunState expected_old_state, RunState new_state) {
+    auto old_state = run_state_.exchange(new_state, std::memory_order_acq_rel);
+    LOG_IF(DFATAL, old_state != expected_old_state)
+        << "Task stream was in wrong state " << old_state << " while "
+        << expected_old_state << " was expected";
+  }
 
   // We set this to true to tell the Run function to return. No new tasks will be accepted, but
   // existing tasks will still be processed.
   std::atomic<bool> stop_requested_{false};
 
-  // If true, a task is running for this tablet already.
-  // If false, no taska are running for this tablet,
-  // and we can submit a task to the thread pool token.
-  std::atomic<int> running_{0};
+  std::atomic<RunState> run_state_{RunState::kIdle};
 
   // This is set to true immediately before the thread exits.
   std::atomic<bool> stopped_{false};
@@ -112,6 +110,7 @@ class TaskStreamImpl {
 
   std::unique_ptr<ThreadPoolToken> taskstream_pool_token_;
   std::function<void(T*)> process_item_;
+  ThreadIdForStack run_tid_ = 0;
 
   // Maximum time to wait for the queue to become non-empty.
   const MonoDelta queue_max_wait_;
@@ -121,27 +120,35 @@ class TaskStreamImpl {
 };
 
 template <typename T>
-TaskStreamImpl<T>::TaskStreamImpl(std::function<void(T*)> process_item,
-                                  ThreadPool* thread_pool,
-                                  int32_t queue_max_size,
-                                  const MonoDelta& queue_max_wait)
+TaskStream<T>::TaskStream(std::function<void(T*)> process_item,
+                          ThreadPool* thread_pool,
+                          int32_t queue_max_size,
+                          const MonoDelta& queue_max_wait)
     : queue_(queue_max_size),
-      taskstream_pool_token_(thread_pool->NewToken(ThreadPool::ExecutionMode::SERIAL)),
+      // run_state_ is responsible for serial execution, so we use concurrent here to avoid
+      // unnecessary checks in thread pool.
+      taskstream_pool_token_(thread_pool->NewToken(ThreadPool::ExecutionMode::CONCURRENT)),
       process_item_(process_item),
       queue_max_wait_(queue_max_wait) {
 }
 
 template <typename T>
-TaskStreamImpl<T>::~TaskStreamImpl() {
+TaskStream<T>::~TaskStream() {
   Stop();
 }
 
-template <typename T> Status TaskStreamImpl<T>::Start() {
+template <typename T>
+Status TaskStream<T>::Start() {
+  VLOG(1) << "Starting the TaskStream";
   return Status::OK();
 }
 
 template <typename T>
-void TaskStreamImpl<T>::Stop() {
+void TaskStream<T>::Stop() {
+  VLOG(1) << "Stopping the TaskStream";
+  auto scope_exit = ScopeExit([] {
+    VLOG(1) << "The TaskStream has stopped";
+  });
   queue_.Shutdown();
   if (stopped_.load(std::memory_order_acquire)) {
     return;
@@ -150,13 +157,14 @@ void TaskStreamImpl<T>::Stop() {
   {
     std::unique_lock<std::mutex> stop_lock(stop_mtx_);
     stop_cond_.wait(stop_lock, [this] {
-      return (!running_.load(std::memory_order_acquire) && queue_.empty());
+      return (run_state_.load(std::memory_order_acquire) == RunState::kIdle && queue_.empty());
     });
   }
   stopped_.store(true, std::memory_order_release);
 }
 
-template <typename T> Status TaskStreamImpl<T>::Submit(T *task) {
+template <typename T>
+Status TaskStream<T>::Submit(T *task) {
   if (stop_requested_.load(std::memory_order_acquire)) {
     return STATUS(IllegalState, "Tablet is shutting down");
   }
@@ -166,43 +174,51 @@ template <typename T> Status TaskStreamImpl<T>::Submit(T *task) {
                          queue_.max_size());
   }
 
-  int expected = 0;
-  if (!running_.compare_exchange_strong(expected, 1, std::memory_order_acq_rel)) {
-    // running_ was not 0, so we are not creating a task to process operations.
+  RunState expected = RunState::kIdle;
+  if (!run_state_.compare_exchange_strong(
+          expected, RunState::kSubmit, std::memory_order_acq_rel)) {
+    // run_state_ was not idle, so we are not creating a task to process operations.
     return Status::OK();
   }
-  // We flipped running_ from 0 to 1. The previously running thread could go back to doing another
-  // iteration, but in that case since we are submitting to a token of a thread pool, only one
-  // such thread will be running, the other will be in the queue.
-  return taskstream_pool_token_->SubmitFunc(std::bind(&TaskStreamImpl::Run, this));
+  return taskstream_pool_token_->SubmitFunc(std::bind(&TaskStream::Run, this));
 }
 
 template <typename T>
-Status TaskStreamImpl<T>::TEST_SubmitFunc(const std::function<void()>& func) {
+Status TaskStream<T>::TEST_SubmitFunc(const std::function<void()>& func) {
   return taskstream_pool_token_->SubmitFunc(func);
 }
 
-template <typename T> void TaskStreamImpl<T>::Run() {
+template <typename T>
+void TaskStream<T>::Run() {
   VLOG(1) << "Starting taskstream task:" << this;
+  ChangeRunState(RunState::kSubmit, RunState::kDrain);
+  run_tid_ = Thread::CurrentThreadIdForStack();
   for (;;) {
     MonoTime wait_timeout_deadline = MonoTime::Now() + queue_max_wait_;
     std::vector<T *> group;
     queue_.BlockingDrainTo(&group, wait_timeout_deadline);
     if (!group.empty()) {
+      ChangeRunState(RunState::kDrain, RunState::kProcess);
       for (T* item : group) {
         ProcessItem(item);
       }
+      ChangeRunState(RunState::kProcess, RunState::kComplete);
       ProcessItem(nullptr);
       group.clear();
+      ChangeRunState(RunState::kComplete, RunState::kDrain);
       continue;
     }
+    ChangeRunState(RunState::kDrain, RunState::kFinish);
     // Not processing and queue empty, return from task.
     std::unique_lock<std::mutex> stop_lock(stop_mtx_);
-    running_--;
+    ChangeRunState(RunState::kFinish, RunState::kIdle);
     if (!queue_.empty()) {
-      // Got more operations, stay in the loop.
-      running_++;
-      continue;
+      // Got more operations, try stay in the loop.
+      RunState expected = RunState::kIdle;
+      if (run_state_.compare_exchange_strong(
+              expected, RunState::kDrain, std::memory_order_acq_rel)) {
+        continue;
+      }
     }
     if (stop_requested_.load(std::memory_order_acquire)) {
       VLOG(1) << "TaskStream task's Run() function is returning because stop is requested.";
@@ -214,44 +230,9 @@ template <typename T> void TaskStreamImpl<T>::Run() {
   }
 }
 
-template <typename T> void TaskStreamImpl<T>::ProcessItem(T* item) {
+template <typename T>
+void TaskStream<T>::ProcessItem(T* item) {
   process_item_(item);
-}
-
-// ------------------------------------------------------------------------------------------------
-// TaskStream
-
-template <typename T>
-TaskStream<T>::TaskStream(std::function<void(T *)> process_item,
-                          ThreadPool* thread_pool,
-                          int32_t queue_max_size,
-                          const MonoDelta& queue_max_wait)
-    : impl_(std::make_unique<TaskStreamImpl<T>>(
-        process_item, thread_pool, queue_max_size, queue_max_wait)) {
-}
-
-template <typename T>
-TaskStream<T>::~TaskStream() {
-}
-
-template <typename T>
-Status TaskStream<T>::Start() {
-  VLOG(1) << "Starting the TaskStream";
-  return impl_->Start();
-}
-
-template <typename T> void TaskStream<T>::Stop() {
-  VLOG(1) << "Stopping the TaskStream";
-  impl_->Stop();
-  VLOG(1) << "The TaskStream has stopped";
-}
-
-template <typename T> Status TaskStream<T>::Submit(T* item) {
-  return impl_->Submit(item);
-}
-
-template <typename T> Status TaskStream<T>::TEST_SubmitFunc(const std::function<void()>& func) {
-  return impl_->TEST_SubmitFunc(func);
 }
 
 }  // namespace yb

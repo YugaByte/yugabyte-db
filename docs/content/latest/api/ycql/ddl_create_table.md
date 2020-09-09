@@ -2,7 +2,6 @@
 title: CREATE TABLE statement [YCQL]
 headerTitle: CREATE TABLE
 linkTitle: CREATE TABLE
-summary: Create a new table in a keyspace
 description: Use the CREATE TABLE statement to create a new table in a keyspace.
 menu:
   latest:
@@ -249,9 +248,9 @@ ycqlsh:example> SELECT * FROM sensor_data;
 
 ### Create a table specifying the number of tablets
 
-You can use the `CREATE TABLE` statement with the `WITH tablets = <num>` clause to specify the number of tablets for a table. This is useful to scale the table up or down based on requirements. For example, for smaller static tables, it may be wasteful to have a large number of shards (tablets). In that case, you can use this to reduce the number of tablets created for the table. Similarly, for a very large table, you can use this statement to pre-split the table into a large number of shards to get improved performance.
+You can use the `CREATE TABLE` statement with the `WITH tablets = <num>` clause to specify the number of tablets for a table. This is useful to scale the table up or down based on requirements. For example, for smaller static tables, it may be wasteful to have a large number of shards (tablets). In that case, you can use this to reduce the number of tablets created for the table. Similarly, for a very large table, you can use this statement to presplit the table into a large number of shards to get improved performance.
 
-Note that YugabyteDB, by default, pre-splits a table in `yb_num_shards_per_tserver * num_of_tserver` shards. This clause can be used to override that setting on per-table basis.
+Note that YugabyteDB, by default, presplits a table in `yb_num_shards_per_tserver * num_of_tserver` shards. This clause can be used to override that setting on per-table basis.
 
 ```sql
 ycqlsh:example> CREATE TABLE tracking (id int PRIMARY KEY) WITH tablets = 10;

@@ -16,8 +16,8 @@ import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.SequenceGenerator;
 
-import com.avaje.ebean.Model;
-import com.avaje.ebean.annotation.EnumValue;
+import io.ebean.*;
+import io.ebean.annotation.*;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
 import play.data.validation.Constraints;
@@ -200,7 +200,8 @@ public class CustomerTask extends Model {
     }
   }
 
-  public static final Find<Long, CustomerTask> find = new Find<Long, CustomerTask>(){};
+  public static final Finder<Long, CustomerTask> find =
+    new Finder<Long, CustomerTask>(CustomerTask.class){};
 
   public static CustomerTask create(Customer customer, UUID targetUUID, UUID taskUUID,
                                     TargetType targetType, TaskType type, String targetName) {
@@ -216,6 +217,11 @@ public class CustomerTask extends Model {
     return th;
   }
 
+  public static CustomerTask get(Long id) {
+    return CustomerTask.find.query().where()
+      .idEq(id).findOne();
+  }
+
   public String getFriendlyDescription() {
     StringBuilder sb = new StringBuilder();
     sb.append(type.toString(completionTime != null));
@@ -225,18 +231,18 @@ public class CustomerTask extends Model {
   }
 
   public static CustomerTask findByTaskUUID(UUID taskUUID) {
-    return find.where().eq("task_uuid", taskUUID).findUnique();
+    return find.query().where().eq("task_uuid", taskUUID).findOne();
   }
 
   public static List<CustomerTask> findIncompleteByTargetUUID(UUID targetUUID) {
-    return find.where()
+    return find.query().where()
       .eq("target_uuid", targetUUID)
       .isNull("completion_time")
       .findList();
   }
 
   public static CustomerTask getLatestByUniverseUuid(UUID universeUUID) {
-    List<CustomerTask> tasks = find.where()
+    List<CustomerTask> tasks = find.query().where()
       .eq("target_uuid", universeUUID)
       .isNotNull("completion_time")
       .orderBy("completion_time desc")

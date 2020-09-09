@@ -13,24 +13,16 @@ import com.yugabyte.yw.models.Customer;
 import com.yugabyte.yw.models.Universe;
 import com.yugabyte.yw.models.helpers.NodeDetails;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.text.SimpleDateFormat;
-import java.util.Locale;
-import java.util.Date;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -150,7 +142,7 @@ public class Util {
    * @return The custom node prefix name.
    */
   public static String getNodePrefix(Long custId, String univName) {
-    Customer c = Customer.find.where().eq("id", custId).findUnique();
+    Customer c = Customer.find.query().where().eq("id", custId).findOne();
     if (c == null) {
       throw new RuntimeException("Invalid Customer Id: " + custId);
     }
@@ -307,6 +299,20 @@ public class Util {
     Date date = new Date(epochSec * 1000);
     SimpleDateFormat format = new SimpleDateFormat();
     return format.format(date);
+  }
+
+  public static void writeStringToFile(File file, String contents) throws Exception {
+    FileWriter writer = new FileWriter(file);
+    writer.write(contents);
+    writer.close();
+  }
+
+  public static String readStringFromFile(File file) throws Exception {
+    StringBuilder stringBuilder = new StringBuilder();
+    Scanner fileReader = new Scanner(file);
+    while (fileReader.hasNextLine()) stringBuilder.append(fileReader.nextLine());
+    fileReader.close();
+    return stringBuilder.toString();
   }
 
 }

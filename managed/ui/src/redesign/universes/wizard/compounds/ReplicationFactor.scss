@@ -1,0 +1,38 @@
+@import "../../../uikit/common";
+
+.replication-factor {
+  display: inline-flex;
+  background-color: $YB_PAGE_BACKGROUND;
+  border: 1px solid $YB_BORDER_1;
+  border-radius: 29px;
+  overflow: hidden;
+  height: 44px;
+
+  &--disabled {
+    background-color: $YB_BORDER_1;
+    pointer-events: none;
+  }
+
+  &__item {
+    width: 40px;
+    height: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: $YB_TEXT_1;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: $YB_FONT_FAMILY;
+    cursor: pointer;
+    user-select: none;
+
+    &:not(:last-child) {
+      border-right: 1px solid $YB_BORDER_1;
+    }
+
+    &--selected {
+      color: $YB_PAGE_BACKGROUND;
+      background-color: $YB_CTA;
+    }
+  }
+}

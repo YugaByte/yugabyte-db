@@ -133,7 +133,18 @@ class TabletInvoker {
   // Used to retry some failed RPCs.
   // Tablet servers that refused the write because they were followers at the time.
   // Cleared when new consensus configuration information arrives from the master.
-  std::unordered_set<RemoteTabletServer*> followers_;
+  struct FollowerData {
+    // Last replica error, i.e. reason why it was marked as follower.
+    Status status;
+    // Error time.
+    CoarseTimePoint time;
+
+    std::string ToString() const {
+      return Format("{ status: $0 time: $1 }", status, CoarseMonoClock::now() - time);
+    }
+  };
+
+  std::unordered_map<RemoteTabletServer*, FollowerData> followers_;
 
   const bool local_tserver_only_;
 
@@ -143,6 +154,9 @@ class TabletInvoker {
   // RemoteTabletServer is taken from YBClient cache, so it is guaranteed that those objects are
   // alive while YBClient is alive. Because we don't delete them, but only add and update.
   RemoteTabletServer* current_ts_ = nullptr;
+
+  // Should we assign new leader in meta cache when successful response is received.
+  bool assign_new_leader_ = false;
 };
 
 CHECKED_STATUS ErrorStatus(const tserver::TabletServerErrorPB* error);

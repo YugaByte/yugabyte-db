@@ -13,7 +13,6 @@ package com.yugabyte.yw.commissioner.tasks.subtasks;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.Inject;
 import com.yugabyte.yw.commissioner.AbstractTaskBase;
@@ -112,9 +111,6 @@ public class KubernetesCommandExecutor extends AbstractTaskBase {
   static final double burstVal = 1.2;
 
   static final String defaultStorageClass = "standard";
-
-  @VisibleForTesting
-  static final String YSQL_PORT = "5433";
 
   @Override
   public void initialize(ITaskParams params) {
@@ -574,6 +570,7 @@ public class KubernetesCommandExecutor extends AbstractTaskBase {
     if (taskParams().rootCA != null) {
       Map<String, Object> tlsInfo = new HashMap<>();
       tlsInfo.put("enabled", true);
+      tlsInfo.put("insecure", u.getUniverseDetails().allowInsecure);
       Map<String, Object> rootCA = new HashMap<>();
       rootCA.put("cert", CertificateHelper.getCertPEM(taskParams().rootCA));
       rootCA.put("key", CertificateHelper.getKeyPEM(taskParams().rootCA));
@@ -609,10 +606,6 @@ public class KubernetesCommandExecutor extends AbstractTaskBase {
     if (placementUuid != null && masterOverrides.get("placement_uuid") == null) {
       masterOverrides.put("placement_uuid", placementUuid.toString());
     }
-    if (taskParams().rootCA != null) {
-      masterOverrides.put("use_node_to_node_encryption", userIntent.enableNodeToNodeEncrypt);
-      masterOverrides.put("allow_insecure_connections", u.getUniverseDetails().allowInsecure);
-    }
     if (!masterOverrides.isEmpty()) {
       gflagOverrides.put("master", masterOverrides);
     }
@@ -629,11 +622,6 @@ public class KubernetesCommandExecutor extends AbstractTaskBase {
     }
     if (placementUuid != null && tserverOverrides.get("placement_uuid") == null) {
       tserverOverrides.put("placement_uuid", placementUuid.toString());
-    }
-    if (taskParams().rootCA != null) {
-      tserverOverrides.put("use_node_to_node_encryption", userIntent.enableNodeToNodeEncrypt);
-      tserverOverrides.put("use_client_to_server_encryption", userIntent.enableClientToNodeEncrypt);
-      tserverOverrides.put("allow_insecure_connections", u.getUniverseDetails().allowInsecure);
     }
     if (!tserverOverrides.isEmpty()) {
       gflagOverrides.put("tserver", tserverOverrides);

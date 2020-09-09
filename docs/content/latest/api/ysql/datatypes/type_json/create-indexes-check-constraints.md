@@ -17,7 +17,7 @@ Often, when  JSON documents are inserted into a table, the table will have just 
 
 It's most likely that each document will be a JSON _object_ and that all will conform to the same structure definition. (The structure can be defined formally, and externally, by a so-called "[JSON schema](https://json-schema.org)".) In other words, each _object_ will have the same set of possible key names (but some might be missing) and the same JSON data type for the value for each key. And when a data type is compound, the same notion of common structure definition will apply, extending the notion recursively to arbitrary depth. Here is an example. To reduce clutter, the primary key is not defined to be self-populating. 
 
-```postgresql
+```plpgsql
 create table books(k int primary key, doc jsonb not null);
 
 insert into books(k, doc) values
@@ -80,13 +80,13 @@ Of course, then, you will want these queries to be supported by indexes. The alt
 ### Check constraints on jsonb columns
 
 Here's how to insist that each JSON document is an _object_:
-```postgresql
+```plpgsql
 alter table books 
 add constraint books_doc_is_object
 check (jsonb_typeof(doc) = 'object');
 ```
 Here's how to insist that the ISBN is always defined and is a positive 13-digit number:
-```postgresql
+```plpgsql
 alter table books 
 add constraint books_isbn_is_positive_13_digit_number 
 check (
@@ -103,7 +103,7 @@ Notice that if the key _"ISBN"_ is missing altogether, then the expression `doc-
 
 The high-level point is that YSQL allows you to express a constraint using any expression that can be evaluated by referencing values from a single row. The expression can include a PL/pgSQL function. This allows a constraint to be implemented to insist that the keys in the JSON _object_ are from a known list:
 
-```postgresql
+```plpgsql
 create function top_level_keys_ok(json_obj in jsonb)
   returns boolean
   immutable
@@ -140,12 +140,12 @@ See the account of the [`jsonb_object_keys()`](../functions-operators/jsonb-obje
 Proper practice requires that when a table has a surrogate primary key, it must also have a unique, `NOT NULL`, business key. The obvious candidate for the `books` table is the value for the _"ISBN"_ key. The `NOT NULL` rule is already enforced by the _"books_isbn_is_positive_13_digit_number"_ constraint. Uniqueness is enforced in the obvious way:
 
 
-```postgresql
+```plpgsql
 create unique index books_isbn_unq
 on books((doc->>'ISBN') hash);
 ```
 You might want to support range queries that reference the value for the _"year"_ key like this:
-```postgresql
+```plpgsql
 select
   (doc->>'ISBN')::bigint as year,
   doc->>'title'          as title,
@@ -157,7 +157,7 @@ order by 3;
 
 You'll probably want to support this with an index. And if you realize that the publication year is unknown for a substantial proportion of the books, you will probably want to take advantage of a partial index, thus:
 
-```postgresql
+```plpgsql
 create index books_year on books ((doc->>'year') asc)
 where doc->>'year' is not null;
 ```

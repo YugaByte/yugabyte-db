@@ -43,10 +43,11 @@ class ClusterLoadBalancerMocked : public ClusterLoadBalancer {
   const BlacklistPB& GetServerBlacklist() const override { return blacklist_; }
   const BlacklistPB& GetLeaderBlacklist() const override { return leader_blacklist_; }
 
-  void SendReplicaChanges(scoped_refptr<TabletInfo> tablet, const TabletServerId& ts_uuid,
+  Status SendReplicaChanges(scoped_refptr<TabletInfo> tablet, const TabletServerId& ts_uuid,
                           const bool is_add, const bool should_remove,
                           const TabletServerId& new_leader_uuid) override {
     // Do nothing.
+    return Status::OK();
   }
 
   void GetPendingTasks(const TableId& table_uuid,

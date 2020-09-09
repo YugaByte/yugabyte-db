@@ -130,7 +130,7 @@ struct ThreadStackEntry : public MPSCQueueEntry<ThreadStackEntry> {
   StackTrace stack;
 };
 
-#if !defined(__APPLE__) && !THREAD_SANITIZER
+#if !defined(__APPLE__) && !defined(THREAD_SANITIZER) && !defined(ADDRESS_SANITIZER)
 #define USE_FUTEX 1
 #else
 #define USE_FUTEX 0
@@ -253,14 +253,14 @@ struct ThreadStackHelper {
 
   void RecordStackTrace(const StackTrace& stack_trace) {
     auto* entry = allocated.Pop();
-    if (!entry) { // Not enough allocated entries, don't write log since we are in signal handler.
-      return;
+    if (entry) {
+      // Not enough allocated entries, don't write log since we are in signal handler.
+      entry->tid = Thread::CurrentThreadIdForStack();
+      entry->stack = stack_trace;
+      collected.Push(entry);
     }
-    entry->tid = Thread::CurrentThreadIdForStack();
-    entry->stack = stack_trace;
-    collected.Push(entry);
 
-    if (left_to_collect.fetch_sub(1, std::memory_order_acq_rel) - 1 == 0) {
+    if (left_to_collect.fetch_sub(1, std::memory_order_acq_rel) - 1 <= 0) {
       completion_flag.Signal();
     }
   }
@@ -539,6 +539,31 @@ int BacktraceFullCallback(void *const data, const uintptr_t pc,
 }
 #endif  // __linux__
 
+bool IsDoubleUnderscoredAndInList(
+    const char* symbol, const std::initializer_list<const char*>& list) {
+  if (symbol[0] != '_' || symbol[1] != '_') {
+    return false;
+  }
+  for (const auto* idle_function : list) {
+    if (!strcmp(symbol, idle_function)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool IsIdle(const char* symbol) {
+  return IsDoubleUnderscoredAndInList(symbol,
+                                      { "__GI_epoll_wait",
+                                        "__pthread_cond_timedwait",
+                                        "__pthread_cond_wait" });
+}
+
+bool IsWaiting(const char* symbol) {
+  return IsDoubleUnderscoredAndInList(symbol,
+                                      { "__GI___pthread_mutex_lock" });
+}
+
 }  // anonymous namespace
 
 Status SetStackTraceSignal(int signum) {
@@ -675,7 +700,7 @@ string GetLogFormatStackTraceHex() {
 }
 
 void StackTrace::Collect(int skip_frames) {
-#if THREAD_SANITIZER
+#if THREAD_SANITIZER || ADDRESS_SANITIZER
   num_frames_ = google::GetStackTrace(frames_, arraysize(frames_), skip_frames);
 #else
   int max_frames = skip_frames + arraysize(frames_);
@@ -720,10 +745,12 @@ string StackTrace::ToHexString(int flags) const {
   return string(buf);
 }
 
+// If group is specified it is filled with value corresponding to this stack trace.
 void SymbolizeAddress(
     const StackTraceLineFormat stack_trace_line_format,
     void* pc,
-    string* buf
+    string* buf,
+    StackTraceGroup* group = nullptr
 #ifdef __linux__
     , GlobalBacktraceState* global_backtrace_state = nullptr
 #endif
@@ -777,7 +804,15 @@ void SymbolizeAddress(
 
   if (google::Symbolize(pc, tmp, sizeof(tmp))) {
     symbol = tmp;
+    if (group) {
+      if (IsWaiting(symbol)) {
+        *group = StackTraceGroup::kWaiting;
+      } else if (IsIdle(symbol)) {
+        *group = StackTraceGroup::kIdle;
+      }
+    }
   }
+
   StringAppendF(buf, kStackTraceEntryFormat, kPrintfPointerFieldWidth, pc, symbol);
   // We are appending the end-of-line character separately because we want to reuse the same
   // format string for libbacktrace callback and glog-based symbolization, and we have an extra
@@ -786,7 +821,8 @@ void SymbolizeAddress(
 }
 
 // Symbolization function borrowed from glog and modified to use libbacktrace on Linux.
-string StackTrace::Symbolize(const StackTraceLineFormat stack_trace_line_format) const {
+string StackTrace::Symbolize(
+    const StackTraceLineFormat stack_trace_line_format, StackTraceGroup* group) const {
   string buf;
 #ifdef __linux__
   // Use libbacktrace for symbolization.
@@ -794,10 +830,14 @@ string StackTrace::Symbolize(const StackTraceLineFormat stack_trace_line_format)
       FLAGS_use_libbacktrace ? Singleton<GlobalBacktraceState>::get() : nullptr;
 #endif
 
+  if (group) {
+    *group = StackTraceGroup::kActive;
+  }
+
   for (int i = 0; i < num_frames_; i++) {
     void* const pc = frames_[i];
 
-    SymbolizeAddress(stack_trace_line_format, pc, &buf
+    SymbolizeAddress(stack_trace_line_format, pc, &buf, group
 #ifdef __linux__
         , global_backtrace_state
 #endif

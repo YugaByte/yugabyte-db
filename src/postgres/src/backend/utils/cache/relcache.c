@@ -1268,12 +1268,16 @@ equalPartitionDescs(PartitionKey key, PartitionDesc partdesc1,
  * to minimize the number on YB-master queries needed.
  * It is based on (and similar to) RelationBuildDesc but does all relations
  * at once.
- * It works in two steps:
+ * It works in three steps:
  *  1. Load up all the data pg_class using one full scan iteration. The
  *  relations after this point will all be loaded but incomplete (e.g. no
  *  attribute info set).
- *  2. Load all all the data from pg_attribute using one full scan. Then update
- *  each the corresponding relation once all attributes for it were retrieved.
+ *  2. Load all the data from pg_attribute using one full scan. Then update
+ *  each corresponding relation once all attributes for it were retrieved.
+ *  3. Load all the data from pg_partitioned_table using one full scan. Then
+ *  update each corresponding relation with the attributes fetched during
+ *  the second phase. This is because updating the partition information requires attribute
+ *  information to be loaded for pg_partitioned_table, pg_type etc.
  *
  *  Note: We assume that any error happening here will fatal so as to not end
  *  up with partial information in the cache.
@@ -1400,19 +1404,13 @@ void YBPreloadRelCache()
 		relation->rd_fkeylist  = NIL;
 		relation->rd_fkeyvalid = false;
 
-		/* if a partitioned table, initialize key and partition descriptor info */
-		if (relation->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
-		{
-			RelationBuildPartitionKey(relation);
-			RelationBuildPartitionDesc(relation);
-		}
-		else
-		{
-			relation->rd_partkeycxt = NULL;
-			relation->rd_partkey    = NULL;
-			relation->rd_partdesc   = NULL;
-			relation->rd_pdcxt      = NULL;
-		}
+		/* For now, update all partition information to be null, this will
+ 		 * be populated later for partitioned tables
+ 		 */
+		relation->rd_partkeycxt = NULL;
+		relation->rd_partkey    = NULL;
+		relation->rd_partdesc   = NULL;
+		relation->rd_pdcxt      = NULL;
 
 		/*
 		 * if it's an index, initialize index-related information
@@ -1737,9 +1735,48 @@ void YBPreloadRelCache()
 	}
 
 	/*
-	 * end the scan and close the attribute relation
+	 * end the scan.
 	 */
 	systable_endscan(scandesc);
+
+	/* Start scan for pg_partitioned_table */
+	Relation pg_partitioned_table_desc;
+	pg_partitioned_table_desc = heap_open(PartitionedRelationId, AccessShareLock);
+
+	scandesc = systable_beginscan(pg_partitioned_table_desc,
+	                              PartitionedRelationId,
+	                              false /* indexOk */,
+	                              NULL,
+	                              0,
+	                              NULL);
+
+	HeapTuple pg_partition_tuple;
+	while (HeapTupleIsValid(pg_partition_tuple = systable_getnext(scandesc)))
+	{
+		pg_partition_tuple = heap_copytuple(pg_partition_tuple);
+		Form_pg_partitioned_table part_table_form;
+
+		part_table_form = (Form_pg_partitioned_table) GETSTRUCT(pg_partition_tuple);
+
+		Relation relation;
+		RelationIdCacheLookup(part_table_form->partrelid, relation);
+
+		if (!relation) {
+			continue;
+		}
+
+		/* Initialize key and partition descriptor info */
+		if (relation->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
+		{
+			RelationBuildPartitionKey(relation);
+			RelationBuildPartitionDesc(relation);
+		}
+	}
+
+	systable_endscan(scandesc);
+
+	/* Close all the three relations that were opened */
+	heap_close(pg_partitioned_table_desc, AccessShareLock);
 
 	heap_close(pg_attribute_desc, AccessShareLock);
 
@@ -4544,9 +4581,12 @@ RelationCacheInitializePhase3(void)
 	 * During initdb also preload catalog caches (not just relation cache) as
 	 * they will be used heavily.
 	 */
-	if (IsYugaByteEnabled() && YBIsPreparingTemplates())
+	if (IsYugaByteEnabled())
 	{
-		YBPreloadCatalogCaches();
+		if (YBIsPreparingTemplates())
+			YBPreloadCatalogCaches();
+
+		YBLoadPinnedObjectsCache();
 	}
 }
 
@@ -5669,15 +5709,15 @@ restart:
 		if (IsProjectionFunctionalIndex(indexDesc))
 		{
 			projindexes = bms_add_member(projindexes, indexno);
-			pull_varattnos(indexExpressions, 1, &projindexattrs);
+			pull_varattnos_min_attr(indexExpressions, 1, &projindexattrs, attr_offset + 1);
 		}
 		else
 		{
 			/* Collect all attributes used in expressions, too */
-			pull_varattnos(indexExpressions, 1, &indexattrs);
+			pull_varattnos_min_attr(indexExpressions, 1, &indexattrs, attr_offset + 1);
 		}
 		/* Collect all attributes in the index predicate, too */
-		pull_varattnos(indexPredicate, 1, &indexattrs);
+		pull_varattnos_min_attr(indexPredicate, 1, &indexattrs, attr_offset + 1);
 
 		index_close(indexDesc, AccessShareLock);
 		indexno += 1;

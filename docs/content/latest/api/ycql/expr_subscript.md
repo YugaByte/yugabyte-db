@@ -2,7 +2,6 @@
 title: Subscripted expressions [YCQL]
 headerTitle: Subscripted expressions
 linkTitle: Subscripted expressions
-summary: Subscripted columns
 description: Use subscripted expressions to access elements in a multi-element value, such as a map collection by using the [] operator.
 menu:
   latest:

@@ -1,11 +1,12 @@
 // Copyright (c) YugaByte, Inc.
 
 import React, {Component} from 'react';
+import { reduxForm } from 'redux-form';
 import { Row, Col } from 'react-bootstrap';
 import { YBButton } from '../../../common/forms/fields';
 import { YBConfirmModal } from '../../../modals';
 import {TaskProgressContainer} from '../../../tasks';
-import { reduxForm } from 'redux-form';
+import { PROVIDER_TYPES } from '../../../../config';
 
 class ProviderBootstrapView extends Component {
   deleteProviderConfig = provider => {
@@ -14,15 +15,17 @@ class ProviderBootstrapView extends Component {
 
   showDeleteProviderModal = () => {
     const {providerType, showDeleteProviderModal} = this.props;
-    if (providerType === "aws") {
-      showDeleteProviderModal("deleteAWSProvider");
-    } else {
-      showDeleteProviderModal("deleteGCPProvider");
+    switch (providerType) {
+      case 'aws': showDeleteProviderModal('deleteAWSProvider'); break;
+      case 'gcp': showDeleteProviderModal('deleteGCPProvider'); break;
+      case 'azu': showDeleteProviderModal('deleteAzureProvider'); break;
+      default: break;
     }
   };
 
   render() {
     const {currentProvider, handleSubmit, providerType, currentModal, visibleModal} = this.props;
+    const providerMeta = PROVIDER_TYPES.find(item => item.code === providerType);
     // Delete Button is never disabled in Bootstrap view for now, in future add disable if task is pending
     const deleteButtonDisabled = false;
     const deleteButtonClassName = "btn btn-default manage-provider-btn delete-btn";
@@ -38,7 +41,7 @@ class ProviderBootstrapView extends Component {
                               onConfirm={handleSubmit(this.deleteProviderConfig.bind(this, currentProvider))}
                               currentModal={currentModal} visibleModal={visibleModal}
                               hideConfirmModal={this.props.hideDeleteProviderModal}>
-                Are you sure you want to delete this {providerType.toUpperCase()} configuration?
+                Are you sure you want to delete this {providerMeta.label} configuration?
               </YBConfirmModal>
             </span>
           </Col>

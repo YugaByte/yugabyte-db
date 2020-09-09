@@ -385,7 +385,7 @@ Status Executor::ExecPTNode(const PTCreateType *tnode) {
   std::vector<std::string> field_names;
   std::vector<std::shared_ptr<QLType>> field_types;
 
-  for (const PTTypeField::SharedPtr field : tnode->fields()->node_list()) {
+  for (const PTTypeField::SharedPtr& field : tnode->fields()->node_list()) {
     field_names.emplace_back(field->yb_name());
     field_types.push_back(field->ql_type());
   }

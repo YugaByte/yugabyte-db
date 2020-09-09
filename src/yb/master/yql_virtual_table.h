@@ -86,6 +86,7 @@ class YQLVirtualTable : public common::YQLStorageIf {
   }
 
   CHECKED_STATUS GetIterator(const PgsqlReadRequestPB& request,
+                             int64_t batch_arg_index,
                              const Schema& projection,
                              const Schema& schema,
                              const TransactionOperationContextOpt& txn_op_context,
@@ -131,6 +132,9 @@ class YQLVirtualTable : public common::YQLStorageIf {
   TableName table_name_;
   Schema schema_;
 };
+
+extern const std::string kSystemTablesReleaseVersion;
+extern const std::string kSystemTablesReleaseVersionColumn;
 
 }  // namespace master
 }  // namespace yb

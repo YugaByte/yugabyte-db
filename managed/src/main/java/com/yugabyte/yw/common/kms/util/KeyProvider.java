@@ -10,7 +10,8 @@
 
 package com.yugabyte.yw.common.kms.util;
 
-import com.avaje.ebean.annotation.EnumValue;
+import io.ebean.annotation.EnumValue;
+import com.yugabyte.yw.common.kms.algorithms.SupportedAlgorithmInterface;
 import com.yugabyte.yw.common.kms.services.*;
 
 /**
@@ -25,21 +26,23 @@ public enum KeyProvider {
     @EnumValue("SMARTKEY")
     SMARTKEY(SmartKeyEARService.class);
 
-    private Class providerService;
+    private final Class<?> providerService;
 
-    private EncryptionAtRestService instance;
+    private EncryptionAtRestService<?> instance;
 
-    public Class getProviderService() {
-        return this.providerService;
+    public <T extends EncryptionAtRestService<? extends SupportedAlgorithmInterface>> Class<T> getProviderService() {
+        return (Class<T>) this.providerService;
     }
 
-    public EncryptionAtRestService getServiceInstance() { return this.instance; }
+    public <T extends EncryptionAtRestService<? extends SupportedAlgorithmInterface>> T getServiceInstance() {
+      return (T) this.instance;
+    }
 
-    public void setServiceInstance(EncryptionAtRestService instance) {
+    public <T extends EncryptionAtRestService<? extends SupportedAlgorithmInterface>> void setServiceInstance(T instance) {
         this.instance = instance;
     }
 
-    private KeyProvider(Class providerService) {
+    <T extends EncryptionAtRestService<? extends SupportedAlgorithmInterface>> KeyProvider(Class<T> providerService) {
         this.providerService = providerService;
         this.instance = null;
     }

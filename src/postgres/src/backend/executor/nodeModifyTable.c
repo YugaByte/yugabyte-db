@@ -431,17 +431,11 @@ ExecInsert(ModifyTableState *mtstate,
 		 * one; except that if we got here via tuple-routing, we don't need to
 		 * if there's no BR trigger defined on the partition.
 		 */
-		if (!IsYBRelation(resultRelationDesc))
-		{
-			/*
-			 * TODO(Hector) When partitioning is supported in YugaByte, this check must be enabled.
-			 */
-			if (resultRelInfo->ri_PartitionCheck &&
-					(resultRelInfo->ri_PartitionRoot == NULL ||
-					 (resultRelInfo->ri_TrigDesc &&
-						resultRelInfo->ri_TrigDesc->trig_insert_before_row)))
-				ExecPartitionCheck(resultRelInfo, slot, estate, true);
-		}
+		if (resultRelInfo->ri_PartitionCheck &&
+				(resultRelInfo->ri_PartitionRoot == NULL ||
+				 (resultRelInfo->ri_TrigDesc &&
+					resultRelInfo->ri_TrigDesc->trig_insert_before_row)))
+			ExecPartitionCheck(resultRelInfo, slot, estate, true);
 
 		if (onconflict != ONCONFLICT_NONE && resultRelInfo->ri_NumIndices > 0)
 		{
@@ -1124,6 +1118,8 @@ ExecUpdate(ModifyTableState *mtstate,
 	}
 	else if (IsYBRelation(resultRelationDesc))
 	{
+		bool		partition_constraint_failed;
+
 		if (resultRelInfo->ri_WithCheckOptions != NIL)
 			ExecWithCheckOptions(WCO_RLS_UPDATE_CHECK, resultRelInfo, slot, estate);
 
@@ -1133,11 +1129,38 @@ ExecUpdate(ModifyTableState *mtstate,
 		if (resultRelationDesc->rd_att->constr)
 			ExecConstraints(resultRelInfo, slot, estate, mtstate);
 
+		/*
+		 * Verify that the update does not violate partition constraints.
+		 */
+		partition_constraint_failed =
+			resultRelInfo->ri_PartitionCheck &&
+			!ExecPartitionCheck(resultRelInfo, slot, estate, false /* emitError */);
+
+		if (partition_constraint_failed)
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("This operation would cause a row to change the partition, "
+							"this is not yet supported"),
+					 errhint("See https://github.com/YugaByte/yugabyte-db/issues/%d. "
+							 "Click '+' on the description to raise its priority", 5310)));
 
 		RangeTblEntry *rte = rt_fetch(resultRelInfo->ri_RangeTableIndex,
 									  estate->es_range_table);
 
-		bool row_found = YBCExecuteUpdate(resultRelationDesc, planSlot, tuple, estate, mtstate, rte->updatedCols);
+		bool row_found = false;
+
+		bool is_pk_updated =
+			bms_overlap(YBGetTablePrimaryKeyBms(resultRelationDesc), rte->updatedCols);
+
+		if (is_pk_updated)
+		{
+			YBCExecuteUpdateReplace(resultRelationDesc, planSlot, tuple, estate, mtstate);
+			row_found = true;
+		}
+		else
+		{
+			row_found = YBCExecuteUpdate(resultRelationDesc, planSlot, tuple, estate, mtstate, rte->updatedCols);
+		}
 
 		if (!row_found)
 		{
@@ -1221,6 +1244,7 @@ lreplace:;
 			PartitionTupleRouting *proute = mtstate->mt_partition_tuple_routing;
 			int			map_index;
 			TupleConversionMap *tupconv_map;
+			bool		prev_yb_is_single_row_modify_txn = estate->es_yb_is_single_row_modify_txn;
 
 			/*
 			 * Disallow an INSERT ON CONFLICT DO UPDATE that causes the
@@ -1328,6 +1352,7 @@ lreplace:;
 
 			/* Revert ExecPrepareTupleRouting's node change. */
 			estate->es_result_relation_info = resultRelInfo;
+			estate->es_yb_is_single_row_modify_txn = prev_yb_is_single_row_modify_txn;
 			if (mtstate->mt_transition_capture)
 			{
 				mtstate->mt_transition_capture->tcs_original_insert_tuple = NULL;
@@ -2007,6 +2032,17 @@ ExecPrepareTupleRouting(ModifyTableState *mtstate,
 							  partrel->ri_onConflict->oc_ProjTupdesc);
 	}
 
+	/*
+	 * For a partitioned relation, table constraints (such as FK) are visible on a
+	 * target partition rather than an original insert target.
+	 * As such, we should reevaluate single-row transaction constraints after
+	 * we determine the concrete partition.
+	 */
+	if (estate->es_yb_is_single_row_modify_txn)
+	{
+		estate->es_yb_is_single_row_modify_txn = YBCIsSingleRowTxnCapableRel(partrel);
+	}
+
 	return slot;
 }
 
@@ -2393,15 +2429,27 @@ ExecModifyTable(PlanState *pstate)
 		switch (operation)
 		{
 			case CMD_INSERT:
-				/* Prepare for tuple routing if needed. */
-				if (proute)
+				if (!proute)
+				{
+					slot = ExecInsert(node, slot, planSlot,
+									  estate, node->canSetTag);
+				}
+				else
+				{
+					bool prev_yb_is_single_row_modify_txn =
+							estate->es_yb_is_single_row_modify_txn;
+
+					/* Prepare for tuple routing. */
 					slot = ExecPrepareTupleRouting(node, estate, proute,
 												   resultRelInfo, slot);
-				slot = ExecInsert(node, slot, planSlot,
-								  estate, node->canSetTag);
-				/* Revert ExecPrepareTupleRouting's state change. */
-				if (proute)
+
+					slot = ExecInsert(node, slot, planSlot,
+									  estate, node->canSetTag);
+
+					/* Revert ExecPrepareTupleRouting's state change. */
 					estate->es_result_relation_info = resultRelInfo;
+					estate->es_yb_is_single_row_modify_txn = prev_yb_is_single_row_modify_txn;
+				}
 				break;
 			case CMD_UPDATE:
 				slot = ExecUpdate(node, tupleid, oldtuple, slot, planSlot,

@@ -35,6 +35,10 @@ import org.junit.Test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import org.pac4j.play.CallbackController;
+import org.pac4j.play.store.PlayCacheSessionStore;
+import org.pac4j.play.store.PlaySessionStore;
+
 import play.Application;
 import play.inject.guice.GuiceApplicationBuilder;
 import play.libs.Json;
@@ -51,6 +55,8 @@ public class SessionControllerTest {
   HealthChecker mockHealthChecker;
   Scheduler mockScheduler;
   CallHome mockCallHome;
+  CallbackController mockCallbackController;
+  PlayCacheSessionStore mockSessionStore;
 
   Application app;
 
@@ -58,12 +64,16 @@ public class SessionControllerTest {
     mockHealthChecker = mock(HealthChecker.class);
     mockScheduler = mock(Scheduler.class);
     mockCallHome = mock(CallHome.class);
+    mockCallbackController = mock(CallbackController.class);
+    mockSessionStore = mock(PlayCacheSessionStore.class);
     app = new GuiceApplicationBuilder()
         .configure((Map) Helpers.inMemoryDatabase())
         .configure(ImmutableMap.of("yb.multiTenant", isMultiTenant))
         .overrides(bind(Scheduler.class).toInstance(mockScheduler))
         .overrides(bind(HealthChecker.class).toInstance(mockHealthChecker))
         .overrides(bind(CallHome.class).toInstance(mockCallHome))
+        .overrides(bind(CallbackController.class).toInstance(mockCallbackController))
+        .overrides(bind(PlaySessionStore.class).toInstance(mockSessionStore))
         .build();
     Helpers.start(app);
   }

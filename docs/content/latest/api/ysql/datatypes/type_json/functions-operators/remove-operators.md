@@ -6,7 +6,7 @@ description: Remove key-value pairs from an object or remove a single value from
 menu:
   latest:
     identifier: remove-operators
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 13
 isTocNested: true
 showAsideToc: true
@@ -31,7 +31,7 @@ return value:       jsonb
 
 To remove a single key-value pair:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_left constant jsonb := '{"a": "x", "b": "y"}';
@@ -47,7 +47,7 @@ $body$;
 
 To remove several key-value pairs:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_left constant jsonb := '{"a": "p", "b": "q", "c": "r"}';
@@ -63,7 +63,7 @@ $body$;
 
 To remove a single value from an _array_:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_left constant jsonb := '[1, 2, 3, 4]';
@@ -85,7 +85,7 @@ operator does not exist: jsonb - integer[]
 
 You can achieve the result thus:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_left constant jsonb := '[1, 2, 3, 4, 5, 7]';
@@ -112,7 +112,7 @@ return value:       jsonb
 
 **Notes:** There is no `json` overload.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_left constant jsonb := '["a", {"b":17, "c": ["dog", "cat"]}]';

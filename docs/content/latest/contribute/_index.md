@@ -1,12 +1,12 @@
 ---
-title: Get involved with YugabyteDB
-headerTitle: Get involved with YugabyteDB
-linkTitle: Get involved
+title: Contribute to YugabyteDB
+headerTitle: Contribute to YugabyteDB
+linkTitle: Contribute
 description: Contribute to the YugabyteDB code and documentation.
 image: /images/section_icons/index/quick_start.png
 headcontent: Contribute code and docs to improve YugabyteDB.
 type: page
-section: CONTRIBUTOR GUIDES
+section: YUGABYTEDB CORE
 menu:
   latest:
     identifier: contribute

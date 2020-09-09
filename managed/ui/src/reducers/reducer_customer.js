@@ -1,5 +1,6 @@
 // Copyright (c) YugaByte, Inc.
 
+import _ from 'lodash';
 import { VALIDATE_FROM_TOKEN, VALIDATE_FROM_TOKEN_RESPONSE,
          REGISTER, REGISTER_RESPONSE, LOGIN, LOGIN_RESPONSE, INSECURE_LOGIN, INSECURE_LOGIN_RESPONSE,
          INVALID_CUSTOMER_TOKEN, RESET_TOKEN_ERROR, RESET_CUSTOMER, LOGOUT, LOGOUT_SUCCESS,
@@ -129,7 +130,7 @@ export default function(state = INITIAL_STATE, action) {
       return {...state, hostInfo: action.payload.data};
     case FETCH_HOST_INFO_FAILURE:
       return {...state, hostInfo: null };
-    
+
     case UPDATE_PROFILE:
       return setLoadingState(state, "profile");
     case UPDATE_PROFILE_SUCCESS:
@@ -200,7 +201,7 @@ export default function(state = INITIAL_STATE, action) {
     case GET_CUSTOMER_USERS:
       return setLoadingState(state, "users", getInitialState([]));
     case GET_CUSTOMER_USERS_SUCCESS:
-      return setSuccessState(state, "users", action.payload.data);
+      return setSuccessState(state, "users", _.sortBy(action.payload.data, 'creationDate'));
     case GET_CUSTOMER_USERS_FAILURE:
       return setFailureState(state, "users", action.payload);
 

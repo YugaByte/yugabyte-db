@@ -2,7 +2,7 @@
 
 import React, { Component } from 'react';
 import { Row, Col } from 'react-bootstrap';
-import { YBTextInput, YBButton, YBToggle } from '../../common/forms/fields';
+import { YBTextInput, YBButton, YBToggle, YBInputField } from '../../common/forms/fields';
 import { Field } from 'redux-form';
 import { YBConfirmModal } from '../../modals';
 import { isDefinedNotNull, isEmptyObject } from "../../../utils/ObjectUtils";
@@ -111,6 +111,28 @@ class AwsStorageConfiguration extends Component {
               ) : (
                 <Field name="BACKUP_LOCATION" placeHolder="S3 Bucket"
                     component={YBTextInput} className={"data-cell-input"}/>
+              )}
+            </Col>
+          </Row>
+          <Row className="config-provider-row" key={"s3-backup-host-base"}>
+            <Col lg={2}>
+              <div className="form-item-custom-label">S3 Bucket Host Base</div>
+            </Col>
+            <Col lg={10}>
+              {!isEmptyObject(s3Config) ? (
+                <Field name="AWS_HOST_BASE" placeHolder="s3.amazonaws.com"
+                    input={{
+                      value: config["AWS_HOST_BASE"],
+                      disabled: !isEmptyObject(s3Config)
+                    }}
+                    component={YBInputField} className={"data-cell-input"}
+                    infoTitle={"S3 Host"}
+                    infoContent={"Host of S3 bucket. Defaults to s3.amazonaws.com"}/>
+              ) : (
+                <Field name="AWS_HOST_BASE" placeHolder="s3.amazonaws.com"
+                    component={YBInputField} className={"data-cell-input"}
+                    infoTitle={"S3 Host"}
+                    infoContent={"Host of S3 bucket. Defaults to s3.amazonaws.com"}/>
               )}
             </Col>
           </Row>

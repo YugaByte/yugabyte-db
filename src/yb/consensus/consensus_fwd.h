@@ -16,6 +16,7 @@
 
 #include "yb/gutil/ref_counted.h"
 #include "yb/util/enums.h"
+#include "yb/util/strongly_typed_bool.h"
 
 namespace yb {
 namespace consensus {

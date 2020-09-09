@@ -54,14 +54,17 @@ DocDBCompactionFilter::~DocDBCompactionFilter() {
 FilterDecision DocDBCompactionFilter::Filter(
     int level, const Slice& key, const Slice& existing_value, std::string* new_value,
     bool* value_changed) {
-  auto result = CHECK_RESULT(const_cast<DocDBCompactionFilter*>(this)->DoFilter(
-      level, key, existing_value, new_value, value_changed));
-  if (result != FilterDecision::kKeep) {
+  auto result = const_cast<DocDBCompactionFilter*>(this)->DoFilter(
+      level, key, existing_value, new_value, value_changed);
+  if (!result.ok()) {
+    LOG(FATAL) << "Error filtering " << key.ToDebugString() << ": " << result.status();
+  }
+  if (*result != FilterDecision::kKeep) {
     VLOG(3) << "Discarding key: " << BestEffortDocDBKeyToStr(key);
   } else {
     VLOG(4) << "Keeping key: " << BestEffortDocDBKeyToStr(key);
   }
-  return result;
+  return *result;
 }
 
 Result<FilterDecision> DocDBCompactionFilter::DoFilter(

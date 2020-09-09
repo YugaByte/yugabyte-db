@@ -33,8 +33,11 @@ patch_binary() {
   )
 }
 
-bin_dir=$( cd "${BASH_SOURCE%/*}" && pwd )
-distribution_dir=$( cd "$bin_dir/.." && pwd )
+# Use pwd -P to resolve any symlinks on the path. Otherwise the find command at the bottom of this
+# script will not actually find any files.
+bin_dir=$( cd "${BASH_SOURCE%/*}" && pwd -P )
+distribution_dir=$( cd "$bin_dir/.." && pwd -P )
+
 lib_dir="$distribution_dir/lib"
 linuxbrew_dir="$distribution_dir/linuxbrew"
 rpath="$lib_dir/yb:$lib_dir/yb-thirdparty:$linuxbrew_dir/lib"
@@ -62,6 +65,9 @@ fi
 
 cd "$bin_dir"
 # ${...} macro variables will be substituted during packaging.
+# If you are looking at the actual post_install.sh script in an installed distribution of
+# YugabyteDB, you won't see the ${...} macro variables because they have been replaced with their
+# actual values.
 for f in ${main_elf_names_to_patch}; do
   patch_binary "$f"
 done
@@ -95,6 +101,10 @@ fi
 
 ln -sfT "$linuxbrew_dir" "$BREW_HOME"
 
+# We are relying on the fact that $distribution_dir is not a symlink. We don't want to add symlink
+# resolution to the find command because someone may accidentally add a symlink pointing to a
+# directory outside of the distribution directory, and we would recurse into that directory and try
+# to modify files there.
 find "$distribution_dir" \( \
    -type f -and \
    -not -path "$distribution_dir/var/*" -and \

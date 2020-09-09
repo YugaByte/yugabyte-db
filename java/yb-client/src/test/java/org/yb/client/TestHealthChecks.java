@@ -97,7 +97,7 @@ public class TestHealthChecks extends BaseYBClientTest {
       // call the health-check JSON endpoint
       URL url =
         new URL(String.format("http://%s:%d/api/v1/health-check?tserver_death_interval_msecs=%d",
-                masterHostAndPort.getHostText(), masterLeaderWebPort, tserver_death_interval_msecs));
+                masterHostAndPort.getHost(), masterLeaderWebPort, tserver_death_interval_msecs));
       Scanner scanner = new Scanner(url.openConnection().getInputStream());
       JsonParser parser = new JsonParser();
       JsonElement tree = parser.parse(scanner.useDelimiter("\\A").next());

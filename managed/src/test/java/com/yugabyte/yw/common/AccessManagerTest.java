@@ -89,7 +89,6 @@ import static org.mockito.Mockito.when;
     if (mimicError) {
       response.message = "{\"error\": \"Unknown Error\"}";
       response.code = 99;
-      when(shellProcessHandler.run(anyList(), anyMap())).thenReturn(response);
       return Json.toJson(accessManager.uploadKeyFile(regionUUID,
           new File("foo"), TEST_KEY_CODE, AccessManager.KeyType.PRIVATE, "some-user",
           SSH_PORT, false));

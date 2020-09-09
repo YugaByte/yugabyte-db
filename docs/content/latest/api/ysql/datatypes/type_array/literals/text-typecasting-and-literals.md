@@ -38,9 +38,9 @@ It demonstrates a universal rule that YSQL inherits from PostgreSQL:
 
 The following `DO` block applies the pattern using a representative range of both primitive and composite data types. (The data type `text`, as the degenerate case, is not included.) It also displays the value of the `::text` typecast for each data type.
 
-Notice that the last test uses an array whose data type is the user-created `DOMAIN` _"int_arr_t"_. The section [Using an array of `DOMAIN` values](../../array-of-domains/) explains this notion. This is a real stress-tests of the rule.
+Notice that the last test uses an array whose data type is the user-created `DOMAIN` _"int_arr_t"_. [Using an array of `DOMAIN` values](../../array-of-domains/) explains this notion. This is a real stress-tests of the rule.
 
-```postgresql
+```plpgsql
 -- Needed by the '1-d array of "row" type values' test.
 create type rt as (n numeric, s text, t timestamp, b boolean);
 
@@ -164,18 +164,18 @@ boolean:              true
 array of "row" type:  {"(42.1763,\"dog house\",\"2020-05-03 22:25:42.932771\",t)","(19.8651,\"cat flap\",\"2020-05-04 22:25:42.932771\",f)"}
 array of arrays:      {"{1,2}","{3,4,5}"}
 ```
-The section [Multidimensional array of `int` values](../array-of-primitive-values/#multidimensional-array-of-int-values) explains the syntax of the _2-d array_ `text` value.
+[Multidimensional array of `int` values](../array-of-primitive-values/#multidimensional-array-of-int-values) explains the syntax of the _2-d array_ `text` value.
 
-The section [The literal for a _"row"_ type value](../row/) explains the syntax of the _"row" type_ `text` value.
+[The literal for a _"row"_ type value](../row/) explains the syntax of the _"row" type_ `text` value.
 
-And the section [The literal for an array of "row" type values](../array-of-rows/) explains the syntax of the value: array of _"row" type_ `text` value.
+And [The literal for an array of "row" type values](../array-of-rows/) explains the syntax of the value: array of _"row" type_ `text` value.
 
 Notice how the syntax for the _array of arrays_ `text` value compares with the syntax for the _2-d array_ `text` value. Because the _array of arrays_ is ragged, the two inner `{}` pairs contain respectively two and three values. To distinguish between this case and the ordinary rectilinear case, the inner `{}` pairs are surrounded by double quotes.
 
 ## boolean values show special text forms in ysqlsh
 
 Try this:
-```postgresql
+```plpgsql
 select true as "bare true", true::text as "true::text";
 ```
 This is the result:
@@ -193,7 +193,7 @@ You saw above that even when you explicitly `::text` typecast a composite value,
 ## The relationship between the text typecast of a value and the literal that creates that value
 
 Try this in `ysqlsh`:
-```postgresql
+```plpgsql
 select
   42.932771::numeric          as n,
   'cat'::text                 as t1,
@@ -240,7 +240,7 @@ You see already, then, that the rules for composing a `numeric` literal and a `t
 
 You've already seen, informally, some examples of array literals. Here is the rule:
 
-- You compose the bare text that specifies the intended value by writing an utterance in a dedicated grammar that starts with the left curly brace and ends with the right curly brace. (This grammar is the focus of the remainder of the [Creating an array value using a literal](../../literals/) section.) Then you enquote this bare text (however you choose to do the quoting) and then typecast it to the desired target array data type.
+- You compose the bare text that specifies the intended value by writing an utterance in a dedicated grammar that starts with the left curly brace and ends with the right curly brace. (This grammar is the focus of the remainder of [Creating an array value using a literal](../../literals/).) Then you enquote this bare text (however you choose to do the quoting) and then typecast it to the desired target array data type.
 
 These are three special cases of a more general rule. In some cases (for example in the literal for a _"row"_ type value) the enquoting mechanism might be optional (depending on the intended value) and, when written uses _double quote_ as the enquoting character. But here, too, the general rule is the same. The bare text that specifies the intended value can always be correctly written as the `::text` typecast of that value.
 

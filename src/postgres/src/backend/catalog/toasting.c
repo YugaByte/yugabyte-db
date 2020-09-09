@@ -338,7 +338,8 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 				 BTREE_AM_OID,
 				 rel->rd_rel->reltablespace,
 				 collationObjectId, classObjectId, coloptions, (Datum) 0,
-				 INDEX_CREATE_IS_PRIMARY, 0, true, true, NULL, NULL);
+				 INDEX_CREATE_IS_PRIMARY, 0, true, true, NULL, NULL,
+				 true /* skip_index_backfill */, InvalidOid /* tablegroupId */);
 
 	heap_close(toast_rel, NoLock);
 

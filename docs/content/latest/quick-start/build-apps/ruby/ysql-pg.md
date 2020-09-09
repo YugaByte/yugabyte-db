@@ -21,26 +21,26 @@ showAsideToc: true
 
 <ul class="nav nav-tabs-alt nav-tabs-yb">
   <li >
-    <a href="/latest/quick-start/build-apps/ruby/ysql-pg" class="nav-link active">
+    <a href="{{< relref "./ysql-pg.md" >}}" class="nav-link active">
       <i class="icon-postgres" aria-hidden="true"></i>
       YSQL - PG Gem
     </a>
   </li>
   <li >
-    <a href="/latest/quick-start/build-apps/ruby/ysql-rails-activerecord" class="nav-link">
+    <a href="{{< relref "./ysql-rails-activerecord.md" >}}" class="nav-link">
       <i class="icon-postgres" aria-hidden="true"></i>
       YSQL - ActiveRecord
     </a>
   </li>
   <li>
-    <a href="/latest/quick-start/build-apps/ruby/ycql" class="nav-link">
+    <a href="{{< relref "./ycql.md" >}}" class="nav-link">
       <i class="icon-cassandra" aria-hidden="true"></i>
       YCQL
     </a>
   </li>
 </ul>
 
-## Install the pg driver gem
+## Install the pg driver
 
 Install the Ruby PostgreSQL driver (`pg`) using the following command. You can get further details for the driver [here](https://bitbucket.org/ged/ruby-pg/wiki/Home).
 
@@ -48,7 +48,7 @@ Install the Ruby PostgreSQL driver (`pg`) using the following command. You can g
 $ gem install pg -- --with-pg-config=<yugabyte-install-dir>/postgres/bin/pg_config
 ```
 
-## Working example
+## Create the sample Ruby application
 
 ### Prerequisites
 
@@ -56,7 +56,7 @@ This tutorial assumes that you have:
 
 - installed YugabyteDB and created a universe with YSQL enabled. If not, please follow these steps in the [Quick Start guide](../../../../quick-start/explore-ysql//).
 
-### Writing the Ruby code
+### Add the sample Ruby application code
 
 Create a file `yb-sql-helloworld.rb` and add the following content to it.
 
@@ -95,9 +95,9 @@ ensure
 end
 ```
 
-### Running the application
+### Run the application
 
-To run the application, type the following:
+To use the application, run the following command:
 
 ```sh
 $ ./yb-sql-helloworld.rb

@@ -125,7 +125,7 @@ timestamp.
 ```
 
 On the other hand in Yugabyte, for efficiency purposes INSERTs and UPDATEs without the `USING
-TIMESTAMP` clause always overwrite the older values. On the other hand, if we have the `USING
+TIMESTAMP` clause always overwrite the older values. On the other hand, if you have the `USING
 TIMESTAMP` clause, then appropriate timestamp ordering is performed. Example:
 
 ```sql

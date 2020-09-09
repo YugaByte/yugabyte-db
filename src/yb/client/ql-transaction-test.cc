@@ -56,7 +56,7 @@ DECLARE_bool(flush_rocksdb_on_shutdown);
 DECLARE_bool(transaction_disable_proactive_cleanup_in_tests);
 DECLARE_uint64(aborted_intent_cleanup_ms);
 DECLARE_int32(remote_bootstrap_max_chunk_size);
-DECLARE_int32(TEST_master_inject_latency_on_transactional_tablet_lookups_ms);
+DECLARE_bool(TEST_master_fail_transactional_tablet_lookups);
 DECLARE_int64(transaction_rpc_timeout_ms);
 DECLARE_bool(rocksdb_disable_compactions);
 DECLARE_int32(TEST_delay_init_tablet_peer_ms);
@@ -113,13 +113,12 @@ TEST_F(QLTransactionTest, Simple) {
 }
 
 TEST_F(QLTransactionTest, LookupTabletFailure) {
-  FLAGS_TEST_master_inject_latency_on_transactional_tablet_lookups_ms =
-      TransactionRpcTimeout().ToMilliseconds() + 500;
+  FLAGS_TEST_master_fail_transactional_tablet_lookups = true;
 
   auto txn = CreateTransaction();
   auto result = WriteRow(CreateSession(txn), 0 /* key */, 1 /* value */);
 
-  ASSERT_TRUE(!result.ok() && result.status().IsTimedOut()) << "Result: " << result;
+  ASSERT_TRUE(!result.ok() && result.status().IsTimedOut()) << "Result: " << AsString(result);
 }
 
 TEST_F(QLTransactionTest, ReadWithTimeInFuture) {
@@ -880,10 +879,13 @@ TEST_F_EX(QLTransactionTest, IntentsCleanupAfterRestart, QLTransactionTestWithDi
   FLAGS_delete_intents_sst_files = false;
 
 #ifndef NDEBUG
-  const int kTransactions = 10;
+  constexpr int kTransactions = 10;
 #else
-  const int kTransactions = 20;
+  constexpr int kTransactions = 20;
 #endif
+  // Empirically determined constant.
+  constexpr int kBytesPerRow = 75;
+  constexpr int kRequiredCompactedBytes = kTransactions * kNumRows * kBytesPerRow;
 
   LOG(INFO) << "Write values";
 
@@ -925,7 +927,7 @@ TEST_F_EX(QLTransactionTest, IntentsCleanupAfterRestart, QLTransactionTestWithDi
     }
     LOG(INFO) << "Compact read bytes: " << bytes;
 
-    return bytes >= 5_KB;
+    return bytes >= kRequiredCompactedBytes;
   }, 10s, "Enough compactions happen"));
 }
 
@@ -1390,7 +1392,7 @@ TEST_F_EX(QLTransactionTest, ChangeLeader, QLTransactionBigLogSegmentSizeTest) {
   constexpr auto kTestTime = 5s;
 
   DisableTransactionTimeout();
-  FLAGS_transaction_rpc_timeout_ms = MonoDelta(1min).ToMicroseconds();
+  FLAGS_transaction_rpc_timeout_ms = MonoDelta(1min).ToMilliseconds();
 
   std::vector<std::thread> threads;
   std::atomic<bool> stopped{false};

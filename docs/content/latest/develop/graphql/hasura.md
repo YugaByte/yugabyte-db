@@ -39,7 +39,7 @@ docker run -d -p 8080:8080 \
 ```
 
 {{< note title="Note" >}}
-- v1.1.0 refers to the version of `hasura/graphql-engine` we are using, you can change it to a different version as per your needs.
+- v1.1.0 refers to the version of `hasura/graphql-engine` you are using, you can change it to a different version as per your needs.
 - `@host.docker.internal:5433` is a directive to Hasura to connect to the 5433 port of the host that is running the Hasura container.
 {{< /note >}}
 

@@ -2,7 +2,6 @@
 title: CREATE TYPE statement [YCQL]
 headerTitle: CREATE TYPE
 linkTitle: CREATE TYPE
-summary: Create a new data type
 description: Use the CREATE TYPE statement to create a new user-defined data type in a keyspace.
 menu:
   latest:

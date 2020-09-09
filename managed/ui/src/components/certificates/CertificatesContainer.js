@@ -29,7 +29,7 @@ const mapDispatchToProps = (dispatch) => {
       return dispatch(retrieveClientCertificate(id, values)).then((response) => {
         if (response.error) {
           console.err(response.payload.response);
-          throw new Error("Error fetching client certificate.")
+          throw new Error("Error fetching client certificate.");
         } else {
           // Don't save the certificate in Redux store, just return directly
           return response.payload.data;

@@ -93,7 +93,7 @@ class LogCache {
   // 'preceding_op' is the current latest op. The next AppendOperation() call must follow this op.
   //
   // Requires that the cache is empty.
-  void Init(const OpId& preceding_op);
+  void Init(const OpIdPB& preceding_op);
 
   // Read operations from the log, following 'after_op_index'.
   // If such an op exists in the log, an OK result will always include at least one operation.

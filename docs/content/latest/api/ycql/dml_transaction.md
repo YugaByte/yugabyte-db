@@ -2,15 +2,14 @@
 title: TRANSACTION statement [YCQL]
 headerTitle: TRANSACTION
 linkTitle: TRANSACTION
-summary: Make changes to multiple rows in a transaction
 description: Use the TRANSACTION statement block to make changes to multiple rows in one or more tables in a distributed ACID transaction.
 menu:
   latest:
     parent: api-cassandra
     weight: 1330
 aliases:
-  - /latest/api/cassandra/dml_insert
-  - /latest/api/ycql/dml_insert
+  - /latest/api/cassandra/dml_transaction
+  - /latest/api/ycql/dml_transaction
 isTocNested: true
 showAsideToc: true
 ---
@@ -137,6 +136,13 @@ ycqlsh:example> SELECT account_name, account_type, balance, writetime(balance) F
         Smith |     checking |     250 |   1523314002218558
         Smith |      savings |    2000 |   1523313964363056
 ```
+
+
+
+{{< note Type="Note" >}}
+`BEGIN/END TRANSACTION` doesn't currently support `RETURNS STATUS AS ROW`. 
+{{< /note >}}
+
 
 ## See also
 

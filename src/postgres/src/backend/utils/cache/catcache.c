@@ -28,6 +28,7 @@
 #include "catalog/pg_operator.h"
 #include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
+#include "catalog/pg_tablegroup.h"
 #include "miscadmin.h"
 #include "nodes/pg_list.h"
 #ifdef CATCACHE_STATS
@@ -951,6 +952,10 @@ CatalogCacheInitializeCache(CatCache *cache)
 
 	CatalogCacheInitializeCache_DEBUG1;
 
+	// skip for TableGroupRelationId if not in snapshot
+	// TODO: remove this (as well as the include) when initdb upgrade is enabled
+	if (cache->cc_reloid == TableGroupRelationId && !TablegroupCatalogExists)
+		return;
 	relation = heap_open(cache->cc_reloid, AccessShareLock);
 
 	/*
@@ -1707,6 +1712,42 @@ SearchCatCacheMiss(CatCache *cache,
 	 */
 	relation = heap_open(cache->cc_reloid, AccessShareLock);
 
+	if (yb_debug_log_catcache_events)
+	{
+		StringInfoData buf;
+		initStringInfo(&buf);
+
+		/*
+		 * For safety, disable catcache logging within the scope of this
+		 * function as YBDatumToString below may trigger additional cache
+		 * lookups (to get the attribute type info).
+		 */
+		yb_debug_log_catcache_events = false;
+		for (int i = 0; i < nkeys; i++)
+		{
+			if (i > 0)
+				appendStringInfoString(&buf, ", ");
+
+			int attnum = cache->cc_keyno[i];
+			Oid typid = OIDOID; // default.
+			if (attnum > 0)
+				typid = TupleDescAttr(cache->cc_tupdesc, attnum - 1)->atttypid;
+
+			appendStringInfoString(&buf, YBDatumToString(cur_skey[i].sk_argument, typid));
+		}
+		ereport(LOG,
+		        (errmsg("Catalog cache miss on cache with id %d:\n"
+		                "Target rel: %s (oid : %d), index oid %d\n"
+		                "Search keys: %s",
+		                cache->id,
+		                cache->cc_relname,
+		                cache->cc_reloid,
+		                cache->cc_indexoid,
+		                buf.data)));
+		/* Done, reset catcache logging. */
+		yb_debug_log_catcache_events = true;
+	}
+
 	scandesc = systable_beginscan(relation,
 								  cache->cc_indexoid,
 								  IndexScanOK(cache, cur_skey),
@@ -1754,7 +1795,21 @@ SearchCatCacheMiss(CatCache *cache,
 		 */
 		if (IsYugaByteEnabled())
 		{
+			/*
+			 * Special cases where we allow negative caches:
+			 * 1. pg_cast (CASTSOURCETARGET) to avoid master lookups during
+			 *    parsing.
+			 *    TODO: reconsider this now that we support CREATE CAST.
+			 * 2. pg_statistic (STATRELATTINH) and pg_statistic_ext
+			 *    (STATEXTNAMENSP and STATEXTOID) since we do not support
+			 *    statistics in DocDB/YSQL yet.
+			 * 3. pg_class (RELNAMENSP) but only for system tables since users
+			 *    cannot create system tables in YSQL.
+			 */
 			bool allow_negative_entries = cache->id == CASTSOURCETARGET ||
+			                              cache->id == STATRELATTINH ||
+			                              cache->id == STATEXTNAMENSP ||
+			                              cache->id == STATEXTOID ||
 			                              (cache->id == RELNAMENSP &&
 			                               DatumGetObjectId(cur_skey[1].sk_argument) ==
 			                               PG_CATALOG_NAMESPACE &&

@@ -336,4 +336,15 @@ public class MiniYBDaemon {
     LOG.info("Saw an 'RPC server started' message from " + this);
   }
 
+  public void terminate() throws Exception {
+    try {
+      ProcessUtil.signalProcess(process, "TERM");
+    } catch (IllegalStateException ex) {
+      // Failed to send signal, if process is not alive - it is OK, otherwise rethrow the exception.
+      if (process.isAlive()) {
+        throw ex;
+      }
+    }
+  }
+
 }

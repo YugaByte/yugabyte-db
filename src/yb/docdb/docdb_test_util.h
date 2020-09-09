@@ -24,6 +24,7 @@
 
 #include "yb/docdb/doc_key.h"
 #include "yb/docdb/docdb.h"
+#include "yb/docdb/docdb_debug.h"
 #include "yb/docdb/docdb_util.h"
 #include "yb/docdb/docdb_compaction_filter.h"
 #include "yb/docdb/in_mem_docdb.h"

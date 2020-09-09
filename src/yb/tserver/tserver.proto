@@ -140,7 +140,7 @@ message TabletServerErrorPB {
     // Tablet server has some tablets pending local bootstraps.
     PENDING_LOCAL_BOOTSTRAPS = 27;
 
-    // Tablet splitting has been started (after split is completed - tablet stays in this stale
+    // Tablet splitting has been started (after split is completed - tablet stays in this state
     // until it is deleted).
     TABLET_SPLIT = 28;
   }

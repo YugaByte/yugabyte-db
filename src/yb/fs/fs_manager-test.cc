@@ -112,7 +112,7 @@ class FsManagerTestBase : public YBTest {
     *out_opts = opts;
   }
 
-  void SetupForDelete(bool delete_logs_dir = false) {
+  void SetupForDelete(ShouldDeleteLogs delete_logs_dir = ShouldDeleteLogs::kFalse) {
     string path = GetTestPath("new_fs_root");
     ASSERT_OK(env_->CreateDir(path));
 
@@ -277,7 +277,7 @@ TEST_F(FsManagerTestBase, TestDataDirDeletedAndNotLogDir) {
 }
 
 TEST_F(FsManagerTestBase, TestLogDirAlsoDeleted) {
-  SetupForDelete(true);
+  SetupForDelete(ShouldDeleteLogs::kTrue);
 
   EnsureDataDirNotPresent();
 

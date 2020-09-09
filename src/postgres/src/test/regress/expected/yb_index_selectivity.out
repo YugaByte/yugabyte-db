@@ -323,16 +323,16 @@ EXPLAIN (COSTS OFF) SELECT * FROM airports WHERE iso_region = 'US-CA' AND type =
 --
 -- No where clause
 EXPLAIN (COSTS OFF) SELECT gps_code FROM airports;
-        QUERY PLAN
---------------------------
- Foreign Scan on airports
+      QUERY PLAN
+----------------------
+ Seq Scan on airports
 (1 row)
 
 -- Use '!=' on hash column.
 EXPLAIN (COSTS OFF) SELECT gps_code FROM airports WHERE iso_region != 'US-CA';
                QUERY PLAN
 -----------------------------------------
- Foreign Scan on airports
+ Seq Scan on airports
    Filter: (iso_region <> 'US-CA'::text)
 (2 rows)
 
@@ -353,7 +353,7 @@ EXPLAIN (COSTS OFF) SELECT gps_code FROM airports ORDER BY iso_region ASC, gps_c
  Limit
    ->  Sort
          Sort Key: iso_region, gps_code DESC
-         ->  Foreign Scan on airports
+         ->  Seq Scan on airports
 (4 rows)
 
 EXPLAIN (COSTS OFF) SELECT gps_code FROM airports WHERE iso_region = 'US-CA' AND type = 'small_airport'

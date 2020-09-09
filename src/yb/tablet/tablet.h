@@ -70,6 +70,7 @@
 #include "yb/tablet/mvcc.h"
 #include "yb/tablet/tablet_metadata.h"
 #include "yb/tablet/transaction_participant.h"
+#include "yb/tablet/tablet_bootstrap_if.h"
 
 #include "yb/util/locks.h"
 #include "yb/util/metrics.h"
@@ -128,6 +129,8 @@ struct TransactionApplyData;
 using docdb::LockBatch;
 
 YB_STRONGLY_TYPED_BOOL(IncludeIntents);
+YB_STRONGLY_TYPED_BOOL(Destroy);
+YB_STRONGLY_TYPED_BOOL(DisableFlushOnShutdown);
 
 YB_DEFINE_ENUM(FlushMode, (kSync)(kAsync));
 
@@ -153,13 +156,6 @@ inline bool HasFlags(FlushFlags lhs, FlushFlags rhs) {
 }
 
 class WriteOperation;
-
-struct DocDbOpIds {
-  OpId regular;
-  OpId intents;
-
-  std::string ToString() const;
-};
 
 using AddTableListener = std::function<Status(const TableInfo&)>;
 using DocWriteOperationCallback =
@@ -202,6 +198,13 @@ class Tablet : public AbstractTablet, public TransactionIntentApplier {
 
   CHECKED_STATUS EnableCompactions(ScopedRWOperationPause* operation_pause);
 
+  Result<std::string> BackfillIndexesForYsql(
+      const std::vector<IndexInfo>& indexes,
+      const std::string& backfill_from,
+      const CoarseTimePoint deadline,
+      const HybridTime read_time,
+      const HostPort& pgsql_proxy_bind_address,
+      const std::string& database_name);
   Result<std::string> BackfillIndexes(const std::vector<IndexInfo>& indexes,
                                       const std::string& backfill_from,
                                       const CoarseTimePoint deadline,
@@ -209,11 +212,13 @@ class Tablet : public AbstractTablet, public TransactionIntentApplier {
 
   CHECKED_STATUS UpdateIndexInBatches(
       const QLTableRow& row, const std::vector<IndexInfo>& indexes,
-      std::vector<std::pair<const IndexInfo*, QLWriteRequestPB>>* index_requests);
+      std::vector<std::pair<const IndexInfo*, QLWriteRequestPB>>* index_requests,
+      CoarseTimePoint* last_flushed_at);
 
   CHECKED_STATUS FlushIndexBatchIfRequired(
       std::vector<std::pair<const IndexInfo*, QLWriteRequestPB>>* index_requests,
-      bool force_flush = false);
+      bool force_flush,
+      CoarseTimePoint* last_flushed_at);
 
   CHECKED_STATUS
   FlushWithRetries(
@@ -237,7 +242,7 @@ class Tablet : public AbstractTablet, public TransactionIntentApplier {
 
   CHECKED_STATUS ImportData(const std::string& source_dir);
 
-  CHECKED_STATUS ApplyIntents(const TransactionApplyData& data) override;
+  Result<docdb::ApplyTransactionState> ApplyIntents(const TransactionApplyData& data) override;
 
   CHECKED_STATUS RemoveIntents(const RemoveIntentsData& data, const TransactionId& id) override;
 
@@ -465,13 +470,29 @@ class Tablet : public AbstractTablet, public TransactionIntentApplier {
   }
 
   yb::SchemaPtr GetSchema(const std::string& table_id = "") const override {
-    auto table_info = CHECK_RESULT (metadata_->GetTableInfo(table_id));
+    if (table_id.empty()) {
+      return metadata_->schema();
+    }
+    auto table_info = CHECK_RESULT(metadata_->GetTableInfo(table_id));
     return yb::SchemaPtr(table_info, &table_info->schema);
+  }
+
+  Schema GetKeySchema(const std::string& table_id = "") const {
+    if (table_id.empty()) {
+      return key_schema_;
+    }
+    auto table_info = CHECK_RESULT(metadata_->GetTableInfo(table_id));
+    return table_info->schema.CreateKeyProjection();
   }
 
   const common::YQLStorageIf& QLStorage() const override {
     return *ql_storage_;
   }
+
+  // Provide a way for write operations to wait when tablet schema is
+  // being changed.
+  ScopedRWOperationPause PauseWritePermits(CoarseTimePoint deadline);
+  ScopedRWOperation GetPermitToWrite(CoarseTimePoint deadline);
 
   // Used from tests
   const std::shared_ptr<rocksdb::Statistics>& rocksdb_statistics() const {
@@ -490,11 +511,15 @@ class Tablet : public AbstractTablet, public TransactionIntentApplier {
 
   docdb::DocDB doc_db() const { return { regular_db_.get(), intents_db_.get(), &key_bounds_ }; }
 
-  Result<std::string> GetEncodedMiddleDocKey() const;
+  // Returns approximate middle key for tablet split:
+  // - for hash-based partitions: encoded hash code in order to split by hash code.
+  // - for range-based partitions: encoded doc key in order to split by row.
+  Result<std::string> GetEncodedMiddleSplitKey() const;
 
   std::string TEST_DocDBDumpStr(IncludeIntents include_intents = IncludeIntents::kFalse);
 
-  template<class T> void TEST_DocDBDumpToContainer(IncludeIntents include_intents, T* out);
+  void TEST_DocDBDumpToContainer(
+      IncludeIntents include_intents, std::unordered_set<std::string>* out);
 
   size_t TEST_CountRegularDBRecords();
 
@@ -603,6 +628,8 @@ class Tablet : public AbstractTablet, public TransactionIntentApplier {
   friend class ScopedReadOperation;
   friend class TabletComponent;
 
+  class RegularRocksDbListener;
+
   FRIEND_TEST(TestTablet, TestGetLogRetentionSizeForIndex);
 
   void StartDocWriteOperation(
@@ -632,11 +659,11 @@ class Tablet : public AbstractTablet, public TransactionIntentApplier {
   // Pause any new read/write operations and wait for all pending read/write operations to finish.
   ScopedRWOperationPause PauseReadWriteOperations(Stop stop = Stop::kFalse);
 
-  CHECKED_STATUS ResetRocksDBs(bool destroy = false);
+  CHECKED_STATUS ResetRocksDBs(Destroy destroy, DisableFlushOnShutdown disable_flush_on_shutdown);
 
   CHECKED_STATUS DoEnableCompactions();
 
-  void PreventCallbacksFromRocksDBs(bool disable_flush_on_shutdown);
+  void PreventCallbacksFromRocksDBs(DisableFlushOnShutdown disable_flush_on_shutdown);
 
   std::string LogPrefix() const;
 
@@ -656,19 +683,6 @@ class Tablet : public AbstractTablet, public TransactionIntentApplier {
   // Creates a new shared pointer of the object managed by metadata_cache_. This is done
   // atomically to avoid race conditions.
   std::shared_ptr<client::YBMetaDataCache> YBMetaDataCache();
-
-  // Lock protecting schema_ and key_schema_.
-  //
-  // Writers take this lock in shared mode before decoding and projecting
-  // their requests. They hold the lock until after APPLY.
-  //
-  // Readers take this lock in shared mode only long enough to copy the
-  // current schema into the iterator, after which all projection is taken
-  // care of based on that copy.
-  //
-  // On an AlterSchema, this is taken in exclusive mode during Prepare() and
-  // released after the schema change has been applied.
-  mutable rw_semaphore schema_lock_;
 
   const Schema key_schema_;
 
@@ -760,6 +774,9 @@ class Tablet : public AbstractTablet, public TransactionIntentApplier {
   // This is marked mutable because read path member functions (which are const) are using this.
   mutable RWOperationCounter pending_op_counter_;
 
+  // Used by Alter/Schema-change ops to pause new write ops from being submitted.
+  RWOperationCounter write_ops_being_submitted_counter_;
+
   std::unique_ptr<TransactionCoordinator> transaction_coordinator_;
 
   std::unique_ptr<TransactionParticipant> transaction_participant_;
@@ -821,7 +838,6 @@ class Tablet : public AbstractTablet, public TransactionIntentApplier {
 
   IsSysCatalogTablet is_sys_catalog_;
   TransactionsEnabled txns_enabled_;
-  CoarseTimePoint last_backfill_flush_at_;
 
   std::unique_ptr<ThreadPoolToken> cleanup_intent_files_token_;
 

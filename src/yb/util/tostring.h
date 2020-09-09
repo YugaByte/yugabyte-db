@@ -59,7 +59,7 @@ HAS_FREE_FUNCTION(to_string);
 
 } // namespace yb_tostring
 
-// This utility actively use SFINAE (http://en.cppreference.com/w/cpp/language/sfinae)
+// This utility actively uses SFINAE (http://en.cppreference.com/w/cpp/language/sfinae)
 // technique to route ToString to correct implementation.
 namespace yb {
 
@@ -287,13 +287,32 @@ std::string AsString(const T& t) {
     " " BOOST_PP_STRINGIZE(elem) ": " + AsString(BOOST_PP_CAT(elem, BOOST_PP_APPLY(data))) +
 #define YB_FIELDS_TO_STRING(data, ...) \
     BOOST_PP_SEQ_FOR_EACH(YB_FIELD_TO_STRING, data(), BOOST_PP_VARIADIC_TO_SEQ(__VA_ARGS__))
+
+// This can be used to simplify ToString function implementations in structs where field names do
+// not end with an underscore. Suppose we have a struct with fields a and b. If we implement
+// ToString as
+//
+// std::string ToString() const {
+//   return YB_STRUCT_TO_STRING(a, b);
+// }
+//
+// we will get ToString return values of the form "{ a: value_for_a b: value_for_b }".
 #define YB_STRUCT_TO_STRING(...) \
     "{" YB_FIELDS_TO_STRING(BOOST_PP_NIL, __VA_ARGS__) " }"
+
+// This can be used to simplify ToString function implementations in classes where field names end
+// with an underscore. Suppose we have a class with fields a_ and b_. If we implement ToString as
+//
+// std::string ToString() const {
+//   return YB_CLASS_TO_STRING(a, b);
+// }
+//
+// we will get ToString return values of the form "{ a: value_for_a b: value_for_b }".
 #define YB_CLASS_TO_STRING(...) \
     "{" YB_FIELDS_TO_STRING((BOOST_PP_IDENTITY(_)), __VA_ARGS__) " }"
 
 #else
-#error Compiler not supported
+#error "Compiler not supported -- BOOST_PP_VARIADICS is not set. See https://bit.ly/2ZF7rTu."
 #endif
 
 #endif // YB_UTIL_TOSTRING_H

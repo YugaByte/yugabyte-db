@@ -868,6 +868,18 @@ typedef struct PartitionCmd
 	PartitionBoundSpec *bound;	/* FOR VALUES, if attaching */
 } PartitionCmd;
 
+/*
+ * RowBounds - row bounds for BACKFILL INDEX statement
+ */
+typedef struct RowBounds
+{
+	NodeTag type;
+	const char	   *partition_key;	/* Partition key of tablet containing bound
+									 */
+	const char	   *row_key_start;	/* Starting row of bound (inclusive) */
+	const char	   *row_key_end;	/* Ending row of bound (exclusive) */
+} RowBounds;
+
 /****************************************************************************
  *	Nodes for a Query tree
  ****************************************************************************/
@@ -1684,6 +1696,7 @@ typedef enum ObjectType
 	OBJECT_STATISTIC_EXT,
 	OBJECT_TABCONSTRAINT,
 	OBJECT_TABLE,
+	OBJECT_TABLEGROUP,
 	OBJECT_TABLESPACE,
 	OBJECT_TRANSFORM,
 	OBJECT_TRIGGER,
@@ -2034,7 +2047,7 @@ typedef struct CreateStmt
 	OnCommitAction oncommit;	/* what do we do at COMMIT? */
 	char	   *tablespacename; /* table space to use, or NULL */
 	bool		if_not_exists;	/* just do nothing if it already exists? */
-
+	struct OptTableGroup *tablegroup; /* Tablegroup node - NULL if not provided */
 	struct OptSplit *split_options; /* SPLIT statement options */
 } CreateStmt;
 
@@ -2183,6 +2196,38 @@ typedef struct OptSplit
 	int num_tablets;
 	List *split_points;
 } OptSplit;
+
+/* ----------------------
+ *		Create/Drop Tablegroup Statements
+ * ----------------------
+ */
+
+typedef struct CreateTableGroupStmt
+{
+	NodeTag		type;
+	char 		 *tablegroupname;
+	RoleSpec *owner;
+	List 	   *options;
+} CreateTableGroupStmt;
+
+typedef struct DropTableGroupStmt
+{
+	NodeTag		type;
+	char 		 *tablegroupname;
+} DropTableGroupStmt;
+
+/* ----------------------
+ * YugaByte Tablegroup options
+ * ----------------------
+*/
+
+typedef struct OptTableGroup
+{
+	NodeTag type;
+
+	bool	has_tablegroup;
+	char   *tablegroup_name;
+} OptTableGroup;
 
 /* ----------------------
  *		Create/Drop Table Space Statements
@@ -2767,6 +2812,7 @@ typedef struct IndexStmt
 	Oid			relationId;		/* OID of relation to build index on */
 	char	   *accessMethod;	/* name of access method (eg. btree) */
 	char	   *tableSpace;		/* tablespace, or NULL for default */
+	OptTableGroup *tablegroup;	/* Tablegroup node - NULL if not provided */
 	List	   *indexParams;	/* columns to index: a list of IndexElem */
 	List	   *indexIncludingParams;	/* additional columns to index: a list
 										 * of IndexElem */
@@ -3339,6 +3385,19 @@ typedef struct ReindexStmt
 	const char *name;			/* name of database to reindex */
 	int			options;		/* Reindex options flags */
 } ReindexStmt;
+
+/* ----------------------
+ *		BACKFILL INDEX Statement
+ * ----------------------
+ */
+
+typedef struct BackfillIndexStmt
+{
+	NodeTag			type;
+	List		   *oid_list;		/* Oids of indexes to backfill */
+	uint64_t		read_time;		/* Read time for backfill */
+	RowBounds	   *row_bounds;		/* Rows to backfill */
+} BackfillIndexStmt;
 
 /* ----------------------
  *		CREATE CONVERSION Statement

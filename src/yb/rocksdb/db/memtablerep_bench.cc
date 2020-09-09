@@ -79,8 +79,7 @@ DEFINE_string(memtablerep, "skiplist",
               "\tskiplist            -- backed by a skiplist\n"
               "\tvector              -- backed by an std::vector\n"
               "\thashskiplist        -- backed by a hash skip list\n"
-              "\thashlinklist        -- backed by a hash linked list\n"
-              "\tcuckoo              -- backed by a cuckoo hash table");
+              "\thashlinklist        -- backed by a hash linked list\n");
 
 DEFINE_int64(bucket_count, 1000000,
              "bucket_count parameter to pass into NewHashSkiplistRepFactory or "
@@ -109,18 +108,6 @@ DEFINE_bool(if_log_bucket_dist_when_flash, true,
 DEFINE_int32(
     threshold_use_skiplist, 256,
     "threshold_use_skiplist parameter to pass into NewHashLinkListRepFactory");
-
-DEFINE_int64(
-    write_buffer_size, 256,
-    "write_buffer_size parameter to pass into NewHashCuckooRepFactory");
-
-DEFINE_int64(
-    average_data_size, 64,
-    "average_data_size parameter to pass into NewHashCuckooRepFactory");
-
-DEFINE_int64(
-    hash_function_count, 4,
-    "hash_function_count parameter to pass into NewHashCuckooRepFactory");
 
 DEFINE_int32(
     num_threads, 1,
@@ -606,7 +593,6 @@ int main(int argc, char** argv) {
   std::unique_ptr<rocksdb::MemTableRepFactory> factory;
   if (FLAGS_memtablerep == "skiplist") {
     factory.reset(new rocksdb::SkipListFactory);
-#ifndef ROCKSDB_LITE
   } else if (FLAGS_memtablerep == "vector") {
     factory.reset(new rocksdb::VectorRepFactory);
   } else if (FLAGS_memtablerep == "hashskiplist") {
@@ -622,13 +608,6 @@ int main(int argc, char** argv) {
         FLAGS_if_log_bucket_dist_when_flash, FLAGS_threshold_use_skiplist));
     options.prefix_extractor.reset(
         rocksdb::NewFixedPrefixTransform(FLAGS_prefix_length));
-  } else if (FLAGS_memtablerep == "cuckoo") {
-    factory.reset(rocksdb::NewHashCuckooRepFactory(
-        FLAGS_write_buffer_size, FLAGS_average_data_size,
-        static_cast<uint32_t>(FLAGS_hash_function_count)));
-    options.prefix_extractor.reset(
-        rocksdb::NewFixedPrefixTransform(FLAGS_prefix_length));
-#endif  // ROCKSDB_LITE
   } else {
     fprintf(stdout, "Unknown memtablerep: %s\n", FLAGS_memtablerep.c_str());
     exit(1);

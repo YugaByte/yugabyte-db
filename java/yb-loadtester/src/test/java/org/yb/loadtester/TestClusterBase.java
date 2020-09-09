@@ -265,7 +265,7 @@ public class TestClusterBase extends BaseCQLTest {
       assertTrue(String.format("Couldn't find master %s in list %s", masterHostAndPort,
         masters.keySet().toString()), masters.containsKey(masterHostAndPort));
       int masterLeaderWebPort = masters.get(masterHostAndPort).getWebPort();
-      Metrics metrics = new Metrics(masterHostAndPort.getHostText(), masterLeaderWebPort,
+      Metrics metrics = new Metrics(masterHostAndPort.getHost(), masterLeaderWebPort,
         "cluster");
       int live_tservers = metrics.getCounter("num_tablet_servers_live").value;
       LOG.info("Live tservers: " + live_tservers + ", expected: " + expected_live);
@@ -287,7 +287,7 @@ public class TestClusterBase extends BaseCQLTest {
       LOG.info("New master online: " + masterRpcHostPort.toString());
 
       // Add new master to the config.
-      ChangeConfigResponse response = client.changeMasterConfig(masterRpcHostPort.getHostText(),
+      ChangeConfigResponse response = client.changeMasterConfig(masterRpcHostPort.getHost(),
         masterRpcHostPort.getPort(), true);
       assertFalse("ChangeConfig has error: " + response.errorMessage(), response.hasError());
 
@@ -339,7 +339,7 @@ public class TestClusterBase extends BaseCQLTest {
   }
 
   protected void addMaster(HostAndPort newMaster) throws Exception {
-    ChangeConfigResponse response = client.changeMasterConfig(newMaster.getHostText(),
+    ChangeConfigResponse response = client.changeMasterConfig(newMaster.getHost(),
         newMaster.getPort(), true);
     assertFalse("ChangeConfig has error: " + response.errorMessage(), response.hasError());
 
@@ -354,7 +354,7 @@ public class TestClusterBase extends BaseCQLTest {
   protected void removeMaster(HostAndPort oldMaster) throws Exception {
     // Remove old master.
     ChangeConfigResponse response =
-        client.changeMasterConfig(oldMaster.getHostText(), oldMaster.getPort(), false);
+        client.changeMasterConfig(oldMaster.getHost(), oldMaster.getPort(), false);
     assertFalse("ChangeConfig has error: " + response.errorMessage(), response.hasError());
 
     LOG.info("Removed old master from config: " + oldMaster.toString());
@@ -421,7 +421,7 @@ public class TestClusterBase extends BaseCQLTest {
     List<Common.HostPortPB> blacklisted_hosts = new ArrayList<>();
     for (Map.Entry<HostAndPort, MiniYBDaemon> ts : originalTServers.entrySet()) {
       Common.HostPortPB hostPortPB = Common.HostPortPB.newBuilder()
-        .setHost(ts.getKey().getHostText())
+        .setHost(ts.getKey().getHost())
         .setPort(ts.getKey().getPort())
         .build();
       blacklisted_hosts.add(hostPortPB);
@@ -498,7 +498,7 @@ public class TestClusterBase extends BaseCQLTest {
     List<Common.HostPortPB> leader_blacklist_hosts = new ArrayList<>();
     HostAndPort hp = hps[offset];
     Common.HostPortPB hostPortPB = Common.HostPortPB.newBuilder()
-      .setHost(hp.getHostText())
+      .setHost(hp.getHost())
       .setPort(hp.getPort())
       .build();
     leader_blacklist_hosts.add(hostPortPB);
@@ -591,7 +591,7 @@ public class TestClusterBase extends BaseCQLTest {
     List<Common.HostPortPB> leader_blacklist_hosts = new ArrayList<>();
     HostAndPort hp = hps[offset];
     Common.HostPortPB hostPortPB = Common.HostPortPB.newBuilder()
-      .setHost(hp.getHostText())
+      .setHost(hp.getHost())
       .setPort(hp.getPort())
       .build();
     leader_blacklist_hosts.add(hostPortPB);

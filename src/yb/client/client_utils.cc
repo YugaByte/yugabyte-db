@@ -29,9 +29,8 @@ namespace client {
 
 std::future<Result<internal::RemoteTabletPtr>> LookupFirstTabletFuture(const YBTable* table) {
   return table->client()->data_->meta_cache_->LookupTabletByKeyFuture(
-      table, "" /* partition_key */, CoarseTimePoint::max() /* deadline */);
+      table, "" /* partition_key */, CoarseMonoClock::now() + std::chrono::seconds(60));
 }
-
 
 Result<std::unique_ptr<rpc::Messenger>> CreateClientMessenger(
     const string& client_name,

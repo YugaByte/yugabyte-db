@@ -232,7 +232,7 @@ TEST_F(ClientFailoverITest, TestDeleteLeaderWhileScanning) {
   ASSERT_EQ(workload.rows_inserted(), CountTableRows(table));
 
   // Rotate leaders among the replicas and verify the new leader is the designated one each time.
-  for (const auto ts_map : active_ts_map) {
+  for (const auto& ts_map : active_ts_map) {
     for (auto retries_left = kNumberOfRetries; ; --retries_left) {
       TServerDetails* current_leader = nullptr;
       TServerDetails* new_leader = ts_map.second;

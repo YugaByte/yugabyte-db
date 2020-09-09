@@ -70,8 +70,8 @@ add_dependencies(integration-tests
 add_library(cdc_test_util cdc_test_util.cc)
 target_link_libraries(cdc_test_util yb_test_util cdc_service_proto tserver)
 
-add_library(cql_test_util cql_test_util.cc)
-target_link_libraries(cql_test_util cassandra yb_test_util)
+add_library(cql_test_util cql_test_base.cc cql_test_util.cc)
+target_link_libraries(cql_test_util cassandra integration-tests yb-cql yb_test_util)
 
 # Tests
 set(YB_TEST_LINK_LIBS
@@ -99,6 +99,7 @@ ADD_YB_TEST(master_sysnamespace-itest)
 ADD_YB_TEST(master_path_handlers-itest)
 ADD_YB_TEST(master_failover-itest)
 ADD_YB_TEST(master_config-itest)
+ADD_YB_TEST(network_failure-test)
 ADD_YB_TEST(system_table_fault_tolerance)
 ADD_YB_TEST(raft_consensus-itest)
 ADD_YB_TEST(flush-test)
@@ -124,6 +125,8 @@ ADD_YB_TEST(redis_table-test)
 ADD_YB_TEST(update_scan_delta_compact-test)
 ADD_YB_TEST(log_version-test)
 ADD_YB_TEST(load_balancer-test)
+ADD_YB_TEST(load_balancer_multi_table-test)
+ADD_YB_TEST(load_balancer_respect_affinity-test)
 
 set(YB_TEST_LINK_LIBS_SAVED ${YB_TEST_LINK_LIBS})
 set(YB_TEST_LINK_LIBS ${YB_TEST_LINK_LIBS} cassandra cql_test_util)
@@ -132,17 +135,21 @@ set(CASS_DRIVER_INTERNAL_INCLUDE
     "${YB_THIRDPARTY_DIR}/src/cassandra-cpp-driver-${CASS_DRIVER_VERSION}/src")
 
 ADD_YB_TEST(cassandra_cpp_driver-test)
-target_include_directories(cassandra_cpp_driver-test PUBLIC
+YB_TEST_TARGET_INCLUDE_DIRECTORIES(cassandra_cpp_driver-test PUBLIC
   ${CASS_DRIVER_INTERNAL_INCLUDE}
   "${CASS_DRIVER_INTERNAL_INCLUDE}/third_party/sparsehash/src")
 
 if("${COMPILER_FAMILY}" STREQUAL "gcc8")
-  target_compile_options(cassandra_cpp_driver-test PUBLIC "-Wno-class-memaccess")
+  YB_TEST_TARGET_COMPILE_OPTIONS(cassandra_cpp_driver-test PUBLIC "-Wno-class-memaccess")
 endif()
 
 ADD_YB_TEST(cql-index-test)
-target_include_directories(cql-index-test PUBLIC ${CASS_DRIVER_INTERNAL_INCLUDE})
-target_link_libraries(cql-index-test yb-cql)
+YB_TEST_TARGET_INCLUDE_DIRECTORIES(cql-index-test PUBLIC ${CASS_DRIVER_INTERNAL_INCLUDE})
+YB_TEST_TARGET_LINK_LIBRARIES(cql-index-test yb-cql)
+
+ADD_YB_TEST(cql-test)
+YB_TEST_TARGET_INCLUDE_DIRECTORIES(cql-test PUBLIC ${CASS_DRIVER_INTERNAL_INCLUDE})
+YB_TEST_TARGET_LINK_LIBRARIES(cql-test yb-cql)
 
 set(YB_TEST_LINK_LIBS ${YB_TEST_LINK_LIBS_SAVED})
 

@@ -64,7 +64,13 @@
 #include "fe_utils/connect.h"
 #include "fe_utils/string_utils.h"
 
-#include "yb/common/ybc_util.h"
+#include "yb/yql/pggate/ybc_pggate.h"
+#include "yb/yql/pggate/ybc_pggate_tool.h"
+
+/* Temporary disable YB calls in ASAN build due to linking issues. */
+#ifdef ADDRESS_SANITIZER
+#define DISABLE_YB_EXTENTIONS
+#endif
 
 typedef struct
 {
@@ -260,6 +266,7 @@ static void dumpPolicy(Archive *fout, PolicyInfo *polinfo);
 static void dumpPublication(Archive *fout, PublicationInfo *pubinfo);
 static void dumpPublicationTable(Archive *fout, PublicationRelInfo *pubrinfo);
 static void dumpSubscription(Archive *fout, SubscriptionInfo *subinfo);
+static Oid  getDatabaseOid(Archive *AH);
 static void dumpDatabase(Archive *AH);
 static void dumpDatabaseConfig(Archive *AH, PQExpBuffer outbuf,
 				   const char *dbname, Oid dboid);
@@ -289,6 +296,14 @@ static char *get_synchronized_snapshot(Archive *fout);
 static void setupDumpWorker(Archive *AHX);
 static TableInfo *getRootTableInfo(TableInfo *tbinfo);
 
+static void HandleYBStatus(YBCStatus status) {
+	if (status) {
+		/* Copy the message to the current memory context and free the YBCStatus. */
+		const char* msg_buf = DupYBStatusMessage(status, false);
+		YBCFreeStatus(status);
+		exit_horribly(NULL, "%s\n", msg_buf);
+	}
+}
 
 int
 main(int argc, char **argv)
@@ -316,6 +331,7 @@ main(int argc, char **argv)
 	ArchiveMode archiveMode;
 
 	static DumpOptions dopt;
+	static int no_serializable_deferrable = 0;
 
 	static struct option long_options[] = {
 		{"data-only", no_argument, NULL, 'a'},
@@ -348,6 +364,7 @@ main(int argc, char **argv)
 		{"encoding", required_argument, NULL, 'E'},
 		{"help", no_argument, NULL, '?'},
 		{"version", no_argument, NULL, 'V'},
+		{"masters", required_argument, NULL, 'm'},
 
 		/*
 		 * the following options don't have an equivalent short option letter
@@ -368,6 +385,7 @@ main(int argc, char **argv)
 		{"role", required_argument, NULL, 3},
 		{"section", required_argument, NULL, 5},
 		{"serializable-deferrable", no_argument, &dopt.serializable_deferrable, 1},
+		{"no-serializable-deferrable", no_argument, &no_serializable_deferrable, 1},
 		{"snapshot", required_argument, NULL, 6},
 		{"strict-names", no_argument, &strict_names, 1},
 		{"use-set-session-authorization", no_argument, &dopt.use_setsessauth, 1},
@@ -378,6 +396,7 @@ main(int argc, char **argv)
 		{"no-unlogged-table-data", no_argument, &dopt.no_unlogged_table_data, 1},
 		{"no-subscriptions", no_argument, &dopt.no_subscriptions, 1},
 		{"no-sync", no_argument, NULL, 7},
+		{"include-yb-metadata", no_argument, &dopt.include_yb_metadata, 1},
 
 		{NULL, 0, NULL, 0}
 	};
@@ -457,6 +476,10 @@ main(int argc, char **argv)
 
 			case 'h':			/* server host */
 				dopt.pghost = pg_strdup(optarg);
+				break;
+
+			case 'm':			/* YB master hosts */
+				dopt.master_hosts = pg_strdup(optarg);
 				break;
 
 			case 'j':			/* number of dump jobs */
@@ -567,6 +590,9 @@ main(int argc, char **argv)
 				exit_nicely(1);
 		}
 	}
+
+	/* Enable by default serializable-deferrable mode if it's not explicitly disabled. */
+	dopt.serializable_deferrable = no_serializable_deferrable ? 0 : 1;
 
 	/*
 	 * Non-option argument specifies database name as long as it wasn't
@@ -688,6 +714,22 @@ main(int argc, char **argv)
 	fout->maxRemoteVersion = (PG_VERSION_NUM / 100) * 100 + 99;
 
 	fout->numWorkers = numWorkers;
+
+	if (dopt.pghost == NULL || dopt.pghost[0] == '\0')
+		dopt.pghost = DefaultHost;
+
+#ifndef DISABLE_YB_EXTENTIONS
+	if (dopt.include_yb_metadata)
+	{
+		if (dopt.master_hosts)
+			YBCSetMasterAddresses(dopt.master_hosts);
+		else
+			YBCSetMasterAddresses(dopt.pghost);
+
+		HandleYBStatus(YBCInit(progname, palloc, /* cstring_to_text_with_len_fn */ NULL));
+		HandleYBStatus(YBCInitPgGateBackend());
+	}
+#endif  /* DISABLE_YB_EXTENTIONS */
 
 	/*
 	 * Open the database using the Archiver, so it knows about it. Errors mean
@@ -863,6 +905,8 @@ main(int argc, char **argv)
 	/* The database items are always next, unless we don't want them at all */
 	if (dopt.outputCreateDB)
 		dumpDatabase(fout);
+	else if (dopt.include_yb_metadata)
+		dopt.db_oid = getDatabaseOid(fout);
 
 	/* Now the rearrangeable objects. */
 	for (i = 0; i < numObjs; i++)
@@ -932,6 +976,11 @@ main(int argc, char **argv)
 
 	CloseArchive(fout);
 
+#ifndef DISABLE_YB_EXTENTIONS
+	if (dopt.include_yb_metadata)
+		YBCShutdownPgGateBackend();
+#endif  /* DISABLE_YB_EXTENTIONS */
+
 	exit_nicely(0);
 }
 
@@ -992,6 +1041,8 @@ help(const char *progname)
 	printf(_("  --quote-all-identifiers      quote all identifiers, even if not key words\n"));
 	printf(_("  --section=SECTION            dump named section (pre-data, data, or post-data)\n"));
 	printf(_("  --serializable-deferrable    wait until the dump can run without anomalies\n"));
+	printf(_("  --no-serializable-deferrable disable serializable-deferrable mode\n"
+			 "                               which is enabled by default\n"));
 	printf(_("  --snapshot=SNAPSHOT          use given snapshot for the dump\n"));
 	printf(_("  --strict-names               require table and/or schema include patterns to\n"
 			 "                               match at least one entity each\n"));
@@ -2520,54 +2571,9 @@ guessConstraintInheritance(TableInfo *tblinfo, int numTables)
 	}
 }
 
-
-/*
- * dumpDatabase:
- *	dump the database definition
- */
-static void
-dumpDatabase(Archive *fout)
+static PGresult*
+queryDatabaseData(Archive *fout, PQExpBuffer dbQry)
 {
-	DumpOptions *dopt = fout->dopt;
-	PQExpBuffer dbQry = createPQExpBuffer();
-	PQExpBuffer delQry = createPQExpBuffer();
-	PQExpBuffer creaQry = createPQExpBuffer();
-	PQExpBuffer labelq = createPQExpBuffer();
-	PGconn	   *conn = GetConnection(fout);
-	PGresult   *res;
-	int			i_tableoid,
-				i_oid,
-				i_datname,
-				i_dba,
-				i_encoding,
-				i_collate,
-				i_ctype,
-				i_frozenxid,
-				i_minmxid,
-				i_datacl,
-				i_rdatacl,
-				i_datistemplate,
-				i_datconnlimit,
-				i_tablespace;
-	CatalogId	dbCatId;
-	DumpId		dbDumpId;
-	const char *datname,
-			   *dba,
-			   *encoding,
-			   *collate,
-			   *ctype,
-			   *datacl,
-			   *rdatacl,
-			   *datistemplate,
-			   *datconnlimit,
-			   *tablespace;
-	uint32		frozenxid,
-				minmxid;
-	char	   *qdatname;
-
-	if (g_verbose)
-		write_msg(NULL, "saving database definition\n");
-
 	/* Fetch the database-level properties for this database */
 	if (fout->remoteVersion >= 90600)
 	{
@@ -2647,7 +2653,73 @@ dumpDatabase(Archive *fout)
 						  username_subquery);
 	}
 
-	res = ExecuteSqlQueryForSingleRow(fout, dbQry->data);
+	return ExecuteSqlQueryForSingleRow(fout, dbQry->data);
+}
+
+static Oid
+getDatabaseOid(Archive *fout)
+{
+	if (g_verbose)
+		write_msg(NULL, "reading database id\n");
+
+	PQExpBuffer dbQry = createPQExpBuffer();
+	PGresult* res = queryDatabaseData(fout, dbQry);
+	int i_oid = PQfnumber(res, "oid");
+	Oid db_oid = atooid(PQgetvalue(res, 0, i_oid));
+
+	PQclear(res);
+	destroyPQExpBuffer(dbQry);
+	return db_oid;
+}
+
+/*
+ * dumpDatabase:
+ *	dump the database definition
+ */
+static void
+dumpDatabase(Archive *fout)
+{
+	DumpOptions *dopt = fout->dopt;
+	PQExpBuffer dbQry = createPQExpBuffer();
+	PQExpBuffer delQry = createPQExpBuffer();
+	PQExpBuffer creaQry = createPQExpBuffer();
+	PQExpBuffer labelq = createPQExpBuffer();
+	PGconn	   *conn = GetConnection(fout);
+	PGresult   *res;
+	int			i_tableoid,
+				i_oid,
+				i_datname,
+				i_dba,
+				i_encoding,
+				i_collate,
+				i_ctype,
+				i_frozenxid,
+				i_minmxid,
+				i_datacl,
+				i_rdatacl,
+				i_datistemplate,
+				i_datconnlimit,
+				i_tablespace;
+	CatalogId	dbCatId;
+	DumpId		dbDumpId;
+	const char *datname,
+			   *dba,
+			   *encoding,
+			   *collate,
+			   *ctype,
+			   *datacl,
+			   *rdatacl,
+			   *datistemplate,
+			   *datconnlimit,
+			   *tablespace;
+	uint32		frozenxid,
+				minmxid;
+	char	   *qdatname;
+
+	if (g_verbose)
+		write_msg(NULL, "saving database definition\n");
+
+	res = queryDatabaseData(fout, dbQry);
 
 	i_tableoid = PQfnumber(res, "tableoid");
 	i_oid = PQfnumber(res, "oid");
@@ -2666,6 +2738,7 @@ dumpDatabase(Archive *fout)
 
 	dbCatId.tableoid = atooid(PQgetvalue(res, 0, i_tableoid));
 	dbCatId.oid = atooid(PQgetvalue(res, 0, i_oid));
+	dopt->db_oid = dbCatId.oid;
 	datname = PQgetvalue(res, 0, i_datname);
 	dba = PQgetvalue(res, 0, i_dba);
 	encoding = PQgetvalue(res, 0, i_encoding);
@@ -15800,6 +15873,37 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
 			}
 			appendPQExpBufferChar(q, ')');
 		}
+
+#ifndef DISABLE_YB_EXTENTIONS
+		/* Additional properties for YB table or index. */
+		if (dopt->include_yb_metadata &&
+			(tbinfo->relkind == RELKIND_RELATION || tbinfo->relkind == RELKIND_INDEX))
+		{
+			/* Get the table properties from YugaByte. */
+			YBCPgTableDesc ybc_tabledesc = NULL;
+			YBCPgTableProperties properties;
+			HandleYBStatus(YBCPgGetTableDesc(dopt->db_oid, tbinfo->dobj.catId.oid, &ybc_tabledesc));
+			HandleYBStatus(YBCPgGetTableProperties(ybc_tabledesc, &properties));
+
+			if(properties.is_colocated)
+			{
+				/* For colocated-table. */
+				fprintf(stderr, "Colocated tables are not supported yet.\n");
+				exit_nicely(1);
+			}
+
+			if (properties.num_hash_key_columns > 0)
+				/* For hash-table. */
+				appendPQExpBuffer(q, "\nSPLIT INTO %u TABLETS", properties.num_tablets);
+			else if(properties.num_tablets > 1)
+			{
+				/* For range-table. */
+				fprintf(stderr, "Pre-split range tables are not supported yet.\n");
+				exit_nicely(1);
+			}
+			/* else - single shard table - supported, no need to add anything */
+		}
+#endif  /* DISABLE_YB_EXTENTIONS */
 
 		/* Dump generic options if any */
 		if (ftoptions && ftoptions[0])

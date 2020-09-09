@@ -40,6 +40,9 @@ class TransactionManager {
                      LocalTabletFilter local_tablet_filter);
   ~TransactionManager();
 
+  TransactionManager(TransactionManager&& rhs);
+  TransactionManager& operator=(TransactionManager&& rhs);
+
   void PickStatusTablet(PickStatusTabletCallback callback);
 
   rpc::Rpcs& rpcs();

@@ -13,7 +13,7 @@ isTocNested: true
 showAsideToc: true
 ---
 
-In this tutorial, we are first going to setup [JanusGraph](https://janusgraph.org/) to work with YugabyteDB as the underlying database. Then, using the Gremlin console, we are going to load some data and run some graph commands.
+In this tutorial, you are first going to setup [JanusGraph](https://janusgraph.org/) to work with YugabyteDB as the underlying database. Then, using the Gremlin console, you are going to load some data and run some graph commands.
 
 ## 1. Start local cluster
 

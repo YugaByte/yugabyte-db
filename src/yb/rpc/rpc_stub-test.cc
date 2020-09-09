@@ -760,6 +760,8 @@ TEST_F(RpcStubTest, TestRpcPerformance) {
 }
 
 TEST_F(RpcStubTest, IPv6) {
+  google::FlagSaver saver;
+  FLAGS_net_address_filter = "all";
   std::vector<IpAddress> addresses;
   GetLocalAddresses(&addresses, AddressFilter::ANY);
 

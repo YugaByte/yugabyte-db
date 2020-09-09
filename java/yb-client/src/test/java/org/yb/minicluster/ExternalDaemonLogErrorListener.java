@@ -78,6 +78,7 @@ public class ExternalDaemonLogErrorListener implements LogErrorListener {
       long timeLeftMs = deadlineMs - System.currentTimeMillis();
       while (timeLeftMs > 0 && !sawServerStarting) {
         serverStartEventMonitor.wait(timeLeftMs);
+        timeLeftMs = deadlineMs - System.currentTimeMillis();
       }
       if (!sawServerStarting) {
         throw new RuntimeException(

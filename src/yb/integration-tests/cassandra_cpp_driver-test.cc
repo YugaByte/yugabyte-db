@@ -109,9 +109,14 @@ class CppCassandraDriverTest : public ExternalMiniClusterITestBase {
         hosts, cluster_->tablet_server(0)->cql_rpc_port(), UsePartitionAwareRouting()));
 
     // Create and use default keyspace.
-    session_ = ASSERT_RESULT(driver_->CreateSession());
-    ASSERT_OK(session_.ExecuteQuery("CREATE KEYSPACE IF NOT EXISTS test;"));
-    ASSERT_OK(session_.ExecuteQuery("USE test;"));
+    auto deadline = CoarseMonoClock::now() + 15s;
+    while (CoarseMonoClock::now() < deadline) {
+      auto session = EstablishSession();
+      if (session.ok()) {
+        session_ = std::move(*session);
+        break;
+      }
+    }
   }
 
   void SetUpCluster(ExternalMiniClusterOptions* opts) override {
@@ -148,8 +153,20 @@ class CppCassandraDriverTest : public ExternalMiniClusterITestBase {
   }
 
  protected:
+  Result<CassandraSession> EstablishSession() {
+    auto session = VERIFY_RESULT(driver_->CreateSession());
+    if (!keyspace_created_.load(std::memory_order_acquire)) {
+      RETURN_NOT_OK(session.ExecuteQuery("CREATE KEYSPACE IF NOT EXISTS test"));
+      keyspace_created_.store(true, std::memory_order_release);
+    }
+
+    RETURN_NOT_OK(session.ExecuteQuery("USE test"));
+    return session;
+  }
+
   unique_ptr<CppCassandraDriver> driver_;
   CassandraSession session_;
+  std::atomic<bool> keyspace_created_{false};
 };
 
 YB_STRONGLY_TYPED_BOOL(PKOnlyIndex);
@@ -163,7 +180,7 @@ class CppCassandraDriverTestIndex : public CppCassandraDriverTest {
     return {
         "--client_read_write_timeout_ms=10000",
         "--index_backfill_upperbound_for_user_enforced_txn_duration_ms=12000",
-         "--allow_index_table_read_write=true"};
+        "--allow_index_table_read_write=true"};
   }
 
   std::vector<std::string> ExtraMasterFlags() override {
@@ -226,6 +243,12 @@ class CppCassandraDriverTestIndexMultipleChunks : public CppCassandraDriverTestI
 
 class CppCassandraDriverTestUserEnforcedIndex : public CppCassandraDriverTestIndexSlow {
  public:
+  std::vector<std::string> ExtraMasterFlags() override {
+    auto flags = CppCassandraDriverTestIndexSlow::ExtraMasterFlags();
+    flags.push_back("--disable_index_backfill_for_non_txn_tables=false");
+    return flags;
+  }
+
   std::vector<std::string> ExtraTServerFlags() override {
     auto flags = CppCassandraDriverTestIndexSlow::ExtraTServerFlags();
     flags.push_back("--client_read_write_timeout_ms=10000");
@@ -777,7 +800,7 @@ Result<IndexPermissions> WaitUntilIndexPermissionIsAtLeast(
       (exponential_backoff ? CoarseMonoClock::Duration::max() : 50ms));
   Result<IndexPermissions> result = GetIndexPermissions(client, table_name, index_table_name);
   // After INDEX_UNUSED, the index info may get deleted from the indexes.
-  bool retry_on_not_found = (min_permission != INDEX_PERM_NOT_USED);
+  const bool retry_on_not_found = (min_permission != INDEX_PERM_NOT_USED);
   while ((!result.ok() && retry_on_not_found) || (result.ok() && *result < min_permission)) {
     YB_LOG_EVERY_N_SECS(INFO, 1)
         << "Waiting since GetIndexPermissions returned "
@@ -1102,8 +1125,7 @@ TEST_F_EX(CppCassandraDriverTest, TestCreateUniqueIndexIntent, CppCassandraDrive
   }
 
   LOG(INFO) << "Creating index";
-  auto session2 = CHECK_RESULT(driver_->CreateSession());
-  ASSERT_OK(session2.ExecuteQuery("USE test;"));
+  auto session2 = CHECK_RESULT(EstablishSession());
   CassandraFuture create_index_future = session2.ExecuteGetFuture(
       "create unique index test_table_index_by_v on test_table (v);");
 
@@ -1180,8 +1202,7 @@ TEST_F_EX(
   }
 
   LOG(INFO) << "Creating index";
-  auto session2 = CHECK_RESULT(driver_->CreateSession());
-  ASSERT_OK(session2.ExecuteQuery("USE test;"));
+  auto session2 = ASSERT_RESULT(EstablishSession());
   CassandraFuture create_index_future = session2.ExecuteGetFuture(
       "create unique index test_table_index_by_v on test_table (v);");
 
@@ -1261,8 +1282,7 @@ TEST_F_EX(
   LOG(INFO) << "Creating index";
   // session_.ExecuteQuery("create unique index test_table_index_by_v on
   // test_table (v);");
-  auto session2 = CHECK_RESULT(driver_->CreateSession());
-  ASSERT_OK(session2.ExecuteQuery("USE test;"));
+  auto session2 = ASSERT_RESULT(EstablishSession());
   CassandraFuture create_index_future = session2.ExecuteGetFuture(
       "create unique index test_table_index_by_v on test_table (v);");
 
@@ -1294,6 +1314,13 @@ TEST_F_EX(
         client_.get(), table_name, index_table_name, IndexPermissions::INDEX_PERM_NOT_USED, false);
     ASSERT_TRUE(!res.ok());
     ASSERT_TRUE(res.status().IsNotFound());
+
+    AssertLoggedWaitFor(
+        [this, index_table_name]() {
+          Result<YBTableInfo> index_table_info = client_->GetYBTableInfo(index_table_name);
+          return !index_table_info && index_table_info.status().IsNotFound();
+        },
+        10s, "waiting for index to be deleted");
   }
 }
 
@@ -1327,20 +1354,45 @@ TEST_F_EX(CppCassandraDriverTest, TestCreateUniqueIndexFails, CppCassandraDriver
   ASSERT_TRUE(!res.ok());
   ASSERT_TRUE(res.status().IsNotFound());
 
+  AssertLoggedWaitFor(
+      [this, index_table_name]() {
+        Result<YBTableInfo> index_table_info = client_->GetYBTableInfo(index_table_name);
+        return !index_table_info && index_table_info.status().IsNotFound();
+      },
+      10s, "waiting for index to be deleted");
+
   LOG(INFO)
       << "Inserting more rows -- No collision checking for a failed index.";
-  ASSERT_OK(session_.ExecuteQuery(
-      "insert into test_table (k, v) values (-1, 'one');"));
-  ASSERT_OK(session_.ExecuteQuery(
-      "insert into test_table (k, v) values (-3, 'three');"));
-  ASSERT_OK(session_.ExecuteQuery(
-      "insert into test_table (k, v) values (4, 'four');"));
-  ASSERT_OK(session_.ExecuteQuery(
-      "insert into test_table (k, v) values (-4, 'four');"));
-  ASSERT_OK(session_.ExecuteQuery(
-      "insert into test_table (k, v) values (5, 'five');"));
-  ASSERT_OK(session_.ExecuteQuery(
-      "insert into test_table (k, v) values (-5, 'five');"));
+  AssertLoggedWaitFor(
+      [this]() {
+        return session_.ExecuteQuery("insert into test_table (k, v) values (-1, 'one');").ok();
+      },
+      10s, "insert after unique index creation failed.");
+  AssertLoggedWaitFor(
+      [this]() {
+        return session_.ExecuteQuery("insert into test_table (k, v) values (-3, 'three');").ok();
+      },
+      10s, "insert after unique index creation failed.");
+  AssertLoggedWaitFor(
+      [this]() {
+        return session_.ExecuteQuery("insert into test_table (k, v) values (4, 'four');").ok();
+      },
+      10s, "insert after unique index creation failed.");
+  AssertLoggedWaitFor(
+      [this]() {
+        return session_.ExecuteQuery("insert into test_table (k, v) values (-4, 'four');").ok();
+      },
+      10s, "insert after unique index creation failed.");
+  AssertLoggedWaitFor(
+      [this]() {
+        return session_.ExecuteQuery("insert into test_table (k, v) values (5, 'five');").ok();
+      },
+      10s, "insert after unique index creation failed.");
+  AssertLoggedWaitFor(
+      [this]() {
+        return session_.ExecuteQuery("insert into test_table (k, v) values (-5, 'five');").ok();
+      },
+      10s, "insert after unique index creation failed.");
 }
 
 TEST_F_EX(
@@ -1382,14 +1434,12 @@ void DoTestCreateUniqueIndexWithOnlineWrites(CppCassandraDriverTestIndex* test,
   bool create_index_failed = false;
   bool duplicate_insert_failed = false;
   {
-    auto session2 = CHECK_RESULT(test->driver_->CreateSession());
-    ASSERT_OK(session2.ExecuteQuery("USE test;"));
+    auto session2 = ASSERT_RESULT(test->EstablishSession());
 
     CassandraFuture create_index_future = session2.ExecuteGetFuture(
         "create unique index test_table_index_by_v on test_table (v);");
 
-    auto session3 = CHECK_RESULT(test->driver_->CreateSession());
-    ASSERT_OK(session3.ExecuteQuery("USE test;"));
+    auto session3 = ASSERT_RESULT(test->EstablishSession());
     ASSERT_RESULT(WaitUntilIndexPermissionIsAtLeast(
         test->client_.get(), table_name, index_table_name,
         IndexPermissions::INDEX_PERM_WRITE_AND_DELETE));
@@ -1445,16 +1495,15 @@ void DoTestCreateUniqueIndexWithOnlineWrites(CppCassandraDriverTestIndex* test,
 
   auto main_table_size =
       ASSERT_RESULT(GetTableSize(&test->session_, "test_table"));
-  auto index_table_size =
-      ASSERT_RESULT(GetTableSize(&test->session_, "test_table_index_by_v"));
+  auto index_table_size_result = GetTableSize(&test->session_, "test_table_index_by_v");
 
   if (!create_index_failed) {
-    EXPECT_EQ(main_table_size, index_table_size);
+    EXPECT_TRUE(index_table_size_result);
+    EXPECT_EQ(main_table_size, *index_table_size_result);
   } else {
     LOG(INFO) << "create index failed. "
-              << "main_table_size " << main_table_size
-              << " is allowed to differ from "
-              << "index_table_size " << index_table_size;
+              << "main_table_size " << main_table_size << " is allowed to differ from "
+              << "index_table_size_result " << index_table_size_result;
   }
   if (delete_before_insert) {
     // Expect both the create index, and the duplicate insert to succeed.
@@ -1494,14 +1543,12 @@ TEST_F_EX(CppCassandraDriverTest, TestIndexUpdateConcurrentTxn, CppCassandraDriv
 
   LOG(INFO) << "Creating index";
   {
-    auto session2 = CHECK_RESULT(driver_->CreateSession());
-    ASSERT_OK(session2.ExecuteQuery("USE test;"));
+    auto session2 = ASSERT_RESULT(EstablishSession());
 
     CassandraFuture create_index_future =
         session2.ExecuteGetFuture("create index test_table_index_by_v on test_table (v);");
 
-    auto session3 = CHECK_RESULT(driver_->CreateSession());
-    ASSERT_OK(session3.ExecuteQuery("USE test;"));
+    auto session3 = ASSERT_RESULT(EstablishSession());
     ASSERT_RESULT(WaitUntilIndexPermissionIsAtLeast(
         client_.get(), table_name, index_table_name, IndexPermissions::INDEX_PERM_DELETE_ONLY));
 
@@ -1510,9 +1557,10 @@ TEST_F_EX(CppCassandraDriverTest, TestIndexUpdateConcurrentTxn, CppCassandraDriv
     WARN_NOT_OK(session3.ExecuteQuery("update test_table set v = 'bar' where  k = 2;"),
                 "updating k =2 failed.");
 
-    ASSERT_RESULT(WaitUntilIndexPermissionIsAtLeast(
+    auto perm = ASSERT_RESULT(WaitUntilIndexPermissionIsAtLeast(
         client_.get(), table_name, index_table_name,
         IndexPermissions::INDEX_PERM_READ_WRITE_AND_DELETE));
+    LOG(INFO) << "IndexPermissions is now " << IndexPermissions_Name(perm);
   }
 
   auto main_table_size = ASSERT_RESULT(GetTableSize(&session_, "test_table"));
@@ -1529,37 +1577,40 @@ TEST_F_EX(CppCassandraDriverTest, TestCreateMultipleIndex, CppCassandraDriverTes
   ASSERT_OK(session_.ExecuteQuery("insert into test_table (k1, k2, v) values (1, 1, 'one');"));
 
   LOG(INFO) << "Creating index";
-  auto session2 = CHECK_RESULT(driver_->CreateSession());
-  ASSERT_OK(session2.ExecuteQuery("USE test;"));
+  auto session2 = ASSERT_RESULT(EstablishSession());
   CassandraFuture create_index_future =
       session2.ExecuteGetFuture("create index test_table_index_by_v on test_table (v);");
 
   LOG(INFO) << "Inserting one row";
-  ASSERT_OK(session_.ExecuteQuery("insert into test_table (k1, k2, v) values (2, 2,'two');"));
-  ASSERT_OK(session_.ExecuteQuery("insert into test_table (k1, k2, v) values (3, 3, 'three');"));
+  WARN_NOT_OK(
+      session_.ExecuteQuery("insert into test_table (k1, k2, v) values (2, 2,'two');"),
+      "insert failed");
+  WARN_NOT_OK(
+      session_.ExecuteQuery("insert into test_table (k1, k2, v) values (3, 3, 'three');"),
+      "insert failed");
 
   constexpr auto kNamespace = "test";
   const YBTableName table_name(YQL_DATABASE_CQL, kNamespace, "test_table");
   const YBTableName index_table_name(YQL_DATABASE_CQL, kNamespace, "test_table_index_by_v");
 
   LOG(INFO) << "Creating index 2";
-  auto session3 = CHECK_RESULT(driver_->CreateSession());
-  ASSERT_OK(session3.ExecuteQuery("USE test;"));
+  auto session3 = ASSERT_RESULT(EstablishSession());
   CassandraFuture create_index_future2 =
       session2.ExecuteGetFuture("create index test_table_index_by_k2 on test_table (k2);");
   const YBTableName index_table_name2(YQL_DATABASE_CQL, kNamespace, "test_table_index_by_k2");
 
   IndexPermissions perm;
   perm = ASSERT_RESULT(WaitUntilIndexPermissionIsAtLeast(
-      client_.get(), table_name, index_table_name, IndexPermissions::INDEX_PERM_WRITE_AND_DELETE));
-  ASSERT_TRUE(perm != IndexPermissions::INDEX_PERM_READ_WRITE_AND_DELETE);
+      client_.get(), table_name, index_table_name,
+      IndexPermissions::INDEX_PERM_READ_WRITE_AND_DELETE));
+  ASSERT_EQ(perm, IndexPermissions::INDEX_PERM_READ_WRITE_AND_DELETE);
   LOG(INFO) << "Index table " << index_table_name.ToString()
             << " created to INDEX_PERM_READ_WRITE_AND_DELETE";
 
   perm = ASSERT_RESULT(WaitUntilIndexPermissionIsAtLeast(
       client_.get(), table_name, index_table_name2,
       IndexPermissions::INDEX_PERM_READ_WRITE_AND_DELETE));
-  ASSERT_TRUE(perm == IndexPermissions::INDEX_PERM_READ_WRITE_AND_DELETE);
+  ASSERT_EQ(perm, IndexPermissions::INDEX_PERM_READ_WRITE_AND_DELETE);
   LOG(INFO) << "Index " << index_table_name2.ToString()
             << " created to INDEX_PERM_READ_WRITE_AND_DELETE";
 
@@ -1584,15 +1635,12 @@ TEST_F_EX(CppCassandraDriverTest, TestDeleteAndCreateIndex, CppCassandraDriverTe
     auto prepared = ASSERT_RESULT(table.PrepareInsert(&session, 10s));
     int32_t key = 0;
     constexpr int32_t kMaxKeys = 10000;
-    CoarseBackoffWaiter waiter(CoarseMonoClock::TimePoint::max(), 2500ms);
     while (!stop) {
       key = (key + 1) % kMaxKeys;
       auto statement = prepared.Bind();
       ColumnsType tuple(key, key);
       table.BindInsert(&statement, tuple);
       WARN_NOT_OK(session.Execute(statement), "Insert failed.");
-      SleepFor(MonoDelta::FromMilliseconds(500));
-      waiter.Wait();
     }
   });
 
@@ -1737,28 +1785,48 @@ TEST_F_EX(CppCassandraDriverTest, ConcurrentIndexUpdate, CppCassandraDriverTestI
     }
   }
 
-  {
+  for (;;) {
     constexpr int kBatchKey = 42;
-    CassandraBatch batch(CassBatchType::CASS_BATCH_TYPE_LOGGED);
-    auto statement1 = prepared.Bind();
-    table.BindInsert(&statement1, ColumnsType(kBatchKey, -100));
-    batch.Add(&statement1);
-    auto statement2 = prepared.Bind();
-    table.BindInsert(&statement2, ColumnsType(kBatchKey, -200));
-    batch.Add(&statement2);
-    ASSERT_OK(session_.ExecuteBatch(batch));
 
-    auto result = ASSERT_RESULT(session_.ExecuteWithResult("select * from index_by_value"));
-    auto iterator = result.CreateIterator();
-    while (iterator.Next()) {
-      auto row = iterator.Row();
-      auto key = row.Value(0).As<int>();
-      auto value = row.Value(1).As<int>();
-      if (value < 0) {
-        ASSERT_EQ(key, kBatchKey);
-        ASSERT_EQ(value, -200);
-      }
+    auto insert_status = session_.ExecuteQuery(Format(
+        "BEGIN TRANSACTION "
+        "INSERT INTO key_value (key, value) VALUES ($0, $1);"
+        "INSERT INTO key_value (key, value) VALUES ($0, $2);"
+        "END TRANSACTION;",
+        kBatchKey, -100, -200));
+    if (!insert_status.ok()) {
+      LOG(INFO) << "Insert failed: " << insert_status;
+      continue;
     }
+
+    for (;;) {
+      auto result = session_.ExecuteWithResult("select * from index_by_value");
+      if (!result.ok()) {
+        LOG(WARNING) << "Read failed: " << result.status();
+        continue;
+      }
+      auto iterator = result->CreateIterator();
+      int num_bad = 0;
+      int num_good = 0;
+      while (iterator.Next()) {
+        auto row = iterator.Row();
+        auto key = row.Value(0).As<int>();
+        auto value = row.Value(1).As<int>();
+        if (value < 0) {
+          LOG(INFO) << "Key: " << key << ", value: " << value;
+          ASSERT_EQ(key, kBatchKey);
+          if (value == -200) {
+            ++num_good;
+          } else {
+            ++num_bad;
+          }
+        }
+      }
+      ASSERT_EQ(num_good, 1);
+      ASSERT_EQ(num_bad, 0);
+      break;
+    }
+    break;
   }
 }
 
@@ -1992,13 +2060,8 @@ TEST_F(CppCassandraDriverTest, TestInsertLocality) {
 class CppCassandraDriverLowSoftLimitTest : public CppCassandraDriverTest {
  public:
   std::vector<std::string> ExtraTServerFlags() override {
-    return {"--memory_limit_soft_percentage=0"s};
-  }
-
-  bool UsePartitionAwareRouting() override {
-    // TODO: Disable partition aware routing in this test because of TSAN issue (#1837).
-    // Should be reenabled when issue is fixed.
-    return false;
+    return {"--memory_limit_soft_percentage=0"s,
+            "--throttle_cql_calls_on_soft_memory_limit=false"s};
   }
 };
 
@@ -2028,7 +2091,7 @@ TEST_F_EX(CppCassandraDriverTest, BatchWriteDuringSoftMemoryLimit,
     thread_holder.AddThreadFunctor(
         [this, &stop = thread_holder.stop_flag(), &table, &metric_ts, &total_writes] {
       SetFlagOnExit set_flag_on_exit(&stop);
-      auto session = ASSERT_RESULT(EstablishSession(driver_.get()));
+      auto session = ASSERT_RESULT(EstablishSession());
       std::vector<CassandraFuture> futures;
       while (!stop.load()) {
         CassandraBatch batch(CassBatchType::CASS_BATCH_TYPE_LOGGED);
@@ -2172,7 +2235,7 @@ TEST_F_EX(CppCassandraDriverTest, ManyTables, CppCassandraDriverTestThreeMasters
     thread_holder.AddThreadFunctor(
         [this, &stop = thread_holder.stop_flag(), thread = i, &kTableNameFormat, &tables] {
           SetFlagOnExit set_flag_on_exit(&stop);
-          auto session = ASSERT_RESULT(EstablishSession(driver_.get()));
+          auto session = ASSERT_RESULT(EstablishSession());
           int idx = 0;
           while (!stop.load(std::memory_order_acquire)) {
             MyTable table;
@@ -2257,7 +2320,7 @@ TEST_F_EX(CppCassandraDriverTest, Rejection, CppCassandraDriverRejectionTest) {
         [this, &stop = thread_holder.stop_flag(), &table, &key, &pending_writes,
          &max_pending_writes] {
       SetFlagOnExit set_flag_on_exit(&stop);
-      auto session = ASSERT_RESULT(EstablishSession(driver_.get()));
+      auto session = ASSERT_RESULT(EstablishSession());
       while (!stop.load()) {
         CassandraBatch batch(CassBatchType::CASS_BATCH_TYPE_LOGGED);
         auto prepared = table.PrepareInsert(&session);
@@ -2327,6 +2390,58 @@ TEST_F(CppCassandraDriverTest, BigQueryExpr) {
   ASSERT_TRUE(iterator.Next());
   LOG(INFO) << "Result: " << iterator.Row().Value(0).ToString();
   ASSERT_FALSE(iterator.Next());
+}
+
+class CppCassandraDriverSmallSoftLimitTest : public CppCassandraDriverTest {
+ public:
+  std::vector <std::string> ExtraTServerFlags() override {
+    return {
+        Format("--memory_limit_hard_bytes=$0", 100_MB),
+        "--memory_limit_soft_percentage=10"
+    };
+  }
+
+  bool UsePartitionAwareRouting() override {
+    // Disable partition aware routing in this test because of TSAN issue (#1837).
+    // Should be reenabled when issue is fixed.
+    return false;
+  }
+};
+
+TEST_F_EX(CppCassandraDriverTest, Throttle, CppCassandraDriverSmallSoftLimitTest) {
+  const std::string kTableName = "test.key_value";
+  typedef TestTable<std::string> MyTable;
+  MyTable table;
+  ASSERT_OK(table.CreateTable(&session_, kTableName, {"key"}, {"(key)"}));
+
+  constexpr size_t kValueSize = 1_KB;
+
+  CassandraPrepared prepared;
+  for (;;) {
+    auto temp_prepared = session_.Prepare(
+        Format("INSERT INTO $0 (key) VALUES (?);", kTableName));
+    if (temp_prepared.ok()) {
+      prepared = std::move(*temp_prepared);
+      break;
+    }
+    LOG(INFO) << "Prepare failure: " << temp_prepared.status();
+  }
+
+  bool has_failure = false;
+
+  auto deadline = CoarseMonoClock::now() + 60s;
+  while (CoarseMonoClock::now() < deadline) {
+    auto statement = prepared.Bind();
+    statement.Bind(0, RandomHumanReadableString(kValueSize));
+    auto status = session_.Execute(statement);
+    if (!status.ok()) {
+      ASSERT_TRUE(status.IsServiceUnavailable() || status.IsTimedOut()) << status;
+      has_failure = true;
+      break;
+    }
+  }
+
+  ASSERT_TRUE(RegularBuildVsSanitizers(has_failure, true));
 }
 
 }  // namespace yb

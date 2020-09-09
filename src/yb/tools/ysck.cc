@@ -484,7 +484,7 @@ bool Ysck::VerifyTablet(const shared_ptr<YsckTablet>& tablet, int table_num_repl
   }
   int leaders_count = 0;
   int followers_count = 0;
-  for (const shared_ptr<YsckTabletReplica> replica : replicas) {
+  for (const shared_ptr<YsckTabletReplica>& replica : replicas) {
     if (replica->is_leader()) {
       VLOG(1) << Substitute("Replica at $0 is a LEADER", replica->ts_uuid());
       leaders_count++;

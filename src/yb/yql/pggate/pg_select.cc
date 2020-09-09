@@ -51,8 +51,7 @@ Status PgSelect::Prepare() {
   // Allocate READ requests to send to DocDB.
   auto read_op = target_desc_->NewPgsqlSelect();
   read_req_ = read_op->mutable_request();
-  auto doc_op = make_shared<PgDocReadOp>(pg_session_, target_desc_,
-                                         target_desc_->num_hash_key_columns(), std::move(read_op));
+  auto doc_op = make_shared<PgDocReadOp>(pg_session_, target_desc_, std::move(read_op));
 
   // Prepare the index selection if this operation is using the index.
   RETURN_NOT_OK(PrepareSecondaryIndex());

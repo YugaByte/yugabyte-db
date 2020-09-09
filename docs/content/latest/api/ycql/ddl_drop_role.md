@@ -2,7 +2,6 @@
 title: DROP ROLE statement [YCQL]
 headerTitle: DROP ROLE
 linkTitle: DROP ROLE
-summary: Drop role
 description: Use the DROP ROLE statement to delete an existing role.
 menu:
   latest:

@@ -55,12 +55,12 @@ DECLARE_int32(heartbeat_interval_ms);
 DECLARE_bool(log_preallocate_segments);
 DECLARE_bool(TEST_log_consider_all_ops_safe);
 DECLARE_bool(TEST_enable_remote_bootstrap);
+DECLARE_bool(use_preelection);
 DECLARE_int32(leader_failure_exp_backoff_max_delta_ms);
 DECLARE_int32(tserver_unresponsive_timeout_ms);
 DECLARE_int32(raft_heartbeat_interval_ms);
 DECLARE_int32(TEST_slowdown_master_async_rpc_tasks_by_ms);
 DECLARE_int32(unresponsive_ts_rpc_timeout_ms);
-DECLARE_string(vmodule);
 
 DEFINE_int32(num_test_tablets, 60, "Number of tablets for stress test");
 
@@ -78,15 +78,15 @@ class MasterPartitionedTest : public YBMiniClusterTestBase<MiniCluster> {
 
   void SetUp() override {
     // Make heartbeats faster to speed test runtime.
-    FLAGS_heartbeat_interval_ms = 10;
-    FLAGS_raft_heartbeat_interval_ms = 200;
+    FLAGS_heartbeat_interval_ms = kTimeMultiplier * 10;
+    FLAGS_raft_heartbeat_interval_ms = kTimeMultiplier * 200;
     FLAGS_unresponsive_ts_rpc_timeout_ms = 10000;  // 10 sec.
 
     FLAGS_leader_failure_exp_backoff_max_delta_ms = 5000;
     FLAGS_TEST_slowdown_master_async_rpc_tasks_by_ms = 100;
-    FLAGS_vmodule = "catalog_manager=2,async_rpc_tasks=2";
 
     FLAGS_TEST_log_consider_all_ops_safe = true;
+    FLAGS_num_test_tablets = RegularBuildVsSanitizers(60, 10);
 
     YBMiniClusterTestBase::SetUp();
     MiniClusterOptions opts;
@@ -140,63 +140,10 @@ class MasterPartitionedTest : public YBMiniClusterTestBase<MiniCluster> {
 
   void CreateTable(const YBTableName& table_name, int num_tablets);
 
-  void CheckLeaderMasterIsResponsive(int master_idx);
-
  protected:
   std::unique_ptr<YBClient> client_;
   int32_t num_tservers_ = 5;
 };
-
-void MasterPartitionedTest::CheckLeaderMasterIsResponsive(int master_idx) {
-  master::MiniMaster* master = cluster_->mini_master(master_idx);
-  auto role = master->master()->catalog_manager()->Role();
-  if (role != consensus::RaftPeerPB::LEADER) {
-    LOG(ERROR) << "Master " << master_idx << " is not the leader. It is " << yb::ToString(role);
-    return;
-  }
-  // cluster_->leader_mini_master() will retry and wait until the the leader
-  // is ready to serve.
-  master::MiniMaster* leader_master = cluster_->leader_mini_master();
-  if (!leader_master) {
-    // We may be in an election storm. So if we are at least making progress wrt the
-    // error messages that we get (which contains the term/ready_term) we will not
-    // consider it as a failure.
-    Status leader_status_before, leader_status_after;
-    {
-      master::CatalogManager::ScopedLeaderSharedLock l(master->master()->catalog_manager());
-      if (!l.catalog_status().ok()) {
-        LOG(INFO) << "Catalog status is not ok. " << l.catalog_status();
-        return;
-      }
-      leader_status_before = l.leader_status();
-    }
-    if (leader_status_before.ok()) {
-      return;
-    }
-    SleepFor(MonoDelta::FromMilliseconds(2 * FLAGS_leader_failure_exp_backoff_max_delta_ms));
-    {
-      master::CatalogManager::ScopedLeaderSharedLock l(master->master()->catalog_manager());
-      if (!l.catalog_status().ok()) {
-        LOG(INFO) << "Catalog status is not ok. " << l.catalog_status();
-        return;
-      }
-      leader_status_after = l.leader_status();
-    }
-    if (leader_status_after.ok()) {
-      return;
-    }
-
-    LOG(INFO) << "Master leader is not ready. Looking for some progress "
-              << " in " << yb::ToString(2 * FLAGS_leader_failure_exp_backoff_max_delta_ms) << " ms"
-              << "\nleader status before sleep " << leader_status_before
-              << "\nleader status  after sleep " << leader_status_after;
-    CHECK(leader_status_before.ToString(false) != leader_status_after.ToString(false))
-        << "Master leader is not ready. And not making progress even after "
-        << yb::ToString(2 * FLAGS_leader_failure_exp_backoff_max_delta_ms) << " ms"
-        << "\n leader status before sleep " << leader_status_before
-        << "\n leader status  after sleep " << leader_status_after;
-  }
-}
 
 void MasterPartitionedTest::CreateTable(const YBTableName& table_name, int num_tablets) {
   ASSERT_OK(client_->CreateNamespaceIfNotExists(table_name.namespace_name(),
@@ -212,39 +159,83 @@ void MasterPartitionedTest::CreateTable(const YBTableName& table_name, int num_t
 }
 
 TEST_F(MasterPartitionedTest, CauseMasterLeaderStepdownWithTasksInProgress) {
+  // This test was added during Jepsen/CQL testing before preelections
+  // were implemented. Enabling preelections will prevent us from getting
+  // into the case that we want to test -- where the master leader has to
+  // step down because it sees that another master has moved on to a higher
+  // term.
+  FLAGS_use_preelection = false;
+
   DontVerifyClusterBeforeNextTearDown();
 
   // Break connectivity so that :
   //   master 0 can make outgoing RPCs to 1 and 2.
   //   but 1 and 2 cannot do Outgoing rpcs.
   // This should result in master 0 becoming the leader.
+  //   Network topology:  1 <-- 0 --> 2
   BreakMasterConnectivityTo(1, 0);
   BreakMasterConnectivityTo(1, 2);
   BreakMasterConnectivityTo(2, 1);
   BreakMasterConnectivityTo(2, 0);
 
-  // Allow some time for master 0 to become the leader
-  SleepFor(MonoDelta::FromMilliseconds(4000));
-  ASSERT_OK(cluster_->WaitForTabletServerCount(num_tservers_));
+  auto wait_for_0_as_leader = [this]() {
+    auto l = cluster_->leader_mini_master();
+    return l != nullptr && l->permanent_uuid() == cluster_->mini_master(0)->permanent_uuid();
+  };
+  ASSERT_OK(Wait(wait_for_0_as_leader, MonoTime::kMax, "Wait for master 0 to become the leader"));
+
+  ASSERT_OK(Wait(
+      [this]() { return cluster_->WaitForTabletServerCount(num_tservers_).ok(); },
+      MonoTime::kMax,
+      "Wait for master 0 to hear from all tservers"));
 
   YBTableName table_name(YQL_DATABASE_REDIS, "my_keyspace", "test_table");
   ASSERT_NO_FATALS(CreateTable(table_name, FLAGS_num_test_tablets));
   LOG(INFO) << "Created table successfully!";
 
-  for (int i = 0; i < 10; i++) {
+  constexpr int kNumLoops = 3;
+  for (int i = 0; i < kNumLoops; i++) {
     LOG(INFO) << "iteration " << i;
+    consensus::ConsensusStatePB cpb;
+    ASSERT_OK(cluster_->mini_master(0)->master()->catalog_manager()->GetCurrentConfig(&cpb));
+    const auto initial_term = cpb.current_term();
+
     // master-0 cannot send updates to master 2. This will cause master-2
     // to increase its term. And cause the leader (master-0) to step down
     // and re-elect himself
     BreakMasterConnectivityTo(0, 2);
-
-    SleepFor(MonoDelta::FromMilliseconds(4000));
-    CheckLeaderMasterIsResponsive(0);
+    ASSERT_OK(Wait(
+        [this, initial_term]() {
+          consensus::ConsensusStatePB cpb;
+          return cluster_->mini_master(2)
+                     ->master()
+                     ->catalog_manager()
+                     ->GetCurrentConfig(&cpb)
+                     .ok() &&
+                 cpb.current_term() > initial_term;
+        },
+        MonoTime::kMax,
+        "Wait for master 2 to do elections and increase the term"));
 
     RestoreMasterConnectivityTo(0, 2);
-    // Give some time for the master to realize the higher term from master-2.
-    SleepFor(MonoDelta::FromMilliseconds(1000));
-    CheckLeaderMasterIsResponsive(0);
+
+    ASSERT_OK(cluster_->mini_master(2)->master()->catalog_manager()->GetCurrentConfig(&cpb));
+    const auto new_term = cpb.current_term();
+    ASSERT_OK(Wait(
+        [this, new_term]() {
+          consensus::ConsensusStatePB cpb;
+          return cluster_->mini_master(0)
+                     ->master()
+                     ->catalog_manager()
+                     ->GetCurrentConfig(&cpb)
+                     .ok() &&
+                 cpb.current_term() > new_term;
+        },
+        MonoTime::kMax,
+        "Wait for master 0 to update its term"));
+
+    ASSERT_OK(
+        Wait(wait_for_0_as_leader, MonoTime::kMax, "Wait for master 0 to become the leader again"));
   }
 }
 

@@ -111,7 +111,7 @@ Add a node to the universe.
 $ ./yb-docker-ctl add_node --num_shards_per_tserver 4
 ```
 
-Now we should have four nodes. Refresh the <a href='http://localhost:7000/tablet-servers' target="_blank">tablet-servers</a> page to see the stats update. In a short time, you should see the new node performing a comparable number of reads and writes as the other nodes.
+Now you should have four nodes. Refresh the <a href='http://localhost:7000/tablet-servers' target="_blank">tablet-servers</a> page to see the stats update. In a short time, you should see the new node performing a comparable number of reads and writes as the other nodes.
 
 ![Read and write IOPS with 4 nodes - Rebalancing in progress](/images/ce/linear-scalability-4-nodes-docker.png)
 

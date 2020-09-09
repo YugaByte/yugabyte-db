@@ -2477,7 +2477,7 @@ setlocales(void)
 			stderr,
 			_("In YugabyteDB, setting LC_COLLATE to %s and all other locale settings to %s "
 			  "by default. Locale support will be enhanced as part of addressing "
-			  "https://github.com/yugabyte/yugabyte-db/issues/1557"),
+			  "https://github.com/yugabyte/yugabyte-db/issues/1557\n"),
 			lc_collate, locale);
 	}
 

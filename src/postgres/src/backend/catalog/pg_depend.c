@@ -27,6 +27,7 @@
 #include "utils/fmgroids.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
+#include "utils/syscache.h"
 #include "utils/tqual.h"
 
 #include "pg_yb_utils.h"
@@ -389,6 +390,9 @@ changeDependencyFor(Oid classId, Oid objectId,
 static bool
 isObjectPinned(const ObjectAddress *object, Relation rel)
 {
+	if (YBHasPinnedObjectsCache())
+		return YBIsObjectPinned(object->classId, object->objectId);
+
 	bool		ret = false;
 	SysScanDesc scan;
 	HeapTuple	tup;

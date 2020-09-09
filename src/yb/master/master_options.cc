@@ -36,6 +36,8 @@
 #include <gflags/gflags.h>
 
 #include "yb/master/master.h"
+#include "yb/master/master_defaults.h"
+#include "yb/server/server_base_options.h"
 #include "yb/util/flag_tags.h"
 
 using std::make_shared;
@@ -65,9 +67,9 @@ TAG_FLAG(create_cluster, hidden);
 
 const char* MasterOptions::kServerType = "master";
 
-MasterOptions::MasterOptions(server::MasterAddressesPtr master_addresses) {
+MasterOptions::MasterOptions(server::MasterAddressesPtr master_addresses)
+    : ServerBaseOptions(kMasterDefaultPort) {
   server_type = kServerType;
-  rpc_opts.default_port = kMasterDefaultPort;
 
   SetMasterAddresses(master_addresses);
 }

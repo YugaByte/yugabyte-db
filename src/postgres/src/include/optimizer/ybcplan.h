@@ -26,6 +26,7 @@
 #include "postgres.h"
 #include "nodes/plannodes.h"
 #include "nodes/relation.h"
+#include "utils/rel.h"
 
 
 void YBCExprInstantiateParams(Expr* expr, ParamListInfo paramLI);
@@ -40,7 +41,7 @@ bool YBCIsSingleRowModify(PlannedStmt *pstmt);
 
 bool YBCIsSingleRowUpdateOrDelete(ModifyTable *modifyTable);
 
-bool YBCAllPrimaryKeysProvided(Oid relid, Bitmapset *attrs);
+bool YBCAllPrimaryKeysProvided(Relation rel, Bitmapset *attrs);
 
 #endif // YBCPLAN_H
 

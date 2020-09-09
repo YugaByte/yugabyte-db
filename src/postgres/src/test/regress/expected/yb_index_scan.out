@@ -38,11 +38,11 @@ SELECT * FROM pk_asc ORDER BY k DESC;
 (3 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM pk_asc ORDER BY k NULLS FIRST;
-          QUERY PLAN
-------------------------------
+        QUERY PLAN
+---------------------------
  Sort
    Sort Key: k NULLS FIRST
-   ->  Foreign Scan on pk_asc
+   ->  Seq Scan on pk_asc
 (3 rows)
 
 SELECT * FROM pk_asc ORDER BY k NULLS FIRST;
@@ -64,11 +64,11 @@ SELECT * FROM pk_desc;
 (3 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM pk_desc ORDER BY k;
-          QUERY PLAN
--------------------------------
+        QUERY PLAN
+---------------------------
  Sort
    Sort Key: k
-   ->  Foreign Scan on pk_desc
+   ->  Seq Scan on pk_desc
 (3 rows)
 
 SELECT * FROM pk_desc ORDER BY k;
@@ -80,11 +80,11 @@ SELECT * FROM pk_desc ORDER BY k;
 (3 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM pk_desc ORDER BY k DESC;
-          QUERY PLAN
--------------------------------
+        QUERY PLAN
+---------------------------
  Sort
    Sort Key: k DESC
-   ->  Foreign Scan on pk_desc
+   ->  Seq Scan on pk_desc
 (3 rows)
 
 SELECT * FROM pk_desc ORDER BY k DESC;
@@ -132,11 +132,11 @@ CREATE TABLE usc_asc(k int, v int);
 CREATE UNIQUE INDEX ON usc_asc(v ASC NULLS FIRST);
 INSERT INTO usc_asc VALUES (44, NULL),(22, 20),(33, 30),(11, 10),(44, NULL);
 EXPLAIN (COSTS OFF) SELECT * FROM usc_asc ORDER BY v;
-          QUERY PLAN
--------------------------------
+        QUERY PLAN
+---------------------------
  Sort
    Sort Key: v
-   ->  Foreign Scan on usc_asc
+   ->  Seq Scan on usc_asc
 (3 rows)
 
 SELECT * FROM usc_asc ORDER BY v;
@@ -204,11 +204,11 @@ CREATE TABLE sc_desc(k int, v int);
 CREATE INDEX ON sc_desc(v DESC NULLS LAST);
 INSERT INTO sc_desc VALUES (4, NULL),(2, 20),(3, 30),(1, 10),(4, NULL);
 EXPLAIN (COSTS OFF) SELECT * FROM sc_desc ORDER BY v;
-          QUERY PLAN
--------------------------------
+        QUERY PLAN
+---------------------------
  Sort
    Sort Key: v
-   ->  Foreign Scan on sc_desc
+   ->  Seq Scan on sc_desc
 (3 rows)
 
 SELECT * FROM sc_desc ORDER BY v;

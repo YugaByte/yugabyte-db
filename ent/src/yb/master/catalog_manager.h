@@ -190,8 +190,9 @@ class CatalogManager : public yb::master::CatalogManager, SnapshotCoordinatorCon
     ImportSnapshotMetaResponsePB_TableMetaPB* table_meta;
   };
 
-  // Map: old_namespace_id (key) -> new_namespace_id (value).
-  typedef std::map<NamespaceId, NamespaceId> NamespaceMap;
+  // Map: old_namespace_id (key) -> new_namespace_id (value) + db_type.
+  typedef std::pair<NamespaceId, YQLDatabase> NamespaceData;
+  typedef std::map<NamespaceId, NamespaceData> NamespaceMap;
   typedef std::map<TableId, ExternalTableSnapshotData> ExternalTableSnapshotDataMap;
 
   CHECKED_STATUS ImportSnapshotPreprocess(const SysSnapshotEntryPB& snapshot_pb,
@@ -213,11 +214,11 @@ class CatalogManager : public yb::master::CatalogManager, SnapshotCoordinatorCon
                                 const ExternalTableSnapshotDataMap& tables_data);
 
   CHECKED_STATUS ImportNamespaceEntry(const SysRowEntry& entry,
-                                      NamespaceMap* ns_map);
+                                      NamespaceMap* namespace_map);
   CHECKED_STATUS RecreateTable(const NamespaceId& new_namespace_id,
                                const ExternalTableSnapshotDataMap& table_map,
                                ExternalTableSnapshotData* table_data);
-  CHECKED_STATUS ImportTableEntry(const NamespaceMap& ns_map,
+  CHECKED_STATUS ImportTableEntry(const NamespaceMap& namespace_map,
                                   const ExternalTableSnapshotDataMap& table_map,
                                   ExternalTableSnapshotData* s_data);
   CHECKED_STATUS PreprocessTabletEntry(const SysRowEntry& entry,
@@ -297,9 +298,6 @@ class CatalogManager : public yb::master::CatalogManager, SnapshotCoordinatorCon
   void MergeUniverseReplication(scoped_refptr<UniverseReplicationInfo> info);
   void DeleteUniverseReplicationUnlocked(scoped_refptr<UniverseReplicationInfo> info);
   void MarkUniverseReplicationFailed(scoped_refptr<UniverseReplicationInfo> universe);
-
-  Result<std::vector<TableDescription>> CollectTables(
-      const google::protobuf::RepeatedPtrField<TableIdentifierPB>& tables, bool add_indexes);
 
   CHECKED_STATUS CreateTransactionAwareSnapshot(
       const CreateSnapshotRequestPB& req, CreateSnapshotResponsePB* resp, rpc::RpcContext* rpc);

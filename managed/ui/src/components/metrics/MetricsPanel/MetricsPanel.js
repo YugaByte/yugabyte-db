@@ -26,7 +26,7 @@ export default class MetricsPanel extends Component {
     metricKey: PropTypes.string.isRequired
   }
 
-  componentDidMount() {
+  plotGraph = () => {
     const { metricKey, metric } = this.props;
     if (isNonEmptyObject(metric)) {
       // Remove Null Properties from the layout
@@ -41,6 +41,7 @@ export default class MetricsPanel extends Component {
       }
 
       metric.layout.xaxis.hoverformat = '%H:%M:%S, %b %d, %Y';
+
       // TODO: send this data from backend.
       let max = 0;
       metric.data.forEach(function (data) {
@@ -100,10 +101,24 @@ export default class MetricsPanel extends Component {
     }
   }
 
-  componentDidUpdate(prevProps) {
+  componentDidMount() {
+    this.plotGraph();
+  }
+
+  componentDidUpdate(prevProps) {    
     if (this.props.width !== prevProps.width) {
       Plotly.relayout(prevProps.metricKey, {width: this.getGraphWidth(this.props.width)});
-    }
+    } else {
+      // All graph lines have the same x-axis, so get the first
+      // and compare unix time interval
+      const prevTime = prevProps.metric.data[0]?.x;
+      const currTime = this.props.metric.data[0]?.x;      
+      if (prevTime && currTime && (prevTime[0] !== currTime[0] ||
+        prevTime[prevTime.length - 1] !== currTime[currTime.length - 1])) {
+          // Re-plot graph
+          this.plotGraph();
+      }
+    }    
   }
 
   getGraphWidth(containerWidth) {

@@ -106,28 +106,19 @@ function(DETECT_BREW)
   # Detect Linuxbrew. The logic needs to be consistent with the detect_linuxbrew function in
   # common-build-env.sh.
   set(USING_LINUXBREW FALSE)
-  set(USING_CUSTOM_HOMEBREW FALSE)
-  if(APPLE)
-    set(CUSTOM_HOMEBREW_DIR "$ENV{YB_CUSTOM_HOMEBREW_DIR}")
-    if("${CUSTOM_HOMEBREW_DIR}" STREQUAL "")
-      set(CUSTOM_HOMEBREW_DIR "$ENV{HOME}/.linuxbrew-yb-build")
-    endif()
-    if(EXISTS "${CUSTOM_HOMEBREW_DIR}/bin" AND
-       EXISTS "${CUSTOM_HOMEBREW_DIR}/lib")
-      message("Custom Homebrew installation found at ${CUSTOM_HOMEBREW_DIR}")
-      set(USING_CUSTOM_HOMEBREW TRUE)
-    else()
-      message("Not using custom Homebrew: no valid Homebrew installation found at "
-              "${CUSTOM_HOMEBREW_DIR}")
-    endif()
-  else()
+  if(NOT APPLE)
     set(LINUXBREW_DIR "$ENV{YB_LINUXBREW_DIR}")
     if("${LINUXBREW_DIR}" STREQUAL "")
-      set(LINUXBREW_DIR "$ENV{HOME}/.linuxbrew-yb-build")
+      if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/linuxbrew_path.txt")
+        file(STRINGS "${CMAKE_CURRENT_BINARY_DIR}/linuxbrew_path.txt" LINUXBREW_DIR)
+      else()
+        set(LINUXBREW_DIR "$ENV{HOME}/.linuxbrew-yb-build")
+      endif()
     endif()
     if(EXISTS "${LINUXBREW_DIR}/bin" AND
        EXISTS "${LINUXBREW_DIR}/lib")
       message("Linuxbrew found at ${LINUXBREW_DIR}")
+      set(ENV{YB_LINUXBREW_DIR} "${LINUXBREW_DIR}")
       set(USING_LINUXBREW TRUE)
     else()
       message("Not using Linuxbrew: no valid Linuxbrew installation found at "
@@ -138,17 +129,10 @@ function(DETECT_BREW)
   if(NOT USING_LINUXBREW)
     set(LINUXBREW_DIR "/tmp/not-using-linuxbrew")
   endif()
-  if(NOT USING_CUSTOM_HOMEBREW)
-    set(CUSTOM_HOMEBREW_DIR "/tmp/not-using-custom-homebrew")
-  endif()
 
   set(USING_LINUXBREW "${USING_LINUXBREW}" PARENT_SCOPE)
   set(LINUXBREW_DIR "${LINUXBREW_DIR}" PARENT_SCOPE)
   set(LINUXBREW_LIB_DIR "${LINUXBREW_DIR}/lib" PARENT_SCOPE)
-
-  set(USING_CUSTOM_HOMEBREW "${USING_CUSTOM_HOMEBREW}" PARENT_SCOPE)
-  set(CUSTOM_HOMEBREW_DIR "${CUSTOM_HOMEBREW_DIR}" PARENT_SCOPE)
-  set(CUSTOM_HOMEBREW_LIB_DIR "${CUSTOM_HOMEBREW_DIR}/lib" PARENT_SCOPE)
 endfunction()
 
 # Ensures that the YB_COMPILER_TYPE environment variable matches the auto-detected compiler family.
@@ -204,7 +188,8 @@ function(VALIDATE_COMPILER_TYPE)
               "Compiler type is zapcc but the compiler family is '${COMPILER_FAMILY}' "
               "(expected to be clang)")
     endif()
-  elseif (NOT "$ENV{YB_COMPILER_TYPE}" STREQUAL "${COMPILER_FAMILY}")
+  elseif (NOT "$ENV{YB_COMPILER_TYPE}" STREQUAL "${COMPILER_FAMILY}" AND
+          NOT ("$ENV{YB_COMPILER_TYPE}" STREQUAL "gcc" AND "${COMPILER_FAMILY}" STREQUAL "gcc8"))
     message(FATAL_ERROR
             "YB_COMPILER_TYPE environment variable ($ENV{YB_COMPILER_TYPE}) does not match the "
             "compiler family detected by CMake (${COMPILER_FAMILY}")
@@ -432,6 +417,13 @@ endfunction()
 # ------------------------------------------------------------------------------------------------
 # Main build
 
+if ("$ENV{YB_DO_NOT_BUILD_TESTS}" STREQUAL "1")
+  message("Skipping building tests (YB_DO_NOT_BUILD_TESTS environment variable is set to 1)")
+  set(BUILD_TESTS OFF)
+else()
+  set(BUILD_TESTS ON)
+endif()
+
 get_filename_component(YB_BUILD_ROOT_BASENAME "${CMAKE_CURRENT_BINARY_DIR}" NAME)
 string(REPLACE "-" ";" YB_BUILD_ROOT_BASENAME_COMPONENTS ${YB_BUILD_ROOT_BASENAME})
 list(GET YB_BUILD_ROOT_BASENAME_COMPONENTS 0 YB_BUILD_TYPE)
@@ -460,7 +452,12 @@ message("YB_SRC_ROOT: ${YB_SRC_ROOT}")
 
 set(YB_THIRDPARTY_DIR "$ENV{YB_THIRDPARTY_DIR}")
 if("${YB_THIRDPARTY_DIR}" STREQUAL "")
-  set(YB_THIRDPARTY_DIR "${YB_SRC_ROOT}/thirdparty")
+  if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/thirdparty_path.txt")
+    file(STRINGS "${CMAKE_CURRENT_BINARY_DIR}/thirdparty_path.txt" YB_THIRDPARTY_DIR)
+  else()
+    set(YB_THIRDPARTY_DIR "${YB_SRC_ROOT}/thirdparty")
+  endif()
+  set(ENV{YB_THIRDPARTY_DIR} "${YB_THIRDPARTY_DIR}")
 endif()
 message("YB_THIRDPARTY_DIR: ${YB_THIRDPARTY_DIR}")
 
@@ -534,6 +531,11 @@ set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY true)
 # environment variables correctly.
 if ("${YB_NO_REBUILD_THIRDPARTY}" STREQUAL "1")
   set(ENV{NO_REBUILD_THIRDPARTY} "1")
+else()
+  # Do not try building thirdparty outside our source location
+  if(NOT "${YB_THIRDPARTY_DIR}" STREQUAL "${YB_SRC_ROOT}/thirdparty")
+    set(ENV{NO_REBUILD_THIRDPARTY} "1")
+  endif()
 endif()
 
 INIT_COMPILER_TYPE()
@@ -697,9 +699,6 @@ endif()
 if(USING_LINUXBREW)
   # This is needed for finding correct versions of Flex, Bison, and other tools.
   set(CMAKE_PREFIX_PATH "${LINUXBREW_DIR}" ${CMAKE_PREFIX_PATH})
-endif()
-if(USING_CUSTOM_HOMEBREW)
-  set(CMAKE_PREFIX_PATH "${CUSTOM_HOMEBREW_DIR}" ${CMAKE_PREFIX_PATH})
 endif()
 
 # For both RocksDB and YugaByte code, we need to set the OS flag on Mac. Some code in RocksDB also
@@ -1152,7 +1151,7 @@ endfunction()
 function(ADD_YB_TEST REL_TEST_NAME)
   math(EXPR NEW_YB_NUM_TESTS "${YB_NUM_TESTS} + 1")
   set(YB_NUM_TESTS "${NEW_YB_NUM_TESTS}" CACHE INTERNAL "Number of tests" FORCE)
-  if(NO_TESTS)
+  if(NOT ${BUILD_TESTS})
     return()
   endif()
   if(NOT "${YB_TEST_FILTER_RE}" STREQUAL "")
@@ -1232,15 +1231,43 @@ function(ADD_YB_TESTS TESTS)
   endforeach(TEST)
 endfunction()
 
-# A wrapper for add_dependencies() that is compatible with NO_TESTS.
+# A wrapper for add_dependencies() that takes BUILD_TESTS into account.
 function(ADD_YB_TEST_DEPENDENCIES REL_TEST_NAME)
-  if(NO_TESTS)
+  if(NOT ${BUILD_TESTS})
     return()
   endif()
   GET_TEST_PREFIX_AND_BINARY_NAME(CTEST_PREFIX TEST_BINARY_NAME ${REL_TEST_NAME})
 
   add_dependencies(${TEST_BINARY_NAME} ${ARGN})
 endfunction()
+
+function(YB_TEST_TARGET_LINK_LIBRARIES REL_TEST_NAME)
+  if(NOT ${BUILD_TESTS})
+    return()
+  endif()
+  GET_TEST_PREFIX_AND_BINARY_NAME(CTEST_PREFIX TEST_BINARY_NAME ${REL_TEST_NAME})
+
+  target_link_libraries(${TEST_BINARY_NAME} ${ARGN})
+endfunction()
+
+function(YB_TEST_TARGET_INCLUDE_DIRECTORIES REL_TEST_NAME)
+  if(NOT ${BUILD_TESTS})
+    return()
+  endif()
+  GET_TEST_PREFIX_AND_BINARY_NAME(CTEST_PREFIX TEST_BINARY_NAME ${REL_TEST_NAME})
+
+  target_include_directories(${TEST_BINARY_NAME} ${ARGN})
+endfunction()
+
+function(YB_TEST_TARGET_COMPILE_OPTIONS REL_TEST_NAME)
+  if(NOT ${BUILD_TESTS})
+    return()
+  endif()
+  GET_TEST_PREFIX_AND_BINARY_NAME(CTEST_PREFIX TEST_BINARY_NAME ${REL_TEST_NAME})
+
+  target_compile_options(${TEST_BINARY_NAME} ${ARGN})
+endfunction()
+
 
 # Adds dependencies common to all tests, both main YB tests added using ADD_YB_TESTS,
 # and RocksDB tests, which are added in rocksdb/CMakeLists.txt using add_test directly.
@@ -1334,25 +1361,8 @@ if(IS_CLANG AND NOT "$ENV{YB_CLANG_PREFIX}" STREQUAL "")
 endif()
 
 # -------------------------------------------------------------------------------------------------
-# Common setup allowing us to use Homebrew libraries on Darwin
-# -------------------------------------------------------------------------------------------------
-
-if(APPLE)
-  if ("$ENV{YB_CUSTOM_HOMEBREW_DIR}" STREQUAL "")
-    set(HOMEBREW_OPT_DIR "/usr/local/opt")
-  else()
-    set(HOMEBREW_OPT_DIR "$ENV{YB_CUSTOM_HOMEBREW_DIR}/opt")
-  endif()
-  message("HOMEBREW_OPT_DIR is ${HOMEBREW_OPT_DIR}")
-endif()
-
-# -------------------------------------------------------------------------------------------------
 
 ## OpenSSL
-if(APPLE)
-  set(OPENSSL_ROOT_DIR "${HOMEBREW_OPT_DIR}/openssl")
-  message("Setting OPENSSL_ROOT_DIR to ${OPENSSL_ROOT_DIR}")
-endif()
 
 find_package(OpenSSL REQUIRED)
 include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR})
@@ -1360,35 +1370,19 @@ ADD_THIRDPARTY_LIB(openssl
   SHARED_LIB "${OPENSSL_CRYPTO_LIBRARY}"
   DEPS ${OPENSSL_LIB_DEPS})
 
-if (USING_CUSTOM_HOMEBREW)
-  # This is a work-around for the FindOpenSSL CMake module not finding OpenSSL inside a custom
-  # Homebrew installation directory. Instead, it finds OpenSSL in /usr/local/
-  if ("${OPENSSL_CRYPTO_LIBRARY}" MATCHES "^/usr/lib/.*")
-    set(OLD_OPENSSL_CRYPTO_LIBRARY "${OPENSSL_CRYPTO_LIBRARY}")
-    string(REGEX REPLACE "^/usr/" "${OPENSSL_ROOT_DIR}/"
-           OPENSSL_CRYPTO_LIBRARY "${OPENSSL_CRYPTO_LIBRARY}")
-    message("Auto-corrected OPENSSL_CRYPTO_LIBRARY from ${OLD_OPENSSL_CRYPTO_LIBRARY} to "
-            "${OPENSSL_CRYPTO_LIBRARY}")
-  endif()
-  if ("${OPENSSL_SSL_LIBRARY}" MATCHES "^/usr/lib/.*")
-    set(OLD_OPENSSL_SSL_LIBRARY "${OPENSSL_SSL_LIBRARY}")
-    string(REGEX REPLACE "^/usr/" "${OPENSSL_ROOT_DIR}/"
-           OPENSSL_SSL_LIBRARY  "${OPENSSL_SSL_LIBRARY}")
-    message("Auto-corrected OPENSSL_SSL_LIBRARY from ${OLD_OPENSSL_SSL_LIBRARY} to "
-            "${OPENSSL_SSL_LIBRARY}")
-  endif()
-  set(OPENSSL_LIBRARIES "${OPENSSL_CRYPTO_LIBRARY}" "${OPENSSL_SSL_LIBRARY}")
-  # Unset OpenSSL version because it might not be correct after we manually modified library
-  # paths. However, we are not using this variable anywhere.
-  unset(OPENSSL_VERSION)
-endif()
-
 message("OPENSSL_CRYPTO_LIBRARY=${OPENSSL_CRYPTO_LIBRARY}")
 message("OPENSSL_SSL_LIBRARY=${OPENSSL_SSL_LIBRARY}")
 message("OPENSSL_FOUND=${OPENSSL_FOUND}")
 message("OPENSSL_INCLUDE_DIR=${OPENSSL_INCLUDE_DIR}")
 message("OPENSSL_LIBRARIES=${OPENSSL_LIBRARIES}")
 message("OPENSSL_VERSION=${OPENSSL_VERSION}")
+
+if (NOT "${OPENSSL_CRYPTO_LIBRARY}" MATCHES "^${YB_THIRDPARTY_DIR}/.*")
+  message(FATAL_ERROR "OPENSSL_CRYPTO_LIBRARY not in ${YB_THIRDPARTY_DIR}.")
+endif()
+if (NOT "${OPENSSL_SSL_LIBRARY}" MATCHES "^${YB_THIRDPARTY_DIR}/.*")
+  message(FATAL_ERROR "OPENSSL_SSL_LIBRARY not in ${YB_THIRDPARTY_DIR}.")
+endif()
 
 ## GLog
 find_package(GLog REQUIRED)
@@ -1609,9 +1603,6 @@ foreach(IDX RANGE ${LAST_IDX})
 endforeach()
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 
-if(APPLE)
-  set(ICU_ROOT "${HOMEBREW_OPT_DIR}/icu4c")
-endif()
 find_package(ICU COMPONENTS i18n uc REQUIRED)
 include_directories(SYSTEM ${ICU_INCLUDE_DIRS})
 ADD_THIRDPARTY_LIB(icui18n
@@ -1741,14 +1732,13 @@ if (USING_LINUXBREW)
   ADD_GLOBAL_RPATH_ENTRY("${LINUXBREW_LIB_DIR}")
   ADD_LINKER_FLAGS("-L/usr/lib64")
   ADD_GLOBAL_RPATH_ENTRY("/usr/lib64")
-elseif(APPLE)
-  ADD_LINKER_FLAGS("-L${ICU_ROOT}/lib")
-  ADD_GLOBAL_RPATH_ENTRY("${ICU_ROOT}/lib")
 endif()
 
 message("Linker flags: ${CMAKE_EXE_LINKER_FLAGS}")
 
-set(YB_PGBACKEND_SHARED_LIB 
+set(PQ_SHARED_LIB
+    "${YB_BUILD_ROOT}/postgres/lib/libpq${YB_SHARED_LIBRARY_SUFFIX}")
+set(YB_PGBACKEND_SHARED_LIB
     "${YB_BUILD_ROOT}/postgres/lib/libyb_pgbackend${YB_SHARED_LIBRARY_SUFFIX}")
 
 # -------------------------------------------------------------------------------------------------
@@ -1798,6 +1788,9 @@ math(EXPR YB_NUM_EXCLUDED_TESTS "${YB_NUM_TESTS} - ${YB_NUM_INCLUDED_TESTS}")
 message("Total tests: ${YB_NUM_TESTS}, "
         "included: ${YB_NUM_INCLUDED_TESTS}, "
         "excluded: ${YB_NUM_EXCLUDED_TESTS}")
+if(NOT ${BUILD_TESTS} AND NOT ${YB_NUM_INCLUDED_TESTS} STREQUAL "0")
+  message(FATAL_ERROR "BUILD_TESTS is not set, but we still added ${YB_NUM_INCLUDED_TESTS} tests")
+endif()
 
 math(EXPR YB_NUM_EXCLUDED_EXECUTABLES "${YB_NUM_EXECUTABLES} - ${YB_NUM_INCLUDED_EXECUTABLES}")
 message("Total non-test executables: ${YB_NUM_EXECUTABLES}, "

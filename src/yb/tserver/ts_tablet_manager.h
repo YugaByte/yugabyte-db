@@ -163,17 +163,18 @@ class TSTabletManager : public tserver::TabletPeerLookupIf, public tablet::Table
   // If another tablet already exists with this ID, logs a DFATAL
   // and returns a bad Status.
   CHECKED_STATUS CreateNewTablet(
-    const string &table_id,
-    const string &tablet_id,
-    const Partition &partition,
-    const string &table_name,
-    TableType table_type,
-    const Schema &schema,
-    const PartitionSchema &partition_schema,
-    const boost::optional<IndexInfo>& index_info,
-    consensus::RaftConfigPB config,
-    std::shared_ptr<tablet::TabletPeer> *tablet_peer,
-    const bool colocated = false);
+      const string& table_id,
+      const string& tablet_id,
+      const Partition& partition,
+      const string& namespace_name,
+      const string& table_name,
+      TableType table_type,
+      const Schema& schema,
+      const PartitionSchema& partition_schema,
+      const boost::optional<IndexInfo>& index_info,
+      consensus::RaftConfigPB config,
+      std::shared_ptr<tablet::TabletPeer>* tablet_peer,
+      const bool colocated = false);
 
   CHECKED_STATUS ApplyTabletSplit(tablet::SplitOperationState* state) override;
 
@@ -401,7 +402,7 @@ class TSTabletManager : public tserver::TabletPeerLookupIf, public tablet::Table
       RegisterTabletPeerMode mode);
 
   // Returns either table_data_assignment_map_ or table_wal_assignment_map_ depending on dir_type.
-  TableDiskAssignmentMap* GetTableDiskAssignmentMap(TabletDirType dir_type);
+  TableDiskAssignmentMap* GetTableDiskAssignmentMapUnlocked(TabletDirType dir_type);
 
   // Returns assigned root dir of specified type for specified table and tablet.
   // If root dir is not registered for the specified table_id and tablet_id combination - returns
@@ -458,6 +459,12 @@ class TSTabletManager : public tserver::TabletPeerLookupIf, public tablet::Table
 
   void LogCacheGC(MemTracker* log_cache_mem_tracker, size_t required);
 
+  // Check that the the global and per-table RBS limits are respected if flags
+  // TEST_crash_if_remote_bootstrap_sessions_greater_than and
+  // TEST_crash_if_remote_bootstrap_sessions_per_table_greater_than are non-zero.
+  // Used only for tests.
+  void MaybeDoChecksForTests(const TableId& table_id);
+
   const CoarseTimePoint start_time_;
 
   FsManager* const fs_manager_;
@@ -476,9 +483,9 @@ class TSTabletManager : public tserver::TabletPeerLookupIf, public tablet::Table
   TabletMap tablet_map_;
 
   // Map from table ID to count of children in data and wal directories.
-  TableDiskAssignmentMap table_data_assignment_map_;
-  TableDiskAssignmentMap table_wal_assignment_map_;
-  mutable Mutex dir_assignment_lock_;
+  TableDiskAssignmentMap table_data_assignment_map_ GUARDED_BY(dir_assignment_mutex_);
+  TableDiskAssignmentMap table_wal_assignment_map_ GUARDED_BY(dir_assignment_mutex_);
+  mutable std::mutex dir_assignment_mutex_;
 
   // Map of tablet ids -> reason strings where the keys are tablets whose
   // bootstrap, creation, or deletion is in-progress
@@ -518,6 +525,9 @@ class TSTabletManager : public tserver::TabletPeerLookupIf, public tablet::Table
 
   // Thread pool for appender threads, shared between all tablets.
   std::unique_ptr<ThreadPool> append_pool_;
+
+  // Thread pool for log allocation threads, shared between all tablets.
+  std::unique_ptr<ThreadPool> allocation_pool_;
 
   // Thread pool for read ops, that are run in parallel, shared between all tablets.
   std::unique_ptr<ThreadPool> read_pool_;

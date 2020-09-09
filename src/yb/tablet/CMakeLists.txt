@@ -30,8 +30,16 @@
 # under the License.
 #
 
+include_directories(${YB_BUILD_ROOT}/postgres/include)
+link_directories(${YB_BUILD_ROOT}/postgres/lib)
+
+add_library(pq SHARED IMPORTED)
+set_target_properties(pq PROPERTIES IMPORTED_LOCATION "${PQ_SHARED_LIB}")
+message("Added shared library dependency pq: ${PQ_SHARED_LIB}")
+
 set(TABLET_SRCS
   abstract_tablet.cc
+  apply_intents_task.cc
   cleanup_aborts_task.cc
   cleanup_intents_task.cc
   remove_intents_task.cc
@@ -65,6 +73,9 @@ set(TABLET_SRCS
   preparer.cc
   ${TABLET_SRCS_EXTENSIONS})
 
+set(TABLET_DEPS
+  pq)
+
 PROTOBUF_GENERATE_CPP(
   TABLET_PROTO_SRCS TABLET_PROTO_HDRS TABLET_PROTO_TGTS
   SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../..
@@ -82,7 +93,10 @@ ADD_YB_LIBRARY(tablet_proto
   DEPS ${TABLET_PROTO_LIBS} opid_proto
   NONLINK_DEPS ${TABLET_PROTO_TGTS})
 
-add_library(tablet ${TABLET_SRCS})
+ADD_YB_LIBRARY(
+  tablet
+  SRCS ${TABLET_SRCS}
+  DEPS ${TABLET_DEPS})
 cotire(tablet)
 
 ADD_YB_LIBRARY(

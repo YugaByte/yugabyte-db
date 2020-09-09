@@ -129,6 +129,10 @@ void SchemaToColumnPBs(
   google::protobuf::RepeatedPtrField<ColumnSchemaPB>* cols,
   int flags = 0);
 
+// Extract the colocated table information of the given schema into a protobuf object.
+void SchemaToColocatedTableIdentifierPB(
+    const Schema& schema, ColocatedTableIdentifierPB* colocated_pb);
+
 YB_DEFINE_ENUM(UsePrivateIpMode, (cloud)(region)(zone)(never));
 
 // Returns mode for selecting between private and public IP.

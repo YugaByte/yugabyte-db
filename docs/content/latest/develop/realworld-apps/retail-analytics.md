@@ -184,7 +184,7 @@ yb_demo=# CREATE VIEW channel AS
              ORDER BY total_sales DESC);
 ```
 
-Now that the view is created, we can see it in our list of relations.
+Now that the view is created, you can see it in our list of relations.
 
 ```postgresql
 yb_demo=# \d

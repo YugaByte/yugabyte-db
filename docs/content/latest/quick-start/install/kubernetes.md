@@ -129,7 +129,7 @@ NAME               	CHART VERSION	APP VERSION	DESCRIPTION
 yugabytedb/yugabyte	2.1.4        	2.1.4.0-b5 	YugabyteDB is the high-performance distributed ...```
 ```
 
-Now we are ready to create a local YugabyteDB cluster.
+Now you are ready to create a local YugabyteDB cluster.
 
 
 {{<tip title="Next step" >}}

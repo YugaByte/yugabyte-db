@@ -28,6 +28,8 @@
 #include "yb/yql/cql/ql/util/ql_env.h"
 
 DEFINE_bool(use_cassandra_authentication, false, "If to require authentication on startup.");
+DEFINE_bool(ycql_require_drop_privs_for_truncate, false,
+    "Require DROP TABLE permission in order to truncate table");
 
 namespace yb {
 namespace ql {

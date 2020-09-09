@@ -51,8 +51,11 @@ public class TestTransactionStatusTable extends BaseCQLTest {
       cmds.add(() -> {
         startSignal.countDown();
         startSignal.await();
-        session.execute(String.format("create table test_restart_%d (k int primary key, v int) " +
-            "with transactions = {'enabled' : true};", idx));
+        // Allow extra time on the create statements to finish because the load balancer seems to be
+        // moving the leaders before all the alters corresponding to the Index Permissions finish.
+        session.execute(new SimpleStatement(String.format(
+            "create table test_restart_%d (k int primary key, v int) " +
+            "with transactions = {'enabled' : true};", idx)).setReadTimeoutMillis(36000));
         session.execute(String.format("create index on test_restart_%d (v);", idx));
         session.execute(String.format("insert into test_restart_%s (k, v) values (1, 1000);", idx));
         ResultSet rs = session.execute(String.format("select k, v from test_restart_%d", idx));

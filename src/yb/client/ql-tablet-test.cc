@@ -28,6 +28,7 @@
 
 #include "yb/consensus/consensus.h"
 #include "yb/consensus/consensus.pb.h"
+#include "yb/consensus/raft_consensus.h"
 
 #include "yb/docdb/consensus_frontier.h"
 
@@ -60,7 +61,6 @@ DECLARE_int32(leader_lease_duration_ms);
 DECLARE_int64(db_write_buffer_size);
 DECLARE_string(time_source);
 DECLARE_int32(TEST_delay_execute_async_ms);
-DECLARE_int64(retryable_rpc_single_call_timeout_ms);
 DECLARE_int32(retryable_request_timeout_secs);
 DECLARE_bool(enable_lease_revocation);
 DECLARE_bool(rocksdb_disable_compactions);
@@ -757,7 +757,6 @@ TEST_F(QLTabletTest, LeaderChange) {
     req->mutable_if_expr()->mutable_condition(), kValueColumn, QL_OP_EQUAL, kValue1);
   req->mutable_column_refs()->add_ids(table.ColumnId(kValueColumn));
   ASSERT_OK(session->Apply(write_op));
-  FLAGS_retryable_rpc_single_call_timeout_ms = 60000;
 
   SetAtomicFlag(30000, &FLAGS_TEST_delay_execute_async_ms);
   auto flush_future = session->FlushFuture();
@@ -941,7 +940,7 @@ TEST_F_EX(QLTabletTest, DoubleFlush, QLTabletTestSmallMemstore) {
   workload.Setup();
   workload.Start();
 
-  while (workload.rows_inserted() < 75000) {
+  while (workload.rows_inserted() < RegularBuildVsSanitizers(75000, 20000)) {
     std::this_thread::sleep_for(10ms);
   }
 
@@ -1175,13 +1174,24 @@ TEST_F_EX(QLTabletTest, GetMiddleKey, QLTabletRf1Test) {
 
   ASSERT_OK(cluster_->FlushTablets());
 
-  const auto encoded_middle_key = ASSERT_RESULT(tablet.GetEncodedMiddleDocKey());
+  const auto encoded_split_key = ASSERT_RESULT(tablet.GetEncodedMiddleSplitKey());
+  LOG(INFO) << "Encoded split key: " << Slice(encoded_split_key).ToDebugString();
 
-  docdb::SubDocKey middle_key;
-  ASSERT_OK(middle_key.FullyDecodeFrom(encoded_middle_key, docdb::HybridTimeRequired::kFalse));
-  ASSERT_EQ(middle_key.num_subkeys(), 0) << "Middle doc key should not have sub doc key components";
-
-  LOG(INFO) << "Middle DocKey: " << AsString(middle_key);
+  if (tablet.metadata()->partition_schema()->IsHashPartitioning()) {
+    docdb::DocKey split_key;
+    Slice key_slice = encoded_split_key;
+    ASSERT_OK(split_key.DecodeFrom(&key_slice, docdb::DocKeyPart::kUpToHashCode));
+    ASSERT_TRUE(key_slice.empty()) << "Extra bytes after decoding: " << key_slice.ToDebugString();
+    ASSERT_EQ(split_key.hashed_group().size() + split_key.range_group().size(), 0)
+        << "Hash-based partition: middle key should only have encoded hash code";
+    LOG(INFO) << "Split key: " << AsString(split_key);
+  } else {
+    docdb::SubDocKey split_key;
+    ASSERT_OK(split_key.FullyDecodeFrom(encoded_split_key, docdb::HybridTimeRequired::kFalse));
+    ASSERT_EQ(split_key.num_subkeys(), 0)
+        << "Range-based partition: middle doc key should not have sub doc key components";
+    LOG(INFO) << "Split key: " << AsString(split_key);
+  }
 
   // Checking number of keys less/bigger than the approximate middle key.
   size_t total_keys = 0;
@@ -1193,7 +1203,7 @@ TEST_F_EX(QLTabletTest, GetMiddleKey, QLTabletRf1Test) {
 
   for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
     Slice key = iter->key();
-    if (key.Less(encoded_middle_key)) {
+    if (key.Less(encoded_split_key)) {
       ++num_keys_less;
     }
     ++total_keys;
@@ -1209,6 +1219,105 @@ TEST_F_EX(QLTabletTest, GetMiddleKey, QLTabletRf1Test) {
 
   ASSERT_GE(num_keys_less_percent, 40);
   ASSERT_LE(num_keys_less_percent, 60);
+}
+
+namespace {
+
+std::vector<OpId> GetLastAppliedOpIds(const std::vector<tablet::TabletPeerPtr>& peers) {
+  std::vector<OpId> last_applied_op_ids;
+  for (auto& peer : peers) {
+    const auto last_applied_op_id = peer->consensus()->GetLastAppliedOpId();
+    VLOG(1) << "Peer: " << AsString(peer->permanent_uuid())
+            << ", last applied op ID: " << AsString(last_applied_op_id);
+    last_applied_op_ids.push_back(last_applied_op_id);
+  }
+  return last_applied_op_ids;
+}
+
+Result<OpId> GetAllAppliedOpId(const std::vector<tablet::TabletPeerPtr>& peers) {
+  for (auto& peer : peers) {
+    if (peer->LeaderStatus() == consensus::LeaderStatus::LEADER_AND_READY) {
+      return peer->raft_consensus()->TEST_GetAllAppliedOpId();
+    }
+  }
+  return STATUS(NotFound, "No leader found");
+}
+
+Status WaitForAppliedOpIdsStabilized(
+    const std::vector<tablet::TabletPeerPtr>& peers, const MonoDelta& timeout) {
+  std::vector<OpId> prev_last_applied_op_ids;
+  return WaitFor(
+      [&]() {
+        std::vector<OpId> last_applied_op_ids = GetLastAppliedOpIds(peers);
+        return last_applied_op_ids == prev_last_applied_op_ids;
+      },
+      timeout, "Waiting for applied op IDs to stabilize", 500ms * kTimeMultiplier, 1);
+}
+
+} // namespace
+
+TEST_F(QLTabletTest, LastAppliedOpIdTracking) {
+  constexpr auto kAppliesTimeout = 5s * kTimeMultiplier;
+
+  TableHandle table;
+  CreateTable(kTable1Name, &table, /* num_tablets =*/1);
+  auto session = client_->NewSession();
+  session->SetTimeout(60s);
+
+  LOG(INFO) << "Writing data...";
+  int key = 0;
+  for (; key < 10; ++key) {
+    SetValue(session, key, key, table);
+  }
+  LOG(INFO) << "Writing completed";
+
+  auto peers = ListTabletPeers(cluster_.get(), ListPeersFilter::kAll);
+
+  WaitForAppliedOpIdsStabilized(peers, kAppliesTimeout);
+  auto last_applied_op_ids = GetLastAppliedOpIds(peers);
+  auto all_applied_op_id = ASSERT_RESULT(GetAllAppliedOpId(peers));
+  for (const auto& last_applied_op_id : last_applied_op_ids) {
+    ASSERT_EQ(last_applied_op_id, all_applied_op_id);
+  }
+
+  LOG(INFO) << "Shutting down TS-0";
+  cluster_->mini_tablet_server(0)->Shutdown();
+
+  peers = ListTabletPeers(cluster_.get(), ListPeersFilter::kAll);
+
+  LOG(INFO) << "Writing more data...";
+  for (; key < 20; ++key) {
+    SetValue(session, key, key, table);
+  }
+  LOG(INFO) << "Writing completed";
+
+  WaitForAppliedOpIdsStabilized(peers, kAppliesTimeout);
+  auto new_all_applied_op_id = ASSERT_RESULT(GetAllAppliedOpId(peers));
+  // We expect turned off TS to lag behind and not let all applied OP ids to advance.
+  // In case TS-0 was leader, all_applied_op_id will be 0 on a new leader until it hears from TS-0.
+  ASSERT_TRUE(new_all_applied_op_id == all_applied_op_id || new_all_applied_op_id.empty());
+
+  // Remember max applied op ID.
+  last_applied_op_ids = GetLastAppliedOpIds(peers);
+  auto max_applied_op_id = OpId::Min();
+  for (const auto& last_applied_op_id : last_applied_op_ids) {
+    max_applied_op_id = std::max(max_applied_op_id, last_applied_op_id);
+  }
+  ASSERT_GT(max_applied_op_id, all_applied_op_id);
+
+  LOG(INFO) << "Restarting TS-0";
+  ASSERT_OK(cluster_->mini_tablet_server(0)->Start());
+
+  // TS-0 should catch up on applied ops.
+  ASSERT_OK(WaitFor(
+      [&]() -> Result<bool> {
+        return VERIFY_RESULT(GetAllAppliedOpId(peers)) == max_applied_op_id;
+      },
+      kAppliesTimeout, "Waiting for all ops to apply"));
+  last_applied_op_ids = GetLastAppliedOpIds(peers);
+  for (const auto& last_applied_op_id : last_applied_op_ids) {
+    ASSERT_EQ(last_applied_op_id, max_applied_op_id);
+  }
 }
 
 } // namespace client

@@ -83,6 +83,7 @@ message SnapshotInfoPB {
 
 message ListSnapshotsRequestPB {
   optional bytes snapshot_id = 2;
+  optional bool list_deleted_snapshots = 3;
 }
 
 message ListSnapshotsResponsePB {

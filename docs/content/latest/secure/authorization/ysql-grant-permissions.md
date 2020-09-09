@@ -29,9 +29,9 @@ showAsideToc: true
   </li>
 </ul>
 
-In this tutorial, we shall run through a scenario. Assume a company has an engineering organization, with three sub-teams - developers, qa and DB admins. We are going to create a role for each of these entities.
+In this tutorial, you will run through a scenario. Assume a company has an engineering organization, with three sub-teams - developers, qa and DB admins. We are going to create a role for each of these entities.
 
-Here is what we want to achieve from a role-based access control (RBAC) perspective.
+Here is what you want to achieve from a role-based access control (RBAC) perspective.
 
 + All members of engineering should be able to read data from any database and table.
 + Both developers and qa should be able to modify data in existing tables in the database `dev_database`.
@@ -40,7 +40,7 @@ Here is what we want to achieve from a role-based access control (RBAC) perspect
 
 ## 1. Create role hierarchy
 
-Connect to the cluster using a superuser role. Read more about [enabling authentication and connecting using a superuser role](../../authentication/ysql-authentication/) in YugabyteDB clusters for YSQL. For this tutorial, we are using the default `yugabyte` user and connect to the cluster using `ysqlsh` as follows:
+Connect to the cluster using a superuser role. Read more about [enabling authentication and connecting using a superuser role](../../authentication/ysql-authentication/) in YugabyteDB clusters for YSQL. For this tutorial, you are using the default `yugabyte` user and connect to the cluster using `ysqlsh` as follows:
 
 ```sh
 $ ysqlsh
@@ -128,11 +128,11 @@ You should see something like the following output.
  yugabyte    | Superuser, Create role, Create DB, Replication, Bypass RLS | {}
 ```
 
-The above shows the various role attributes the `yugabyte` role has. Since `yugabyte` is a superuser, it has all privileges on all databases, including `ALTER`, `Create role` and `DROP` on the roles we created (`engineering`, `developer`, `qa` and `db_admin`).
+The above shows the various role attributes the `yugabyte` role has. Since `yugabyte` is a superuser, it has all privileges on all databases, including `ALTER`, `Create role` and `DROP` on the roles you created (`engineering`, `developer`, `qa` and `db_admin`).
 
 ## 3. Grant privileges to roles
 
-In this section, we will grant privileges to achieve the following as mentioned in the beginning of this tutorial:
+In this section, you will grant privileges to achieve the following as mentioned in the beginning of this tutorial:
 
 + All members of engineering should be able to read (`SELECT`) data from any database and table.
 + Both developers and qa should be able to modify (`INSERT`, `UPDATE`, and `DELETE`) data in existing tables in the database `dev_database`.
@@ -154,7 +154,7 @@ You can now verify that the `engineering` role has `SELECT` privilege as follows
 dev_database=# \z
 ```
 
-The output should look similar to below, where we see that the `engineering` role has `SELECT` privilege on the `data` resource.
+The output should look similar to below, where you see that the `engineering` role has `SELECT` privilege on the `data` resource.
 
 ```
  Schema |       Name        | Type  |     Access privileges     | Column privileges | Policies
@@ -257,7 +257,7 @@ We should see the following, which grants the `Superuser` privileges on the  to 
 
 ## 4. Revoke privileges from roles
 
-Let us say we want to revoke the `Superuser` privilege from the DB admins so that they can no longer change privileges for other roles. This can be done as follows.
+Let us say you want to revoke the `Superuser` privilege from the DB admins so that they can no longer change privileges for other roles. This can be done as follows.
 
 ```postgresql
 yugabyte=# ALTER USER db_admin WITH NOSUPERUSER;

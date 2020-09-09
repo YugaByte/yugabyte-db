@@ -123,8 +123,6 @@ class Batcher : public RefCountedThreadSafe<Batcher> {
   // may time out before even sending an op). TODO: implement that
   void SetTimeout(MonoDelta timeout);
 
-  void SetSingleRpcTimeout(MonoDelta timeout);
-
   // Add a new operation to the batch. Requires that the batch has not yet been flushed.
   // TODO: in other flush modes, this may not be the case -- need to
   // update this when they're implemented.
@@ -168,7 +166,7 @@ class Batcher : public RefCountedThreadSafe<Batcher> {
     force_consistent_read_ = value;
   }
 
-  void SetHybridTimeForWrite(HybridTime ht) {
+  void SetHybridTimeForWrite(const HybridTime ht) {
     hybrid_time_for_write_ = ht;
   }
 
@@ -195,6 +193,8 @@ class Batcher : public RefCountedThreadSafe<Batcher> {
   }
 
   double RejectionScore(int attempt_num);
+
+  std::string LogPrefix() const;
 
   // This is a status error string used when there are multiple errors that need to be fetched
   // from the error collector.
@@ -296,9 +296,6 @@ class Batcher : public RefCountedThreadSafe<Batcher> {
   //
   // Set by SetTimeout.
   MonoDelta timeout_;
-
-  // Timeout for the rpc.
-  MonoDelta single_rpc_timeout_;
 
   // After flushing, the absolute deadline for all in-flight ops.
   CoarseTimePoint deadline_;

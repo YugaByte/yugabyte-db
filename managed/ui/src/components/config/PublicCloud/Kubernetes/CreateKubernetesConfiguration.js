@@ -76,7 +76,7 @@ class CreateKubernetesConfiguration extends Component {
 
     // Catch all onload events for configs
     Promise.all(fileConfigArray).then(configs => {
-      const providerConfig = {              
+      const providerConfig = {
         KUBECONFIG_PROVIDER: vals.providerType ? vals.providerType.value :
             (providerTypeMetadata ? providerTypeMetadata.code : "gke"),
         KUBECONFIG_SERVICE_ACCOUNT: vals.serviceAccount,
@@ -97,7 +97,7 @@ class CreateKubernetesConfiguration extends Component {
           "KUBECONFIG_PULL_SECRET_CONTENT": configs[0]
         });
       }
-
+      
       self.props.createKubernetesProvider(providerName.trim(), providerConfig, regionsLocInfo);
     }, reason => {
       console.warn("File Upload gone wrong. "+reason);
@@ -158,7 +158,7 @@ class CreateKubernetesConfiguration extends Component {
 
       regionCode: Yup.string(),
 
-      regionList: Yup.array()      
+      regionList: Yup.array()
         .of(
           Yup.object().shape({
             regionCode: Yup.object()
@@ -193,7 +193,8 @@ class CreateKubernetesConfiguration extends Component {
               };
               this.createProviderConfig(payload, setSubmitting);
             }}
-            render={props => (
+          >
+            {props => (
               <form name="kubernetesConfigForm"
                     onSubmit={props.handleSubmit}>
                 <div className="editor-container">
@@ -222,14 +223,14 @@ class CreateKubernetesConfiguration extends Component {
                         <Col lg={3}>
                           <div className="form-item-custom-label">Kube Config</div><div className={`help-block`}></div>
                         </Col>
-                        <Col lg={7}>                         
+                        <Col lg={7}>
                           <Field name="kubeConfig" component={YBFormDropZone}
                             className="upload-file-button"
                             title={"Upload Kube Config file"}/>
                         </Col>
                         <Col lg={1} className="config-provider-tooltip">
-                          <YBInfoTip title="Kube Config" 
-                            content={"Use this setting to set a kube config for all regions and zones."} />  
+                          <YBInfoTip title="Kube Config"
+                            content={"Use this setting to set a kube config for all regions and zones."} />
                         </Col>
                       </Row>
                       <Row className="config-provider-row">
@@ -250,7 +251,7 @@ class CreateKubernetesConfiguration extends Component {
                           <Field name="imageRegistry" placeholder="quay.io/yugabyte/yugabyte"
                                  component={YBFormInput}
                                  className={"kube-provider-input-field"}/>
-                        </Col>                       
+                        </Col>
                       </Row>
                       <Row className="config-provider-row">
                         <Col lg={3}>
@@ -264,7 +265,7 @@ class CreateKubernetesConfiguration extends Component {
                       </Row>
                     </Col>
                   </Row>
-                  <AddRegionList modal={modal} showModal={showModal} closeModal={closeModal} />  
+                  <AddRegionList modal={modal} showModal={showModal} closeModal={closeModal} />
                 </div>
                 <div className="form-action-button-container">
                   <YBButton btnText={"Save"} disabled={props.isSubmitting || isNonEmptyObject(props.errors) || !containsValidRegion(props)}
@@ -276,7 +277,7 @@ class CreateKubernetesConfiguration extends Component {
                 </div>
               </form>
             )}
-          />
+          </Formik>
         </div>
       </div>
     );

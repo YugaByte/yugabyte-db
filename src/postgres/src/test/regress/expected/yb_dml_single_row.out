@@ -27,10 +27,10 @@ EXPLAIN (COSTS FALSE) DELETE FROM single_row WHERE k IN (1);
 
 -- Below statements should all NOT USE single-row.
 EXPLAIN (COSTS FALSE) DELETE FROM single_row;
-            QUERY PLAN
-----------------------------------
+          QUERY PLAN
+------------------------------
  Delete on single_row
-   ->  Foreign Scan on single_row
+   ->  Seq Scan on single_row
 (2 rows)
 
 EXPLAIN (COSTS FALSE) DELETE FROM single_row WHERE k = 1 and v1 = 1;
@@ -46,7 +46,7 @@ EXPLAIN (COSTS FALSE) DELETE FROM single_row WHERE v1 = 1 and v2 = 1;
                QUERY PLAN
 -----------------------------------------
  Delete on single_row
-   ->  Foreign Scan on single_row
+   ->  Seq Scan on single_row
          Filter: ((v1 = 1) AND (v2 = 1))
 (3 rows)
 
@@ -59,18 +59,18 @@ EXPLAIN (COSTS FALSE) DELETE FROM single_row WHERE k = 1 RETURNING v1;
 (3 rows)
 
 EXPLAIN (COSTS FALSE) DELETE FROM single_row WHERE k > 1;
-            QUERY PLAN
-----------------------------------
+          QUERY PLAN
+------------------------------
  Delete on single_row
-   ->  Foreign Scan on single_row
+   ->  Seq Scan on single_row
          Filter: (k > 1)
 (3 rows)
 
 EXPLAIN (COSTS FALSE) DELETE FROM single_row WHERE k != 1;
-            QUERY PLAN
-----------------------------------
+          QUERY PLAN
+------------------------------
  Delete on single_row
-   ->  Foreign Scan on single_row
+   ->  Seq Scan on single_row
          Filter: (k <> 1)
 (3 rows)
 
@@ -118,6 +118,13 @@ EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1, v2 = 2 WHERE k = 1 RETURNING
    ->  Result
 (2 rows)
 
+EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = v1 + 1, v2 = 2 WHERE k = 1 RETURNING v2;
+      QUERY PLAN
+----------------------
+ Update on single_row
+   ->  Result
+(2 rows)
+
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1 WHERE k IN (1);
       QUERY PLAN
 ----------------------
@@ -155,10 +162,10 @@ EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = v1 * 2 WHERE k = 1;
 
 -- Below statements should all NOT USE single-row.
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1;
-            QUERY PLAN
-----------------------------------
+          QUERY PLAN
+------------------------------
  Update on single_row
-   ->  Foreign Scan on single_row
+   ->  Seq Scan on single_row
 (2 rows)
 
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = v1 + v2 WHERE k = 1;
@@ -210,6 +217,14 @@ EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1 WHERE k = 1 RETURNING v2;
          Index Cond: (k = 1)
 (3 rows)
 
+EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = v1 + 1 WHERE k = 1 RETURNING v1;
+                      QUERY PLAN
+------------------------------------------------------
+ Update on single_row
+   ->  Index Scan using single_row_pkey on single_row
+         Index Cond: (k = 1)
+(3 rows)
+
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1 WHERE k = 1 RETURNING *;
                       QUERY PLAN
 ------------------------------------------------------
@@ -219,18 +234,18 @@ EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1 WHERE k = 1 RETURNING *;
 (3 rows)
 
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1 WHERE k > 1;
-            QUERY PLAN
-----------------------------------
+          QUERY PLAN
+------------------------------
  Update on single_row
-   ->  Foreign Scan on single_row
+   ->  Seq Scan on single_row
          Filter: (k > 1)
 (3 rows)
 
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1 WHERE k != 1;
-            QUERY PLAN
-----------------------------------
+          QUERY PLAN
+------------------------------
  Update on single_row
-   ->  Foreign Scan on single_row
+   ->  Seq Scan on single_row
          Filter: (k <> 1)
 (3 rows)
 
@@ -251,10 +266,10 @@ EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = power(2, 3 - k) WHERE k = 1;
 (3 rows)
 
 EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 1 WHERE k % 2 = 0;
-            QUERY PLAN
-----------------------------------
+          QUERY PLAN
+-------------------------------
  Update on single_row
-   ->  Foreign Scan on single_row
+   ->  Seq Scan on single_row
          Filter: ((k % 2) = 0)
 (3 rows)
 
@@ -361,6 +376,30 @@ SELECT * FROM single_row;
  k | v1 | v2
 ---+----+----
  1 |  3 |  3
+(1 row)
+
+UPDATE single_row SET v1 = v1 + 1 WHERE k = 1 RETURNING v1;
+ v1
+----
+  4
+(1 row)
+
+SELECT * FROM single_row;
+ k | v1 | v2
+---+----+----
+ 1 |  4 |  3
+(1 row)
+
+UPDATE single_row SET v1 = v1 + 1, v2 = 4 WHERE k = 1 RETURNING v2;
+ v2
+----
+  4
+(1 row)
+
+SELECT * FROM single_row;
+ k | v1 | v2
+---+----+----
+ 1 |  5 |  4
 (1 row)
 
 DELETE FROM single_row WHERE k = 1 RETURNING k;
@@ -547,10 +586,10 @@ EXPLAIN (COSTS FALSE) DELETE FROM single_row_comp_key WHERE k1 = 1 and k2 = 1 RE
 
 -- Below statements should all NOT USE single-row.
 EXPLAIN (COSTS FALSE) DELETE FROM single_row_comp_key;
-                QUERY PLAN
--------------------------------------------
+              QUERY PLAN
+---------------------------------------
  Delete on single_row_comp_key
-   ->  Foreign Scan on single_row_comp_key
+   ->  Seq Scan on single_row_comp_key
 (2 rows)
 
 EXPLAIN (COSTS FALSE) DELETE FROM single_row_comp_key WHERE k1 = 1;
@@ -562,10 +601,10 @@ EXPLAIN (COSTS FALSE) DELETE FROM single_row_comp_key WHERE k1 = 1;
 (3 rows)
 
 EXPLAIN (COSTS FALSE) DELETE FROM single_row_comp_key WHERE k2 = 1;
-                QUERY PLAN
--------------------------------------------
+              QUERY PLAN
+---------------------------------------
  Delete on single_row_comp_key
-   ->  Foreign Scan on single_row_comp_key
+   ->  Seq Scan on single_row_comp_key
          Filter: (k2 = 1)
 (3 rows)
 
@@ -655,10 +694,10 @@ EXPLAIN (COSTS FALSE) UPDATE single_row SET v1 = 3 - v1 WHERE k = 1;
 
 -- Below statements should all NOT USE single-row.
 EXPLAIN (COSTS FALSE) UPDATE single_row_comp_key SET v = 1;
-                QUERY PLAN
--------------------------------------------
+              QUERY PLAN
+---------------------------------------
  Update on single_row_comp_key
-   ->  Foreign Scan on single_row_comp_key
+   ->  Seq Scan on single_row_comp_key
 (2 rows)
 
 EXPLAIN (COSTS FALSE) UPDATE single_row_comp_key SET v = k1 + 1 WHERE k1 = 1 and k2 = 1;
@@ -748,10 +787,10 @@ EXPLAIN (COSTS FALSE) DELETE FROM single_row_complex WHERE k = 1 RETURNING k;
 
 -- Below statements should all NOT USE single-row.
 EXPLAIN (COSTS FALSE) DELETE FROM single_row_complex;
-                QUERY PLAN
-------------------------------------------
+              QUERY PLAN
+--------------------------------------
  Delete on single_row_complex
-   ->  Foreign Scan on single_row_complex
+   ->  Seq Scan on single_row_complex
 (2 rows)
 
 EXPLAIN (COSTS FALSE) DELETE FROM single_row_complex WHERE k = 1 and v = 1;
@@ -767,7 +806,7 @@ EXPLAIN (COSTS FALSE) DELETE FROM single_row_complex WHERE v = 1;
                  QUERY PLAN
 ---------------------------------------------
  Delete on single_row_complex
-   ->  Foreign Scan on single_row_complex
+   ->  Seq Scan on single_row_complex
          Filter: (v = '1'::double precision)
 (3 rows)
 
@@ -817,10 +856,10 @@ EXPLAIN (COSTS FALSE) UPDATE single_row_complex SET v = 3 * (v + 3 - 2) WHERE k 
 
 -- Below statements should all NOT USE single-row.
 EXPLAIN (COSTS FALSE) UPDATE single_row_complex SET v = 1;
-                QUERY PLAN
-------------------------------------------
+              QUERY PLAN
+--------------------------------------
  Update on single_row_complex
-   ->  Foreign Scan on single_row_complex
+   ->  Seq Scan on single_row_complex
 (2 rows)
 
 EXPLAIN (COSTS FALSE) UPDATE single_row_complex SET v = k + 1 WHERE k = 1;
@@ -883,10 +922,10 @@ EXPLAIN (COSTS FALSE) DELETE FROM single_row_array WHERE k = 1 RETURNING k;
 
 -- Below statements should all NOT USE single-row.
 EXPLAIN (COSTS FALSE) DELETE FROM single_row_array;
-               QUERY PLAN
-----------------------------------------
+             QUERY PLAN
+------------------------------------
  Delete on single_row_array
-   ->  Foreign Scan on single_row_array
+   ->  Seq Scan on single_row_array
 (2 rows)
 
 EXPLAIN (COSTS FALSE) DELETE FROM single_row_array WHERE k = 1 and arr[1] = 1;
@@ -899,10 +938,10 @@ EXPLAIN (COSTS FALSE) DELETE FROM single_row_array WHERE k = 1 and arr[1] = 1;
 (4 rows)
 
 EXPLAIN (COSTS FALSE) DELETE FROM single_row_array WHERE arr[1] = 1;
-               QUERY PLAN
-----------------------------------------
+             QUERY PLAN
+------------------------------------
  Delete on single_row_array
-   ->  Foreign Scan on single_row_array
+   ->  Seq Scan on single_row_array
          Filter: (arr[1] = 1)
 (3 rows)
 
@@ -937,49 +976,49 @@ SELECT * FROM single_row_array;
 CREATE TABLE single_row_no_primary_key (a int, b int);
 -- Below statements should all NOT USE single-row.
 EXPLAIN (COSTS FALSE) DELETE FROM single_row_no_primary_key;
-                   QUERY PLAN
--------------------------------------------------
+                 QUERY PLAN
+---------------------------------------------
  Delete on single_row_no_primary_key
-   ->  Foreign Scan on single_row_no_primary_key
+   ->  Seq Scan on single_row_no_primary_key
 (2 rows)
 
 EXPLAIN (COSTS FALSE) DELETE FROM single_row_no_primary_key WHERE a = 1;
-                   QUERY PLAN
--------------------------------------------------
+                 QUERY PLAN
+---------------------------------------------
  Delete on single_row_no_primary_key
-   ->  Foreign Scan on single_row_no_primary_key
+   ->  Seq Scan on single_row_no_primary_key
          Filter: (a = 1)
 (3 rows)
 
 EXPLAIN (COSTS FALSE) DELETE FROM single_row_no_primary_key WHERE a = 1 and b = 1;
-                   QUERY PLAN
--------------------------------------------------
+                 QUERY PLAN
+---------------------------------------------
  Delete on single_row_no_primary_key
-   ->  Foreign Scan on single_row_no_primary_key
+   ->  Seq Scan on single_row_no_primary_key
          Filter: ((a = 1) AND (b = 1))
 (3 rows)
 
 -- Below statements should all NOT USE single-row.
 EXPLAIN (COSTS FALSE) UPDATE single_row_no_primary_key SET a = 1;
-                   QUERY PLAN
--------------------------------------------------
+                 QUERY PLAN
+---------------------------------------------
  Update on single_row_no_primary_key
-   ->  Foreign Scan on single_row_no_primary_key
+   ->  Seq Scan on single_row_no_primary_key
 (2 rows)
 
 EXPLAIN (COSTS FALSE) UPDATE single_row_no_primary_key SET b = 1 WHERE a = 1;
-                   QUERY PLAN
--------------------------------------------------
+                 QUERY PLAN
+---------------------------------------------
  Update on single_row_no_primary_key
-   ->  Foreign Scan on single_row_no_primary_key
+   ->  Seq Scan on single_row_no_primary_key
          Filter: (a = 1)
 (3 rows)
 
 EXPLAIN (COSTS FALSE) UPDATE single_row_no_primary_key SET b = 1 WHERE b = 1;
-                   QUERY PLAN
--------------------------------------------------
+                 QUERY PLAN
+---------------------------------------------
  Update on single_row_no_primary_key
-   ->  Foreign Scan on single_row_no_primary_key
+   ->  Seq Scan on single_row_no_primary_key
          Filter: (b = 1)
 (3 rows)
 
@@ -1033,10 +1072,10 @@ EXPLAIN (COSTS FALSE) UPDATE single_row_range_asc_primary_key SET v = 1 WHERE k 
 (3 rows)
 
 EXPLAIN (COSTS FALSE) UPDATE single_row_range_asc_primary_key SET v = 1 WHERE k != 1;
-                       QUERY PLAN
---------------------------------------------------------
+                     QUERY PLAN
+----------------------------------------------------
  Update on single_row_range_asc_primary_key
-   ->  Foreign Scan on single_row_range_asc_primary_key
+   ->  Seq Scan on single_row_range_asc_primary_key
          Filter: (k <> 1)
 (3 rows)
 
@@ -1163,10 +1202,10 @@ EXPLAIN (COSTS FALSE) UPDATE single_row_range_desc_primary_key SET v = 1 WHERE k
 (3 rows)
 
 EXPLAIN (COSTS FALSE) UPDATE single_row_range_desc_primary_key SET v = 1 WHERE k != 1;
-                       QUERY PLAN
----------------------------------------------------------
+                     QUERY PLAN
+-----------------------------------------------------
  Update on single_row_range_desc_primary_key
-   ->  Foreign Scan on single_row_range_desc_primary_key
+   ->  Seq Scan on single_row_range_desc_primary_key
          Filter: (k <> 1)
 (3 rows)
 
@@ -2025,6 +2064,97 @@ SELECT * FROM single_row_default_col ORDER BY k;
  4 | 4 | 20 | 4
  5 | 7 |  7 | 7
 (5 rows)
+
+--
+-- Test single-row with partial index
+--
+CREATE TABLE single_row_partial_index(k SERIAL PRIMARY KEY, value INT NOT NULL, status INT NOT NULL);
+CREATE UNIQUE INDEX ON single_row_partial_index(value ASC) WHERE status = 10;
+INSERT INTO single_row_partial_index(value, status) VALUES(1, 10), (2, 20), (3, 10), (4, 30);
+EXPLAIN (COSTS OFF) SELECT * FROM single_row_partial_index WHERE status = 10;
+                                   QUERY PLAN
+---------------------------------------------------------------------------------
+ Index Scan using single_row_partial_index_value_idx on single_row_partial_index
+(1 row)
+
+SELECT * FROM single_row_partial_index WHERE status = 10;
+ k | value | status
+---+-------+--------
+ 1 |     1 |     10
+ 3 |     3 |     10
+(2 rows)
+
+EXPLAIN (COSTS OFF) UPDATE single_row_partial_index SET status = 10 WHERE k = 2;
+                                    QUERY PLAN
+----------------------------------------------------------------------------------
+ Update on single_row_partial_index
+   ->  Index Scan using single_row_partial_index_pkey on single_row_partial_index
+         Index Cond: (k = 2)
+(3 rows)
+
+UPDATE single_row_partial_index SET status = 10 WHERE k = 2;
+SELECT * FROM single_row_partial_index WHERE status = 10;
+ k | value | status
+---+-------+--------
+ 1 |     1 |     10
+ 2 |     2 |     10
+ 3 |     3 |     10
+(3 rows)
+
+EXPLAIN (COSTS OFF) UPDATE single_row_partial_index SET status = 9 WHERE k = 1;
+                                    QUERY PLAN
+----------------------------------------------------------------------------------
+ Update on single_row_partial_index
+   ->  Index Scan using single_row_partial_index_pkey on single_row_partial_index
+         Index Cond: (k = 1)
+(3 rows)
+
+UPDATE single_row_partial_index SET status = 9 WHERE k = 1;
+SELECT * FROM single_row_partial_index WHERE status = 10;
+ k | value | status
+---+-------+--------
+ 2 |     2 |     10
+ 3 |     3 |     10
+(2 rows)
+
+--
+-- Test single-row with index expression
+--
+CREATE TABLE single_row_expression_index(k SERIAL PRIMARY KEY, value text NOT NULL);
+CREATE UNIQUE INDEX ON single_row_expression_index(lower(value) ASC);
+INSERT INTO single_row_expression_index(value) VALUES('aBc'), ('deF'), ('HIJ');
+EXPLAIN (COSTS OFF) SELECT * FROM single_row_expression_index WHERE lower(value)='def';
+                                      QUERY PLAN
+---------------------------------------------------------------------------------------
+ Index Scan using single_row_expression_index_lower_idx on single_row_expression_index
+   Index Cond: (lower(value) = 'def'::text)
+(2 rows)
+
+SELECT * FROM single_row_expression_index WHERE lower(value)='def';
+ k | value
+---+-------
+ 2 | deF
+(1 row)
+
+EXPLAIN (COSTS OFF) UPDATE single_row_expression_index SET value = 'kLm' WHERE k = 2;
+                                       QUERY PLAN
+----------------------------------------------------------------------------------------
+ Update on single_row_expression_index
+   ->  Index Scan using single_row_expression_index_pkey on single_row_expression_index
+         Index Cond: (k = 2)
+(3 rows)
+
+UPDATE single_row_expression_index SET value = 'kLm' WHERE k = 2;
+SELECT * FROM single_row_expression_index WHERE lower(value)='def';
+ k | value
+---+-------
+(0 rows)
+
+SELECT * FROM single_row_expression_index WHERE lower(value)='klm';
+ k | value
+---+-------
+ 2 | kLm
+(1 row)
 
 --
 -- Test array types.

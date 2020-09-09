@@ -561,7 +561,7 @@ TEST_F(QLDmlTest, TestSelectWithoutConditionWithLimit) {
       ops.push_back(InsertRow(session, 1, "a", 2 + i, "b", 3 + i, "c"));
     }
     EXPECT_OK(session->Flush());
-    for (const auto op : ops) {
+    for (const auto& op : ops) {
       EXPECT_EQ(op->response().status(), QLResponsePB::YQL_STATUS_OK);
     }
   }

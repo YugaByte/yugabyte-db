@@ -1234,16 +1234,6 @@ Status GetMemTableRepFactoryFromString(const std::string& opts_str,
     } else if (1 == len) {
       mem_factory = new VectorRepFactory();
     }
-  } else if (opts_list[0] == "cuckoo") {
-    // Expecting format
-    // cuckoo:<write_buffer_size>
-    if (2 == len) {
-      size_t write_buffer_size = ParseSizeT(opts_list[1]);
-      mem_factory = NewHashCuckooRepFactory(write_buffer_size);
-    } else if (1 == len) {
-      return STATUS(InvalidArgument, "Can't parse memtable_factory option ",
-                                     opts_str);
-    }
   } else {
     return STATUS(InvalidArgument, "Unrecognized memtable_factory option ",
                                    opts_str);

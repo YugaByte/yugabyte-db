@@ -97,6 +97,8 @@
 #include "yb/yql/cql/ql/ptree/pt_update.h"
 #include "yb/yql/cql/ql/ptree/pt_transaction.h"
 
+DECLARE_bool(cql_raise_index_where_clause_error);
+
 namespace yb {
 namespace ql {
 
@@ -8011,11 +8013,19 @@ IndexStmt:
   CREATE opt_unique INDEX opt_concurrently opt_index_name ON qualified_name
   access_method_clause '(' index_params ')' opt_include_clause OptTableSpace opt_where_clause
   opt_index_options {
+    if ($14 && FLAGS_cql_raise_index_where_clause_error) {
+       // WHERE is not supported.
+       PARSER_UNSUPPORTED(@1);
+    }
     $$ = MAKE_NODE(@1, PTCreateIndex, $2, $5, $7, $10, false, $15, $12);
   }
   | CREATE opt_unique INDEX opt_concurrently IF_P NOT_LA EXISTS opt_index_name ON qualified_name
   access_method_clause '(' index_params ')' opt_include_clause OptTableSpace opt_where_clause
   opt_index_options {
+    if ($17 && FLAGS_cql_raise_index_where_clause_error) {
+       // WHERE is not supported.
+       PARSER_UNSUPPORTED(@1);
+    }
     $$ = MAKE_NODE(@1, PTCreateIndex, $2, $8, $10, $13, true, $18, $15);
   }
 ;

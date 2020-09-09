@@ -1109,6 +1109,9 @@ storeObjectDescription(StringInfo descs,
 static bool
 isSharedObjectPinned(Oid classId, Oid objectId, Relation sdepRel)
 {
+	if (YBHasPinnedObjectsCache())
+		return YBIsSharedObjectPinned(classId, objectId);
+
 	bool		result = false;
 	ScanKeyData key[2];
 	SysScanDesc scan;

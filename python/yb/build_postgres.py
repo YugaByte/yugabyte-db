@@ -237,6 +237,7 @@ class PostgresBuilder:
 
         self.set_env_var('YB_PG_BUILD_STEP', step)
         self.set_env_var('YB_BUILD_ROOT', self.build_root)
+        self.set_env_var('YB_THIRDPARTY_DIR', self.thirdparty_dir)
         self.set_env_var('YB_SRC_ROOT', YB_SRC_ROOT)
 
         for var_name in ['CFLAGS', 'CXXFLAGS', 'LDFLAGS', 'LDFLAGS_EX']:
@@ -396,6 +397,7 @@ class PostgresBuilder:
                 '--with-extra-version=-YB-' + self.get_yb_version(),
                 '--enable-depend',
                 '--with-openssl',
+                '--with-libedit-preferred',
                 '--with-includes=' + self.openssl_include_dir,
                 '--with-libraries=' + self.openssl_lib_dir,
                 # We're enabling debug symbols for all types of builds.

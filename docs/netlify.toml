@@ -1,0 +1,29 @@
+[[redirects]]
+  from = "/v1.0"
+  to = "/latest"
+  force = true
+
+[[redirects]]
+  from = "/v1.0/*"
+  to = "/latest/:splat"
+  force = true
+
+[[redirects]]
+  from = "/v1.1"
+  to = "/latest"
+  force = true
+
+[[redirects]]
+  from = "/v1.1/*"
+  to = "/latest/:splat"
+  force = true
+
+[[redirects]]
+  from = "/v1.2"
+  to = "/latest"
+  force = true
+
+[[redirects]]
+  from = "/v1.2/*"
+  to = "/latest/:splat"
+  force = true

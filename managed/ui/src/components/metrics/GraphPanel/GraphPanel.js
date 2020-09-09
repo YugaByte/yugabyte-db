@@ -13,7 +13,8 @@ const panelTypes = {
   container: {title: "Container",
     metrics: ["container_cpu_usage",
       "container_memory_usage",
-      "container_volume_stats"]},
+      "container_volume_stats"
+    ]},
   server: {title: "Node",
     metrics: ["cpu_usage",
       "memory_usage",
@@ -43,10 +44,22 @@ const panelTypes = {
       "tserver_log_stats",
       "tserver_cache_reader_num_ops",
       "tserver_glog_info_messages",
-      "tserver_rpc_queue_size_master",
       "tserver_rpc_queue_size_tserver",
-      "tserver_rpc_queue_size_cql",
-      "tserver_rpc_queue_size_redis"
+      "tserver_cpu_util_secs",
+      "tserver_yb_rpc_connections"
+    ]},
+  master: {title: "Master Server",
+    metrics: [
+      "master_overall_rpc_rate",
+      "master_get_tablet_location",
+      "master_tsservice_reads",
+      "master_tsservice_writes",
+      "master_ts_heartbeats",
+      "tserver_rpc_queue_size_master",
+      "master_consensus_update",
+      "master_table_ops",
+      "master_cpu_util_secs",
+      "master_yb_rpc_connections"
     ]},
   lsmdb: {title: "DocDB",
     metrics: ["lsm_rocksdb_num_seek_or_next",
@@ -66,7 +79,8 @@ const panelTypes = {
       "lsm_rocksdb_compaction",
       "lsm_rocksdb_compaction_time",
       "lsm_rocksdb_compaction_numfiles",
-      "docdb_transaction"]},
+      "docdb_transaction"
+    ]},
   ysql_ops: {title: "YSQL Ops and Latency",
     metrics: [
       "ysql_server_rpc_per_second",
@@ -78,7 +92,8 @@ const panelTypes = {
     metrics: [
       "cql_server_rpc_per_second",
       "cql_sql_latency",
-      "cql_server_rpc_p99"
+      "cql_server_rpc_p99",
+      "tserver_async_replication_lag_micros"
     ]},
   yedis_ops: {title: "YEDIS Ops and Latency",
     metrics: [
@@ -88,6 +103,7 @@ const panelTypes = {
     ]},
   redis:  {title: "YEDIS Advanced",
     metrics: ["redis_yb_local_vs_remote_ops",
+      "tserver_rpc_queue_size_redis",
       "redis_yb_local_vs_remote_latency",
       "redis_reactor_latency",
       "redis_rpcs_per_sec_hash",
@@ -101,7 +117,8 @@ const panelTypes = {
       "redis_rpcs_per_sec_str",
       "redis_ops_latency_str",
       "redis_rpcs_per_sec_local",
-      "redis_ops_latency_local"
+      "redis_ops_latency_local",
+      "redis_yb_rpc_connections"
     ]},
 
   cql:  {title: "YCQL Advanced",
@@ -109,39 +126,11 @@ const panelTypes = {
       "cql_yb_local_vs_remote",
       "cql_yb_latency",
       "cql_reactor_latency",
-      "cql_yb_rpc_connections",
+      "tserver_rpc_queue_size_cql",
       "response_sizes",
-      "cql_yb_transaction"]},
-
-  tserver_table: {
-    title: "Tablet Server",
-    metrics: ["tserver_log_latency",
-      "tserver_log_bytes_written",
-      "tserver_log_bytes_read",
-      "tserver_log_ops_second",
-      "tserver_log_stats",
-      "tserver_cache_reader_num_ops",
-      "tserver_glog_info_messages"]
-  },
-
-  lsmdb_table: {
-    title: "DocDB",
-    metrics: ["lsm_rocksdb_num_seek_or_next",
-      "lsm_rocksdb_num_seeks_per_node",
-      "lsm_rocksdb_total_sst_per_node",
-      "lsm_rocksdb_avg_num_sst_per_node",
-      "lsm_rocksdb_latencies_get",
-      "lsm_rocksdb_latencies_write",
-      "lsm_rocksdb_latencies_seek",
-      "lsm_rocksdb_block_cache_hit_miss",
-      "lsm_rocksdb_blooms_checked_and_useful",
-      "lsm_rocksdb_stalls",
-      "lsm_rocksdb_flush_size",
-      "lsm_rocksdb_compaction",
-      "lsm_rocksdb_compaction_time",
-      "lsm_rocksdb_compaction_numfiles",
-      "docdb_transaction"]
-  }
+      "cql_yb_transaction",
+      "cql_yb_rpc_connections"
+    ]}
 };
 
 class GraphPanel extends Component {
@@ -197,7 +186,6 @@ class GraphPanel extends Component {
     // Perform metric query only if the graph filter has changed.
     // TODO: add the nodePrefixes to the queryParam
     if(prevProps.graph.graphFilter !== this.props.graph.graphFilter) {
-      this.props.resetMetrics();
       if(this.state.isOpen) {
         this.queryMetricsType(this.props.graph.graphFilter);
       }

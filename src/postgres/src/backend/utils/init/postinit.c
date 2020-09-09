@@ -46,6 +46,7 @@
 #include "catalog/pg_authid.h"
 #include "catalog/pg_database.h"
 #include "catalog/pg_db_role_setting.h"
+#include "catalog/pg_tablegroup.h"
 #include "catalog/pg_tablespace.h"
 #include "libpq/auth.h"
 #include "libpq/libpq-be.h"
@@ -1028,6 +1029,15 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	{
 		YBCPgGetCatalogMasterVersion(&yb_catalog_cache_version);
 	}
+
+	// See if tablegroup catalog exists - needs to happen before cache fully initialized.
+	if (IsYugaByteEnabled())
+	{
+		HandleYBStatus(YBCPgTableExists(MyDatabaseId,
+										TableGroupRelationId,
+										&TablegroupCatalogExists));
+	}
+
 	RelationCacheInitializePhase3();
 
 	/*

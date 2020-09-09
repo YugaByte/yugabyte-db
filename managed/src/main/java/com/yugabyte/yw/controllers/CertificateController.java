@@ -11,6 +11,7 @@ import com.yugabyte.yw.forms.CertificateParams;
 import com.yugabyte.yw.forms.ClientCertParams;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,6 +76,27 @@ public class CertificateController extends AuthenticatedController {
       return ApiResponse.success(result);
     } catch (Exception e) {
       return ApiResponse.error(INTERNAL_SERVER_ERROR, "Couldn't generate client cert.");
+    }
+  }
+
+  public Result getRootCert(UUID customerUUID, UUID rootCA) {
+    if (Customer.get(customerUUID) == null) {
+      return ApiResponse.error(BAD_REQUEST, "Invalid Customer UUID: " + customerUUID);
+    }
+    if (CertificateInfo.get(rootCA) == null) {
+      return ApiResponse.error(BAD_REQUEST, "Invalid Cert ID: " + rootCA);
+    }
+    if (!CertificateInfo.get(rootCA).customerUUID.equals(customerUUID)) {
+      return ApiResponse.error(BAD_REQUEST, "Certificate doesn't belong to customer");
+    }
+    try {
+      String certContents = CertificateHelper.getCertPEMFileContents(rootCA);
+      Audit.createAuditEntry(ctx(), request());
+      ObjectNode result = Json.newObject();
+      result.put(CertificateHelper.ROOT_CERT, certContents);
+      return ApiResponse.success(result);
+    } catch (Exception e) {
+      return ApiResponse.error(INTERNAL_SERVER_ERROR, "Couldn't fetch root cert.");
     }
   }
 

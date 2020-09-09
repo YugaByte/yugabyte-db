@@ -38,6 +38,15 @@ DEFINE_int32(rpcz_max_cql_query_dump_size, 4_KB,
              "The maximum size of the CQL query string in the RPCZ dump.");
 DEFINE_int32(rpcz_max_cql_batch_dump_count, 4_KB,
              "The maximum number of CQL batch elements in the RPCZ dump.");
+DEFINE_bool(throttle_cql_calls_on_soft_memory_limit, true,
+            "Whether to reject CQL calls when soft memory limit is reached.");
+
+constexpr int kDropPolicy = 1;
+constexpr int kRejectPolicy = 0;
+
+DEFINE_int32(throttle_cql_calls_policy, kRejectPolicy,
+              "Policy for throttling CQL calls. 1 - drop throttled calls. "
+              "0 - respond with OVERLOADED error.");
 
 DECLARE_int32(rpc_max_message_size);
 
@@ -93,6 +102,18 @@ Status CQLConnectionContext::HandleCall(
   if (!s.ok()) {
     LOG(WARNING) << connection->ToString() << ": received bad data: " << s.ToString();
     return STATUS_SUBSTITUTE(NetworkError, "Bad data: $0", s.ToUserMessage());
+  }
+
+  if (FLAGS_throttle_cql_calls_on_soft_memory_limit) {
+    if (!CheckMemoryPressureWithLogging(call_tracker_, /* score= */ 0.0, "Rejecting CQL call: ")) {
+      if (FLAGS_throttle_cql_calls_policy != kDropPolicy) {
+        static Status status = STATUS(ServiceUnavailable, "Server is under memory pressure");
+        // We did not store call yet, so should not notify that it was processed.
+        call->ResetCallProcessedListener();
+        call->RespondFailure(rpc::ErrorStatusPB::ERROR_SERVER_TOO_BUSY, Status::OK());
+      } // Otherwise silently drop the call without queueing it. Clients will get a timeout.
+      return Status::OK();
+    }
   }
 
   s = Store(call.get());
@@ -167,7 +188,7 @@ void CQLInboundCall::RespondFailure(rpc::ErrorStatusPB::RpcErrorCodePB error_cod
   switch (error_code) {
     case rpc::ErrorStatusPB::ERROR_SERVER_TOO_BUSY: {
       // Return OVERLOADED error to redirect CQL client to the next host.
-      ErrorResponse(stream_id_, ErrorResponse::Code::OVERLOADED, "CQL service queue full")
+      ErrorResponse(stream_id_, ErrorResponse::Code::OVERLOADED, status.message().ToBuffer())
           .Serialize(compression_scheme, &msg);
       break;
     }

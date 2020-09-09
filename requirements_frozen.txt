@@ -7,3 +7,4 @@ six==1.12.0
 yugabyte-pycommon==1.9.3
 psutil==5.5.1
 distro==1.5.0
+boto==2.49.0

@@ -1,7 +1,12 @@
 // Copyright (c) YugaByte, Inc.
 
 import { connect } from 'react-redux';
-import { isNonEmptyObject, isNonEmptyArray, isNonEmptyString } from '../../../utils/ObjectUtils';
+import {
+  isNonEmptyObject,
+  isNonEmptyArray,
+  isNonEmptyString,
+  isEmptyString
+} from '../../../utils/ObjectUtils';
 import { reset } from 'redux-form';
 import  OnPremNodesList from './OnPremNodesList';
 import {
@@ -9,19 +14,28 @@ import {
   createNodeInstances, createNodeInstancesResponse, getNodeInstancesForProvider,
   getNodesInstancesForProviderResponse, deleteInstance, deleteInstanceResponse
 } from '../../../actions/cloud';
+import { fetchUniverseList, fetchUniverseListResponse } from '../../../actions/universe';
 import { reduxForm } from 'redux-form';
 import { closeUniverseDialog } from '../../../actions/universe';
 import { openDialog, closeDialog } from '../../../actions/modal';
+import _ from 'lodash';
 
 const mapStateToProps = (state) => {
   return {
     cloud: state.cloud,
+    universeList: state.universe.universeList,
     visibleModal: state.modal.visibleModal
   };
 };
 
 const mapDispatchToProps = (dispatch, ownProps) => {
   return {
+    fetchUniverseList: () => {
+      dispatch(fetchUniverseList()).then((response) => {
+        dispatch(fetchUniverseListResponse(response.payload));
+      });
+    },
+
     getInstanceTypeListItems: (provider) => {
       dispatch(getInstanceTypeList(provider)).then((response) => {
         dispatch(getInstanceTypeListResponse(response.payload));
@@ -101,11 +115,24 @@ const validate = values => {
         instanceRowArray.forEach(function(instanceRowItem, instanceRowIdx){
           errors.instances[instanceRowKey][instanceRowIdx] = {};
           if (isNonEmptyString(instanceRowItem.instanceTypeIPs)) {
-            instanceRowItem.instanceTypeIPs.split(",").forEach(function(ipItem){
-              if (!isNonEmptyString(ipItem)) {
-                errors.instances[instanceRowKey][instanceRowIdx] = {instanceTypeIPs: "Invalid IP Address"};
+            const instanceTypeIPs = instanceRowItem.instanceTypeIPs.split(",");
+            instanceTypeIPs.forEach(function (ipItem) {
+              // Limit length for the case where hostnames are being inputted to protect against
+              // UNIX socket limit (a valid IP address will never hit this length limit anyways)
+              if (!isNonEmptyString(ipItem) || ipItem.length > 75) {
+                errors.instances[instanceRowKey][instanceRowIdx] = {instanceTypeIPs: "Invalid Instance Address"};
               }
             });
+
+            if (!_.get(instanceRowItem, "instanceNames", false) || isEmptyString(instanceRowItem.instanceNames) || instanceRowItem.instanceNames.split(",").length !== instanceTypeIPs.length) {
+              errors.instances[instanceRowKey][instanceRowIdx] = {instanceNames: "Invalid Number of Names"};
+            } else if (isNonEmptyString(instanceRowItem.instanceNames) && instanceRowItem.instanceNames.split(",").length === instanceTypeIPs.length) {
+              instanceRowItem.instanceNames.split(",").forEach(function (instanceName) {
+                if (!isNonEmptyString(instanceName)) {
+                  errors.instances[instanceRowKey][instanceRowIdx] = {instanceNames: "Invalid Number of Names"};
+                }
+              });
+            }
           }
         });
       }

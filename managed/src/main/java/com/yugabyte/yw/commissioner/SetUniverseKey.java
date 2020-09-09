@@ -64,6 +64,10 @@ public class SetUniverseKey {
         this.initialize();
     }
 
+    public void setRunningState(AtomicBoolean state) {
+      this.running = state;
+    }
+
     private void initialize() {
         this.actorSystem.scheduler().schedule(
                 Duration.create(0, TimeUnit.MINUTES),
@@ -94,8 +98,7 @@ public class SetUniverseKey {
         }
     }
 
-    private void setUniverseKey(Universe u) {
-        Customer c = Customer.get(u.customerId);
+    public void setUniverseKey(Universe u) {
         try {
             if (!u.universeIsLocked() &&
                     EncryptionAtRestUtil.getNumKeyRotations(u.universeUUID) > 0) {
@@ -134,22 +137,30 @@ public class SetUniverseKey {
         }
     }
 
+    public void handleCustomerError(UUID cUUID, Exception e) {
+      LOG.error(
+        String.format("Error detected running universe key setter for customer %s", cUUID),
+        e
+      );
+    }
+
+    public void setCustomerUniverseKeys(Customer c) {
+      c.getUniverses().forEach(this::setUniverseKey);
+    }
+
     @VisibleForTesting
     void scheduleRunner() {
-        if (running.get()) {
-            LOG.info("Previous universe key setter still running");
-            return;
+        if (!running.get()) {
+            LOG.info("Running universe key setter");
+            running.set(true);
+            Customer.getAll().forEach(c -> {
+              try {
+                setCustomerUniverseKeys(c);
+              } catch (Exception e) {
+                handleCustomerError(c.uuid, e);
+              }
+            });
+            running.set(false);
         }
-
-        LOG.info("Running universe key setter");
-        running.set(true);
-        try {
-            Customer.getAll()
-                    .stream()
-                    .forEach(c -> c.getUniverses().stream().forEach(this::setUniverseKey));
-        } catch (Exception e) {
-            LOG.error("Error detected running universe key setter", e);
-        }
-        running.set(false);
     }
 }

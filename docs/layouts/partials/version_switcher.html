@@ -21,7 +21,8 @@
     </button>
     
     <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-        <a class="dropdown-item" href="/latest/">v2.1 (latest version)</a>
+        <a class="dropdown-item" href="/latest/">latest (v2.3)</a>
+        <a class="dropdown-item" href="/stable/">stable (v2.2)</a>
         {{ range sort $versions "Name" "desc" }}
             {{ if  hasPrefix .Name "v"}}
               <a class="dropdown-item" href="/{{.Name}}/">{{ .Name }} (earlier version)</a>

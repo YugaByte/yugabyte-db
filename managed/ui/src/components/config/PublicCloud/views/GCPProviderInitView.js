@@ -278,7 +278,7 @@ class GCPProviderInitView extends Component {
                     <div className="form-item-custom-label">Firewall Tags</div>
                   </Col>
                   <Col lg={7}>
-                  <Field name="firewall_tags" placeHolder="my-firewall-tag-1,my-firewall-tag-2"
+                    <Field name="firewall_tags" placeHolder="my-firewall-tag-1,my-firewall-tag-2"
                            component={YBTextInputWithLabel} className={"gcp-provider-input-field"}/>
                   </Col>
                 </Row>

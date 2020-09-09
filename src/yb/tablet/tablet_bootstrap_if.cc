@@ -52,6 +52,10 @@ const string TabletStatusListener::tablet_id() const {
   return meta_->raft_group_id();
 }
 
+const string TabletStatusListener::namespace_name() const {
+  return meta_->namespace_name();
+}
+
 const string TabletStatusListener::table_name() const {
   return meta_->table_name();
 }
@@ -85,14 +89,19 @@ Status BootstrapTablet(
     ConsensusBootstrapInfo* consensus_info) {
   const auto& meta = *data.tablet_init_data.metadata;
   TRACE_EVENT1("tablet", "BootstrapTablet", "tablet_id", meta.raft_group_id());
-  TabletBootstrap bootstrap(data);
-  RETURN_NOT_OK(bootstrap.Bootstrap(rebuilt_tablet, rebuilt_log, consensus_info));
+  RETURN_NOT_OK(BootstrapTabletImpl(data, rebuilt_tablet, rebuilt_log, consensus_info));
+
   // Set WAL retention time from the metadata.
   (*rebuilt_log)->set_wal_retention_secs(meta.wal_retention_secs());
   (*rebuilt_log)->set_cdc_min_replicated_index(meta.cdc_min_replicated_index());
+
   // This is necessary since OpenNewLog() initially disables sync.
   RETURN_NOT_OK((*rebuilt_log)->ReEnableSyncIfRequired());
   return Status::OK();
+}
+
+string DocDbOpIds::ToString() const {
+  return Format("{ regular: $0 intents: $1 }", regular, intents);
 }
 
 } // namespace tablet

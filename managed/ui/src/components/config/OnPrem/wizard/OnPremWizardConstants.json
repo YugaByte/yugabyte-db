@@ -6,5 +6,6 @@
   "pkHelpContent": "Enter the full content of the private key that the SSH User can use to SSH into your instances.",
   "passwordlessSudoHelp": "If enabled, the SSH User specified above must have passwordless sudo access to all machines. If not enabled, you are responsible for pre-provisioning all machines before use.",
   "airGapInstallHelp": "If not enabled we would pre-provisiong the machines before creating universes. If enabled, you are responsible for pre-provisioning all machines before use.",
-  "homeDirHelp": "Enter the desired home directory for YB nodes."
+  "homeDirHelp": "Enter the desired home directory for YB nodes.",
+  "useHostnameHelp": "If enabled, nodes are expected to be specified by hostname instead of IP address. This will mean that all communication between YugaWare and nodes as well as amongst nodes in a cluster will happen by way of DNS resolution."
 }

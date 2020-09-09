@@ -27,12 +27,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static play.inject.Bindings.bind;
 import static play.test.Helpers.contentAsString;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.yugabyte.yw.commissioner.Common;
+import com.yugabyte.yw.commissioner.tasks.CloudBootstrap;
 import com.yugabyte.yw.common.AccessManager;
 import com.yugabyte.yw.common.CloudQueryHelper;
 import com.yugabyte.yw.common.DnsManager;
@@ -49,6 +49,7 @@ import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import com.yugabyte.yw.models.AccessKey;
 import com.yugabyte.yw.models.Region;
 import com.yugabyte.yw.models.Universe;
+import com.yugabyte.yw.models.helpers.TaskType;
 import org.apache.commons.io.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -86,31 +87,6 @@ public class CloudProviderControllerTest extends FakeDBApplication {
   public static final Logger LOG = LoggerFactory.getLogger(CloudProviderControllerTest.class);
   Customer customer;
   Users user;
-
-  AccessManager mockAccessManager;
-  CloudQueryHelper mockQueryHelper;
-  DnsManager mockDnsManager;
-  NetworkManager mockNetworkManager;
-  TemplateManager mockTemplateManager;
-
-  @Override
-  protected Application provideApplication() {
-    ApiHelper mockApiHelper = mock(ApiHelper.class);
-    mockAccessManager = mock(AccessManager.class);
-    mockQueryHelper = mock(CloudQueryHelper.class);
-    mockDnsManager = mock(DnsManager.class);
-    mockNetworkManager = mock(NetworkManager.class);
-    mockTemplateManager = mock(TemplateManager.class);
-    return new GuiceApplicationBuilder()
-        .configure((Map) Helpers.inMemoryDatabase())
-        .overrides(bind(ApiHelper.class).toInstance(mockApiHelper))
-        .overrides(bind(AccessManager.class).toInstance(mockAccessManager))
-        .overrides(bind(CloudQueryHelper.class).toInstance(mockQueryHelper))
-        .overrides(bind(DnsManager.class).toInstance(mockDnsManager))
-        .overrides(bind(NetworkManager.class).toInstance(mockNetworkManager))
-        .overrides(bind(TemplateManager.class).toInstance(mockTemplateManager))
-        .build();
-  }
 
   @Before
   public void setUp() {
@@ -675,6 +651,9 @@ public class CloudProviderControllerTest extends FakeDBApplication {
 
   @Test
   public void testAwsBootstrapWithDestVpcId() {
+    UUID fakeTaskUUID = UUID.randomUUID();
+    when(mockCommissioner.submit(any(TaskType.class),
+            any(CloudBootstrap.Params.class))).thenReturn(fakeTaskUUID);
     Provider provider = ModelFactory.awsProvider(customer);
     ObjectNode bodyJson = Json.newObject();
     bodyJson.put("destVpcId", "nofail");
@@ -688,14 +667,18 @@ public class CloudProviderControllerTest extends FakeDBApplication {
 
   private void prepareBootstrap(
       ObjectNode bodyJson, Provider provider, boolean expectCallToGetRegions) {
-    when(mockQueryHelper.getRegions(provider.uuid)).thenReturn(Json.parse("[\"region1\",\"region2\"]"));
+    UUID fakeTaskUUID = UUID.randomUUID();
+    when(mockCommissioner.submit(any(TaskType.class),
+            any(CloudBootstrap.Params.class))).thenReturn(fakeTaskUUID);
+    when(mockCloudQueryHelper.getRegions(provider.uuid))
+                             .thenReturn(Json.parse("[\"region1\",\"region2\"]"));
     Result result = bootstrapProvider(bodyJson, provider);
     assertOk(result);
     JsonNode json = Json.parse(contentAsString(result));
     assertNotNull(json);
     assertNotNull(json.get("taskUUID"));
     // TODO(bogdan): figure out a better way to inspect what tasks and with what params get started.
-    verify(mockQueryHelper, times(expectCallToGetRegions ? 1 : 0)).getRegions(provider.uuid);
+    verify(mockCloudQueryHelper, times(expectCallToGetRegions ? 1 : 0)).getRegions(provider.uuid);
   }
 
   private void mockDnsManagerListSuccess() {

@@ -560,13 +560,13 @@ public class YBMetricQueryComponent {
             metricResults.add(String.format(
               NODE_METRIC_FORMAT,
               nodeUpMetric.getKey(),
-              SwamperHelper.TargetType.MASTER_EXPORT.getPort(),
+              universe.getUniverseDetails().communicationPorts.masterHttpPort,
               nodeUpMetric.getValue()
             ));
             metricResults.add(String.format(
               NODE_METRIC_FORMAT,
               nodeUpMetric.getKey(),
-              SwamperHelper.TargetType.TSERVER_EXPORT.getPort(),
+              universe.getUniverseDetails().communicationPorts.tserverHttpPort,
               nodeUpMetric.getValue()
             ));
             // Note that we are passing a List<String> to the %s parameter and expecting

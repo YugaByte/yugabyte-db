@@ -8,7 +8,7 @@ menu:
   latest:
     identifier: array-functions-operators
     parent: api-ysql-datatypes-array
-    weight: 30
+    weight: 90
 isTocNested: true
 showAsideToc: true
 ---
@@ -17,6 +17,7 @@ showAsideToc: true
 &#160;&#160;&#160;&#160;[Functions for creating arrays from scratch](./#functions-for-creating-arrays-from-scratch)<br>
 &#160;&#160;&#160;&#160;[Functions for reporting the geometric properties of an array](./#functions-for-reporting-the-geometric-properties-of-an-array)<br>
 &#160;&#160;&#160;&#160;[Functions to find a value in an array](./#functions-to-find-a-value-in-an-array)<br>
+&#160;&#160;&#160;&#160;[Operators to test whether a value is in an array](./#operators-to-test-whether-a-value-is-in-an-array)<br>
 &#160;&#160;&#160;&#160;[Operators for comparing two arrays](./#operators-for-comparing-two-arrays)<br>
 &#160;&#160;&#160;&#160;[The slice operator](./#the-slice-operator)<br>
 &#160;&#160;&#160;&#160;[Functions and operators for concatenating an array with an array or an element](./#functions-and-operators-for-concatenating-an-array-with-an-array-or-an-element)<br>
@@ -56,6 +57,16 @@ The `array[]` constructor, and the three functions, create an array from scratch
 | ---- | ---- | ---- |
 | [`array_position()`](./array-position/#array-position) | 1-d | Returns the index, in the supplied array, of the specified value. Optionally starts searching at the specified index. |
 | [`array_positions()`](./array-position/#array-positions) | 1-d | Returns the indexes, in the supplied array, of all occurrences the specified value. |
+
+## Operators to test whether a value is in an array
+
+These operators require that the [LHS](https://en.wikipedia.org/wiki/Sides_of_an_equation) is a scalar and that
+the [RHS](https://en.wikipedia.org/wiki/Sides_of_an_equation) is an array of that LHS's data type.
+
+| Operator | 1-d only? | Description |
+| ---- | ---- | ---- |
+| [`ANY`](./any-all/) | | Returns `TRUE` if _at least one_ of the specified inequality tests between the LHS element and each of the RHS array's elements evaluates to `TRUE`. |
+| [`ALL`](./any-all/) | | Returns `TRUE` if _every one_ of the specified inequality tests between the LHS element and each of the RHS array's elements evaluates to `TRUE`. |
 
 ## Operators for comparing two arrays
 
@@ -110,3 +121,9 @@ These functions require that the two arrays have the same data type and compatib
 | Function | 1-d only? | Description |
 | ---- | ---- | ---- |
 | [`unnest()`](./array-agg-unnest/#unnest) | | Use in the `FROM` clause of a `SELECT` statement. The simple overload accepts a single `anyarray` value and returns a `SETOF anyelement`. The exotic overload accepts a variadic list of `anyarray` values and returns a `SETOF` with many columns where each, in turn, has the output of the corresponding simple overload. |
+
+## Table function to transform an array into a SETOF index values
+
+| Function | 1-d only? | Description |
+| ---- | ---- | ---- |
+| [`generate_subscripts()`](./array-agg-unnest/#generate-subscripts) | | Use in the `FROM` clause of a `SELECT` statement. Returns the values of the indexes along the specified dimension of the specified array. |

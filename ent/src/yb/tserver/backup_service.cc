@@ -59,7 +59,7 @@ void TabletServiceBackupImpl::TabletSnapshotOp(const TabletSnapshotOpRequestPB* 
   TRACE_EVENT1("tserver", "TabletSnapshotOp", "tablet_id: ", tablet_id);
 
   LOG(INFO) << "Processing TabletSnapshotOp for tablet " << tablet_id << " from "
-            << context.requestor_string();
+            << context.requestor_string() << ": " << req->operation();
   VLOG(1) << "Full request: " << req->DebugString();
 
   auto tablet = LookupLeaderTabletOrRespond(tablet_manager_, tablet_id, resp, &context);

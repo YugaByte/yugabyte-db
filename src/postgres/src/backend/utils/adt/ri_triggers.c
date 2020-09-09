@@ -2710,7 +2710,7 @@ BuildYBTupleId(Relation pk_rel, Relation fk_rel, Relation idx_rel,
 	const int16 *attnums = riinfo->fk_attnums;
 	AttrNumber minattr = YBSystemFirstLowInvalidAttributeNumber + 1;
 
-	Bitmapset *pkey = GetFullYBTablePrimaryKey(idx_rel);
+	Bitmapset *pkey = YBGetTableFullPrimaryKeyBms(idx_rel);
 	const int nattrs = bms_num_members(pkey);
 	YBCPgAttrValueDescriptor *attrs =
 			(YBCPgAttrValueDescriptor*)palloc(nattrs * sizeof(YBCPgAttrValueDescriptor));

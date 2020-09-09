@@ -2,7 +2,7 @@
 title: Build a Java application that uses YSQL
 headerTitle: Build a Java application
 linkTitle: Java
-description: Build a simple Java application that uses YSQL.
+description: Build a sample Java application with the PostgreSQL JDBC Driver and use the YSQL API to connect to and interact with YugabyteDB.
 aliases:
   - /develop/client-drivers/java/
   - /latest/develop/client-drivers/java/
@@ -38,33 +38,27 @@ showAsideToc: true
       YCQL
     </a>
   </li>
+  <li>
+    <a href="/latest/quick-start/build-apps/java/ycql-4.6" class="nav-link">
+      <i class="icon-cassandra" aria-hidden="true"></i>
+      YCQL (4.6)
+    </a>
+  </li>
 </ul>
 
-## Maven
+## Prerequisites
 
-To build your Java application using the [PostgreSQL JDBC driver](https://jdbc.postgresql.org/), add the following Maven dependency to your application:
+This tutorial assumes that:
 
-```mvn
-<dependency>
-  <groupId>org.postgresql</groupId>
-  <artifactId>postgresql</artifactId>
-  <version>42.2.5</version>
-</dependency>
-```
-
-## Working example
-
-### Prerequisites
-
-This tutorial assumes that you have:
-
-- YugabyteDB up and running. If you are new to YugabyteDB, you can download, install, and have YugabyteDB up and running within five minutes by following the steps in the [Quick Start guide](../../../../quick-start/).
+- YugabyteDB is up and running. If you are new to YugabyteDB, you can download, install, and have YugabyteDB up and running within five minutes by following the steps in [Quick start](../../../../quick-start/).
 - Java Development Kit (JDK) 1.8, or later, is installed. JDK installers for Linux and macOS can be downloaded from [OpenJDK](http://jdk.java.net/), [AdoptOpenJDK](https://adoptopenjdk.net/), or [Azul Systems](https://www.azul.com/downloads/zulu-community/).
-- [Apache Maven](https://maven.apache.org/index.html) 3.3, or later, is installed.
+- [Apache Maven](https://maven.apache.org/index.html) 3.3 or later, is installed.
 
-### Create the Maven build file
+## Create the sample Java application
 
-Create a maven build file `pom.xml` and add the following content into it.
+### Create the project's POM
+
+Create a file, named `pom.xml`, and then copy the following content into it. The Project Object Model (POM) includes configuration information required to build the project. You can change the PostgreSQL dependency version, depending on the PostgreSQL JDBC driver you want to use.
 
 ```mvn
 <?xml version="1.0"?>
@@ -83,7 +77,7 @@ Create a maven build file `pom.xml` and add the following content into it.
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
-      <version>42.2.5</version>
+      <version>4.2.2.14</version>
     </dependency>
   </dependencies>
 
@@ -123,7 +117,7 @@ Create a maven build file `pom.xml` and add the following content into it.
 </project>
 ```
 
-### Write an application
+### Write the sample Java application
 
 Create the appropriate directory structure as expected by Maven.
 
@@ -135,65 +129,51 @@ Copy the following contents into the file `src/main/java/com/yugabyte/sample/app
 
 ```java
 package com.yugabyte.sample.apps;
-
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 
 public class YBSqlHelloWorld {
-  public static void main(String[] args) {
-    try {
-      // Create the DB connection
-      Class.forName("org.postgresql.Driver");
-      Connection connection = null;
-      connection = DriverManager.getConnection(
-                 "jdbc:postgresql://127.0.0.1:5433/yugabyte","yugabyte", "yugabyte");
 
-      // Create table 'employee'
-      String createStmt = "CREATE TABLE employee (id int PRIMARY KEY, " +
-                                                 "name varchar, " +
-                                                 "age int, " +
-                                                 "language varchar);";
-      connection.createStatement().execute(createStmt);
-      System.out.println("Created table employee");
+  public static void main(String[] args) throws ClassNotFoundException, SQLException {
+    Class.forName("org.postgresql.Driver");
+    try (Connection conn = DriverManager.getConnection("jdbc:postgresql://localhost:5433/postgres", "postgres", "");
+        Statement stmt = conn.createStatement();) {
+      System.out.println("Connected to the PostgreSQL server successfully.");
 
-      // Insert a row.
-      String insertStmt = "INSERT INTO employee (id, name, age, language)" +
-                                                " VALUES (1, 'John', 35, 'Java');";
-      connection.createStatement().executeUpdate(insertStmt);
-      System.out.println("Inserted data: " + insertStmt);
+      String createTableQuery = "CREATE TABLE IF NOT EXISTS emp(employid int primary key,first_name varchar, last_name varchar) ";
+      stmt.executeUpdate(createTableQuery);
 
-      // Query the row and print out the result.
-      String selectStmt = "SELECT name, age, language FROM employee WHERE id = 1;";
-      PreparedStatement pstmt = connection.prepareStatement(selectStmt);
-      ResultSet rs = pstmt.executeQuery();
-      while (rs.next()) {
-          String name = rs.getString(1);
-          int age = rs.getInt(2);
-          String language = rs.getString(3);
-          System.out.println("Query returned: " +
-                             "name=" + name + ", age=" + age + ", language: " + language);
-      }
+      String insertQuery = "INSERT INTO emp(employid ,first_name, last_name) values (1,'Siddharth','Jamadari') ";
+      stmt.executeUpdate(insertQuery);
 
-      // Close the client.
-      connection.close();
-    } catch (Exception e) {
-        System.err.println("Error: " + e.getMessage());
+      ResultSet rs = stmt.executeQuery("select * from emp");
+      while (rs.next())
+        System.out.println(rs.getInt(1) + "  " + rs.getString(2) + "  " + rs.getString(3));
+    } catch (SQLException e) {
+      System.err.println(e.getMessage());
+
     }
   }
 }
+
 ```
 
-### Build and run the application
+### Build the project
 
-To build the application, run the following command.
+To build the project, run the following `mvn package` command.
 
 ```sh
 $ mvn package
 ```
 
-To run the program, run the following command.
+You should see a `BUILD SUCCESS` message.
+
+### Run the application
+
+To run the application , run the following command.
 
 ```sh
 $ java -cp "target/hello-world-1.0.jar:target/lib/*" com.yugabyte.sample.apps.YBSqlHelloWorld

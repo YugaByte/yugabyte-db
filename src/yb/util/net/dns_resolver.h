@@ -50,33 +50,24 @@ class Histogram;
 class HostPort;
 class ThreadPool;
 
+using AsyncResolveCallback = std::function<void(const Result<IpAddress>& result)>;
+
 // DNS Resolver which supports async address resolution.
 class DnsResolver {
  public:
-  DnsResolver();
+  DnsResolver(const DnsResolver&) = delete;
+  void operator=(const DnsResolver&) = delete;
+
+  explicit DnsResolver(IoService* io_service);
   ~DnsResolver();
 
-  // Resolve any addresses corresponding to this host:port pair.
-  // Note that a host may resolve to more than one IP address.
-  //
-  // 'addresses' may be NULL, in which case this function simply checks that
-  // the host/port pair can be resolved, without returning anything.
-  //
-  // When the result is available, or an error occurred, 'cb' is called
-  // with the result Status.
-  //
-  // NOTE: the callback should be fast since it is called by the DNS
-  // resolution thread.
-  // NOTE: in some rare cases, the callback may also be called inline
-  // from this function call, on the caller's thread.
-  void ResolveAddresses(const HostPort& hostport,
-                        std::vector<Endpoint>* addresses,
-                        const StatusCallback& cb);
+  std::shared_future<Result<IpAddress>> ResolveFuture(const std::string& host);
+  void AsyncResolve(const std::string& host, const AsyncResolveCallback& callback);
+  Result<IpAddress> Resolve(const std::string& host);
 
  private:
-  gscoped_ptr<ThreadPool> pool_;
-
-  DISALLOW_COPY_AND_ASSIGN(DnsResolver);
+  class Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 class ScopedDnsTracker {
@@ -92,15 +83,6 @@ class ScopedDnsTracker {
   Histogram* old_metric_;
   scoped_refptr<Histogram> metric_;
 };
-
-std::future<Result<InetAddress>> ResolveDnsFuture(const std::string& host, Resolver* resolver);
-
-// Processes result of DNS resolution.
-// Returns failure status if error happened.
-// On success returns first ip v4 address if available, otherwise first ip v6 address is returned.
-Result<InetAddress> PickResolvedAddress(
-    const std::string& host, const boost::system::error_code& error,
-    const ResolverResults& entries);
 
 } // namespace yb
 

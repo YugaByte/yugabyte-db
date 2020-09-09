@@ -294,15 +294,18 @@ IntentAwareIterator::IntentAwareIterator(
   VLOG(4) << "IntentAwareIterator, read_time: " << read_time
           << ", txn_op_context: " << txn_op_context_;
 
-  if (txn_op_context &&
-      txn_op_context->txn_status_manager.MinRunningHybridTime() != HybridTime::kMax) {
-    intent_iter_ = docdb::CreateRocksDBIterator(doc_db.intents,
-                                                doc_db.key_bounds,
-                                                docdb::BloomFilterMode::DONT_USE_BLOOM_FILTER,
-                                                boost::none,
-                                                rocksdb::kDefaultQueryId,
-                                                nullptr /* file_filter */,
-                                                &intent_upperbound_);
+  if (txn_op_context) {
+    if (txn_op_context->txn_status_manager.MinRunningHybridTime() != HybridTime::kMax) {
+      intent_iter_ = docdb::CreateRocksDBIterator(doc_db.intents,
+                                                  doc_db.key_bounds,
+                                                  docdb::BloomFilterMode::DONT_USE_BLOOM_FILTER,
+                                                  boost::none,
+                                                  rocksdb::kDefaultQueryId,
+                                                  nullptr /* file_filter */,
+                                                  &intent_upperbound_);
+    } else {
+      VLOG(4) << "No transactions running";
+    }
   }
   // WARNING: Is is important for regular DB iterator to be created after intents DB iterator,
   // otherwise consistency could break, for example in following scenario:
@@ -1057,6 +1060,12 @@ void IntentAwareIterator::SkipFutureRecords(const Direction direction) {
       return;
     }
     Slice encoded_doc_ht = iter_.key();
+    if (encoded_doc_ht.TryConsumeByte(ValueTypeAsChar::kTransactionApplyState)) {
+      if (!NextRegular(direction)) {
+        return;
+      }
+      continue;
+    }
     int doc_ht_size = 0;
     auto decode_status = DocHybridTime::CheckAndGetEncodedSize(encoded_doc_ht, &doc_ht_size);
     if (!decode_status.ok()) {
@@ -1086,21 +1095,27 @@ void IntentAwareIterator::SkipFutureRecords(const Direction direction) {
     }
     VLOG(4) << "Skipping because of time: " << SubDocKey::DebugSliceToString(iter_.key())
             << ", read time: " << read_time_;
-    switch (direction) {
-      case Direction::kForward:
-        iter_.Next(); // TODO(dtxn) use seek with the same key, but read limit as doc hybrid time.
-        break;
-      case Direction::kBackward:
-        iter_.Prev();
-        break;
-      default:
-        status_ = STATUS_FORMAT(Corruption, "Unexpected direction: $0", direction);
-        LOG(ERROR) << status_;
-        iter_valid_ = false;
-        return;
+    if (!NextRegular(direction)) {
+      return;
     }
   }
   iter_valid_ = false;
+}
+
+bool IntentAwareIterator::NextRegular(Direction direction) {
+  switch (direction) {
+    case Direction::kForward:
+      iter_.Next(); // TODO(dtxn) use seek with the same key, but read limit as doc hybrid time.
+      return true;
+    case Direction::kBackward:
+      iter_.Prev();
+      return true;
+  }
+
+  status_ = STATUS_FORMAT(Corruption, "Unexpected direction: $0", direction);
+  LOG(ERROR) << status_;
+  iter_valid_ = false;
+  return false;
 }
 
 void IntentAwareIterator::SkipFutureIntents() {

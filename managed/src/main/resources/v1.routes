@@ -7,11 +7,15 @@
 ###################################################################################################
 
 # Session specific API
++ nocsrf
 POST    /login                                                                 com.yugabyte.yw.controllers.SessionController.login()
+GET     /platform_config                                                 	   com.yugabyte.yw.controllers.SessionController.getPlatformConfig()
+GET     /third_party_login                                                     com.yugabyte.yw.controllers.SessionController.thirdPartyLogin()
 GET     /insecure_login                                                        com.yugabyte.yw.controllers.SessionController.insecure_login()
 PUT     /customers/:cUUID/security                                             com.yugabyte.yw.controllers.SessionController.set_security(cUUID: java.util.UUID)
 PUT     /customers/:cUUID/api_token                                            com.yugabyte.yw.controllers.SessionController.api_token(cUUID: java.util.UUID)
 GET     /logout                                                                com.yugabyte.yw.controllers.SessionController.logout()
++ nocsrf
 POST    /register                                                              com.yugabyte.yw.controllers.SessionController.register()
 GET     /customer_count                                                        com.yugabyte.yw.controllers.SessionController.customerCount()
 GET     /customers/:cUUID/host_info                                            com.yugabyte.yw.controllers.CustomerController.getHostInfo(cUUID: java.util.UUID)
@@ -78,6 +82,7 @@ PUT     /customers/:cUUID/releases/:name                                       c
 POST    /customers/:cUUID/certificates                                         com.yugabyte.yw.controllers.CertificateController.upload(cUUID: java.util.UUID)
 GET     /customers/:cUUID/certificates                                         com.yugabyte.yw.controllers.CertificateController.list(cUUID: java.util.UUID)
 GET     /customers/:cUUID/certificates/:name                                   com.yugabyte.yw.controllers.CertificateController.get(cUUID: java.util.UUID, name: String)
+GET     /customers/:cUUID/certificates/:rUUID/download                         com.yugabyte.yw.controllers.CertificateController.getRootCert(cUUID: java.util.UUID, rUUID: java.util.UUID)
 POST    /customers/:cUUID/certificates/:rUUID                                  com.yugabyte.yw.controllers.CertificateController.getClientCert(cUUID: java.util.UUID, rUUID: java.util.UUID)
 
 # Alerts API
@@ -155,6 +160,7 @@ PUT    /customers/:cUUID/universes/:universeUUID/nodes/:nodeName               c
 GET    /metadata/column_types                                                  com.yugabyte.yw.controllers.TablesController.getColumnTypes()
 GET    /metadata/ebs_types                                                     com.yugabyte.yw.controllers.InstanceTypeController.getEBSTypes()
 GET    /metadata/gcp_types                                                     com.yugabyte.yw.controllers.InstanceTypeController.getGCPTypes()
+GET    /metadata/azu_types                                                     com.yugabyte.yw.controllers.InstanceTypeController.getAZUTypes()
 
 # Schedule Management API
 GET    /customers/:cUUID/schedules                                             com.yugabyte.yw.controllers.ScheduleController.list(cUUID: java.util.UUID)
@@ -174,3 +180,7 @@ DELETE /customers/:cUUID/users/:uUUID                                          c
 GET    /customers/:cUUID/users/:uUUID/audit_trail                              com.yugabyte.yw.controllers.AuditController.list(cUUID: java.util.UUID, uUUID: java.util.UUID)
 GET    /customers/:cUUID/tasks/:tUUID/audit_info                               com.yugabyte.yw.controllers.AuditController.getTaskAudit(cUUID: java.util.UUID, tUUID: java.util.UUID)
 GET    /customers/:cUUID/tasks/:tUUID/audit_user                               com.yugabyte.yw.controllers.AuditController.getUserFromTask(cUUID: java.util.UUID, tUUID: java.util.UUID)
+
+GET    /callback                                                               @org.pac4j.play.CallbackController.callback()
+POST   /callback                                                               @org.pac4j.play.CallbackController.callback()
+GET    /third_party_logout                                                     @org.pac4j.play.LogoutController.logout()

@@ -58,8 +58,9 @@
 #include "yb/util/init.h"
 #include "yb/util/logging.h"
 #include "yb/util/main_util.h"
-#include "yb/util/ulimit_info.h"
+#include "yb/util/ulimit_util.h"
 #include "yb/util/size_literals.h"
+#include "yb/util/net/net_util.h"
 
 using namespace std::placeholders;
 
@@ -108,6 +109,7 @@ DECLARE_string(certs_dir);
 DECLARE_string(certs_for_client_dir);
 DECLARE_string(ysql_hba_conf);
 DECLARE_string(ysql_pg_conf);
+DECLARE_string(metric_node_name);
 
 // Deprecated because it's misspelled.  But if set, this flag takes precedence over
 // remote_bootstrap_rate_limit_bytes_per_sec for compatibility.
@@ -141,6 +143,13 @@ int TabletServerMain(int argc, char** argv) {
   FLAGS_webserver_port = TabletServer::kDefaultWebPort;
   FLAGS_redis_proxy_webserver_port = RedisServer::kDefaultWebPort;
   FLAGS_cql_proxy_webserver_port = CQLServer::kDefaultWebPort;
+
+  string host_name;
+  if (GetHostname(&host_name).ok()) {
+    FLAGS_metric_node_name = strings::Substitute("$0:$1", host_name, TabletServer::kDefaultWebPort);
+  } else {
+    LOG(INFO) << "Failed to get tablet's host name, keeping default metric_node_name";
+  }
   // Do not sync GLOG to disk for INFO, WARNING.
   // ERRORs, and FATALs will still cause a sync to disk.
   FLAGS_logbuflevel = google::GLOG_WARNING;
@@ -193,7 +202,8 @@ int TabletServerMain(int argc, char** argv) {
   LOG(INFO) << "Initializing tablet server...";
   LOG_AND_RETURN_FROM_MAIN_NOT_OK(server->Init());
   LOG(INFO) << "Starting tablet server...";
-  LOG(INFO) << "ulimit cur(max)..." << UlimitInfo::GetUlimitInfo();
+  UlimitUtil::InitUlimits();
+  LOG(INFO) << "ulimit cur(max)..." << UlimitUtil::GetUlimitInfo();
   LOG_AND_RETURN_FROM_MAIN_NOT_OK(server->Start());
   LOG(INFO) << "Tablet server successfully started.";
 

@@ -2,9 +2,8 @@
 
 package com.yugabyte.yw.models;
 
-import com.avaje.ebean.*;
-import com.avaje.ebean.annotation.DbJson;
-import com.avaje.ebean.annotation.EnumValue;
+import io.ebean.*;
+import io.ebean.annotation.*;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -22,12 +21,8 @@ import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 
 import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
-
-import static java.lang.Math.abs;
 
 @Entity
 public class Schedule extends Model {
@@ -85,7 +80,7 @@ public class Schedule extends Model {
     this.cronExpression = cronExpression;
   }
 
-  public static final Find<UUID, Schedule> find = new Find<UUID, Schedule>(){};
+  public static final Finder<UUID, Schedule> find = new Finder<UUID, Schedule>(Schedule.class){};
 
   public static Schedule create(UUID customerUUID, ITaskParams params, TaskType taskType,
                                 long frequency) {
@@ -108,19 +103,20 @@ public class Schedule extends Model {
   }
 
   public static Schedule get(UUID scheduleUUID) {
-    return find.where().idEq(scheduleUUID).findUnique();
+    return find.query().where().idEq(scheduleUUID).findOne();
   }
 
   public static List<Schedule> getAll() {
-    return find.findList();
+    return find.query().findList();
   }
 
   public static List<Schedule> getAllActiveByCustomerUUID(UUID customerUUID) {
-    return find.where().eq("customer_uuid", customerUUID).eq("status", "Active").findList();
+    return find.query().
+      where().eq("customer_uuid", customerUUID).eq("status", "Active").findList();
   }
 
   public static List<Schedule> getAllActive() {
-    return find.where().eq("status", "Active").findList();
+    return find.query().where().eq("status", "Active").findList();
   }
 
   public void setFailureCount(int count) {

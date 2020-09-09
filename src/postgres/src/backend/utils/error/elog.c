@@ -788,7 +788,7 @@ errcode_for_socket_access(void)
 		/* Done with expanded fmt */ \
 		pfree(fmtbuf); \
 		/* In YB debug mode, add stack trace info (to first msg only) */ \
-		if (IsYugaByteEnabled() && yb_debug_mode && !appendval) { \
+		if (IsYugaByteEnabled() && yb_debug_report_error_stacktrace && !appendval) { \
 			appendStringInfoString(&buf, YBCGetStackTrace()); \
 		} \
 		/* Save the completed message into the stack item */ \

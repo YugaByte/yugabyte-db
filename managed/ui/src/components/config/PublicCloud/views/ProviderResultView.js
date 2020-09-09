@@ -1,13 +1,14 @@
 // Copyright (c) YugaByte, Inc.
 
 import React, {Component} from 'react';
+import {reduxForm} from 'redux-form';
 import { Row, Col } from 'react-bootstrap';
 import { YBButton } from '../../../common/forms/fields';
 import { DescriptionList } from '../../../common/descriptors';
 import { RegionMap, YBMapLegend } from '../../../maps';
 import { YBConfirmModal } from '../../../modals';
-import {reduxForm} from 'redux-form';
 import EditProviderFormContainer from './EditProvider/EditProviderFormContainer';
+import { PROVIDER_TYPES } from '../../../../config';
 
 class ProviderResultView extends Component {
   constructor(props) {
@@ -30,10 +31,11 @@ class ProviderResultView extends Component {
 
   showDeleteProviderModal = () => {
     const {providerType, showDeleteProviderModal} = this.props;
-    if (providerType === "aws") {
-      showDeleteProviderModal("deleteAWSProvider");
-    } else {
-      showDeleteProviderModal("deleteGCPProvider");
+    switch (providerType) {
+      case 'aws': showDeleteProviderModal('deleteAWSProvider'); break;
+      case 'gcp': showDeleteProviderModal('deleteGCPProvider'); break;
+      case 'azu': showDeleteProviderModal('deleteAzureProvider'); break;
+      default: break;
     }
   };
 
@@ -62,6 +64,7 @@ class ProviderResultView extends Component {
     const { regions, deleteButtonTitle, currentProvider, handleSubmit,
             providerInfo, buttonBaseClassName, currentModal,
             providerType, deleteButtonDisabled} = this.props;
+    const providerMeta = PROVIDER_TYPES.find(item => item.code === providerType);
     const {refreshing} = this.state;
     const deleteButtonClassName = "btn btn-default manage-provider-btn";
     const deleteDisabled = deleteButtonDisabled || this.state.refreshing;
@@ -88,7 +91,7 @@ class ProviderResultView extends Component {
                               onConfirm={handleSubmit(this.deleteProviderConfig.bind(this, currentProvider))}
                               currentModal={currentModal} visibleModal={this.props.visibleModal}
                               hideConfirmModal={this.props.hideDeleteProviderModal}>
-                Are you sure you want to delete this {providerType.toUpperCase()} configuration?
+                Are you sure you want to delete this {providerMeta.label} configuration?
               </YBConfirmModal>
             </span>
             <DescriptionList listItems={providerInfo}/>

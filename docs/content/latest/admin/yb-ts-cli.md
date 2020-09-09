@@ -43,10 +43,35 @@ If all tablets are running, returns "All tablets are running".
 **Syntax**
 
 ```sh
-yb-ts-cli [ --server_address=<host>:<port> ] are_tablets_running
+$ yb-ts-cli [ --server_address=<host>:<port> ] are_tablets_running
 ```
 
 - *host*:*port*: The *host* and *port* of the tablet server. Default is `localhost:9100`.
+
+##### compact_all_tablets
+
+Compact all tablets on the tablet server.
+
+**Syntax**
+
+```sh
+yb-tsi-cli [ --server_address=<host>:<port> ] compact_all_tablets
+```
+
+- *host*:*port*: The *host* and *port* of the tablet server. Default is `localhost:9100`.
+
+##### compact_tablet
+
+Compact the specified tablet on the tablet server.
+
+**Syntax**
+
+```sh
+yb-tsi-cli [ --server_address=<host>:<port> ] compact_tablet <tablet_id>
+```
+
+- *host*:*port*: The *host* and *port* of the tablet server. Default is `localhost:9100`.
+- *tablet_id*: The identifier of the tablet to compact.
 
 ##### count_intents
 
@@ -55,7 +80,7 @@ Print the count of uncommitted intents (or [provisional records](../../../archit
 **Syntax**
 
 ```sh
-$ ./bin/yb-ts-cli  [ --server_address=<host>:<port> ] count_intents
+yb-ts-cli  [ --server_address=<host>:<port> ] count_intents
 ```
 
 - *host*:*port*: The *host* and *port* of the tablet server. Default is `localhost:9100`.
@@ -99,6 +124,34 @@ yb-ts-cli [ --server_address=<host>:<port> ] dump_tablet <tablet_id>
 - *host*:*port*: The *host* and *port* of the tablet server. Default is `localhost:9100`.
 - *tablet_id*: The identifier (ID) for the tablet.
 
+##### flush_all_tablets
+
+Flush all tablets on the tablet server.
+
+**Syntax**
+
+```sh
+yb-tsi-cli [ --server_address=<host>:<port> ] flush_all_tablets
+```
+
+- *host*:*port*: The *host* and *port* of the tablet server. Default is `localhost:9100`.
+
+##### flush_tablet
+
+Flush the specified tablet on the tablet server.
+
+**Syntax**
+
+```sh
+yb-tsi-cli [ --server_address=<host>:<port> ] flush_tablet <tablet_id>
+```
+
+- *host*:*port*: The *host* and *port* of the tablet server. Default is `localhost:9100`.
+- *tablet_id*: The identifier of the tablet to compact.
+
+
+
+
 ##### list_tablets
 
 Lists the tablets on the specified tablet server, displaying the following properties: column name, tablet ID, state, table name, partition, and schema.
@@ -122,7 +175,7 @@ $ ./bin/yb-ts-cli [ --server_address=<host>:<port> ] set_flag [ --force ] <flag>
 ```
 
 - *host*:*port*: The *host* and *port* of the tablet server. Default is `localhost:9100`.
-- --force: Flag to to allow a change to a flag that is not explicitly marked as runtime-settable. Note that the change may be ignored on the server or may cause the server to crash, if unsafe values are provided. See [--force](#force).
+- `--force`: Flag to to allow a change to a flag that is not explicitly marked as runtime-settable. Note that the change may be ignored on the server or may cause the server to crash, if unsafe values are provided. See [--force](#force).
 - *flag*: The `yb-tserver` configuration flag (without the `--` prefix) to be set. See [`yb-tserver`](../../reference/configuration/yb-tserver/#configuration-flags)
 - *value*: The value to be applied.
 
@@ -130,7 +183,7 @@ $ ./bin/yb-ts-cli [ --server_address=<host>:<port> ] set_flag [ --force ] <flag>
 
 The `set_flag` command changes the in-memory value of the specified flag, atomically, for a running server and can alter its behavior.  **The change does NOT persist across restarts.**
 
-In practice, there are some flags that are runtime safe to change (runtime-settable) and some that are not. For example, the bind address of the server cannot be changed at runtime, since the server binds just once at startup. While most of the flags are probably runtime-settable, we need to review the flags and note in the configuration pages which flags are not runtime-settable. (See GitHub issue [#3534](https://github.com/yugabyte/yugabyte-db/issues/3534)).
+In practice, there are some flags that are runtime safe to change (runtime-settable) and some that are not. For example, the bind address of the server cannot be changed at runtime, since the server binds just once at startup. While most of the flags are probably runtime-settable, you need to review the flags and note in the configuration pages which flags are not runtime-settable. (See GitHub issue [#3534](https://github.com/yugabyte/yugabyte-db/issues/3534)).
 
 One typical operational flow is that you can use this to modify runtime flags in memory and then out of band also modify the configuration file that the server uses to start. This allows for flags to be changed on running servers, without executing a restart of the server.
 

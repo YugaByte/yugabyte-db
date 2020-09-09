@@ -6,7 +6,7 @@ description: Transform JSON values of an JSON array into a SQL table of text val
 menu:
   latest:
     identifier: jsonb-array-elements-text
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 70
 isTocNested: true
 showAsideToc: true
@@ -27,7 +27,7 @@ This example uses the same JSON _array_ input that was used to illustrate `jsonb
 
 Notice that the JSON value _null_ becomes a genuine SQL `NULL`. However, SQL array comparison uses `IS NOT DISTINCT FROM` semantics, and not the semantics that the comparison of scalars uses. So the simple `ASSERT` that `elements = expected_elements` is `TRUE` is sufficient. See the section [Operators for comparing two arrays](../../..//type_array/functions-operators/comparison/).
 
-```postgresql
+```plpgsql
 do $body$
 declare
   j_array constant jsonb := '["cat", "dog house", 42, true, {"x": 17}, null]';
@@ -64,7 +64,7 @@ This example emphasizes the impedance mismatch between a JSON _array_ and a SQL 
 
 If you have prior knowledge of the convention to which the input JSON document adheres, you can cast the output of `jsonb_array_elements_text()` to, say, `integer` or `boolean`. For example, this:
 
-```postgresql
+```plpgsql
 create domain length as numeric
   not null
   check (value > 0);
@@ -82,7 +82,7 @@ value for domain length violates check constraint "length_check"
 ```
 
 And if you set one of the input elements to the JSON _null_, like this:
-```postgresql
+```plpgsql
 select value::length
 from jsonb_array_elements_text(
   '[17, null, 42, 47, 53]'::jsonb
@@ -96,7 +96,7 @@ domain length does not allow NULL values
 
 Here's the same idea for `boolean` values:
 
-```postgresql
+```plpgsql
 create domain truth as boolean
   not null;
 

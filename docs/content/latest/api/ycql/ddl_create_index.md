@@ -81,7 +81,13 @@ Where
 - An error is raised if transactions have not be enabled using the `WITH transactions = { 'enabled' : true }` clause on the table to be indexed. This is because secondary indexes internally use distributed transactions to ensure ACID guarantees in the updates to the secondary index and the associated primary key. More details [here](https://blog.yugabyte.com/yugabyte-db-1-1-new-feature-speeding-up-queries-with-secondary-indexes/).
 - An error is raised if `index_name` already exists in the associated keyspace unless the `IF NOT EXISTS` option is used.
 - Indexes do not support TTL. An error is raised if data is inserted with TTL into a table with indexes.
-- Currently, when an index is created on a table, the existing data in the table is not indexed. Therefore, the index should be created before any data is inserted into the table.
+
+
+{{< note title="Note" >}}
+
+When an index is created on an existing table, YugabyteDB will automatically backfill existing data into the index in an online manner (that is, while continuing to serve other concurrent writes and traffic). For more details on how this is done, see [Online Index Backfill](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/online-index-backfill.md).
+
+{{< /note >}}
 
 ### PARTITION KEY
 

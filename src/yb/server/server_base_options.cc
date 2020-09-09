@@ -88,16 +88,18 @@ TAG_FLAG(metrics_log_interval_ms, advanced);
 
 DEFINE_string(server_broadcast_addresses, "", "Broadcast addresses for this server.");
 
-ServerBaseOptions::ServerBaseOptions()
+ServerBaseOptions::ServerBaseOptions(int default_port)
     : env(Env::Default()),
       dump_info_path(FLAGS_server_dump_info_path),
       dump_info_format(FLAGS_server_dump_info_format),
       metrics_log_interval_ms(FLAGS_metrics_log_interval_ms),
       placement_uuid(FLAGS_placement_uuid) {
+  rpc_opts.default_port = default_port;
   if (!FLAGS_server_broadcast_addresses.empty()) {
-    auto status = HostPort::ParseStrings(FLAGS_server_broadcast_addresses, 0, &broadcast_addresses);
-    LOG_IF(DFATAL, !status.ok()) << "Bad public IPs " << FLAGS_server_broadcast_addresses << ": "
-                                 << status;
+    auto status = HostPort::ParseStrings(FLAGS_server_broadcast_addresses, default_port,
+                                         &broadcast_addresses);
+    LOG_IF(DFATAL, !status.ok()) << "Bad public IPs " << FLAGS_server_broadcast_addresses
+                                 << ": " << status;
   }
 }
 

@@ -57,9 +57,10 @@ extern Oid YBCExecuteNonTxnInsert(Relation rel,
  * Insert a tuple into the an index's backing YugaByte index table.
  */
 extern void YBCExecuteInsertIndex(Relation rel,
-                                  Datum *values,
-                                  bool *isnull,
-                                  Datum ybctid);
+								  Datum *values,
+								  bool *isnull,
+								  Datum ybctid,
+								  bool is_backfill);
 
 /*
  * Delete a tuple (identified by ybctid) from a YugaByte table.
@@ -93,6 +94,19 @@ extern bool YBCExecuteUpdate(Relation rel,
 							 ModifyTableState *mtstate,
 							 Bitmapset *updatedCols);
 
+/*
+ * Replace a row in a YugaByte table by first deleting an existing row
+ * (identified by ybctid) and then inserting a tuple to replace it.
+ * This allows us to update a row primary key.
+ *
+ * This will change ybctid of a row within a tuple.
+ */
+extern Oid YBCExecuteUpdateReplace(Relation rel,
+								   TupleTableSlot *slot,
+								   HeapTuple tuple,
+								   EState *estate,
+								   ModifyTableState *mtstate);
+
 //------------------------------------------------------------------------------
 // System tables modify-table API.
 // For system tables we identify rows to update/delete directly by primary key
@@ -121,15 +135,5 @@ extern Datum YBCGetYBTupleIdFromTuple(YBCPgStatement pg_stmt,
  * Returns if a table has secondary indices.
  */
 extern bool YBCRelInfoHasSecondaryIndices(ResultRelInfo *resultRelInfo);
-
-/*
- * Get primary key columns as bitmap of a table for real and system YB columns.
- */
-extern Bitmapset *GetFullYBTablePrimaryKey(Relation rel);
-
-/*
- * Get primary key columns as bitmap of a table for real columns.
- */
-extern Bitmapset *GetYBTablePrimaryKey(Relation rel);
 
 #endif							/* YBCMODIFYTABLE_H */

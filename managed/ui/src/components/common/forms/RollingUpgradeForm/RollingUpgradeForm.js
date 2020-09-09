@@ -192,12 +192,13 @@ export default class RollingUpgradeForm extends Component {
   render() {
     const self = this;
     const {onHide, modalVisible, handleSubmit, universe, modal: { visibleModal }, 
-      universe: { error }, resetRollingUpgrade, softwareVersions} = this.props;
+      universe: { error }, resetRollingUpgrade, softwareVersions, upgradeOption} = this.props;
     let currentVersion = null;
     if(isDefinedNotNull(universe.currentUniverse.data) && isNonEmptyObject(universe.currentUniverse.data)) {
       const primaryCluster = getPrimaryCluster(universe.currentUniverse.data.universeDetails.clusters);
       currentVersion = primaryCluster && (primaryCluster.userIntent.ybSoftwareVersion || undefined);
     }
+    let shouldEnableRollingUpgradeDelay = upgradeOption === 'Rolling';
 
     const submitAction = handleSubmit(self.setRollingUpgradeProperties);
     let title = "";
@@ -249,7 +250,8 @@ export default class RollingUpgradeForm extends Component {
                    options={["Rolling", "Non-Rolling", "Non-Restart"]} label="Upgrade Option"
                    initialValue="Rolling"/>
             <Field name="timeDelay" component={YBInputField}
-                   label="Rolling Upgrade Delay Between Servers (secs)" />
+                   label="Rolling Upgrade Delay Between Servers (secs)"
+                   isReadOnly={!shouldEnableRollingUpgradeDelay} />
           </div>
         </div>
       );

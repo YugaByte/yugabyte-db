@@ -51,11 +51,11 @@ We now have 2 VMs each in Availability Zones `us-west-2a`, `us-west-2b`, `us-wes
 
 ### Set environment variables
 
-Now that the six nodes have been prepared, the yb-master process will be run on three of these nodes (because RF=3) and yb-tserver will be run on all six nodes. To learn more about YugabyteDB’s process architecture, see [here](../../../../architecture/concepts/universe/).
+Now that the six nodes have been prepared, the yb-master process will be run on three of these nodes (because RF=3) and yb-tserver will be run on all six nodes. To learn more about YugabyteDB’s server architecture, see [here](../../../../architecture/concepts/universe/).
 
-These install steps are written in a way that we assume that you will run the install steps from another node from which you can access the above six VMs over `ssh`.
+These install steps are written in a way that assumes that you will run the install steps from another node from which you can access the above six VMs over `ssh`.
 
-These are some handy environment variables you can set on the node from where you are planning to do the install of the software on the six nodes.
+These are some handy environment variables you can set on the node from which you are planning to do the install of the software on the six nodes.
 
 ```sh
 # Suppose these are the IP addresses of your 6 machines
@@ -65,7 +65,7 @@ export AZ2_NODES="<ip2> <ip2> ..."
 export AZ3_NODES="<ip1> <ip2> ..."
 
 # Version of YugabyteDB you plan to install.
-export YB_VERSION=2.1.6.0
+export YB_VERSION=2.3.0.0
 
 # Comma separated list of directories available for YB on each node
 # In this example, it is just 1. But if you have two then the RHS
@@ -173,7 +173,7 @@ The above should print “xfs” for each of the nodes or drives.
 
 #### Configure Drives
 
-Add `/etc/fstab` entry to mount the drives on each of the nodes. This example assumes there’s one drive that we will mount at the `/mnt/d0` location.
+Add `/etc/fstab` entry to mount the drives on each of the nodes. This example assumes there’s one drive that you will mount at the `/mnt/d0` location.
 
 ```sh
 for ip in $ALL_NODES; do \
@@ -298,7 +298,7 @@ core file size          (blocks, -c) unlimited
 
 Note: The installation need NOT be undertaken by the root or the `ADMIN_USER` (`centos`). In the examples below, however, these commands are run as the `ADMIN_USER`.
 
-Create `yb-software` & `yb-conf` directory in a directory of your choice. In this example, we use the `ADMIN_USER` home directory.
+Create `yb-software` & `yb-conf` directory in a directory of your choice. In this example, you use the `ADMIN_USER` home directory.
 
 ```sh
 for ip in $ALL_NODES; do \
@@ -558,7 +558,7 @@ done
 
 Note: This example is a multi-AZ (single region deployment). 
 
-The default replica placement policy when the cluster is first created is to treat all nodes as equal irrespective of the placement_* configuration flags. However, for the current deployment, we want to explicitly place 1 replica in each AZ. The following command sets replication factor of 3 across `us-west-2a`, `us-west-2b` and `us-west-2c` leading to the placement of 1 replica in each AZ.
+The default replica placement policy when the cluster is first created is to treat all nodes as equal irrespective of the placement_* configuration flags. However, for the current deployment, you want to explicitly place 1 replica in each AZ. The following command sets replication factor of 3 across `us-west-2a`, `us-west-2b` and `us-west-2c` leading to the placement of 1 replica in each AZ.
 
 ```sh
 ssh -i $PEM $ADMIN_USER@$MASTER1 \

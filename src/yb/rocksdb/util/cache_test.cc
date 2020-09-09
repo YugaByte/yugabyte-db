@@ -153,7 +153,7 @@ void dumbDeleter(const Slice& key, void* value) { }
 TEST_F(CacheTest, UsageTest) {
   // cache is shared_ptr and will be automatically cleaned up.
   const uint64_t kCapacity = 100000;
-  auto cache = NewLRUCache(kCapacity / FLAGS_cache_single_touch_ratio, 8);
+  auto cache = NewLRUCache(kCapacity, 8);
 
   size_t usage = 0;
   char value[10] = "abcdef";
@@ -514,99 +514,81 @@ void deleter(const Slice& key, void* value) {
 
 TEST_F(CacheTest, SetCapacity) {
   // test1: increase capacity
-  // lets create a cache with capacity 25 (5 single, 20 multi),
-  // then, insert 5 elements to single, then increase capacity
-  // to 50, returned capacity should be 50, usage=5
-  std::shared_ptr<Cache> cache = NewLRUCache(25, 0);
-  std::vector<Cache::Handle*> handles(10);
-  // Insert 5 entries, but not releasing.
-  for (size_t i = 0; i < 5; i++) {
+  // lets create a cache with capacity 10.
+  std::shared_ptr<Cache> cache = NewLRUCache(10, 0);
+  std::vector<Cache::Handle*> handles(16);
+
+  // Insert 8 entries, but not releasing.
+  for (size_t i = 0; i < 8; i++) {
     std::string key = ToString(i + 1);
     Status s = cache->Insert(key, kTestQueryId, new Value(i + 1), 1, &deleter, &handles[i]);
     ASSERT_TRUE(s.ok());
   }
-  ASSERT_EQ(25U, cache->GetCapacity());
-  ASSERT_EQ(5U, cache->GetUsage());
-  cache->SetCapacity(50);
-  ASSERT_EQ(50U, cache->GetCapacity());
-  ASSERT_EQ(5U, cache->GetUsage());
+  ASSERT_EQ(10U, cache->GetCapacity());
+  ASSERT_EQ(8U, cache->GetUsage());
+  cache->SetCapacity(20);
+  ASSERT_EQ(20U, cache->GetCapacity());
+  ASSERT_EQ(8U, cache->GetUsage());
 
   // test2: decrease capacity
-  // insert 5 more elements to cache, then release 5,
-  // then decrease capacity to 35 (7 single, 28 multi), final capacity should be 35
-  // and usage should be 7 from all singles
-  for (size_t i = 5; i < 10; i++) {
+  // insert 8 more elements to cache, then release 8,
+  // then decrease capacity to 15.
+  // and usage should be 15 from all singles
+  for (size_t i = 8; i < 16; i++) {
     std::string key = ToString(i+1);
     Status s = cache->Insert(key, kTestQueryId, new Value(i + 1), 1, &deleter, &handles[i]);
     ASSERT_TRUE(s.ok());
   }
-  ASSERT_EQ(50U, cache->GetCapacity());
-  ASSERT_EQ(10U, cache->GetUsage());
-  for (size_t i = 0; i < 5; i++) {
+
+  ASSERT_EQ(20U, cache->GetCapacity());
+  ASSERT_EQ(16U, cache->GetUsage());
+  for (size_t i = 0; i < 8; i++) {
     cache->Release(handles[i]);
   }
-  ASSERT_EQ(50U, cache->GetCapacity());
-  ASSERT_EQ(10U, cache->GetUsage());
-  cache->SetCapacity(35);
-  ASSERT_EQ(35, cache->GetCapacity());
-  ASSERT_EQ(7, cache->GetUsage());
+  ASSERT_EQ(20U, cache->GetCapacity());
+  ASSERT_EQ(16U, cache->GetUsage());
+  cache->SetCapacity(15);
+  ASSERT_EQ(15, cache->GetCapacity());
+  ASSERT_EQ(15, cache->GetUsage());
 
-  // release remaining 5 to keep valgrind happy
-  for (size_t i = 5; i < 10; i++) {
+  // release remaining 8 to keep valgrind happy
+  for (size_t i = 8; i < 16; i++) {
     cache->Release(handles[i]);
   }
 }
 
 TEST_F(CacheTest, SetStrictCapacityLimit) {
-  // test1: set the flag to false. Insert more keys than capacity. See if they
-  // all go through.
-  std::shared_ptr<Cache> cache = NewLRUCache(5, 0, false);
-  std::vector<Cache::Handle*> handles(10);
+  std::shared_ptr<Cache> cache = NewLRUCache(10, 0, true);
+  std::vector<Cache::Handle*> handles(2);
   Status s;
-  for (size_t i = 0; i < 10; i++) {
+
+  for (size_t i = 0; i < 2; i++) {
     std::string key = ToString(i + 1);
     s = cache->Insert(key, kTestQueryId, new Value(i + 1), 1, &deleter, &handles[i]);
     ASSERT_TRUE(s.ok());
     ASSERT_NE(nullptr, handles[i]);
   }
 
-  // test2: set the flag to true. Insert and check if it fails.
+  Cache::Handle* handle;
   std::string extra_key = "extra";
   Value* extra_value = new Value(0);
-  cache->SetStrictCapacityLimit(true);
-  Cache::Handle* handle;
+
   s = cache->Insert(extra_key, kTestQueryId, extra_value, 1, &deleter, &handle);
   ASSERT_TRUE(s.IsIncomplete());
   ASSERT_EQ(nullptr, handle);
-
-  for (size_t i = 0; i < 10; i++) {
-    cache->Release(handles[i]);
-  }
-
-  // test3: init with flag being true.
-  std::shared_ptr<Cache> cache2 = NewLRUCache(25, 0, true);
-  for (size_t i = 0; i < 5; i++) {
-    std::string key = ToString(i + 1);
-    s = cache2->Insert(key, kTestQueryId, new Value(i + 1), 1, &deleter, &handles[i]);
-    ASSERT_TRUE(s.ok());
-    ASSERT_NE(nullptr, handles[i]);
-  }
-  s = cache2->Insert(extra_key, kTestQueryId, extra_value, 1, &deleter, &handle);
-  ASSERT_TRUE(s.IsIncomplete());
-  ASSERT_EQ(nullptr, handle);
   // test insert without handle
-  s = cache2->Insert(extra_key, kTestQueryId, extra_value, 1, &deleter);
+  s = cache->Insert(extra_key, kTestQueryId, extra_value, 1, &deleter);
   ASSERT_TRUE(s.IsIncomplete());
-  ASSERT_EQ(5, cache2->GetUsage());
+  ASSERT_EQ(2, cache->GetUsage());
 
-  for (size_t i = 0; i < 5; i++) {
-    cache2->Release(handles[i]);
+  for (size_t i = 0; i < 2; i++) {
+    cache->Release(handles[i]);
   }
 }
 
 TEST_F(CacheTest, OverCapacity) {
   size_t cache_size = 50;
-  size_t single_touch_cache_size = cache_size * FLAGS_cache_single_touch_ratio;
+  size_t single_touch_cache_size = cache_size;
 
   // a LRUCache with n entries and one shard only
   std::shared_ptr<Cache> cache = NewLRUCache(cache_size, 0);
@@ -673,6 +655,90 @@ TEST_F(CacheTest, ApplyToAllCacheEntiresTest) {
   sort(inserted.begin(), inserted.end());
   sort(callback_state.begin(), callback_state.end());
   ASSERT_TRUE(inserted == callback_state);
+}
+
+void AssertCacheSizes(Cache *cache, size_t single_touch_count, size_t multi_touch_count) {
+  std::vector<pair<size_t, size_t>> usages = cache->TEST_GetIndividualUsages();
+  ASSERT_EQ(usages.size(), 1);
+  ASSERT_EQ(usages[0].first, single_touch_count);
+  ASSERT_EQ(usages[0].second, multi_touch_count);
+}
+
+CHECKED_STATUS InsertIntoCache(std::shared_ptr<Cache>& cache, int key, int value,
+                       int query_id = CacheTest::kTestQueryId, int charge = 1,
+                       Cache::Handle **handle = nullptr) {
+  return cache->Insert(ToString(key), query_id, new Value(value), charge, &deleter, handle);
+}
+
+TEST_F(CacheTest, OverFlowTest) {
+  FLAGS_cache_single_touch_ratio = 0.2;
+  size_t cache_size = 10;
+  std::shared_ptr<Cache> cache = NewLRUCache(cache_size, 0);
+
+  // Insert single touch entries until the max.
+  for (int i = 0; i <= 9; i++) {
+    ASSERT_OK(InsertIntoCache(cache, i /* key */, i /* value */));
+  }
+  AssertCacheSizes(cache.get(), 10, 0);
+
+  // Insert a new element and make sure that the size is still the same.
+  {
+    ASSERT_OK(InsertIntoCache(cache, 10 /* key */, 10 /* value */));
+
+    // Make sure that entry '0' is not present.
+    Cache::Handle* h = cache->Lookup(ToString(0), 100 /* query_id */);
+    ASSERT_EQ(h, nullptr);
+  }
+  AssertCacheSizes(cache.get(), 10, 0);
+
+  // Push the min number of elements to multi-touch cache.
+  for (int i = 1; i <= 2; ++i) {
+    Cache::Handle* h = cache->Lookup(ToString(i), 100 /* query_id */);
+    cache->Release(h);
+  }
+  AssertCacheSizes(cache.get(), 8, 2);
+
+  // Perform Lookups for elements in the single-touch cache to move them to multi-touch cache.
+  for (int i = 3; i <= 8; ++i) {
+    Cache::Handle* h = cache->Lookup(ToString(i), 100 /* query_id */);
+    cache->Release(h);
+  }
+  AssertCacheSizes(cache.get(), 2, 8);
+
+  // Perform more lookup and make sure that the size of multi-touch doesn't grow.
+  {
+    Cache::Handle* h = cache->Lookup(ToString(9), 100 /* query_id */);
+    cache->Release(h);
+    AssertCacheSizes(cache.get(), 1, 8);
+  }
+  {
+    Cache::Handle* h = cache->Lookup(ToString(10), 100 /* query_id */);
+    cache->Release(h);
+    AssertCacheSizes(cache.get(), 0, 8);
+  }
+
+  // Perform 2 more insertions to make sure we can insert again.
+  for (int i = 11; i <= 12; ++i) {
+    ASSERT_OK(InsertIntoCache(cache, i /* key */, i /* value */));
+  }
+  AssertCacheSizes(cache.get(), 2, 8);
+
+  // Make sure that direct insertion into the multi-touch cache works properly.
+  FLAGS_cache_single_touch_ratio = 0.4;
+  cache_size = 5;
+  cache = NewLRUCache(cache_size, 0);
+
+  for (int i = 1; i <= 5; ++i) {
+    ASSERT_OK(InsertIntoCache(cache, i /* key */, i /* value */));
+  }
+  Cache::Handle *h;
+  ASSERT_OK(InsertIntoCache(cache, 9 /* key */, 9 /* value */, CacheTest::kTestQueryId, 1, &h));
+
+  // Insert elements directly into the multi-touch pool
+  for (int i = 6; i <= 8; ++i) {
+    ASSERT_OK(InsertIntoCache(cache, i /* key */, i /* value */, -1 /* query_id */));
+  }
+  cache->Release(h);
 }
 
 }  // namespace rocksdb

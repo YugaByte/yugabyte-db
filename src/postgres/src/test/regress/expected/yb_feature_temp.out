@@ -293,8 +293,8 @@ SELECT * FROM temptest;
 ERROR:  relation "temptest" does not exist
 LINE 1: SELECT * FROM temptest;
                       ^
--- Sleep a second as a wokaround due to bug github #1469.
-SELECT pg_sleep(1);
+-- Sleep a second as a workaround due to bug github #1469.
+SELECT pg_sleep(10);
  pg_sleep
 ----------
 
@@ -313,8 +313,8 @@ SELECT * FROM temptest;
 ERROR:  relation "temptest" does not exist
 LINE 1: SELECT * FROM temptest;
                       ^
--- Sleep a second as a wokaround due to bug github #1469.
-SELECT pg_sleep(1);
+-- Sleep a second as a workaround due to bug github #1469.
+SELECT pg_sleep(10);
  pg_sleep
 ----------
 

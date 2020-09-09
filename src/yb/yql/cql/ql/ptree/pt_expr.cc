@@ -22,6 +22,7 @@
 #include "yb/yql/cql/ql/ptree/sem_context.h"
 #include "yb/util/decimal.h"
 #include "yb/util/net/inetaddress.h"
+#include "yb/util/net/net_util.h"
 #include "yb/util/stol_utils.h"
 #include "yb/util/date_time.h"
 
@@ -310,7 +311,8 @@ CHECKED_STATUS PTLiteralString::ToTime(int64_t *value) const {
 }
 
 CHECKED_STATUS PTLiteralString::ToInetaddress(InetAddress *value) const {
-  return value->FromString(value_->c_str());
+  *value = InetAddress(VERIFY_RESULT(HostToAddress(value_->c_str())));
+  return Status::OK();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1221,7 +1223,7 @@ CHECKED_STATUS PTAllColumns::AnalyzeOperator(SemContext *sem_context) {
   const auto* select_stmt = static_cast<const PTSelectStmt*>(stmt);
   columns_.clear();
   columns_.reserve(select_stmt->column_map().size());
-  for (const auto pair : select_stmt->column_map()) {
+  for (const auto& pair : select_stmt->column_map()) {
     columns_.emplace_back(pair.second);
   }
 

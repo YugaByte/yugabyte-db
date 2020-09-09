@@ -225,20 +225,24 @@ public class AccessManager extends DevopsBase {
     if (region == null) {
       throw new RuntimeException("Invalid Region UUID: " + regionUUID);
     }
-    if (!region.provider.code.equals("aws")) {
-      return null;
-    }
-    String keyFilePath = getOrCreateKeyFilePath(region.provider.uuid);
 
-    commandArgs.add("--key_pair_name");
-    commandArgs.add(keyCode);
-    commandArgs.add("--key_file_path");
-    commandArgs.add(keyFilePath);
-    JsonNode response = execAndParseCommandRegion(regionUUID, "delete-key", commandArgs);
-    if (response.has("error")) {
-      throw new RuntimeException(response.get("error").asText());
+    switch(Common.CloudType.valueOf(region.provider.code)) {
+      case aws:
+      case azu:
+        String keyFilePath = getOrCreateKeyFilePath(region.provider.uuid);
+
+        commandArgs.add("--key_pair_name");
+        commandArgs.add(keyCode);
+        commandArgs.add("--key_file_path");
+        commandArgs.add(keyFilePath);
+        JsonNode response = execAndParseCommandRegion(regionUUID, "delete-key", commandArgs);
+        if (response.has("error")) {
+          throw new RuntimeException(response.get("error").asText());
+        }
+        return response;
+      default:
+        return null;
     }
-    return response;
   }
 
   public String createCredentialsFile(UUID providerUUID, JsonNode credentials)

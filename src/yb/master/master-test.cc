@@ -66,6 +66,8 @@ DECLARE_bool(TEST_return_error_if_namespace_not_found);
 DECLARE_bool(TEST_hang_on_namespace_transition);
 DECLARE_bool(TEST_simulate_crash_after_table_marked_deleting);
 DECLARE_int32(TEST_sys_catalog_write_rejection_percentage);
+DECLARE_bool(TEST_tablegroup_master_only);
+DECLARE_bool(TEST_simulate_port_conflict_error);
 
 namespace yb {
 namespace master {
@@ -459,6 +461,71 @@ TEST_F(MasterTest, TestCatalog) {
     DoListTables(req, &tables);
     ASSERT_EQ(kNumSystemTables + 2, tables.tables_size());
   }
+}
+
+TEST_F(MasterTest, TestTablegroups) {
+  // Tablegroup ID must be 32 characters in length
+  const char *kTablegroupId = "test_tablegroup00000000000000000";
+  const char *kTableName = "test_table";
+  const Schema kTableSchema({ ColumnSchema("key", INT32) }, 1);
+  const NamespaceName ns_name = "test_tablegroup_ns";
+
+  // Create a new namespace.
+  NamespaceId ns_id;
+  ListNamespacesResponsePB namespaces;
+  {
+    CreateNamespaceResponsePB resp;
+    ASSERT_OK(CreateNamespace(ns_name, YQL_DATABASE_PGSQL, &resp));
+    ns_id = resp.id();
+  }
+  {
+    ASSERT_NO_FATALS(DoListAllNamespaces(&namespaces));
+    ASSERT_EQ(2 + kNumSystemNamespaces, namespaces.namespaces_size());
+    CheckNamespaces(
+        {
+            EXPECTED_DEFAULT_AND_SYSTEM_NAMESPACES,
+            std::make_tuple(ns_name, ns_id)
+        }, namespaces);
+  }
+
+  SetAtomicFlag(true, &FLAGS_TEST_tablegroup_master_only);
+  // Create tablegroup and ensure it exists in catalog manager maps.
+  ASSERT_OK(CreateTablegroup(kTablegroupId, ns_id, ns_name));
+  SetAtomicFlag(false, &FLAGS_TEST_tablegroup_master_only);
+
+  ListTablegroupsRequestPB req;
+  ListTablegroupsResponsePB resp;
+  req.set_namespace_id(ns_id);
+  ASSERT_NO_FATALS(DoListTablegroups(req, &resp));
+
+  bool tablegroup_found = false;
+  for (auto& tg : *resp.mutable_tablegroups()) {
+    if (tg.id().compare(kTablegroupId) == 0) {
+      tablegroup_found = true;
+    }
+  }
+  ASSERT_TRUE(tablegroup_found);
+
+  // Restart the master, verify the tablegroup still shows up
+  ASSERT_OK(mini_master_->Restart());
+  ASSERT_OK(mini_master_->master()->WaitUntilCatalogManagerIsLeaderAndReadyForTests());
+
+  ListTablegroupsResponsePB new_resp;
+  ASSERT_NO_FATALS(DoListTablegroups(req, &new_resp));
+
+  tablegroup_found = false;
+  for (auto& tg : *new_resp.mutable_tablegroups()) {
+    if (tg.id().compare(kTablegroupId) == 0) {
+      tablegroup_found = true;
+    }
+  }
+  ASSERT_TRUE(tablegroup_found);
+
+  // Now ensure that a table can be created in the tablegroup.
+  ASSERT_OK(CreateTablegroupTable(ns_id, kTableName, kTablegroupId, kTableSchema));
+
+  // Delete the tablegroup
+  ASSERT_OK(DeleteTablegroup(kTablegroupId, ns_id));
 }
 
 // Regression test for KUDU-253/KUDU-592: crash if the schema passed to CreateTable
@@ -1219,7 +1286,7 @@ TEST_F(MasterTest, TestNamespaceCreateStates) {
 
   // Finish Namespace create.
   SetAtomicFlag(false, &FLAGS_TEST_hang_on_namespace_transition);
-  CreateNamespaceWait(test_name, YQLDatabase::YQL_DATABASE_PGSQL);
+  CreateNamespaceWait(nsid, YQLDatabase::YQL_DATABASE_PGSQL);
 
   // Verify that Basic Access to a Namespace is now available.
   // 1. Create a Table within the Schema.
@@ -1258,7 +1325,7 @@ TEST_F(MasterTest, TestNamespaceCreateStates) {
 
     // We should be able to create a namespace with the same NAME at this time.
     ASSERT_OK(CreateNamespaceAsync("new_" + test_name, YQLDatabase::YQL_DATABASE_PGSQL, &resp));
-    CreateNamespaceWait("new_" + test_name, YQLDatabase::YQL_DATABASE_PGSQL);
+    CreateNamespaceWait(resp.id(), YQLDatabase::YQL_DATABASE_PGSQL);
   }
 }
 
@@ -1735,6 +1802,18 @@ TEST_F(MasterTest, TestFailedMasterRestart) {
                                     AllocateFreePort(), AllocateFreePort(), 0));
   ASSERT_NOK(mini_master_->Start(true));
   // Restart master should succeed.
+  ASSERT_OK(mini_master_->Start());
+}
+
+TEST_F(MasterTest, TestNetworkErrorOnFirstRun) {
+  TearDown();
+  mini_master_.reset(new MiniMaster(Env::Default(), GetTestPath("Master-test"),
+                                    AllocateFreePort(), AllocateFreePort(), 0));
+  FLAGS_TEST_simulate_port_conflict_error = true;
+  ASSERT_NOK(mini_master_->Start());
+  // Instance file should be properly initialized, but consensus metadata is not initialized.
+  FLAGS_TEST_simulate_port_conflict_error = false;
+  // Restarting master should succeed.
   ASSERT_OK(mini_master_->Start());
 }
 

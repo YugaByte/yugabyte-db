@@ -290,8 +290,8 @@ TEST_F(CompactionTestWithTTL, CompactionAfterExpiry) {
 
   constexpr int kCompactionTimeoutSec = 60;
   const auto table_info = ASSERT_RESULT(FindTable(cluster_.get(), workload_->table_name()));
-  ASSERT_OK(workload_->client().FlushTable(
-    table_info->id(), kCompactionTimeoutSec, /* compaction */ true));
+  ASSERT_OK(workload_->client().FlushTables(
+    {table_info->id()}, false, kCompactionTimeoutSec, /* compaction */ true));
   // Assert that the data size is all wiped up now.
   size_t size_after_manual_compaction = 0;
   for (auto* db : dbs) {

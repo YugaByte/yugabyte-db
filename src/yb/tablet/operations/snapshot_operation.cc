@@ -36,22 +36,21 @@ using yb::tserver::TabletSnapshotOpRequestPB;
 // ------------------------------------------------------------------------------------------------
 
 string SnapshotOperationState::ToString() const {
-  return Substitute("SnapshotOperationState "
-                    "[hybrid_time=$0, request=$1]",
-                    hybrid_time().ToString(),
-                    request_ == nullptr ? "(none)" : request_->ShortDebugString());
+  return Format("SnapshotOperationState { hybrid_time: $0 request: $1 }",
+                hybrid_time(), request());
 }
 
 std::string SnapshotOperationState::GetSnapshotDir(const string& top_snapshots_dir) const {
-  if (!request_->snapshot_dir_override().empty()) {
-    return request_->snapshot_dir_override();
+  auto& request = *this->request();
+  if (!request.snapshot_dir_override().empty()) {
+    return request.snapshot_dir_override();
   }
   std::string snapshot_id_str;
-  auto txn_snapshot_id = TryFullyDecodeTxnSnapshotId(request_->snapshot_id());
+  auto txn_snapshot_id = TryFullyDecodeTxnSnapshotId(request.snapshot_id());
   if (txn_snapshot_id) {
     snapshot_id_str = txn_snapshot_id.ToString();
   } else {
-    snapshot_id_str = request_->snapshot_id();
+    snapshot_id_str = request.snapshot_id();
   }
 
   return JoinPathSegments(top_snapshots_dir, snapshot_id_str);
@@ -59,8 +58,7 @@ std::string SnapshotOperationState::GetSnapshotDir(const string& top_snapshots_d
 
 bool SnapshotOperationState::CheckOperationRequirements() {
   if (operation() == TabletSnapshotOpRequestPB::RESTORE) {
-    const string top_snapshots_dir =
-        TabletSnapshots::SnapshotsDirName(tablet()->metadata()->rocksdb_dir());
+    const string top_snapshots_dir = tablet()->metadata()->snapshots_dir();
     const string snapshot_dir = GetSnapshotDir(top_snapshots_dir);
     Status s = tablet()->rocksdb_env().FileExists(snapshot_dir);
 
@@ -79,16 +77,6 @@ bool SnapshotOperationState::CheckOperationRequirements() {
   }
 
   return true;
-}
-
-tserver::TabletSnapshotOpRequestPB* SnapshotOperationState::AllocateRequest() {
-  request_holder_ = std::make_unique<tserver::TabletSnapshotOpRequestPB>();
-  request_ = request_holder_.get();
-  return request_holder_.get();
-}
-
-tserver::TabletSnapshotOpRequestPB* SnapshotOperationState::ReleaseRequest() {
-  return request_holder_.release();
 }
 
 Result<SnapshotCoordinator&> GetSnapshotCoordinator(SnapshotOperationState* state) {
@@ -130,7 +118,7 @@ SnapshotOperation::SnapshotOperation(std::unique_ptr<SnapshotOperationState> sta
     : Operation(std::move(state), OperationType::kSnapshot) {}
 
 void SnapshotOperationState::UpdateRequestFromConsensusRound() {
-  request_ = consensus_round()->replicate_msg()->mutable_snapshot_request();
+  UseRequest(consensus_round()->replicate_msg()->mutable_snapshot_request());
 }
 
 consensus::ReplicateMsgPtr SnapshotOperation::NewReplicateMsg() {
@@ -167,24 +155,9 @@ Status SnapshotOperation::DoAborted(const Status& status) {
 }
 
 Status SnapshotOperation::DoReplicated(int64_t leader_term, Status* complete_status) {
-  RETURN_NOT_OK(state()->Apply(leader_term));
-
-  ReleaseSchemaLock();
+  auto status = state()->Apply(leader_term);
   state()->Finish();
-
-  return Status::OK();
-}
-
-void SnapshotOperation::AcquireSchemaLock(rw_semaphore* l) {
-  TRACE("Acquiring schema lock in exclusive mode");
-  schema_lock_ = std::unique_lock<rw_semaphore>(*l);
-  TRACE("Acquired schema lock");
-}
-
-void SnapshotOperation::ReleaseSchemaLock() {
-  CHECK(schema_lock_.owns_lock());
-  schema_lock_ = std::unique_lock<rw_semaphore>();
-  TRACE("Released schema lock");
+  return status;
 }
 
 string SnapshotOperation::ToString() const {

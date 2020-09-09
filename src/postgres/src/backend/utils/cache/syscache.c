@@ -66,6 +66,7 @@
 #include "catalog/pg_statistic_ext.h"
 #include "catalog/pg_subscription.h"
 #include "catalog/pg_subscription_rel.h"
+#include "catalog/pg_tablegroup.h"
 #include "catalog/pg_tablespace.h"
 #include "catalog/pg_transform.h"
 #include "catalog/pg_ts_config.h"
@@ -76,6 +77,7 @@
 #include "catalog/pg_type.h"
 #include "catalog/pg_user_mapping.h"
 #include "utils/builtins.h"
+#include "utils/fmgroids.h"
 #include "utils/rel.h"
 #include "utils/catcache.h"
 #include "utils/syscache.h"
@@ -798,6 +800,17 @@ static const struct cachedesc cacheinfo[] = {
 		},
 		64
 	},
+	{TableGroupRelationId,		/* TABLEGROUPOID */
+		TablegroupOidIndexId,
+		1,
+		{
+			ObjectIdAttributeNumber,
+			0,
+			0,
+			0,
+		},
+		4
+	},
 	{TableSpaceRelationId,		/* TABLESPACEOID */
 		TablespaceOidIndexId,
 		1,
@@ -976,6 +989,23 @@ static const struct cachedesc cacheinfo[] = {
 	}
 };
 
+typedef struct YBPinnedObjectKey
+{
+	Oid classid;
+	Oid objid;
+} YBPinnedObjectKey;
+
+typedef struct YBPinnedObjectsCacheData
+{
+	/* Pinned objects from pg_depend */
+	HTAB *regular;
+	/* Pinned objects from pg_shdepend */
+	HTAB *shared;
+} YBPinnedObjectsCacheData;
+
+/* Stores all pinned objects */
+static YBPinnedObjectsCacheData YBPinnedObjectsCache = {.regular = NULL, .shared = NULL};
+
 static CatCache *SysCache[SysCacheSize];
 
 static bool CacheInitialized = false;
@@ -1027,12 +1057,13 @@ YBSysTablePrimaryKey(Oid relid)
 		case PublicationRelationId:
 		case RelationRelationId:
 		case RewriteRelationId:
-		case StatisticExtRelationId:				
+		case StatisticExtRelationId:
 		case SubscriptionRelationId:
 		case TSConfigRelationId:
 		case TSDictionaryRelationId:
 		case TSParserRelationId:
 		case TSTemplateRelationId:
+		case TableGroupRelationId:
 		case TableSpaceRelationId:
 		case TransformRelationId:
 		case TypeRelationId:
@@ -1332,6 +1363,102 @@ YBPreloadCatalogCaches(void)
 
 	for (cacheId = 0; cacheId < SysCacheSize; cacheId++)
 		YBPreloadCatalogCacheIfEssential(cacheId);
+}
+
+static void
+YBFetchPinnedObjectKeyFromPgDepend(HeapTuple tup, YBPinnedObjectKey* key) {
+	Form_pg_depend dep = (Form_pg_depend) GETSTRUCT(tup);
+	key->classid = dep->refclassid;
+	key->objid = dep->refobjid;
+}
+
+static void
+YBFetchPinnedObjectKeyFromPgShdepend(HeapTuple tup, YBPinnedObjectKey *key) {
+	Form_pg_shdepend dep = (Form_pg_shdepend) GETSTRUCT(tup);
+	key->classid = dep->refclassid;
+	key->objid = dep->refobjid;
+}
+
+/*
+ * Helper function to build hash set
+ * and fill it from specified relation (pg_depend or pg_shdepend).
+ */
+static HTAB*
+YBBuildPinnedObjectCache(const char *name,
+                         int size,
+                         Oid dependRelId,
+                         int depTypeAnum,
+                         char depTypeValue,
+                         void(*key_fetcher)(HeapTuple, YBPinnedObjectKey*)) {
+	HASHCTL ctl;
+	MemSet(&ctl, 0, sizeof(ctl));
+	ctl.keysize = sizeof(YBPinnedObjectKey);
+	/* No information associated with key is required. Cache is a set of pinned objects. */
+	ctl.entrysize = sizeof(YBPinnedObjectKey);
+	HTAB *cache = hash_create(name, size, &ctl, HASH_ELEM | HASH_BLOBS);
+
+	ScanKeyData key;
+	ScanKeyInit(&key,
+	            depTypeAnum,
+	            BTEqualStrategyNumber, F_CHAREQ,
+	            CharGetDatum(depTypeValue));
+	Relation dependDesc = heap_open(dependRelId, RowExclusiveLock);
+	SysScanDesc scan = systable_beginscan(dependDesc, InvalidOid, false, NULL, 1, &key);
+	YBPinnedObjectKey pinnedKey;
+	HeapTuple tup;
+	while (HeapTupleIsValid(tup = systable_getnext(scan)))
+	{
+		key_fetcher(tup, &pinnedKey);
+		hash_search(cache, &pinnedKey, HASH_ENTER, NULL);
+	}
+	systable_endscan(scan);
+	heap_close(dependDesc, RowExclusiveLock);
+	return cache;
+}
+
+void
+YBLoadPinnedObjectsCache() {
+	/* Avoid cache building in case of `initdb`. Also avoid cache rebuilding. */
+	if (YBHasPinnedObjectsCache() || YBCIsInitDbModeEnvVarSet())
+		return;
+	YBPinnedObjectsCacheData cache = {
+		.shared = YBBuildPinnedObjectCache("Shared pinned objects cache",
+		                                   20, /* Number of pinned objects in pg_shdepend is 9 */
+		                                   SharedDependRelationId,
+		                                   Anum_pg_shdepend_deptype,
+		                                   SHARED_DEPENDENCY_PIN,
+		                                   YBFetchPinnedObjectKeyFromPgShdepend),
+		.regular = YBBuildPinnedObjectCache("Pinned objects cache",
+		                                    6500, /* Number of pinned object is pg_depend 6179 */
+		                                    DependRelationId,
+		                                    Anum_pg_depend_deptype,
+		                                    DEPENDENCY_PIN,
+		                                    YBFetchPinnedObjectKeyFromPgDepend)};
+	YBPinnedObjectsCache = cache;
+}
+
+bool
+YBHasPinnedObjectsCache() {
+	/* Both 'regular' and 'shared' fields are set at same time. Checking any of them is enough. */
+	return YBPinnedObjectsCache.regular;
+}
+
+static bool
+YBIsPinned(HTAB *pinned_cache, Oid classId, Oid objectId) {
+	YBPinnedObjectKey key = {.classid = classId, .objid = objectId};
+	return hash_search(pinned_cache, &key, HASH_FIND, NULL);
+}
+
+bool
+YBIsObjectPinned(Oid classId, Oid objectId) {
+	Assert(YBHasPinnedObjectsCache());
+	return YBIsPinned(YBPinnedObjectsCache.regular, classId, objectId);
+}
+
+bool
+YBIsSharedObjectPinned(Oid classId, Oid objectId) {
+	Assert(YBHasPinnedObjectsCache());
+	return YBIsPinned(YBPinnedObjectsCache.shared, classId, objectId);
 }
 
 /*

@@ -170,6 +170,24 @@ class PTExpr : public TreeNode {
     return ql_type_->main() != DataType::UNKNOWN_DATA;
   }
 
+  // Seeks index-columns that referenced by this expression and output mangled colum names.
+  // NOTE:
+  // - index-column can be either a column or an expression of the column.
+  // - Currently, name of a column in an INDEX must be one of the following.
+  //   * Mangled name of a column of scalar type (not a collection type such as map, jsonb).
+  //   * Mangled name of a "jsonb->>field" expresion.
+  virtual void CollectReferencedIndexColnames(MCSet<string> *col_names) const {
+    if (op1()) {
+      op1()->CollectReferencedIndexColnames(col_names);
+    }
+    if (op2()) {
+      op2()->CollectReferencedIndexColnames(col_names);
+    }
+    if (op3()) {
+      op3()->CollectReferencedIndexColnames(col_names);
+    }
+  }
+
   // Return name of expression.
   // - Option kUserOriginalName
   //     When report data to user, we use the original name that users enterred. In SELECT,
@@ -1086,6 +1104,11 @@ class PTRef : public PTOperator0 {
   using PTOperatorExpr::AnalyzeOperator;
   virtual CHECKED_STATUS AnalyzeOperator(SemContext *sem_context) override;
 
+  // Add the name of column that is being referenced to output parameter.
+  void CollectReferencedIndexColnames(MCSet<string> *col_names) const override {
+    col_names->insert(QLName(QLNameOption::kMangledName));
+  }
+
   // Selected name.
   virtual string QLName(QLNameOption option = QLNameOption::kUserOriginalName) const override {
     if (option == QLNameOption::kMetadataName) {
@@ -1160,6 +1183,11 @@ class PTJsonColumnWithOperators : public PTOperator0 {
   // Access function for name.
   const PTQualifiedName::SharedPtr& name() const {
     return name_;
+  }
+
+  // Add the name of this JSONB expression to output parameter.
+  void CollectReferencedIndexColnames(MCSet<string> *col_names) const override {
+    col_names->insert(QLName(QLNameOption::kMangledName));
   }
 
   // Selected name.

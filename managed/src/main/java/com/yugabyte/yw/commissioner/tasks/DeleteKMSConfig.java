@@ -10,17 +10,13 @@
 
 package com.yugabyte.yw.commissioner.tasks;
 
-import com.yugabyte.yw.common.kms.services.EncryptionAtRestService;
-import com.yugabyte.yw.models.KmsConfig;
-import java.util.UUID;
-
 public class DeleteKMSConfig extends KMSConfigTaskBase {
-    @Override
-    public void run() {
-        LOG.info("Deleting KMS Configuration for customer: " +
-                taskParams().customerUUID.toString());
-        EncryptionAtRestService keyService = kmsManager
-                .getServiceInstance(taskParams().kmsProvider.name());
-        keyService.deleteKMSConfig(taskParams().configUUID);
-    }
+  @Override
+  public void run() {
+    LOG.info("Deleting KMS Configuration for customer: " +
+      taskParams().customerUUID.toString());
+    kmsManager
+      .getServiceInstance(taskParams().kmsProvider.name())
+      .deleteKMSConfig(taskParams().configUUID);
+  }
 }

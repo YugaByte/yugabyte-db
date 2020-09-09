@@ -14,6 +14,8 @@
 #ifndef YB_DOCDB_CONFLICT_RESOLUTION_H
 #define YB_DOCDB_CONFLICT_RESOLUTION_H
 
+#include <boost/function.hpp>
+
 #include "yb/docdb/docdb_fwd.h"
 #include "yb/docdb/doc_operation.h"
 #include "yb/docdb/value_type.h"

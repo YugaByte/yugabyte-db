@@ -16,19 +16,19 @@ showAsideToc: true
 
 <ul class="nav nav-tabs-alt nav-tabs-yb">
   <li >
-    <a href="/latest/quick-start/build-apps/ruby/ysql-pg" class="nav-link">
+    <a href="{{< relref "./ysql-pg.md" >}}" class="nav-link">
       <i class="icon-postgres" aria-hidden="true"></i>
       YSQL - PG Gem
     </a>
   </li>
   <li >
-    <a href="/latest/quick-start/build-apps/ruby/ysql-rails-activerecord" class="nav-link active">
+    <a href="{{< relref "./ysql-rails-activerecord.md" >}}" class="nav-link active">
       <i class="icon-postgres" aria-hidden="true"></i>
       YSQL - ActiveRecord
     </a>
   </li>
   <li>
-    <a href="/latest/quick-start/build-apps/ruby/ycql" class="nav-link">
+    <a href="{{< relref "./ycql.md" >}}" class="nav-link">
       <i class="icon-cassandra" aria-hidden="true"></i>
       YCQL
     </a>

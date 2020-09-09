@@ -7,20 +7,24 @@ import com.yugabyte.yw.commissioner.Common;
 import com.yugabyte.yw.models.YugawareProperty;
 import play.Application;
 import play.libs.Json;
-import play.libs.Yaml;
 
 import javax.inject.Singleton;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.CustomClassLoaderConstructor;
 
 @Singleton
 public class ConfigHelper {
+
   public enum ConfigType {
     AWSRegionMetadata,
     AWSInstanceTypeMetadata,
     GCPRegionMetadata,
     GCPInstanceTypeMetadata,
+    AZURegionMetadata,
+    AZUInstanceTypeMetadata,
     DockerRegionMetadata,
     DockerInstanceTypeMetadata,
     SoftwareReleases,
@@ -39,6 +43,8 @@ public class ConfigHelper {
           return "configs/gcp-region-metadata.yml";
         case GCPInstanceTypeMetadata:
           return "configs/gcp-instance-type-metadata.yml";
+        case AZURegionMetadata:
+          return "configs/azu-region-metadata.yml";
         case DockerRegionMetadata:
           return "configs/docker-region-metadata.yml";
         case DockerInstanceTypeMetadata:
@@ -56,6 +62,8 @@ public class ConfigHelper {
           return "AWS Region Metadata";
         case GCPRegionMetadata:
           return "GCP Region Metadata";
+        case AZURegionMetadata:
+          return "Azure Region Metadata";
         case DockerRegionMetadata:
           return "Docker Region Metadata";
         case SoftwareReleases:
@@ -88,6 +96,8 @@ public class ConfigHelper {
         return getConfig(ConfigType.GCPRegionMetadata);
       case docker:
         return getConfig(ConfigType.DockerRegionMetadata);
+      case azu:
+        return getConfig(ConfigType.AZURegionMetadata);
       default:
         return Collections.emptyMap();
     }
@@ -98,9 +108,9 @@ public class ConfigHelper {
       if (type.getConfigFile() == null) {
         continue;
       }
-      Map<String, Object> config = (HashMap<String, Object>) Yaml.load(
-          app.resourceAsStream(type.getConfigFile()),
-          app.classloader()
+      Yaml yaml = new Yaml(new CustomClassLoaderConstructor(app.classloader()));
+      Map<String, Object> config = (HashMap<String, Object>) yaml.load(
+        app.resourceAsStream(type.getConfigFile())
       );
       loadConfigToDB(type, config);
     }

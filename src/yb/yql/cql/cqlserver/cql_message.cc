@@ -1395,7 +1395,7 @@ ResultResponse::RowsMetadata::RowsMetadata(const client::YBTableName& table_name
       col_count(columns.size()) {
   if (!no_metadata) {
     col_specs.reserve(col_count);
-    for (const auto column : columns) {
+    for (const auto& column : columns) {
       col_specs.emplace_back(column.name(), Type(column.type()));
     }
   }

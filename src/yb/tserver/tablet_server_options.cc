@@ -55,9 +55,9 @@ Result<TabletServerOptions> TabletServerOptions::CreateTabletServerOptions() {
   return opts;
 }
 
-TabletServerOptions::TabletServerOptions(server::MasterAddressesPtr master_addresses) {
+TabletServerOptions::TabletServerOptions(server::MasterAddressesPtr master_addresses)
+    : ServerBaseOptions(TabletServer::kDefaultPort) {
   server_type = kServerType;
-  rpc_opts.default_port = TabletServer::kDefaultPort;
 
   SetMasterAddresses(std::move(master_addresses));
   ValidateMasterAddresses();

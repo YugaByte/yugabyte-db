@@ -26,7 +26,8 @@ class TServerMetricsHeartbeatDataProvider : public PeriodicalHeartbeatDataProvid
   explicit TServerMetricsHeartbeatDataProvider(TabletServer* server);
 
  private:
-  void DoAddData(master::TSHeartbeatRequestPB* req) override;
+  void DoAddData(
+      const master::TSHeartbeatResponsePB& last_resp, master::TSHeartbeatRequestPB* req) override;
 
   uint64_t CalculateUptime();
 

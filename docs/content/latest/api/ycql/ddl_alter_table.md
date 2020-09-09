@@ -2,7 +2,6 @@
 title: ALTER TABLE statement [YCQL]
 headerTitle: ALTER TABLE
 linkTitle: ALTER TABLE
-summary: Change the schema of a table
 description: Use the ALTER TABLE statement to change the schema or definition of an existing table.
 menu:
   latest:

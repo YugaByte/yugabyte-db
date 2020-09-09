@@ -13,6 +13,8 @@
 
 #include "yb/tserver/remote_bootstrap_snapshots.h"
 
+#include <unordered_set>
+
 #include "yb/fs/fs_manager.h"
 
 #include "yb/tablet/tablet_metadata.h"
@@ -32,7 +34,7 @@ CHECKED_STATUS AddDirToSnapshotFiles(
       Format("Unable to list directory $0", dir));
 
   for (const string& file : files) {
-    LOG(INFO) << "File: " << file;
+    LOG(INFO) << "Adding file " << file << " for snapshot " << snapshot_id;
     const auto path = JoinPathSegments(dir, file);
     const auto fname = prefix.empty() ? file : JoinPathSegments(prefix, file);
 
@@ -83,7 +85,14 @@ Status RemoteBootstrapSnapshotsComponent::Download() {
 
   DataIdPB data_id;
   data_id.set_type(DataIdPB::SNAPSHOT_FILE);
+  // Used to skip snapshot files from a failed download in a previous iteration of the loop.
+  std::unordered_set<SnapshotId> failed_snapshot_ids;
   for (auto const& file_pb : kv_store.snapshot_files()) {
+    if (failed_snapshot_ids.find(file_pb.snapshot_id()) != failed_snapshot_ids.end()) {
+      LOG(WARNING) << "Skipping download for file " << file_pb.file().name()
+                   << " because it is part of failed snapshot " << file_pb.snapshot_id();
+      continue;
+    }
     const string snapshot_dir = JoinPathSegments(top_snapshots_dir, file_pb.snapshot_id());
 
     RETURN_NOT_OK_PREPEND(fs_manager().CreateDirIfMissingAndSync(snapshot_dir),
@@ -91,7 +100,22 @@ Status RemoteBootstrapSnapshotsComponent::Download() {
 
     const std::string file_path = JoinPathSegments(snapshot_dir, file_pb.file().name());
     data_id.set_snapshot_id(file_pb.snapshot_id());
-    RETURN_NOT_OK(downloader_.DownloadFile(file_pb.file(), snapshot_dir, &data_id));
+    auto s = downloader_.DownloadFile(file_pb.file(), snapshot_dir, &data_id);
+    if (!s.ok()) {
+      // If we fail to fetch a snapshot file, delete the snapshot directory, log the error,
+      // but don't fail the remote bootstrap as snapshot files are not needed for running
+      // the tablet.
+      LOG(ERROR) << "Error downloading snapshot file " << file_path << ": " << s;
+      failed_snapshot_ids.insert(file_pb.snapshot_id());
+      LOG(INFO) << "Deleting snapshot dir " << snapshot_dir;
+      auto delete_status = Env::Default()->DeleteRecursively(snapshot_dir);
+      if (!delete_status.ok()) {
+        LOG(ERROR) << "Error deleting corrupted snapshot directory "
+                   << snapshot_dir << ": " << delete_status;
+      }
+    } else {
+      LOG(INFO) << "Downloaded file " << file_path << " for snapshot " << file_pb.snapshot_id();
+    }
   }
 
   return Status::OK();

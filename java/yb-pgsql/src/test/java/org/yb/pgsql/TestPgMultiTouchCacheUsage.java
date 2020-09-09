@@ -58,7 +58,7 @@ public class TestPgMultiTouchCacheUsage extends BasePgSQLTest {
       URL url = null;
       BufferedReader br = null;
       try {
-        url = new URL(String.format("http://%s:%d/prometheus-metrics", hostPort.getHostText(), port));
+        url = new URL(String.format("http://%s:%d/prometheus-metrics", hostPort.getHost(), port));
         br = new BufferedReader(new InputStreamReader(url.openStream()));;
       } catch (Exception ex) {
         LOG.error("Encountered error for reading metrics endpoint" + ex);

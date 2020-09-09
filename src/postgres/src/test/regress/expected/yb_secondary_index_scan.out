@@ -57,7 +57,7 @@ EXPLAIN (COSTS OFF) SELECT id FROM text_books WHERE author = 'Hello World' ORDER
 ------------------------------------------------
  Sort
    Sort Key: year
-   ->  Foreign Scan on text_books
+   ->  Seq Scan on text_books
          Filter: (author = 'Hello World'::text)
 (4 rows)
 
@@ -72,7 +72,7 @@ EXPLAIN (COSTS OFF) SELECT id FROM text_books
 --------------------------------------------------------------------------------------------
  Sort
    Sort Key: year
-   ->  Foreign Scan on text_books
+   ->  Seq Scan on text_books
          Filter: (author = '{ "first_name": "William", "last_name": "Shakespeare" }'::text)
 (4 rows)
 
@@ -159,7 +159,7 @@ EXPLAIN (COSTS OFF) SELECT id FROM books WHERE details->'author'->>'first_name' 
 ----------------------------------------------------------------------------------------------
  Sort
    Sort Key: ((details ->> 'name'::text))
-   ->  Foreign Scan on books
+   ->  Seq Scan on books
          Filter: (((details -> 'author'::text) ->> 'first_name'::text) = 'Hello World'::text)
 (4 rows)
 
@@ -175,7 +175,7 @@ EXPLAIN (COSTS OFF) SELECT id FROM books WHERE details->'author'->>'first_name' 
 ------------------------------------------------------------------------------------------
  Sort
    Sort Key: ((details ->> 'name'::text))
-   ->  Foreign Scan on books
+   ->  Seq Scan on books
          Filter: (((details -> 'author'::text) ->> 'first_name'::text) = 'Charles'::text)
 (4 rows)
 

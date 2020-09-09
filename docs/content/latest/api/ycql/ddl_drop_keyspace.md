@@ -2,7 +2,6 @@
 title: DROP KEYSPACE statement [YCQL]
 headerTitle: DROP KEYSPACE
 linkTitle: DROP KEYSPACE
-summary: Removes a keyspace
 description: Use the DROP KEYSPACE statement to remove a keyspace from the system.
 menu:
   latest:

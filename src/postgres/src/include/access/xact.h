@@ -373,6 +373,7 @@ extern int	GetCurrentTransactionNestLevel(void);
 extern bool TransactionIdIsCurrentTransactionId(TransactionId xid);
 extern void CommandCounterIncrement(void);
 extern void ForceSyncCommit(void);
+extern void YBInitializeTransaction(void);
 extern void StartTransactionCommand(void);
 extern void SetTxnWithPGRel(void);
 extern bool IsCurrentTxnWithPGRel(void);

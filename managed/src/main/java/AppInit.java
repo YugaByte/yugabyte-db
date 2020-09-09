@@ -6,13 +6,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.avaje.ebean.Ebean;
+import io.ebean.Ebean;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.yugabyte.yw.cloud.AWSInitializer;
 import com.yugabyte.yw.common.ConfigHelper;
+import com.yugabyte.yw.common.CustomerTaskManager;
 import com.yugabyte.yw.common.ReleaseManager;
+import com.yugabyte.yw.common.YamlWrapper;
 import com.yugabyte.yw.models.Customer;
 import com.yugabyte.yw.models.InstanceType;
 import com.yugabyte.yw.models.MetricConfig;
@@ -22,7 +24,6 @@ import play.Application;
 import play.Configuration;
 import play.Environment;
 import play.Logger;
-import play.libs.Yaml;
 
 import io.prometheus.client.hotspot.DefaultExports;
 
@@ -40,18 +41,18 @@ public class AppInit {
   @Inject
   public AppInit(Environment environment, Application application,
                  ConfigHelper configHelper, ReleaseManager releaseManager,
-                 AWSInitializer awsInitializer) {
+                 AWSInitializer awsInitializer, CustomerTaskManager taskManager, YamlWrapper yaml) {
     Logger.info("Yugaware Application has started");
     Configuration appConfig = application.configuration();
     String mode = appConfig.getString("yb.mode", "PLATFORM");
 
     if (!environment.isTest()) {
       // Check if we have provider data, if not, we need to seed the database
-      if (Customer.find.where().findRowCount() == 0 &&
+      if (Customer.find.query().where().findCount() == 0 &&
           appConfig.getBoolean("yb.seedData", false)) {
         Logger.debug("Seed the Yugaware DB");
 
-        List<?> all = (ArrayList<?>) Yaml.load(
+        List<?> all = (ArrayList<?>) yaml.load(
             application.resourceAsStream("db_seed.yml"),
             application.classloader()
         );
@@ -71,7 +72,7 @@ public class AppInit {
       }
 
       // TODO: Version added to Yugaware metadata, now slowly decomission SoftwareVersion property
-      Object version = Yaml.load(application.resourceAsStream("version.txt"),
+      Object version = yaml.load(application.resourceAsStream("version.txt"),
                                   application.classloader());
       configHelper.loadConfigToDB(SoftwareVersion, ImmutableMap.of("version", version));
       Map <String, Object> ywMetadata = new HashMap<String, Object>();
@@ -83,7 +84,7 @@ public class AppInit {
       configHelper.loadConfigToDB(YugawareMetadata, ywMetadata);
 
       // Initialize AWS if any of its instance types have an empty volumeDetailsList
-      List<Provider> providerList = Provider.find.where().findList();
+      List<Provider> providerList = Provider.find.query().where().findList();
       for (Provider provider : providerList) {
         if (provider.code.equals("aws")) {
           for (InstanceType instanceType : InstanceType.findByProvider(provider)) {
@@ -99,7 +100,7 @@ public class AppInit {
       }
 
       // Load metrics configurations.
-      Map<String, Object> configs = (HashMap<String, Object>) Yaml.load(
+      Map<String, Object> configs = (HashMap<String, Object>) yaml.load(
           application.resourceAsStream("metrics.yml"),
           application.classloader()
       );
@@ -114,6 +115,9 @@ public class AppInit {
 
       // initialize prometheus exports
       DefaultExports.initialize();
+
+      // Fail incomplete tasks
+      taskManager.failAllPendingTasks();
 
       Logger.info("AppInit completed");
    }

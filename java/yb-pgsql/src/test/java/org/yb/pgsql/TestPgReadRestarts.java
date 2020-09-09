@@ -119,7 +119,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
   @Test
   public void selectCount() throws Exception {
     new RegularStatementTester(
-        newConnectionBuilder(),
+        getConnectionBuilder(),
         "SELECT COUNT(*) FROM test_rr",
         getShortString(),
         false /* expectRestartErrors */
@@ -132,7 +132,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
   @Test
   public void selectCountPrepared() throws Exception {
     new PreparedStatementTester(
-        newConnectionBuilder(),
+        getConnectionBuilder(),
         "SELECT COUNT(*) FROM test_rr",
         getShortString(),
         false /* expectRestartErrors */
@@ -145,7 +145,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
   @Test
   public void selectCountPreparedParameterized() throws Exception {
     new PreparedStatementTester(
-        newConnectionBuilder(),
+        getConnectionBuilder(),
         "SELECT COUNT(*) FROM test_rr WHERE i >= ?",
         getShortString(),
         false /* expectRestartErrors */) {
@@ -168,7 +168,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
   @Test
   public void selectStarShort() throws Exception {
     new RegularStatementTester(
-        newConnectionBuilder(),
+        getConnectionBuilder(),
         "SELECT * FROM test_rr LIMIT 10",
         getShortString(),
         false /* expectRestartErrors */
@@ -181,7 +181,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
   @Test
   public void selectStarShortPrepared() throws Exception {
     new PreparedStatementTester(
-        newConnectionBuilder(),
+        getConnectionBuilder(),
         "SELECT * FROM test_rr LIMIT 10",
         getShortString(),
         false /* expectRestartErrors */
@@ -194,7 +194,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
   @Test
   public void selectStarShortPreparedParameterized() throws Exception {
     new PreparedStatementTester(
-        newConnectionBuilder(),
+        getConnectionBuilder(),
         "SELECT * FROM test_rr WHERE i >= ? LIMIT 10",
         getShortString(),
         false /* expectRestartErrors */) {
@@ -217,7 +217,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
   @Test
   public void selectShortPreparedParameterizedArray() throws Exception {
     new PreparedStatementTester(
-        newConnectionBuilder(),
+        getConnectionBuilder(),
         "SELECT unnest(?::int[]), * FROM test_rr LIMIT 10",
         getShortString(),
         false /* expectRestartErrors */) {
@@ -237,7 +237,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
   @Test
   public void selectStarShort_simpleQueryMode() throws Exception {
     new RegularStatementTester(
-        newConnectionBuilder().setPreferQueryMode("simple"),
+        getConnectionBuilder().withPreferQueryMode("simple"),
         "SELECT * FROM test_rr LIMIT 10",
         getShortString(),
         false /* expectRestartErrors */
@@ -250,7 +250,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
   @Test
   public void selectStarShortPrepared_simpleQueryMode() throws Exception {
     new PreparedStatementTester(
-        newConnectionBuilder().setPreferQueryMode("simple"),
+        getConnectionBuilder().withPreferQueryMode("simple"),
         "SELECT * FROM test_rr LIMIT 10",
         getShortString(),
         false /* expectRestartErrors */
@@ -263,7 +263,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
   @Test
   public void selectStarShortPreparedParameterized_simpleQueryMode() throws Exception {
     new PreparedStatementTester(
-        newConnectionBuilder().setPreferQueryMode("simple"),
+        getConnectionBuilder().withPreferQueryMode("simple"),
         "SELECT * FROM test_rr WHERE i >= ? LIMIT 10",
         getShortString(),
         false /* expectRestartErrors */) {
@@ -284,7 +284,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
   @Test
   public void selectStarShortExecute_simpleQueryMode() throws Exception {
     new RegularStatementTester(
-        newConnectionBuilder().setPreferQueryMode("simple"),
+        getConnectionBuilder().withPreferQueryMode("simple"),
         "EXECUTE select_stmt(0)",
         getShortString(),
         false /* expectRestartErrors */) {
@@ -307,7 +307,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
   @Test
   public void selectStarLong() throws Exception {
     new RegularStatementTester(
-        newConnectionBuilder(),
+        getConnectionBuilder(),
         "SELECT * FROM test_rr",
         getLongString(),
         true /* expectRestartErrors */
@@ -320,7 +320,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
   @Test
   public void selectStarLongPrepared() throws Exception {
     new PreparedStatementTester(
-        newConnectionBuilder(),
+        getConnectionBuilder(),
         "SELECT * FROM test_rr",
         getLongString(),
         true /* expectRestartErrors */
@@ -333,7 +333,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
   @Test
   public void selectStarLongPreparedParameterized() throws Exception {
     new PreparedStatementTester(
-        newConnectionBuilder(),
+        getConnectionBuilder(),
         "SELECT * FROM test_rr WHERE i >= ?",
         getLongString(),
         true /* expectRestartErrors */) {
@@ -557,7 +557,7 @@ public class TestPgReadRestarts extends BasePgSQLTest {
           int selectsAttempted = 0;
           int selectsFirstOpRestartRequired = 0;
           int selectsSucceeded = 0;
-          try (Connection selectTxnConn = cb.newBuilder().setIsolationLevel(isolation).connect();
+          try (Connection selectTxnConn = cb.withIsolationLevel(isolation).connect();
               Stmt stmt = createStatement(selectTxnConn)) {
             selectTxnConn.setAutoCommit(false);
             for (/* No setup */; !insertFuture.isDone(); ++selectsAttempted) {

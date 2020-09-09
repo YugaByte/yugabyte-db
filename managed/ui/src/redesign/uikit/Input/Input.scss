@@ -1,0 +1,67 @@
+@import "../common";
+
+.yb-uikit-input {
+  $arrows-width: 26px;
+
+  @include input-wrapper();
+
+  input {
+    @include input-control();
+
+    &[disabled] {
+      background-color: $YB_BORDER_1;
+    }
+
+    &[type="number"] {
+      padding-right: $arrows-width + 10px;
+      // hide arrows for firefox
+      -moz-appearance: textfield;
+      // hide arrows for chrome/safari/etc
+      &::-webkit-inner-spin-button,
+      &::-webkit-outer-spin-button {
+        appearance: none;
+        margin: 0;
+      }
+    }
+  }
+
+  &__number-controls {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: $arrows-width;
+    height: 100%;
+    background-color: $YB_INPUT_NUMBERS_BG;
+    display: flex;
+    justify-content: space-evenly;
+    flex-direction: column;
+
+    &--disabled {
+      pointer-events: none; // to turn off on hover styles
+    }
+  }
+
+  &__number-up {
+    @include chevron-up();
+    margin-left: 5px;
+    cursor: pointer;
+
+    &:hover {
+      border-bottom-color: $YB_TEXT_1;
+    }
+  }
+
+  &__number-down {
+    @include chevron-down();
+    margin-left: 5px;
+    cursor: pointer;
+
+    &:hover {
+      border-top-color: $YB_TEXT_1;
+    }
+  }
+
+  &__number-delim {
+    border-top: 1px solid $YB_TEXT_1;
+  }
+}

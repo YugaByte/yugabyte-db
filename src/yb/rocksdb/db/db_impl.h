@@ -820,6 +820,10 @@ class DBImpl : public DB {
 
   WriteThread write_thread_;
 
+#ifndef NDEBUG
+  std::atomic<int> write_waiters_{0};
+#endif
+
   WriteBatch tmp_batch_;
 
   WriteController write_controller_;

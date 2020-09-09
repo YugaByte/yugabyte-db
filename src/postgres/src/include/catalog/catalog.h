@@ -17,6 +17,14 @@
 #include "catalog/pg_class.h"
 #include "utils/relcache.h"
 
+/*
+ * This OID corresponds to the next unused OID in the block of OIDs that are used
+ * by YB specific catalog additions, starting at 8000. When making changes to the catalog
+ * by adding a new OID in 'pg_*.h', 'toasting.h', or 'indexing.h', make sure to increment
+ * this value. Additionally, the script 'catalog/unused_oids' will help by outputting
+ * the blocks of unused OIDs to validate that this value is up to date.
+ */
+#define YB_MIN_UNUSED_OID 8003
 
 extern bool IsSystemRelation(Relation relation);
 extern bool IsToastRelation(Relation relation);

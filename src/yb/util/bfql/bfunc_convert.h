@@ -607,9 +607,8 @@ CHECKED_STATUS ConvertStringToInet(PTypePtr source, RTypePtr target) {
   if (source->IsNull()) {
     target->SetNull();
   } else {
-    InetAddress addr;
-    RETURN_NOT_OK(addr.FromString(source->string_value()));
-    target->set_inetaddress_value(addr);
+    target->set_inetaddress_value(InetAddress(
+        VERIFY_RESULT(HostToAddress(source->string_value()))));
   }
   return Status::OK();
 }

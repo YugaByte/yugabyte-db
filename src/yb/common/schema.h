@@ -372,11 +372,49 @@ class TableProperties {
   // Containing counters is a internal property instead of a user-defined property, so we don't use
   // it when comparing table properties.
   bool operator==(const TableProperties& other) const {
-    return (default_time_to_live_ == other.default_time_to_live_);
+    if (!Equivalent(other)) {
+      return false;
+    }
+
+    return default_time_to_live_ == other.default_time_to_live_ &&
+           use_mangled_column_name_ == other.use_mangled_column_name_ &&
+           contain_counters_ == other.contain_counters_;
+
+    // Ignoring num_tablets_.
+    // Ignoring is_backfilling_.
+    // Ignoring wal_retention_secs_.
   }
 
   bool operator!=(const TableProperties& other) const {
     return !(*this == other);
+  }
+
+  bool Equivalent(const TableProperties& other) const {
+    if (is_ysql_catalog_table_ != other.is_ysql_catalog_table_) {
+      return false;
+    }
+
+    if (is_transactional_ != other.is_transactional_) {
+      return false;
+    }
+
+    if (consistency_level_ != other.consistency_level_) {
+      return false;
+    }
+
+    if ((copartition_table_id_ == kNoCopartitionTableId ||
+         other.copartition_table_id_ == kNoCopartitionTableId) &&
+        copartition_table_id_ != other.copartition_table_id_) {
+      return false;
+    }
+
+    // Ignoring default_time_to_live_.
+    // Ignoring num_tablets_.
+    // Ignoring use_mangled_column_name_.
+    // Ignoring contain_counters_.
+    // Ignoring is_backfilling_.
+    // Ignoring wal_retention_secs_.
+    return true;
   }
 
   bool HasDefaultTimeToLive() const {
@@ -470,6 +508,10 @@ class TableProperties {
   std::string ToString() const;
 
  private:
+  // IMPORTANT: Every time a new property is added, we need to revisit
+  // operator== and Equivalent methods to make sure that the new property
+  // is being taken into consideration when deciding whether properties between
+  // two different tables are equal or equivalent.
   static const int kNoDefaultTtl = -1;
   int64_t default_time_to_live_ = kNoDefaultTtl;
   bool contain_counters_ = false;
@@ -949,11 +991,28 @@ class Schema {
   std::string ToString() const;
 
   // Return true if the schemas have exactly the same set of columns
-  // and respective types.
+  // and respective types, and the same table properties.
   bool Equals(const Schema &other) const {
     if (this == &other) return true;
     if (this->num_key_columns_ != other.num_key_columns_) return false;
     if (this->table_properties_ != other.table_properties_) return false;
+    if (this->cols_.size() != other.cols_.size()) return false;
+
+    for (size_t i = 0; i < other.cols_.size(); i++) {
+      if (!this->cols_[i].Equals(other.cols_[i])) return false;
+    }
+
+    return true;
+  }
+
+  // Return true if the schemas have exactly the same set of columns
+  // and respective types, and equivalent properties.
+  // For example, one table property could have a different properties like wal_retention_secs_
+  // is_backfilling_ but still be equivalent.
+  bool EquivalentForDataCopy(const Schema& other) const {
+    if (this == &other) return true;
+    if (this->num_key_columns_ != other.num_key_columns_) return false;
+    if (!this->table_properties_.Equivalent(other.table_properties_)) return false;
     if (this->cols_.size() != other.cols_.size()) return false;
 
     for (size_t i = 0; i < other.cols_.size(); i++) {
@@ -1169,8 +1228,28 @@ class SchemaBuilder {
     return next_id_;
   }
 
-  Schema Build() const { return Schema(cols_, col_ids_, num_key_columns_, table_properties_); }
-  Schema BuildWithoutIds() const { return Schema(cols_, num_key_columns_, table_properties_); }
+  void set_pgtable_id(PgTableOid pgtable_id) {
+    pgtable_id_ = pgtable_id;
+  }
+
+  PgTableOid pgtable_id() const {
+    return pgtable_id_;
+  }
+
+  void set_cotable_id(Uuid cotable_id) {
+    cotable_id_ = cotable_id;
+  }
+
+  Uuid cotable_id() const {
+    return cotable_id_;
+  }
+
+  Schema Build() const {
+    return Schema(cols_, col_ids_, num_key_columns_, table_properties_, cotable_id_, pgtable_id_);
+  }
+  Schema BuildWithoutIds() const {
+    return Schema(cols_, num_key_columns_, table_properties_, cotable_id_,  pgtable_id_);
+  }
 
   // assumes type is allowed in primary key -- this should be checked before getting here
   // using DataType (not QLType) since primary key columns only support elementary types
@@ -1238,6 +1317,8 @@ class SchemaBuilder {
   unordered_set<string> col_names_;
   size_t num_key_columns_;
   TableProperties table_properties_;
+  PgTableOid pgtable_id_ = 0;
+  Uuid cotable_id_ = Uuid(boost::uuids::nil_uuid());
 
   DISALLOW_COPY_AND_ASSIGN(SchemaBuilder);
 };

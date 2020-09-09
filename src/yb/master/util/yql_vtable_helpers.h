@@ -76,12 +76,12 @@ bool RemoteEndpointMatchesTServer(const TSInformationPB& ts_info,
                                   const InetAddress& remote_endpoint);
 
 struct PublicPrivateIPFutures {
-  std::shared_future<Result<InetAddress>> private_ip_future;
-  std::shared_future<Result<InetAddress>> public_ip_future;
+  std::shared_future<Result<IpAddress>> private_ip_future;
+  std::shared_future<Result<IpAddress>> public_ip_future;
 };
 
 PublicPrivateIPFutures GetPublicPrivateIPFutures(
-    const TSInformationPB& ts_info, Resolver* resolver);
+    const TSInformationPB& ts_info, DnsResolver* resolver);
 
 }  // namespace util
 }  // namespace master

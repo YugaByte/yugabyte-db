@@ -24,8 +24,8 @@ import org.mindrot.jbcrypt.BCrypt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.avaje.ebean.annotation.DbJson;
-import com.avaje.ebean.Model;
+import io.ebean.annotation.DbJson;
+import io.ebean.*;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -123,19 +123,19 @@ public class Customer extends Model {
     return false;
   }
 
-  public static final Find<UUID, Customer> find = new Find<UUID, Customer>() {
+  public static final Finder<UUID, Customer> find = new Finder<UUID, Customer>(Customer.class) {
   };
 
   public static Customer get(UUID customerUUID) {
-    return find.where().eq("uuid", customerUUID).findUnique();
+    return find.query().where().eq("uuid", customerUUID).findOne();
   }
 
   public static Customer get(long id) {
-    return find.where().idEq(String.valueOf(id)).findUnique();
+    return find.query().where().idEq(String.valueOf(id)).findOne();
   }
 
   public static List<Customer> getAll() {
-    return find.findList();
+    return find.query().findList();
   }
 
   public Customer() {

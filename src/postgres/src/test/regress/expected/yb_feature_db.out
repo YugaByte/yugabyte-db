@@ -12,12 +12,12 @@ LINE 1: CREATE DATABASE test IS_TEMPLATE = TRUE;
                              ^
 HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
 CREATE DATABASE test LC_COLLATE = C;
-ERROR:  Value other than default for lc_collate option is not yet supported
+ERROR:  Value other than 'C' for lc_collate option is not yet supported
 LINE 1: CREATE DATABASE test LC_COLLATE = C;
                              ^
 HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
 CREATE DATABASE test LC_CTYPE = C;
-ERROR:  Value other than default for lc_ctype option is not yet supported
+ERROR:  Value other than 'en_US.UTF-8' for lc_ctype option is not yet supported
 LINE 1: CREATE DATABASE test LC_CTYPE = C;
                              ^
 HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues

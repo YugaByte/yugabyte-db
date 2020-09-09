@@ -20,41 +20,40 @@ showAsideToc: true
 
 <ul class="nav nav-tabs-alt nav-tabs-yb">
   <li >
-    <a href="/latest/deploy/kubernetes/single-zone/oss/helm-chart" class="nav-link">
+    <a href="{{< relref "./helm-chart.md" >}}" class="nav-link">
       <i class="fas fa-cubes" aria-hidden="true"></i>
       Helm chart
     </a>
   </li>
   <li >
-    <a href="/latest/deploy/kubernetes/single-zone/oss/yugabyte-operator" class="nav-link active">
+    <a href="{{< relref "./yugabyte-operator.md" >}}" class="nav-link active">
       <i class="fas fa-cubes" aria-hidden="true"></i>
       YugabyteDB operator
     </a>
   </li>
   <li >
-    <a href="/latest/deploy/kubernetes/single-zone/oss/operator-hub" class="nav-link">
+    <a href="{{< relref "./operator-hub.md" >}}" class="nav-link">
       <i class="fas fa-cubes" aria-hidden="true"></i>
       Operator Hub
     </a>
   </li>
   <li>
-    <a href="/latest/deploy/kubernetes/single-zone/oss/rook-operator" class="nav-link">
+    <a href="{{< relref "./rook-operator.md" >}}" class="nav-link">
       <i class="fas fa-cubes" aria-hidden="true"></i>
       Rook operator
     </a>
   </li>
 </ul>
 
-
 Create and manage a YugabyteDB cluster with a Kubernetes native custom resource `ybcluster.yugabyte.com`. The custom resource definition and other necessary specifications can be found in [YugabyteDB k8s operator repository](https://github.com/yugabyte/yugabyte-k8s-operator/). This operator currently provides more configuration flags as compared to the Rook operator. The Rook operator, in near future, will get these flags too. See full list of configuration flags [here](#configuration-flags).
 
 ## Prerequisites
 
-Clone [yugabyte-k8s-operator](https://github.com/yugaByte/yugabyte-k8s-operator/) repository on your local computer. Change into the cloned directory and follow instructions as below.
+Clone the [yugabyte-k8s-operator](https://github.com/yugaByte/yugabyte-k8s-operator/) repository on your local computer. Change into the cloned directory and follow instructions below.
 
 ## Deploy a YugabyteDB cluster with this operator
 
-To create a YugabyteDB cluster, first we need to register the custom resource that would represent YugabyteDB cluster: `ybclusters.yugabyte.com`.
+To create a YugabyteDB cluster, first you need to register the custom resource that would represent YugabyteDB cluster: `ybclusters.yugabyte.com`.
 
 ```sh
 kubectl create -f deploy/crds/yugabyte_v1alpha1_ybcluster_crd.yaml
@@ -87,13 +86,13 @@ kubectl get po,sts,svc
 Once the cluster is up and running, you may start the YSQL API and start executing relational queries.
 
 ```sh
-kubectl exec -it yb-tserver-0 -- /home/yugabyte/bin/ysqlsh -h yb-tserver-0 --echo-queries
+kubectl exec -it yb-tserver-0 -- ysqlsh -h yb-tserver-0 --echo-queries
 ```
 
 You can also connect to the YCQL API as shown below.
 
 ```sh
-kubectl exec -it yb-tserver-0 /home/yugabyte/bin/ycqlsh yb-tserver-0
+kubectl exec -it yb-tserver-0 -- ycqlsh yb-tserver-0
 ```
 
 ## Configuration flags
@@ -112,7 +111,7 @@ Enable TLS encryption for YugabyteDB, if desired. It is disabled by default. You
 
 ### YB-Master and YB-TServer
 
-YB-Master and YB-TServer are two essential components of a YugabyteDB cluster. YB-Master is responsible for recording and maintaining system metadata & for admin activities. YB-TServer is responsible for data I/O.
+YB-Master and YB-TServer are two essential components of a YugabyteDB cluster. YB-Master is responsible for recording and maintaining system metadata and for administration activities. YB-TServer is responsible for data I/O.
 Specify YB-Master and YB-TServer attributes under `master`/`tserver`. The valid attributes are as described below. These two are **required** fields.
 
 #### Replicas

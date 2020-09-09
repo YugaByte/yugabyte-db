@@ -230,4 +230,65 @@ public class TestJsonIndex extends BaseCQLTest {
                 "  WHERE \"C$_col->>'$J_attr'\"->>'\"J$_attr->>C$_col\"' = 'json_hash_value';",
                 rowDesc);
   }
+
+  @Test
+  public void testIndexSimilarColumnName() throws Exception {
+    session.execute("CREATE TABLE test_similar_column_name" +
+                    "  ( h INT PRIMARY KEY, v INT, vv INT, j JSONB )" +
+                    "  with transactions = {'enabled' : true};");
+
+    // Test case for covering-check using ID resolution.
+    // Index "vidx" is NOT by expression, so ID matching is used to resolve column references.
+    session.execute("CREATE INDEX vidx ON test_similar_column_name(v)");
+
+    // Test case for covering-check using name resolution.
+    // Index "jidx" uses json expression, so name-resolution is used to resolve column references.
+    session.execute("CREATE INDEX jidx ON test_similar_column_name(j->'a'->>'b')" +
+                    "  INCLUDE (v)");
+
+    // Add "vvidx" to match with the original test case in bug report github #4881
+    session.execute("CREATE INDEX vvidx ON test_similar_column_name(vv)");
+
+    // Insert into table.
+    int h = 7;
+    int v = h * 2;
+    int vv = h * 3;
+    String jvalue = String.format("{ \"a\" : { \"b\" : \"bvalue_%d\" }," +
+                                  "  \"a_column\" : %d }", h, h );
+    String stmt = String.format("INSERT INTO test_similar_column_name(h, v, vv, j)" +
+                                "  VALUES (%d, %d, %d, '%s');", h, v, vv, jvalue);
+    session.execute(stmt);
+
+    // Query using "vidx" to test ID resolution.
+    String query = String.format("SELECT vv FROM test_similar_column_name WHERE v = %d;", v);
+    assertEquals(1, session.execute(query).all().size());
+
+    query = String.format("SELECT vv FROM test_similar_column_name WHERE v = %d;", v * 2);
+    assertEquals(0, session.execute(query).all().size());
+
+    query = String.format("SELECT * FROM test_similar_column_name" +
+                          "  WHERE v = %d AND vv = %d;", v, vv);
+    assertEquals(1, session.execute(query).all().size());
+
+    query = String.format("SELECT * FROM test_similar_column_name" +
+                          "  WHERE v = %d AND vv = %d;", v * 2, vv * 2);
+    assertEquals(0, session.execute(query).all().size());
+
+    query = String.format("SELECT v FROM test_similar_column_name" +
+                          "  WHERE v = %d AND vv = %d;", v, vv);
+    assertEquals(1, session.execute(query).all().size());
+
+    query = String.format("SELECT v FROM test_similar_column_name" +
+                          "  WHERE v = %d AND vv = %d;", v * 2, vv * 2);
+    assertEquals(0, session.execute(query).all().size());
+
+    // Query using "jidx" to test NAME resolution.
+    query = String.format("SELECT vv FROM test_similar_column_name" +
+                          "  WHERE j->'a'->>'b' = 'bvalue_%d';", h);
+    assertEquals(1, session.execute(query).all().size());
+
+    query = String.format("SELECT vv FROM test_similar_column_name" +
+                          "  WHERE j->'a'->>'b' = 'bvalue_%d';", h * 2);
+    assertEquals(0, session.execute(query).all().size());
+  }
 }

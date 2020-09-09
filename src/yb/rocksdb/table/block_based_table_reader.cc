@@ -1897,6 +1897,14 @@ yb::Result<std::string> BlockBasedTable::GetMiddleKey() {
   std::unique_ptr<InternalIterator> iter(
       NewIterator(ReadOptions::kDefault, nullptr, /* skip_filters =*/ true));
   iter->Seek(index_middle_key);
+  if (!iter->Valid()) {
+    // There are no keys in SST that are >= index_middle_key. That means SST is empty or just have
+    // the single data block.
+    // For tablet splitting we don't need to handle such small files, but if needed for other cases
+    // we can update this function to return the middle key of the data block in case there is data
+    // in the SST.
+    return STATUS(Incomplete, "Empty or to small SST");
+  }
   return iter->key().ToBuffer();
 }
 

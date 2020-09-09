@@ -126,7 +126,9 @@ Real RandomUniformReal(std::mt19937_64* rng = nullptr) {
 }
 
 inline bool RandomActWithProbability(double probability, std::mt19937_64* rng = nullptr) {
-  return probability <= 0 ? false : RandomUniformReal<double>(rng) < probability;
+  return probability <= 0 ? false
+                          : probability >= 1.0 ? true
+                                               : RandomUniformReal<double>(rng) < probability;
 }
 
 template <class Collection>

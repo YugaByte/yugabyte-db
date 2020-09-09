@@ -28,12 +28,14 @@
 #include "yb/util/cast.h"
 #include "yb/util/env.h"
 #include "yb/util/jsonwriter.h"
+#include "yb/util/monotime.h"
 #include "yb/util/pb_util.h"
 #include "yb/util/protobuf_util.h"
 #include "yb/util/string_util.h"
 #include "yb/util/encryption_util.h"
 
 DECLARE_bool(use_client_to_server_encryption);
+DECLARE_int32(yb_client_admin_operation_timeout_sec);
 
 namespace yb {
 
@@ -71,6 +73,8 @@ using master::ListSnapshotRestorationsRequestPB;
 using master::ListSnapshotRestorationsResponsePB;
 using master::ListSnapshotsRequestPB;
 using master::ListSnapshotsResponsePB;
+using master::ListTablesRequestPB;
+using master::ListTablesResponsePB;
 using master::ListTabletServersRequestPB;
 using master::ListTabletServersResponsePB;
 using master::RestoreSnapshotRequestPB;
@@ -83,10 +87,11 @@ using master::SysSnapshotEntryPB;
 
 PB_ENUM_FORMATTERS(yb::master::SysSnapshotEntryPB::State);
 
-Status ClusterAdminClient::ListSnapshots(bool show_details, bool show_restored) {
+Status ClusterAdminClient::ListSnapshots(bool show_details, bool show_restored, bool show_deleted) {
   RpcController rpc;
   rpc.set_timeout(timeout_);
   ListSnapshotsRequestPB req;
+  req.set_list_deleted_snapshots(show_deleted);
   ListSnapshotsResponsePB resp;
   RETURN_NOT_OK(master_backup_proxy_->ListSnapshots(req, &resp, &rpc));
 
@@ -164,7 +169,20 @@ Status ClusterAdminClient::ListSnapshots(bool show_details, bool show_restored) 
   return Status::OK();
 }
 
-Status ClusterAdminClient::CreateSnapshot(const vector<YBTableName>& tables) {
+Status ClusterAdminClient::CreateSnapshot(
+    const vector<YBTableName>& tables,
+    const bool add_indexes,
+    const int flush_timeout_secs) {
+
+  if (flush_timeout_secs > 0) {
+    const auto status = FlushTables(tables, add_indexes, flush_timeout_secs, false);
+    if (status.IsTimedOut()) {
+      cout << status.ToString(false) << " (ignored)" << endl;
+    } else if (!status.ok() && !status.IsNotFound()) {
+      return status;
+    }
+  }
+
   RpcController rpc;
   rpc.set_timeout(timeout_);
   CreateSnapshotRequestPB req;
@@ -174,7 +192,7 @@ Status ClusterAdminClient::CreateSnapshot(const vector<YBTableName>& tables) {
     table_name.SetIntoTableIdentifierPB(req.add_tables());
   }
 
-  req.set_add_indexes(true);
+  req.set_add_indexes(add_indexes);
   req.set_transaction_aware(true);
   RETURN_NOT_OK(master_backup_proxy_->CreateSnapshot(req, &resp, &rpc));
 
@@ -184,6 +202,47 @@ Status ClusterAdminClient::CreateSnapshot(const vector<YBTableName>& tables) {
 
   cout << "Started snapshot creation: " << SnapshotIdToString(resp.snapshot_id()) << endl;
   return Status::OK();
+}
+
+Status ClusterAdminClient::CreateNamespaceSnapshot(const TypedNamespaceName& ns) {
+  RpcController rpc;
+  rpc.set_timeout(timeout_);
+  ListTablesRequestPB req;
+  ListTablesResponsePB resp;
+
+  req.mutable_namespace_()->set_name(ns.name);
+  req.mutable_namespace_()->set_database_type(ns.db_type);
+  req.set_exclude_system_tables(true);
+  req.add_relation_type_filter(master::USER_TABLE_RELATION);
+  req.add_relation_type_filter(master::INDEX_TABLE_RELATION);
+  RETURN_NOT_OK(master_proxy_->ListTables(req, &resp, &rpc));
+
+  if (resp.has_error()) {
+    cout << "Error getting tables from namespace: " << resp.error().status().message() << endl;
+    return StatusFromPB(resp.error().status());
+  }
+
+  if (resp.tables_size() == 0) {
+    return STATUS_FORMAT(InvalidArgument, "No tables found in namespace: $0", ns.name);
+  }
+
+  vector<YBTableName> tables(resp.tables_size());
+  for (int i = 0; i < resp.tables_size(); ++i) {
+    const auto& table = resp.tables(i);
+    tables[i].set_table_id(table.id());
+    tables[i].set_namespace_id(table.namespace_().id());
+
+    DSCHECK(table.relation_type() == master::USER_TABLE_RELATION ||
+            table.relation_type() == master::INDEX_TABLE_RELATION, InternalError,
+            Format("Invalid relation type: $0", table.relation_type()));
+    DSCHECK_EQ(table.namespace_().name(), ns.name, InternalError,
+               Format("Invalid namespace name: $0", table.namespace_().name()));
+    DSCHECK_EQ(table.namespace_().database_type(), ns.db_type, InternalError,
+               Format("Invalid namespace type: $0",
+                      YQLDatabase_Name(table.namespace_().database_type())));
+  }
+
+  return CreateSnapshot(tables, /* add_indexes */ false);
 }
 
 Status ClusterAdminClient::RestoreSnapshot(const string& snapshot_id) {
@@ -366,8 +425,6 @@ Status ClusterAdminClient::ImportSnapshotMetaFile(const string& file_name,
 
   const RepeatedPtrField<ImportSnapshotMetaResponsePB_TableMetaPB>& tables_meta =
       resp.tables_meta();
-  IsCreateTableDoneRequestPB wait_req;
-  IsCreateTableDoneResponsePB wait_resp;
   CreateSnapshotRequestPB snapshot_req;
   CreateSnapshotResponsePB snapshot_resp;
 
@@ -391,25 +448,10 @@ Status ClusterAdminClient::ImportSnapshotMetaFile(const string& file_name,
            << pair.new_id() << endl;
     }
 
-    // Wait for table creation.
-    wait_req.mutable_table()->set_table_id(new_table_id);
-
-    for (int k = 0; k < 20; ++k) {
-      rpc.Reset();
-      RETURN_NOT_OK(master_proxy_->IsCreateTableDone(wait_req, &wait_resp, &rpc));
-
-      if (wait_resp.done()) {
-        break;
-      } else {
-        cout << "Waiting for table " << new_table_id << "..." << endl;
-        std::this_thread::sleep_for(1s);
-      }
-    }
-
-    if (!wait_resp.done()) {
-      return STATUS_FORMAT(
-          TimedOut, "Table creation timeout: table id $0", new_table_id);
-    }
+    RETURN_NOT_OK(yb_client_->WaitForCreateTableToFinish(
+        new_table_id,
+        CoarseMonoClock::Now() + MonoDelta::FromSeconds(FLAGS_yb_client_admin_operation_timeout_sec)
+    ));
 
     snapshot_req.mutable_tables()->Add()->set_table_id(new_table_id);
   }
@@ -530,8 +572,6 @@ Status ClusterAdminClient::SetPreferredZones(const std::vector<string>& preferre
   return Status::OK();
 }
 
-
-
 Status ClusterAdminClient::RotateUniverseKey(const std::string& key_path) {
   return SendEncryptionRequest(key_path, true);
 }
@@ -587,7 +627,6 @@ Status ClusterAdminClient::AddUniverseKeyToAllMasters(
 
   RETURN_NOT_OK(EncryptionParams::IsValidKeySize(
       universe_key.size() - EncryptionParams::kBlockSize));
-
 
   master::AddUniverseKeysRequestPB req;
   master::AddUniverseKeysResponsePB resp;
@@ -761,7 +800,6 @@ Status ClusterAdminClient::ListCDCStreams(const TableId& table_id) {
   return Status::OK();
 }
 
-
 Status ClusterAdminClient::SetupUniverseReplication(
     const string& producer_uuid, const vector<string>& producer_addresses,
     const vector<TableId>& tables,
@@ -781,7 +819,6 @@ Status ClusterAdminClient::SetupUniverseReplication(
   for (const auto& table : tables) {
     req.add_producer_table_ids(table);
   }
-
 
   for (const auto& producer_bootstrap_id : producer_bootstrap_ids) {
     req.add_producer_bootstrap_ids(producer_bootstrap_id);

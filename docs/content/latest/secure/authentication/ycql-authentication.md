@@ -84,7 +84,7 @@ For example, to create a regular user `john` with the password `PasswdForJohn` a
 cassandra@ycqlsh> CREATE ROLE IF NOT EXISTS john WITH PASSWORD = 'PasswdForJohn' AND LOGIN = true;
 ```
 
-If the role `john` already existed, the above statement will not error out since we have added the `IF NOT EXISTS` clause. To verify the user account just created, run the following query:
+If the role `john` already existed, the above statement will not error out since you have added the `IF NOT EXISTS` clause. To verify the user account just created, run the following query:
 
 ```sql
 cassandra@ycqlsh> SELECT role, can_login, is_superuser, member_of FROM system_auth.roles;
@@ -141,13 +141,13 @@ $ ycqlsh -u <username> -p <password>
 
 Alternatively, you can omit the `-p <password>` above and you will be prompted for a password.
 
-As an example of connecting as a user, we can login with the credentials of the user `john` that we created above by running the following command and entering the password when prompted:
+As an example of connecting as a user, you can login with the credentials of the user `john` that you created above by running the following command and entering the password when prompted:
 
 ```sh
 $ ycqlsh -u john
 ```
 
-As an example of connecting as the `admin` user, we can run the following command.
+As an example of connecting as the `admin` user, you can run the following command.
 
 ```sh
 $ ycqlsh -u admin -p PasswdForAdmin
@@ -167,7 +167,7 @@ cassandra@ycqlsh> ALTER ROLE john WITH PASSWORD = 'new-password';
 
 ### Granting and removing superuser privileges
 
-In the example above, we can verify that `john` is not a superuser:
+In the example above, you can verify that `john` is not a superuser:
 
 ```sql
 cassandra@ycqlsh> SELECT role, can_login, is_superuser, member_of FROM system_auth.roles WHERE role='john';
@@ -209,7 +209,7 @@ cassandra@ycqlsh> ALTER ROLE john WITH SUPERUSER = false;
 
 ### Enable and disable login privileges
 
-In the example above, we can verify that `john` is can login to the database by doing the following:
+In the example above, you can verify that `john` is can login to the database by doing the following:
 
 ```sql
 cassandra@ycqlsh> SELECT role, can_login, is_superuser, member_of FROM system_auth.roles WHERE role='john';
@@ -262,7 +262,7 @@ cassandra@ycqlsh>  ALTER ROLE john WITH LOGIN = true;
 
 It is highly recommended to change at least the default password for the superadmin user in real world deployments to keep the database cluster secure.
 
-As an example, let us say we want to change the `cassandra` user's password from `cassandra` to `new_password`. You can do that as follows:
+As an example, let us say you want to change the `cassandra` user's password from `cassandra` to `new_password`. You can do that as follows:
 
 ```sql
 cassandra@ycqlsh> ALTER ROLE cassandra WITH PASSWORD = 'new_password';

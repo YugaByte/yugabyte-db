@@ -376,7 +376,7 @@ yb_demo =# select left(vendor,1) AS V, string_agg(distinct(category), ', ' ORDER
  Z | Gizmo
 ```
 
-In the example above, we explore the `LEFT` function, but the `string_agg` function is best used by an input of a series or a set of data as done in SQL rows. The example shows how the aggregated string has its own order by compared to the outer SQL which is the vendors being classified A-Z.
+In the example above, you explore the `LEFT` function, but the `string_agg` function is best used by an input of a series or a set of data as done in SQL rows. The example shows how the aggregated string has its own order by compared to the outer SQL which is the vendors being classified A-Z.
 
 There is also the `REVERSE` function that reverses the contents of text in a simple manner as shown in the next example.
 
@@ -388,7 +388,7 @@ yb_demo=# select reverse(to_char(current_date, 'DD-MON-YYYY'));
  9102-LUJ-92
 ```
 
-You can use the `FORMAT` function parse user input as parameters to a SQL statement in order to minimise the impact of unexpected data that is typical of a SQL injection attack. The most popular method is to use the `EXECUTE` command within a procedure as this is not available at the YSQL command prompt, only within the YSQL plpgsql environment. The `FORMAT` command is used to finalise the complete SQL statement and passed to `EXECUTE` to run. As we are not simulating YSQL plpgsql here, let's illustrate how to use the `FORMAT` function only.
+You can use the `FORMAT` function parse user input as parameters to a SQL statement in order to minimise the impact of unexpected data that is typical of a SQL injection attack. The most popular method is to use the `EXECUTE` command within a procedure as this is not available at the YSQL command prompt, only within the YSQL plpgsql environment. The `FORMAT` command is used to finalise the complete SQL statement and passed to `EXECUTE` to run. As you are not simulating YSQL plpgsql here, let's illustrate how to use the `FORMAT` function only.
 
 ```
 yb_demo=# select format('Hello %s, today''s date is %s', 'Jono', to_char(current_date, 'DD-MON-YYYY'), 'discarded');
@@ -541,7 +541,7 @@ yb_demo=# select name as Fullname, regexp_match(name, '(.*)(\s+)(.*)') AS "REGEX
 ```
 
 {{< note title="Note" >}}
-In the example abov, we are asking the 'name' column to be segmented by the existence of a space (`\s`) and then reporting the first and third set of text reported by the match. The regular expression returns a text array, not a text value, and thus you have to reference the array index to access the value as text. Note that this SQL would be very vulnerable to errors caused by data entry, including a middle name or missing either a first or last name would cause errors.
+In the example abov, you are asking the 'name' column to be segmented by the existence of a space (`\s`) and then reporting the first and third set of text reported by the match. The regular expression returns a text array, not a text value, and thus you have to reference the array index to access the value as text. Note that this SQL would be very vulnerable to errors caused by data entry, including a middle name or missing either a first or last name would cause errors.
 {{< /note >}}
 
 Now, let's look at some manipulation and splitting of text so that you can process it in pieces. For this example, I will be using a sample extract from a bank file that is used for processing payments. This example could apply if the entire file was uploaded as a single text entry into a table and you select it and then process it.

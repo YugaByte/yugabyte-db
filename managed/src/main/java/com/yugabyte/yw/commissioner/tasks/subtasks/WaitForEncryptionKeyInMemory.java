@@ -66,7 +66,7 @@ public class WaitForEncryptionKeyInMemory extends NodeTaskBase {
                         taskParams().nodeAddress
                 )) {
                     throw new RuntimeException(
-                            "Timeout occured waiting for universe encryption key to be set in memory"
+                            "Timeout occurred waiting for universe encryption key to be set in memory"
                     );
                 }
             } catch (Exception e) {

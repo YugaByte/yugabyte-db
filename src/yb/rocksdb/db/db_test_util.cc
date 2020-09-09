@@ -128,7 +128,7 @@ bool DBTestBase::ShouldSkipOptions(int option_config, int skip_mask) {
       option_config == kPlainTableCappedPrefixNonMmap ||
       option_config == kPlainTableAllBytesPrefix ||
       option_config == kVectorRep || option_config == kHashLinkList ||
-      option_config == kHashCuckoo || option_config == kUniversalCompaction ||
+      option_config == kUniversalCompaction ||
       option_config == kUniversalCompactionMultiLevel ||
       option_config == kUniversalSubcompactions ||
       option_config == kFIFOCompaction ||
@@ -163,9 +163,6 @@ bool DBTestBase::ShouldSkipOptions(int option_config, int skip_mask) {
     if ((skip_mask & kSkipHashIndex) &&
         (option_config == kBlockBasedTableWithPrefixHashIndex ||
          option_config == kBlockBasedTableWithWholeKeyHashIndex)) {
-      return true;
-    }
-    if ((skip_mask & kSkipHashCuckoo) && (option_config == kHashCuckoo)) {
       return true;
     }
     if ((skip_mask & kSkipFIFOCompaction) && option_config == kFIFOCompaction) {
@@ -310,10 +307,6 @@ Options DBTestBase::CurrentOptions(
       options.prefix_extractor.reset(NewFixedPrefixTransform(1));
       options.memtable_factory.reset(
           NewHashLinkListRepFactory(4, 0, 3, true, 4));
-      break;
-    case kHashCuckoo:
-      options.memtable_factory.reset(
-          NewHashCuckooRepFactory(options.write_buffer_size));
       break;
 #endif  // ROCKSDB_LITE
     case kMergePut:

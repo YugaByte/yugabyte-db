@@ -17,8 +17,14 @@
 namespace yb {
 namespace tserver {
 
+class GetTabletStatusRequestPB;
+class GetTabletStatusResponsePB;
+class LocalTabletServer;
 class TabletServer;
+class TabletPeerLookupIf;
 class TabletServerOptions;
+class TabletServerServiceProxy;
+class TSTabletManager;
 
 } // namespace tserver
 } // namespace yb

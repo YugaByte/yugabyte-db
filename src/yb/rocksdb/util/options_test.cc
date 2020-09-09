@@ -603,10 +603,6 @@ TEST_F(OptionsTest, GetMemTableRepFactoryFromString) {
   ASSERT_NOK(GetMemTableRepFactoryFromString("vector:1024:invalid_opt",
                                              &new_mem_factory));
 
-  ASSERT_NOK(GetMemTableRepFactoryFromString("cuckoo", &new_mem_factory));
-  ASSERT_OK(GetMemTableRepFactoryFromString("cuckoo:1024", &new_mem_factory));
-  ASSERT_EQ(std::string(new_mem_factory->Name()), "HashCuckooRepFactory");
-
   ASSERT_NOK(GetMemTableRepFactoryFromString("bad_factory", &new_mem_factory));
 }
 #endif  // !ROCKSDB_LITE
@@ -1372,7 +1368,7 @@ TEST_F(OptionsSanityCheckTest, SanityCheck) {
 
   // table_factory
   {
-    for (int tb = 0; tb <= 2; ++tb) {
+    for (int tb = 0; tb <= 1; ++tb) {
       // change the table factory
       opts.table_factory.reset(test::RandomTableFactory(&rnd, tb));
       ASSERT_NOK(SanityCheckCFOptions(opts, kSanityLevelLooselyCompatible));

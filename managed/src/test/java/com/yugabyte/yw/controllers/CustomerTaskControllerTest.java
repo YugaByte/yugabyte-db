@@ -8,6 +8,7 @@ import com.google.common.collect.ImmutableList;
 import com.yugabyte.yw.commissioner.Commissioner;
 import com.yugabyte.yw.commissioner.UserTaskDetails;
 import com.yugabyte.yw.common.FakeApiHelper;
+import com.yugabyte.yw.common.FakeDBApplication;
 import com.yugabyte.yw.common.ModelFactory;
 import com.yugabyte.yw.models.Customer;
 import com.yugabyte.yw.models.CustomerTask;
@@ -50,20 +51,10 @@ import static play.test.Helpers.contentAsString;
 import static play.test.Helpers.fakeRequest;
 import static play.test.Helpers.route;
 
-public class CustomerTaskControllerTest extends WithApplication {
+public class CustomerTaskControllerTest extends FakeDBApplication {
   private Customer customer;
   private Users user;
   private Universe universe;
-  private Commissioner mockCommissioner;
-
-  @Override
-  protected Application provideApplication() {
-    mockCommissioner = mock(Commissioner.class);
-    return new GuiceApplicationBuilder()
-      .configure((Map) Helpers.inMemoryDatabase())
-      .overrides(bind(Commissioner.class).toInstance(mockCommissioner))
-      .build();
-  }
 
   @Before
   public void setUp() {
@@ -115,7 +106,7 @@ public class CustomerTaskControllerTest extends WithApplication {
       // creation time.
       try {
         TimeUnit.SECONDS.sleep(3);
-        task.markAsCompleted(); 
+        task.markAsCompleted();
       } catch (Exception e) {
         // Do nothing
       }
@@ -281,7 +272,9 @@ public class CustomerTaskControllerTest extends WithApplication {
         Create, "Foo", "Success", 100.0);
     Result result = FakeApiHelper.doRequestWithAuthToken("GET", "/api/customers/" +
         customer.uuid + "/tasks", authToken);
-    CustomerTask ct = CustomerTask.find.where().eq("task_uuid", taskUUID.toString()).findUnique();
+    CustomerTask ct = CustomerTask.find.query().where()
+      .eq("task_uuid", taskUUID.toString())
+      .findOne();
     assertEquals(OK, result.status());
     assertThat(contentAsString(result), allOf(notNullValue(),
         containsString("Created Universe : Foo")));

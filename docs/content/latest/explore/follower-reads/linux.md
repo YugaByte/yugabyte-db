@@ -32,11 +32,9 @@ showAsideToc: true
 
 </ul>
 
-With YugabyteDB, you can use follower reads to lower read latencies since the DB now has less work to do at read time including serving the read from the tablet followers. Follower reads is similar to reading from a cache, which can give more read IOPS with low latency but might have slightly stale yet timeline-consistent data (that is, no out of order is possible). In this tutorial, we will update a single key-value over and over, and read it from the tablet leader. While that workload is running, we will start another workload to read from a follower and verify that we are able to read from a tablet follower.
+With YugabyteDB, you can use follower reads to lower read latencies since the DB now has less work to do at read time including serving the read from the tablet followers. Follower reads is similar to reading from a cache, which can give more read IOPS with low latency but might have slightly stale yet timeline-consistent data (that is, no out of order is possible). In this tutorial, you will update a single key-value over and over, and read it from the tablet leader. While that workload is running, you will start another workload to read from a follower and verify that you are able to read from a tablet follower.
 
-YugabyteDB also allows you to specify the maximum staleness of data when reading from tablet followers. This means that if the follower hasn't heard from the leader for the specified amount of time, the read request will be forwarded to the leader. This is particularly useful when the tablet follower is located far away from the tablet leader. To enable this feature, you will need to create your cluster with the custom tserver flag `max_stale_read_bound_time_ms`. See [Creating a local cluster with custom flags](../../../admin/yb-ctl/) for instructions on how to do this.
-
-If you haven't installed YugabyteDB yet, do so first by following the [Quick Start](../../../quick-start/install/) guide.
+YugabyteDB also allows you to specify the maximum staleness of data when reading from tablet followers. If the follower hasn't heard from the leader for  10 seconds (by default), the read request is forwarded to the leader. When there is a long distance between the tablet follower and the tablet leader, you might need to increase the duration. To change the duration for maximum staleness, add the [`yb-tserver` `--max_stale_read_bound_time_ms`](../../../reference/configuration/yb-tserver/#max-stale-read-bound-time-ms) flag and increase the value (default is 10 seconds). For details on how to add this flag when using `yb-ctl`, see [Creating a local cluster with custom flags](../../../admin/yb-ctl/#create a-local-cluster-with-custom-flags).
 
 ## 1. Create universe
 
@@ -63,7 +61,7 @@ $ ./bin/yb-ctl add_node
 Download the [YugabyteDB workload generator](https://github.com/yugabyte/yb-sample-apps) JAR file (`yb-sample-apps.jar`) by running the following command.
 
 ```sh
-$ wget https://github.com/yugabyte/yb-sample-apps/releases/download/v1.2.0/yb-sample-apps.jar?raw=true -O yb-sample-apps.jar 
+$ wget https://github.com/yugabyte/yb-sample-apps/releases/download/v1.3.0/yb-sample-apps.jar?raw=true -O yb-sample-apps.jar 
 ```
 
 By default, the YugabyteDB workload generator runs with strong read consistency, where all data is read from the tablet leader. We are going to populate exactly one key with a `10KB` value into the system. Since the replication factor is `3`, this key will get replicated to only three of the four nodes in the universe.
@@ -108,7 +106,7 @@ ycqlsh> SELECT k FROM ybdemo_keyspace.cassandrakeyvalue;
 
 ## 3. Strongly consistent reads from tablet leaders
 
-When performing strongly consistent reads as a part of the above command, all reads will be served by the tablet leader of the tablet that contains the key `key:0`. If we browse to the <a href='http://127.0.0.1:7000/tablet-servers' target="_blank">tablet-servers</a> page, we will see that all the requests are indeed being served by one tserver:
+When performing strongly consistent reads as a part of the above command, all reads will be served by the tablet leader of the tablet that contains the key `key:0`. If you browse to the <a href='http://127.0.0.1:7000/tablet-servers' target="_blank">tablet-servers</a> page, you will see that all the requests are indeed being served by one tserver:
 
 ![Reads from the tablet leader](/images/ce/tunable-reads-leader.png)
 
@@ -127,7 +125,7 @@ $ java -jar ./yb-sample-apps.jar --workload CassandraKeyValue \
                                     --local_reads
 ```
 
-This can be easily seen by refreshing the <a href='http://127.0.0.1:7000/tablet-servers' target="_blank">tablet-servers</a> page, where we will see that the writes are served by a single YB-TServer that is the leader of the tablet for the key `key:0` while multiple YB-TServers which are replicas serve the reads.
+This can be easily seen by refreshing the <a href='http://127.0.0.1:7000/tablet-servers' target="_blank">tablet-servers</a> page, where you will see that the writes are served by a single YB-TServer that is the leader of the tablet for the key `key:0` while multiple YB-TServers which are replicas serve the reads.
 
 ![Reads from the tablet follower](/images/ce/tunable-reads-followers.png)
 

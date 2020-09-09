@@ -350,7 +350,15 @@ class YBSchema {
 
   bool Equals(const YBSchema& other) const;
 
+  bool EquivalentForDataCopy(const YBSchema& other) const;
+
   Result<bool> Equals(const SchemaPB& pb_schema) const;
+
+  // Two schemas are equivalent if it's possible to copy data from one table to the
+  // other containing these two schemas.
+  // For example, columns and columns types are the same, but table properties
+  // might be different in areas that are not relevant (e.g. TTL).
+  Result<bool> EquivalentForDataCopy(const SchemaPB& pb_schema) const;
 
   const TableProperties& table_properties() const;
 

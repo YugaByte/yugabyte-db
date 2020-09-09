@@ -2,11 +2,10 @@
 #
 ####################################################################################################
 # This testsuite includes miscellaneous tests that are not yet characterized to a proper testsuite.
-# Other than the dependencies, the tests in this schedule are not ported from PostgreSQL original
-# tests.
+# The tests in this schedule are not ported from PostgreSQL original tests.
 ####################################################################################################
-test: yb_aggregates
 test: yb_compound_key
 test: yb_schema
 test: yb_select
 test: yb_guc
+test: yb_depend

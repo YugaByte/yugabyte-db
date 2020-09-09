@@ -20,25 +20,25 @@ showAsideToc: true
 
 <ul class="nav nav-tabs-alt nav-tabs-yb">
   <li >
-    <a href="/latest/deploy/kubernetes/single-zone/oss/helm-chart" class="nav-link">
+    <a href="{{< relref "./helm-chart.md" >}}" class="nav-link">
       <i class="fas fa-cubes" aria-hidden="true"></i>
       Helm chart
     </a>
   </li>
   <li >
-    <a href="/latest/deploy/kubernetes/single-zone/oss/yugabyte-operator" class="nav-link">
+    <a href="{{< relref "./yugabyte-operator.md" >}}" class="nav-link">
       <i class="fas fa-cubes" aria-hidden="true"></i>
       YugabyteDB operator
     </a>
   </li>
   <li >
-    <a href="/latest/deploy/kubernetes/single-zone/oss/operator-hub" class="nav-link">
+    <a href="{{< relref "./operator-hub.md" >}}" class="nav-link">
       <i class="fas fa-cubes" aria-hidden="true"></i>
       Operator Hub
     </a>
   </li>
   <li>
-    <a href="/latest/deploy/kubernetes/single-zone/oss/rook-operator" class="nav-link active">
+    <a href="{{< relref "./rook-operator.md" >}}" class="nav-link active">
       <i class="fas fa-cubes" aria-hidden="true"></i>
       Rook operator
     </a>
@@ -120,7 +120,7 @@ Make a copy of the sample CRD file (`cluster.yaml`)  and modify it as needed. Fo
 When all of the pods in YugabyteDB cluster are running, you can use the YSQL shell to access the YSQL API, which is PostgreSQL-compliant.
 
 ```console
-kubectl exec -it yb-tserver-rook-yugabytedb-0 -- /home/yugabyte/bin/ysqlsh  -h yb-tserver-rook-yugabytedb-0  --echo-queries
+kubectl exec -it yb-tserver-rook-yugabytedb-0 -- ysqlsh  -h yb-tserver-rook-yugabytedb-0  --echo-queries
 ```
 
 For details on the YSQL API, see:

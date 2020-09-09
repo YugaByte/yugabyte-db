@@ -18,7 +18,7 @@ Then Yugabyte's recommendation in this space is stated. And then the rules are i
 
 ## Statement of the rules
 
-The statement of these rules depends on understanding the notion of the canonical form of a literal. The [Defining the "canonical form of a literal](../text-typecasting-and-literals/#defining-the-canonical-form-of-a-literal) section explained that the `::text` typecast of any kind of array shows you that this form of the literal (more carefully stated, the _text_ of this literal) can be used to recreate the value.
+The statement of these rules depends on understanding the notion of the canonical form of a literal. [Defining the "canonical form of a literal](../text-typecasting-and-literals/#defining-the-canonical-form-of-a-literal) explained that the `::text` typecast of any kind of array shows you that this form of the literal (more carefully stated, the _text_ of this literal) can be used to recreate the value.
 
 In fact, this definition, and the property that the canonical form of the literal is sufficient to recreate the value, hold for values of _all_ data types.
 
@@ -48,7 +48,7 @@ You can relax this recommendation, to make tracing or debugging your code easier
 
 **Note**: YSQL has support for converting a JSON array (and this includes a JSON array of JSON objects) directly into the corresponding YSQL array values.
 
-The rules for constructing literals for arrays of _"row"_ type values are described in the [literal for an array of "row" type values](../array-of-rows/) dedicated section.
+The rules for constructing literals for arrays of _"row"_ type values are described in [literal for an array of "row" type values](../array-of-rows/) section.
 
 Your program will parse the input and create the required literals as ordinary text strings that you'll then provide as the actual argument to a `PREPARE` statement execution, leaving the typecast of the `text` actual argument, to the appropriate array data type, to the prepared `INSERT` or `UPDATE` statement like this:
 ```
@@ -73,14 +73,14 @@ You'll use the `array[]` constructor to create representative values of each kin
 
 This example demonstrates the principle:
 
-```postgresql
+```plpgsql
 create table t(k serial primary key, v1 int[], v2 int[]);
 insert into t(v1) values (array[1, 2, 3]);
 select v1::text as text_typecast from t where k = 1
 \gset result_
 \echo :result_text_typecast
 ```
-The `\gset` metacommand was used first in this _"Array data types and functionality"_ major section in the section [`array_agg()` and `unnest()`](../../functions-operators/array-agg-unnest). 
+The `\gset` metacommand was used first in this _"Array data types and functionality"_ major section in [`array_agg()` and `unnest()`](../../functions-operators/array-agg-unnest). 
 
 Notice that, in this example, the `SELECT` statement is terminated by the `\gset` metacommand on the next line rather than by the usual semicolon. The `\gset` metacommand is silent. The `\echo` metacommand shows this:
 
@@ -93,11 +93,11 @@ You can see the general form already:
 
 - The items within the braces are delimited by commas, and there is no space between one item, the comma, and the next item. Nor is there any space between the left curly brace and the first item or between the last item and the right curly brace.
 
-The [One-dimensional array of `text` values](./#one-dimensional-array-of-text-values) section shows that more needs to be said. But the two rules that you've already noticed always hold.
+[One-dimensional array of `text` values](./#one-dimensional-array-of-text-values) shows that more needs to be said. But the two rules that you've already noticed always hold.
 
 To use the literal that you produced to create a value, you must enquote it and typecast it. Do this with the `\set` metacommand:
 
-```postgresql
+```plpgsql
 \set canonical_literal '\'':result_text_typecast'\'::int[]'
 \echo :canonical_literal
 ```
@@ -106,7 +106,7 @@ To use the literal that you produced to create a value, you must enquote it and 
 '{1,2,3}'::int[]
 ```
 Next, use the canonical literal that was have produced to update _"t.v2"_ to confirm that the value that the row constructor created was recreated:
-```postgresql
+```plpgsql
 update t set v2 = :canonical_literal where k = 1;
 select (v1 = v2)::text as "v1 = v2" from t where k = 1;
 ```
@@ -121,28 +121,28 @@ As promised, the canonical form of the array literal does indeed recreate the id
 **Note:**
 
 Try this:
-```postgresql
+```plpgsql
 select 12512454.872::text;
 ```
 The result is the canonical form, `12512454.872`. So this (though you rarely see it):
-```postgresql
+```plpgsql
 select 12512454.872::numeric;
 ```
 runs without error. Now try this:
 
-```postgresql
+```plpgsql
 select to_number('12,512,454.872', '999G999G999D999999')::text;
 ```
 This, too, runs without error because it uses the `to_number()` built-in function. The result here, too, is the canonical form, `12512454.872`—with no commas. Now try this:
 
-```postgresql
+```plpgsql
 select '12,512,454.872'::numeric;
 ```
 This causes the _"22P02: invalid input syntax for type numeric"_ error. In other words, _only_ a `numeric` value in canonical form can be directly typecast using `::numeric`.
 
 Here, using an array literal, is an informal first look at what follows. For now, take its syntax to mean what you'd intuitively expect. You must spell the representations for the values in a `numeric[]` array in canonical form. Try this:
 
-```postgresql
+```plpgsql
 select ('{123.456, -456.789}'::numeric[])::text;
 ```
 It shows this:
@@ -152,24 +152,24 @@ It shows this:
 ```
 
 Now try this:
-```postgresql
+```plpgsql
 select ('{9,123.456, -8,456.789}'::numeric[])::text;
 ```
 It silently produces this presumably unintended result (an array of _four_ numeric values) because the commas are taken as delimiters and not as part of the representation of a single `numeric` value:
 ```
  {9,123.456,-8,456.789}
 ```
-In an array literal (or in a _"row"_ type value literal), there is no way to accommodate forms that cannot be directly typecast. (The same holds for `timestamp` values as for `numeric` values.) YSQL inherits this limitation from PostgreSQL. It is the user's responsibility to work around this when preparing the literal because, of course, functions like _"to_number()"_ cannot be used within literals. Functions can, however, be used in a value constructor as the [`array[]` value constructor](../../array-constructor/) section shows.
+In an array literal (or in a _"row"_ type value literal), there is no way to accommodate forms that cannot be directly typecast. (The same holds for `timestamp` values as for `numeric` values.) YSQL inherits this limitation from PostgreSQL. It is the user's responsibility to work around this when preparing the literal because, of course, functions like _"to_number()"_ cannot be used within literals. Functions can, however, be used in a value constructor as [`array[]` value constructor](../../array-constructor/) shows.
 
 ### One-dimensional array of text values
 
-Use the [One-dimensional array of `int` values](./#one-dimensional-array-of-int-values) example as a template for this and the subsequent sections. The example sets array values each of which, apart from the single character `a`, needs some discussion. These are the characters (or, in one case, character sequence), listed here "bare" and with ten spaces between each:
+Use [One-dimensional array of `int` values](./#one-dimensional-array-of-int-values) as a template for this and the subsequent sections. The example sets array values each of which, apart from the single character `a`, needs some discussion. These are the characters (or, in one case, character sequence), listed here "bare" and with ten spaces between each:
 
 ```
      a          a b          ()          ,          '          "          \
 ```
 
-```postgresql
+```plpgsql
 create table t(k serial primary key, v1 text[], v2 text[]);
 insert into t(v1) values (array['a', 'a b', '()', ',', '{}', $$'$$, '"', '\']);
 select v1::text as text_typecast from t where k = 1
@@ -199,7 +199,7 @@ There's another rule that the present example does not show. Though not every co
 
 To use the text of the literal that was produced above to recreate the value, you must enquote it and typecast it. Do this, as you did for the `int[]` example above, with the `\set` metacommand. But you must use dollar quotes because the literal itself has an interior single quote.
 
-```postgresql
+```plpgsql
 \set canonical_literal '$$':result_text_typecast'$$'::text[]
 \echo :canonical_literal
 ```
@@ -208,7 +208,7 @@ The `\echo` metacommand now shows this:
 $${a,"a b",(),",",',"\"","\\"}$$::text[]
 ```
 Next, use the canonical literal to update _"t.v2"_ to confirm that the value that the row constructor created was recreated:
-```postgresql
+```plpgsql
 update t set v2 = :canonical_literal where k = 1;
 select (v1 = v2)::text as "v1 = v2" from t where k = 1;
 ```
@@ -224,7 +224,7 @@ So, again as promised, the canonical form of the array literal does indeed recre
 
 This example demonstrates the principle:
 
-```postgresql
+```plpgsql
 create table t(k serial primary key, v1 timestamp[], v2 timestamp[]);
 insert into t(v1) values (array[
     '2019-01-27 11:48:33'::timestamp,
@@ -245,7 +245,7 @@ You learn one further rule from this:
 
 To use the text of the literal that was produced to create a value, you must enquote it and typecast it. Do this with the `\set` metacommand:
 
-```postgresql
+```plpgsql
 \set canonical_literal '\'':result_text_typecast'\'::timestamp[]'
 \echo :canonical_literal
 ```
@@ -254,7 +254,7 @@ To use the text of the literal that was produced to create a value, you must enq
 '{"2019-01-27 11:48:33","2020-03-30 14:19:21"}'::timestamp[]
 ```
 Next, use the canonical literal to update _"t.v2"_ to confirm that the value that the row constructor created was recreated:
-```postgresql
+```plpgsql
 update t set v2 = :canonical_literal where k = 1;
 select (v1 = v2)::text as "v1 = v2" from t where k = 1;
 ```
@@ -270,7 +270,7 @@ Once again, as promised, the canonical form of the array literal does indeed rec
 
 This example demonstrates the principle:
 
-```postgresql
+```plpgsql
 create table t(k serial primary key, v1 boolean[], v2 boolean[]);
 insert into t(v1) values (array[
     true,
@@ -297,7 +297,7 @@ Though the example doesn't show this, `NULL` is not case-sensitive. But to compo
 
 To use the literal that that was produced to create a value, you must enquote it and typecast it. Do this with the `\set` metacommand:
 
-```postgresql
+```plpgsql
 \set canonical_literal '\'':result_text_typecast'\'::boolean[]'
 \echo :canonical_literal
 ```
@@ -306,7 +306,7 @@ To use the literal that that was produced to create a value, you must enquote it
 '{t,f,NULL}'::boolean[]
 ```
 Next use the canonical literal to update _"t.v2"_ to can confirm that the value that the row constructor created has been recreated :
-```postgresql
+```plpgsql
 update t set v2 = :canonical_literal where k = 1;
 select (v1 = v2)::text as "v1 = v2" from t where k = 1;
 ```
@@ -320,7 +320,7 @@ Yet again, as promised, the canonical form of the array literal does indeed recr
 
 ### Multidimensional array of int values
 
-```postgresql
+```plpgsql
 create table t(k serial primary key, v int[]);
 
 -- Insert a 1-dimensional int[] value.
@@ -364,7 +364,7 @@ insert into t(v) values('
 
 select k, array_ndims(v) as "ndims", v::text as "v::text" from t order by k;
 ```
-Notice that the three different `INSERT` statements define arrays with different dimensionality, as the comments state. This illustrates what was explained in the [Synopsis](../#synopsis) section: the column "_t.v"_ can hold array values of _any_ dimensionality.
+Notice that the three different `INSERT` statements define arrays with different dimensionality, as the comments state. This illustrates what was explained in [Synopsis](../#synopsis): the column "_t.v"_ can hold array values of _any_ dimensionality.
 
 Here is the `SELECT` result:
 
@@ -380,7 +380,7 @@ Again, whitespace in the inserted literals for numeric values is insignificant, 
 
 The literal for a multidimensional array has nested `{}` pairs, according to the dimensionality, and the innermost pair contains the literals for the primitive values.
 
-Notice the spelling of the array literal for the row with _"k = 4"_. The optional syntax `[3:4][5:6][7:8]` specifies the lower and upper bounds, respectively, for the first, the second, and the third dimension. This is the same syntax that you use to specify a slice of an existing array. (The [array slice operator](../../functions-operators/slice-operator)) is described in its own section.) When the freedom to specify the bounds is not exercised, then they are assumed all to start at `1`, and then the canonical form of the literal does not show the bounds.
+Notice the spelling of the array literal for the row with _"k = 4"_. The optional syntax `[3:4][5:6][7:8]` specifies the lower and upper bounds, respectively, for the first, the second, and the third dimension. This is the same syntax that you use to specify a slice of an existing array. ([array slice operator](../../functions-operators/slice-operator)) is described in its own section.) When the freedom to specify the bounds is not exercised, then they are assumed all to start at `1`, and then the canonical form of the literal does not show the bounds.
 
 When the freedom is exercised, the bounds for _every_ dimension must be specified. Specifying the bounds gives you, of course, an opportunity for error. If the length along each axis that you (implicitly) specify doesn't agree with the lengths that emerge from the actual values listed between the surrounding outer `{}` pair, then you get the _"22P02 invalid_text_representation"_ error with this prose explanation:
 

@@ -159,9 +159,9 @@ committed.
 ## Propagating safe time from leader to followers for follower-side reads
 
 YugabyteDB supports reads from followers to satisfy use cases that require an extremely low read
-latency that can only be achieved by serving read requests in the data center closest to the client. This feature comes at the expense of potentially slightly stale results, and this is a trade-off that application developers have to make. Similarly to strongly-consistent leader-side reads, follower-side read operations also have to pick a read timestamp, which has to be safe to read at.
+latency that can only be achieved by serving read requests in the data center closest to the client. This feature comes at the expense of potentially slightly stale results, and this is a trade-off that application developers have to make. Similarly to strongly-consistent leader-side reads, follower-side read operations also have to pick a safe read timestamp.
 
-As before, "safe time to read at" means that no future writes are supposed to change the view of the data as of the read timestamp.  However, only the leader is able to compute the safe using the
+As before, "safe time to read at" means that no future writes are supposed to change the view of the data as of the read timestamp.  However, only the leader is able to compute the safe read time using the
 algorithm described in the previous section.  Therefore, we propagate the latest safe time from
 leaders to followers on AppendEntries RPCs. This means, for example, that follower-side reads
 handled by a partitioned-away follower will see a "frozen" snapshot of the data, including values

@@ -89,7 +89,7 @@ class OnPremSuccess extends Component {
       }
 
       const jsonData = {
-        provider: {name: currentProvider.name},
+        provider: {name: currentProvider.name, config: currentProvider.config},
         key: keyJson,
         regions: onPremRegions.map((regionItem) => {
           return {

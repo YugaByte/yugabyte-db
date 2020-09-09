@@ -168,12 +168,13 @@ std::string MajorityReplicatedData::ToString() const {
 }
 
 std::string PeerMessageQueue::TrackedPeer::ToString() const {
-  return Format("{ peer: $0 is_new: $1 last_received: $2 next_index: $3 "
-                    "last_known_committed_idx: $4, is_last_exchange_successful: $5, "
-                    "needs_remote_bootstrap: $6 member_type: $7 num_sst_files: $8 }",
-                uuid, is_new, last_received, next_index, last_known_committed_idx,
-                is_last_exchange_successful, needs_remote_bootstrap,
-                RaftPeerPB::MemberType_Name(member_type), num_sst_files);
+  return Format(
+      "{ peer: $0 is_new: $1 last_received: $2 next_index: $3 last_known_committed_idx: $4 "
+      "is_last_exchange_successful: $5 needs_remote_bootstrap: $6 member_type: $7 "
+      "num_sst_files: $8 last_applied: $9 }",
+      uuid, is_new, last_received, next_index, last_known_committed_idx,
+      is_last_exchange_successful, needs_remote_bootstrap, RaftPeerPB::MemberType_Name(member_type),
+      num_sst_files, last_applied);
 }
 
 void PeerMessageQueue::TrackedPeer::ResetLeaderLeases() {
@@ -213,7 +214,7 @@ PeerMessageQueue::PeerMessageQueue(const scoped_refptr<MetricEntity>& metric_ent
   DCHECK(!local_peer_pb_.last_known_private_addr().empty());
 }
 
-void PeerMessageQueue::Init(const OpId& last_locally_replicated) {
+void PeerMessageQueue::Init(const OpIdPB& last_locally_replicated) {
   LockGuard lock(queue_lock_);
   CHECK_EQ(queue_state_.state, State::kQueueConstructed);
   log_cache_.Init(last_locally_replicated);
@@ -227,13 +228,15 @@ void PeerMessageQueue::Init(const OpId& last_locally_replicated) {
   }
 }
 
-void PeerMessageQueue::SetLeaderMode(const OpId& committed_op_id,
+void PeerMessageQueue::SetLeaderMode(const OpIdPB& committed_op_id,
                                      int64_t current_term,
+                                     const OpId& last_applied_op_id,
                                      const RaftConfigPB& active_config) {
   LockGuard lock(queue_lock_);
   CHECK(committed_op_id.IsInitialized());
   queue_state_.current_term = current_term;
   queue_state_.committed_op_id = committed_op_id;
+  queue_state_.last_applied_op_id = last_applied_op_id;
   queue_state_.majority_replicated_op_id = committed_op_id;
   queue_state_.active_config.reset(new RaftConfigPB(active_config));
   CHECK(IsRaftConfigVoter(local_peer_uuid_, *queue_state_.active_config))
@@ -340,7 +343,7 @@ void PeerMessageQueue::NumSSTFilesChanged() {
   });
 }
 
-void PeerMessageQueue::LocalPeerAppendFinished(const OpId& id,
+void PeerMessageQueue::LocalPeerAppendFinished(const OpIdPB& id,
                                                const Status& status) {
   CHECK_OK(status);
 
@@ -362,6 +365,7 @@ void PeerMessageQueue::LocalPeerAppendFinished(const OpId& id,
       queue_state_.last_appended = id;
     }
     fake_response.mutable_status()->set_last_committed_idx(queue_state_.committed_op_id.index());
+    queue_state_.last_applied_op_id.ToPB(fake_response.mutable_status()->mutable_last_applied());
 
     if (queue_state_.mode != Mode::LEADER) {
       log_cache_.EvictThroughOp(id.index());
@@ -382,7 +386,7 @@ Status PeerMessageQueue::AppendOperations(const ReplicateMsgs& msgs,
                                           const yb::OpId& committed_op_id,
                                           RestartSafeCoarseTimePoint batch_mono_time) {
   DFAKE_SCOPED_LOCK(append_fake_lock_);
-  OpId last_id;
+  OpIdPB last_id;
   if (!msgs.empty()) {
     std::unique_lock<simple_spinlock> lock(queue_lock_);
 
@@ -423,7 +427,7 @@ Status PeerMessageQueue::RequestForPeer(const string& uuid,
                                         bool* last_exchange_successful) {
   DCHECK(request->ops().empty());
 
-  OpId preceding_id;
+  OpIdPB preceding_id;
   MonoDelta unreachable_time = MonoDelta::kMin;
   bool is_voter = false;
   bool is_new;
@@ -743,8 +747,8 @@ yb::OpId PeerMessageQueue::GetCDCConsumerOpIdToEvict() {
   }
 }
 
-void PeerMessageQueue::UpdateAllReplicatedOpId(OpId* result) {
-  OpId new_op_id = MaximumOpId();
+void PeerMessageQueue::UpdateAllReplicatedOpId(OpIdPB* result) {
+  OpIdPB new_op_id = MaximumOpId();
 
   for (const auto& peer : peers_map_) {
     if (!peer.second->is_last_exchange_successful) {
@@ -759,8 +763,21 @@ void PeerMessageQueue::UpdateAllReplicatedOpId(OpId* result) {
   *result = new_op_id;
 }
 
+void PeerMessageQueue::UpdateAllAppliedOpId(OpId* result) {
+  OpId all_applied_op_id = OpId::Max();
+  for (const auto& peer : peers_map_) {
+    if (!peer.second->is_last_exchange_successful) {
+      return;
+    }
+    all_applied_op_id = std::min(all_applied_op_id, peer.second->last_applied);
+  }
+
+  CHECK_NE(OpId::Max(), all_applied_op_id);
+  *result = all_applied_op_id;
+}
+
 void PeerMessageQueue::UpdateAllNonLaggingReplicatedOpId(int32_t threshold) {
-  OpId new_op_id = MaximumOpId();
+  OpIdPB new_op_id = MaximumOpId();
 
   for (const auto& peer : peers_map_) {
     // Ignore lagging follower.
@@ -968,9 +985,9 @@ uint64_t PeerMessageQueue::NumSSTFilesWatermark() {
   return std::max(watermark, local_peer_->num_sst_files);
 }
 
-OpId PeerMessageQueue::OpIdWatermark() {
+OpIdPB PeerMessageQueue::OpIdWatermark() {
   struct Policy {
-    typedef OpId result_type;
+    typedef OpIdPB result_type;
 
     static result_type NotEnoughPeersValue() {
       return MinimumOpId();
@@ -981,7 +998,7 @@ OpId PeerMessageQueue::OpIdWatermark() {
     }
 
     struct Comparator {
-      bool operator()(const OpId& lhs, const OpId& rhs) {
+      bool operator()(const OpIdPB& lhs, const OpIdPB& rhs) {
         return lhs.index() < rhs.index();
       }
     };
@@ -1073,6 +1090,7 @@ bool PeerMessageQueue::ResponseFromPeer(const std::string& peer_uuid,
       DCHECK(status.has_last_committed_idx());
 
       peer->last_known_committed_idx = status.last_committed_idx();
+      peer->last_applied = OpId::FromPB(status.last_applied());
 
       // If the reported last-received op for the replica is in our local log, then resume sending
       // entries from that point onward. Otherwise, resume after the last op they received from us.
@@ -1175,6 +1193,7 @@ bool PeerMessageQueue::ResponseFromPeer(const std::string& peer_uuid,
     }
 
     UpdateAllReplicatedOpId(&queue_state_.all_replicated_op_id);
+    UpdateAllAppliedOpId(&queue_state_.all_applied_op_id);
 
     auto evict_index = GetCDCConsumerOpIdToEvict().index;
 
@@ -1204,24 +1223,34 @@ PeerMessageQueue::TrackedPeer PeerMessageQueue::GetTrackedPeerForTests(string uu
   return *tracked;
 }
 
-OpId PeerMessageQueue::GetAllReplicatedIndexForTests() const {
+OpIdPB PeerMessageQueue::GetAllReplicatedIndexForTests() const {
   LockGuard lock(queue_lock_);
   return queue_state_.all_replicated_op_id;
 }
 
-OpId PeerMessageQueue::GetCommittedIndexForTests() const {
+OpId PeerMessageQueue::TEST_GetAllAppliedOpId() const {
+  LockGuard lock(queue_lock_);
+  return queue_state_.all_applied_op_id;
+}
+
+OpIdPB PeerMessageQueue::GetCommittedIndexForTests() const {
   LockGuard lock(queue_lock_);
   return queue_state_.committed_op_id;
 }
 
-OpId PeerMessageQueue::GetMajorityReplicatedOpIdForTests() const {
+OpIdPB PeerMessageQueue::GetMajorityReplicatedOpIdForTests() const {
   LockGuard lock(queue_lock_);
   return queue_state_.majority_replicated_op_id;
 }
 
-OpId PeerMessageQueue::TEST_GetLastAppended() const {
+OpIdPB PeerMessageQueue::TEST_GetLastAppended() const {
   LockGuard lock(queue_lock_);
   return queue_state_.last_appended;
+}
+
+OpId PeerMessageQueue::TEST_GetLastAppliedOpId() const {
+  LockGuard lock(queue_lock_);
+  return queue_state_.last_applied_op_id;
 }
 
 void PeerMessageQueue::UpdateMetrics() {
@@ -1381,9 +1410,11 @@ void PeerMessageQueue::NotifyObserversOfMajorityReplOpChangeTask(
 
   // TODO move commit index advancement here so that the queue is not dependent on consensus at all,
   // but that requires a bit more work.
-  OpId new_committed_index;
+  OpIdPB new_committed_index;
+  OpId last_applied_op_id;
   for (PeerMessageQueueObserver* observer : copy) {
-    observer->UpdateMajorityReplicated(majority_replicated_data, &new_committed_index);
+    observer->UpdateMajorityReplicated(
+        majority_replicated_data, &new_committed_index, &last_applied_op_id);
   }
 
   {
@@ -1392,6 +1423,7 @@ void PeerMessageQueue::NotifyObserversOfMajorityReplOpChangeTask(
         new_committed_index.index() > queue_state_.committed_op_id.index()) {
       queue_state_.committed_op_id.CopyFrom(new_committed_index);
     }
+    queue_state_.last_applied_op_id.MakeAtLeast(last_applied_op_id);
   }
 }
 
@@ -1442,7 +1474,7 @@ bool PeerMessageQueue::CanPeerBecomeLeader(const std::string& peer_uuid) const {
 }
 
 string PeerMessageQueue::GetUpToDatePeer() const {
-  OpId highest_op_id = MinimumOpId();
+  OpIdPB highest_op_id = MinimumOpId();
   std::vector<std::string> candidates;
 
   {
@@ -1488,18 +1520,19 @@ string PeerMessageQueue::LogPrefixUnlocked() const {
 }
 
 string PeerMessageQueue::QueueState::ToString() const {
-  return Substitute("All replicated op: $0, Majority replicated op: $1, "
-      "Committed index: $2, Last appended: $3, Current term: $4, Majority size: $5, "
-      "State: $6, Mode: $7$8",
-      /* 0 */ OpIdToString(all_replicated_op_id),
-      /* 1 */ OpIdToString(majority_replicated_op_id),
-      /* 2 */ OpIdToString(committed_op_id),
-      /* 3 */ OpIdToString(last_appended),
-      /* 4 */ current_term,
-      /* 5 */ majority_size_,
-      /* 6 */ StateToStr(state),
-      /* 7 */ ModeToStr(mode),
-      /* 8 */ active_config ? ", active raft config: " + active_config->ShortDebugString() : "");
+  return Format(
+      "All replicated op: $0, Majority replicated op: $1, Committed index: $2, Last applied: $3, "
+      "Last appended: $4, Current term: $5, Majority size: $6, State: $7, Mode: $8$9",
+      /* 0 */ all_replicated_op_id,
+      /* 1 */ majority_replicated_op_id,
+      /* 2 */ committed_op_id,
+      /* 3 */ last_applied_op_id,
+      /* 4 */ last_appended,
+      /* 5 */ current_term,
+      /* 6 */ majority_size_,
+      /* 7 */ StateToStr(state),
+      /* 8 */ ModeToStr(mode),
+      /* 9 */ active_config ? ", active raft config: " + active_config->ShortDebugString() : "");
 }
 
 size_t PeerMessageQueue::LogCacheSize() {

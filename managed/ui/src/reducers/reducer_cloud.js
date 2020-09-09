@@ -14,6 +14,7 @@ import { GET_REGION_LIST, GET_REGION_LIST_RESPONSE, GET_PROVIDER_LIST, GET_PROVI
   GET_NODE_INSTANCE_LIST_RESPONSE, RESET_ON_PREM_CONFIG_DATA, BOOTSTRAP_PROVIDER, BOOTSTRAP_PROVIDER_RESPONSE,
   CREATE_ONPREM_PROVIDER, CREATE_ONPREM_PROVIDER_RESPONSE, EDIT_PROVIDER, EDIT_PROVIDER_RESPONSE,
   FETCH_AUTH_CONFIG, FETCH_AUTH_CONFIG_RESPONSE, DELETE_KMS_CONFIGURATION, DELETE_KMS_CONFIGURATION_RESPONSE,
+  GET_AZU_TYPE_LIST, GET_AZU_TYPE_LIST_RESPONSE
 } from '../actions/cloud';
 
 import { getInitialState, setInitialState, setSuccessState, setFailureState, setLoadingState, setPromiseResponse }
@@ -30,12 +31,14 @@ const INITIAL_STATE = {
   onPremJsonFormData: {},
   ebsTypes: [],
   gcpTypes: [],
+  azuTypes: [],
   loading: {
     regions: false,
     providers: false,
     instanceTypes: false,
     ebsTypes: true,
     gcpTypes: true,
+    azuTypes: true,
     supportedRegions: false
   },
   selectedProvider: null,
@@ -200,7 +203,12 @@ export default function(state = INITIAL_STATE, action) {
       return {...setLoadingState(state, "gcpTypes", [])};
     case GET_GCP_TYPE_LIST_RESPONSE:
       return setPromiseResponse(state, "gcpTypes", action);
-      
+
+    case GET_AZU_TYPE_LIST:
+      return {...setLoadingState(state, "azuTypes", [])};
+    case GET_AZU_TYPE_LIST_RESPONSE:
+      return setPromiseResponse(state, "azuTypes", action);
+
     case CREATE_DOCKER_PROVIDER:
       return setLoadingState(state, "dockerBootstrap", {});
     case CREATE_DOCKER_PROVIDER_RESPONSE:

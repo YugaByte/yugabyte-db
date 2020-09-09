@@ -126,7 +126,7 @@ Status WriteOperation::DoReplicated(int64_t leader_term, Status* complete_status
 
   *complete_status = state()->tablet()->ApplyRowOperations(state());
   // Failure is regular case, since could happen because transaction was aborted, while
-  // replicating it's intents.
+  // replicating its intents.
   LOG_IF(INFO, !complete_status->ok()) << "Apply operation failed: " << *complete_status;
 
   // Now that all of the changes have been applied and the commit is durable
@@ -155,6 +155,8 @@ string WriteOperation::ToString() const {
 
 void WriteOperation::DoStartSynchronization(const Status& status) {
   std::unique_ptr<WriteOperation> self(this);
+  // Move submit_token_ so it is released after this function.
+  ScopedRWOperation submit_token(std::move(submit_token_));
   // If a restart read is required, then we return this fact to caller and don't perform the write
   // operation.
   if (restart_read_ht_.is_valid()) {

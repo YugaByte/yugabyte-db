@@ -117,7 +117,7 @@ Now, you can view the [yb-master-0 Admin UI](../../../reference/configuration/yb
 
 ### Overview and YB-Master status
 
-The `yb-master-0` home page shows that we have a cluster with **Replication Factor** of 1 and **Num Nodes (TServers)** as `1`. The **Num User Tables** is `0` because there are no user tables created yet. The YugabyteDB version is also displayed for your reference.
+The `yb-master-0` home page shows that you have a cluster with **Replication Factor** of 1 and **Num Nodes (TServers)** as `1`. The **Num User Tables** is `0` because there are no user tables created yet. The YugabyteDB version is also displayed for your reference.
 
 ![master-home](/images/admin/master-home-kubernetes-rf1.png)
 
@@ -125,7 +125,7 @@ The **Masters** section highlights the YB-Master service along its corresponding
 
 ### YB-TServer status
 
-Click **See all nodes** to go to the **Tablet Servers** page where we can observe the one YB-TServer along with the time since it last connected to the YB-Master using regular heartbeats. As new tables get added, new tablets will get automatically created and distributed evenly across all the available YB-TServers.
+Click **See all nodes** to go to the **Tablet Servers** page where you can observe the one YB-TServer along with the time since it last connected to the YB-Master using regular heartbeats. As new tables get added, new tablets will get automatically created and distributed evenly across all the available YB-TServers.
 
 ![tserver-list](/images/admin/master-tservers-list-kubernetes-rf1.png)
 

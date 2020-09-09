@@ -19,6 +19,9 @@
 #include "yb/consensus/consensus_fwd.h"
 
 namespace yb {
+
+struct OpId;
+
 namespace consensus {
 
 // Used for a callback that sets a transaction's timestamp and starts the MVCC transaction for
@@ -26,7 +29,12 @@ namespace consensus {
 // log, so that timestamps always keep increasing in the log, unless entries are being overwritten.
 class ConsensusAppendCallback {
  public:
-  virtual void HandleConsensusAppend() = 0;
+  // Invoked when appropriate operation was appended to consensus.
+  // op_id - assigned operation id.
+  // committed_op_id - committed operation id.
+  //
+  // Should initialize appropriate replicate message.
+  virtual void HandleConsensusAppend(const yb::OpId& op_id, const yb::OpId& committed_op_id) = 0;
   virtual ~ConsensusAppendCallback() {}
 };
 

@@ -86,7 +86,7 @@ class Subprocess {
 
   // Start the subprocess. Can only be called once.
   //
-  // Thie returns a bad Status if the fork() fails. However,
+  // This returns a bad Status if the fork() fails. However,
   // note that if the executable path was incorrect such that
   // exec() fails, this will still return Status::OK. You must
   // use Wait() to check for failure.

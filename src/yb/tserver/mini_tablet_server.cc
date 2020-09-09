@@ -67,7 +67,6 @@ using std::pair;
 
 using yb::consensus::Consensus;
 using yb::consensus::ConsensusOptions;
-using yb::consensus::OpId;
 using yb::consensus::RaftPeerPB;
 using yb::consensus::RaftConfigPB;
 using yb::log::Log;
@@ -253,14 +252,16 @@ RaftConfigPB MiniTabletServer::CreateLocalConfig() const {
   return config;
 }
 
-Status MiniTabletServer::AddTestTablet(const std::string& table_id,
+Status MiniTabletServer::AddTestTablet(const std::string& ns_id,
+                                       const std::string& table_id,
                                        const std::string& tablet_id,
                                        const Schema& schema,
                                        TableType table_type) {
-  return AddTestTablet(table_id, tablet_id, schema, CreateLocalConfig(), table_type);
+  return AddTestTablet(ns_id, table_id, tablet_id, schema, CreateLocalConfig(), table_type);
 }
 
-Status MiniTabletServer::AddTestTablet(const std::string& table_id,
+Status MiniTabletServer::AddTestTablet(const std::string& ns_id,
+                                       const std::string& table_id,
                                        const std::string& tablet_id,
                                        const Schema& schema,
                                        const RaftConfigPB& config,
@@ -269,8 +270,9 @@ Status MiniTabletServer::AddTestTablet(const std::string& table_id,
   Schema schema_with_ids = SchemaBuilder(schema).Build();
   pair<PartitionSchema, Partition> partition = tablet::CreateDefaultPartition(schema_with_ids);
 
-  return server_->tablet_manager()->CreateNewTablet(table_id, tablet_id, partition.second, table_id,
-    table_type, schema_with_ids, partition.first, boost::none /* index_info */, config, nullptr);
+  return server_->tablet_manager()->CreateNewTablet(
+      table_id, tablet_id, partition.second, ns_id, table_id, table_type, schema_with_ids,
+      partition.first, boost::none /* index_info */, config, nullptr);
 }
 
 void MiniTabletServer::FailHeartbeats() {

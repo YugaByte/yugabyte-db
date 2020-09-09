@@ -6,7 +6,7 @@ description: Convert a JSON object into the equivalent SQL record. Offers no pra
 menu:
   latest:
     identifier: jsonb-to-record
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 230
 isTocNested: true
 showAsideToc: true
@@ -27,7 +27,7 @@ select... as on_the_fly(<record definition>)
 ```
 Use this `ysqlsh` script to create the type _"t"_ that just `jsonb_populate_record()` requires, to convert the input `jsonb` into a SQL `record` using each of  `jsonb_populate_record()` and `jsonb_to_record`, and then to execute the `ASSERT`. Notice that _"on_the_fly"_ is a nonce name, made up for this example. Anything will suffice.
 
-```postgresql
+```plpgsql
 create type t as (a int, b text);
 
 do $body$
@@ -54,7 +54,7 @@ $body$;
 
 The nominal advantage of `jsonb_to_record()`, that it doesn't need a schema-level type, is lost when the input JSON _object_ has another _object_ as the value of one of its keys. Consider this `ysqlsh` script:
 
-```postgresql
+```plpgsql
 create type t1 as ( d int, e text);
 create type t2 as (a int, b text[], c t1);
 

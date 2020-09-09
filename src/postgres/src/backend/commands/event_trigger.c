@@ -117,6 +117,7 @@ static event_trigger_support_data event_trigger_support[] = {
 	{"STATISTICS", true},
 	{"SUBSCRIPTION", true},
 	{"TABLE", true},
+	{"TABLEGROUP", false},
 	{"TABLESPACE", false},
 	{"TRANSFORM", true},
 	{"TRIGGER", true},
@@ -1101,6 +1102,9 @@ EventTriggerSupportsObjectType(ObjectType obtype)
 		case OBJECT_EVENT_TRIGGER:
 			/* no support for event triggers on event triggers */
 			return false;
+		case OBJECT_TABLEGROUP:
+			/* no support for event triggers on tablegroups */
+			return false;
 		case OBJECT_ACCESS_METHOD:
 		case OBJECT_AGGREGATE:
 		case OBJECT_AMOP:
@@ -1174,6 +1178,9 @@ EventTriggerSupportsObjectClass(ObjectClass objclass)
 			return false;
 		case OCLASS_EVENT_TRIGGER:
 			/* no support for event triggers on event triggers */
+			return false;
+		case OCLASS_TBLGROUP:
+			/* no support for event triggers on tablegroups */
 			return false;
 		case OCLASS_CLASS:
 		case OCLASS_PROC:
@@ -2241,6 +2248,8 @@ stringify_grant_objtype(ObjectType objtype)
 			return "PROCEDURE";
 		case OBJECT_ROUTINE:
 			return "ROUTINE";
+		case OBJECT_TABLEGROUP:
+			return "TABLEGROUP";
 		case OBJECT_TABLESPACE:
 			return "TABLESPACE";
 		case OBJECT_TYPE:
@@ -2323,6 +2332,8 @@ stringify_adefprivs_objtype(ObjectType objtype)
 			return "PROCEDURES";
 		case OBJECT_ROUTINE:
 			return "ROUTINES";
+		case OBJECT_TABLEGROUP:
+			return "TABLEGROUPS";
 		case OBJECT_TABLESPACE:
 			return "TABLESPACES";
 		case OBJECT_TYPE:

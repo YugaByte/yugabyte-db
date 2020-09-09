@@ -15,6 +15,7 @@
 #include "yb/master/ts_descriptor.h"
 
 #include "yb/rpc/messenger.h"
+#include "yb/util/net/dns_resolver.h"
 
 namespace yb {
 namespace master {
@@ -34,7 +35,6 @@ const std::string kSystemLocalNativeProtocolVersionColumn =
     "native_protocol_version";
 const std::string kSystemLocalPartitionerColumn = "partitioner";
 const std::string kSystemLocalRackColumn = "rack";
-const std::string kSystemLocalReleaseVersionColumn = "release_version";
 const std::string kSystemLocalRpcAddressColumn = "rpc_address";
 const std::string kSystemLocalSchemaVersionColumn = "schema_version";
 const std::string kSystemLocalThriftVersionColumn = "thrift_version";
@@ -44,8 +44,7 @@ const std::string kSystemLocalTruncatedAtColumn = "truncated_at";
 } // namespace
 
 LocalVTable::LocalVTable(const Master* const master)
-    : YQLVirtualTable(master::kSystemLocalTableName, master, CreateSchema()),
-      resolver_(new Resolver(master->messenger()->io_service())) {
+    : YQLVirtualTable(master::kSystemLocalTableName, master, CreateSchema()) {
 }
 
 Result<std::shared_ptr<QLRowBlock>> LocalVTable::RetrieveData(
@@ -53,9 +52,6 @@ Result<std::shared_ptr<QLRowBlock>> LocalVTable::RetrieveData(
   vector<std::shared_ptr<TSDescriptor> > descs;
   GetSortedLiveDescriptors(&descs);
   auto vtable = std::make_shared<QLRowBlock>(schema_);
-
-  InetAddress remote_endpoint;
-  RETURN_NOT_OK(remote_endpoint.FromString(request.remote_endpoint().host()));
 
   struct Entry {
     size_t index;
@@ -65,6 +61,8 @@ Result<std::shared_ptr<QLRowBlock>> LocalVTable::RetrieveData(
 
   std::vector<Entry> entries;
   entries.reserve(descs.size());
+
+  InetAddress remote_ip;
 
   size_t index = 0;
   for (const std::shared_ptr<TSDescriptor>& desc : descs) {
@@ -79,18 +77,25 @@ Result<std::shared_ptr<QLRowBlock>> LocalVTable::RetrieveData(
       if (desc->permanent_uuid() != request.proxy_uuid()) {
         continue;
       }
-    } else if (!util::RemoteEndpointMatchesTServer(ts_info, remote_endpoint)) {
-      continue;
+    } else {
+      if (index == 1) {
+        remote_ip = InetAddress(VERIFY_RESULT(master_->messenger()->resolver().Resolve(
+            request.remote_endpoint().host())));
+      }
+      if (!util::RemoteEndpointMatchesTServer(ts_info, remote_ip)) {
+        continue;
+      }
     }
 
     entries.push_back({index - 1, std::move(ts_info)});
-    entries.back().ips = util::GetPublicPrivateIPFutures(entries.back().ts_info, resolver_.get());
+    entries.back().ips = util::GetPublicPrivateIPFutures(
+        entries.back().ts_info, &master_->messenger()->resolver());
   }
 
   for (const auto& entry : entries) {
     QLRow& row = vtable->Extend();
-    auto private_ip = VERIFY_RESULT(entry.ips.private_ip_future.get());
-    auto public_ip = VERIFY_RESULT(entry.ips.public_ip_future.get());
+    InetAddress private_ip(VERIFY_RESULT(entry.ips.private_ip_future.get()));
+    InetAddress public_ip(VERIFY_RESULT(entry.ips.public_ip_future.get()));
     const CloudInfoPB& cloud_info = entry.ts_info.registration().common().cloud_info();
     RETURN_NOT_OK(SetColumnValue(kSystemLocalKeyColumn, "local", &row));
     RETURN_NOT_OK(SetColumnValue(kSystemLocalBootstrappedColumn, "COMPLETED", &row));
@@ -108,7 +113,8 @@ Result<std::shared_ptr<QLRowBlock>> LocalVTable::RetrieveData(
     RETURN_NOT_OK(SetColumnValue(kSystemLocalPartitionerColumn,
                                  "org.apache.cassandra.dht.Murmur3Partitioner", &row));
     RETURN_NOT_OK(SetColumnValue(kSystemLocalRackColumn, cloud_info.placement_zone(), &row));
-    RETURN_NOT_OK(SetColumnValue(kSystemLocalReleaseVersionColumn, "3.9-SNAPSHOT", &row));
+    RETURN_NOT_OK(SetColumnValue(yb::master::kSystemTablesReleaseVersionColumn,
+                                yb::master::kSystemTablesReleaseVersion, &row));
     RETURN_NOT_OK(SetColumnValue(kSystemLocalRpcAddressColumn, public_ip, &row));
 
     Uuid schema_version;
@@ -139,7 +145,8 @@ Schema LocalVTable::CreateSchema() const {
                              QLType::Create(DataType::STRING)));
   CHECK_OK(builder.AddColumn(kSystemLocalPartitionerColumn, QLType::Create(DataType::STRING)));
   CHECK_OK(builder.AddColumn(kSystemLocalRackColumn, QLType::Create(DataType::STRING)));
-  CHECK_OK(builder.AddColumn(kSystemLocalReleaseVersionColumn, QLType::Create(DataType::STRING)));
+  CHECK_OK(builder.AddColumn(yb::master::kSystemTablesReleaseVersionColumn,
+                            QLType::Create(DataType::STRING)));
   CHECK_OK(builder.AddColumn(kSystemLocalRpcAddressColumn, QLType::Create(DataType::INET)));
   CHECK_OK(builder.AddColumn(kSystemLocalSchemaVersionColumn, QLType::Create(DataType::UUID)));
   CHECK_OK(builder.AddColumn(kSystemLocalThriftVersionColumn, QLType::Create(DataType::STRING)));

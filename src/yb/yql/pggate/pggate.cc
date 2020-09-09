@@ -94,9 +94,8 @@ using client::YBSession;
 
 //--------------------------------------------------------------------------------------------------
 
-PggateOptions::PggateOptions() {
+PggateOptions::PggateOptions() : ServerBaseOptions(kDefaultPort) {
   server_type = "tserver";
-  rpc_opts.default_port = kDefaultPort;
   rpc_opts.connection_keepalive_time_ms = FLAGS_pgsql_rpc_keepalive_time_ms;
 
   if (FLAGS_pggate_proxy_bind_address.empty()) {
@@ -200,26 +199,25 @@ Status PgApiImpl::InvalidateCache() {
   return Status::OK();
 }
 
+const bool PgApiImpl::GetDisableTransparentCacheRefreshRetry() {
+  return FLAGS_TEST_ysql_disable_transparent_cache_refresh_retry;
+}
+
 //--------------------------------------------------------------------------------------------------
 
 PgMemctx *PgApiImpl::CreateMemctx() {
   // Postgres will create YB Memctx when it first use the Memctx to allocate YugaByte object.
-  auto memctx = make_scoped_refptr<PgMemctx>();
-  return memctx.detach();
+  return PgMemctx::Create();
 }
 
-void PgApiImpl::DestroyMemctx(PgMemctx *memctx) {
+Status PgApiImpl::DestroyMemctx(PgMemctx *memctx) {
   // Postgres will destroy YB Memctx by releasing the pointer.
-  if (memctx) {
-    memctx->Release();
-  }
+  return PgMemctx::Destroy(memctx);
 }
 
-void PgApiImpl::ResetMemctx(PgMemctx *memctx) {
+Status PgApiImpl::ResetMemctx(PgMemctx *memctx) {
   // Postgres reset YB Memctx when clearing a context content without clearing its nested context.
-  if (memctx) {
-    memctx->Reset();
-  }
+  return PgMemctx::Reset(memctx);
 }
 
 // TODO(neil) Use Arena in the future.
@@ -400,6 +398,49 @@ Result<PgTableDesc::ScopedRefPtr> PgApiImpl::LoadTable(const PgObjectId& table_i
   return pg_session_->LoadTable(table_id);
 }
 
+void PgApiImpl::InvalidateTableCache(const PgObjectId& table_id) {
+  pg_session_->InvalidateTableCache(table_id);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Status PgApiImpl::NewCreateTablegroup(const char *database_name,
+                                      const PgOid database_oid,
+                                      const PgOid tablegroup_oid,
+                                      PgStatement **handle) {
+  auto stmt = make_scoped_refptr<PgCreateTablegroup>(pg_session_, database_name,
+                                                     database_oid, tablegroup_oid);
+  RETURN_NOT_OK(AddToCurrentPgMemctx(stmt, handle));
+  return Status::OK();
+}
+
+Status PgApiImpl::ExecCreateTablegroup(PgStatement *handle) {
+  if (!PgStatement::IsValidStmt(handle, StmtOp::STMT_CREATE_TABLEGROUP)) {
+    // Invalid handle.
+    return STATUS(InvalidArgument, "Invalid statement handle");
+  }
+
+  return down_cast<PgCreateTablegroup*>(handle)->Exec();
+}
+
+Status PgApiImpl::NewDropTablegroup(const PgOid database_oid,
+                                    const PgOid tablegroup_oid,
+                                    PgStatement **handle) {
+  auto stmt = make_scoped_refptr<PgDropTablegroup>(pg_session_, database_oid, tablegroup_oid);
+  RETURN_NOT_OK(AddToCurrentPgMemctx(stmt, handle));
+  return Status::OK();
+}
+
+
+Status PgApiImpl::ExecDropTablegroup(PgStatement *handle) {
+  if (!PgStatement::IsValidStmt(handle, StmtOp::STMT_DROP_TABLEGROUP)) {
+    // Invalid handle.
+    return STATUS(InvalidArgument, "Invalid statement handle");
+  }
+  return down_cast<PgDropTablegroup*>(handle)->Exec();
+}
+
+
 //--------------------------------------------------------------------------------------------------
 
 Status PgApiImpl::NewCreateTable(const char *database_name,
@@ -410,10 +451,11 @@ Status PgApiImpl::NewCreateTable(const char *database_name,
                                  bool if_not_exist,
                                  bool add_primary_key,
                                  const bool colocated,
+                                 const PgObjectId& tablegroup_oid,
                                  PgStatement **handle) {
   auto stmt = make_scoped_refptr<PgCreateTable>(
       pg_session_, database_name, schema_name, table_name,
-      table_id, is_shared_table, if_not_exist, add_primary_key, colocated);
+      table_id, is_shared_table, if_not_exist, add_primary_key, colocated, tablegroup_oid);
   RETURN_NOT_OK(AddToCurrentPgMemctx(stmt, handle));
   return Status::OK();
 }
@@ -636,11 +678,13 @@ Status PgApiImpl::NewCreateIndex(const char *database_name,
                                  const PgObjectId& base_table_id,
                                  bool is_shared_index,
                                  bool is_unique_index,
+                                 const bool skip_index_backfill,
                                  bool if_not_exist,
+                                 const PgObjectId& tablegroup_oid,
                                  PgStatement **handle) {
   auto stmt = make_scoped_refptr<PgCreateIndex>(
       pg_session_, database_name, schema_name, index_name, index_id, base_table_id,
-      is_shared_index, is_unique_index, if_not_exist);
+      is_shared_index, is_unique_index, skip_index_backfill, if_not_exist, tablegroup_oid);
   RETURN_NOT_OK(AddToCurrentPgMemctx(stmt, handle));
   return Status::OK();
 }
@@ -659,11 +703,18 @@ Status PgApiImpl::CreateIndexAddColumn(PgStatement *handle, const char *attr_nam
 }
 
 Status PgApiImpl::CreateIndexSetNumTablets(PgStatement *handle, int32_t num_tablets) {
-  if (!PgStatement::IsValidStmt(handle, StmtOp::STMT_CREATE_INDEX)) {
-    // Invalid handle.
-    return STATUS(InvalidArgument, "Invalid statement handle");
-  }
+  SCHECK(PgStatement::IsValidStmt(handle, StmtOp::STMT_CREATE_INDEX),
+         InvalidArgument,
+         "Invalid statement handle");
   return down_cast<PgCreateIndex*>(handle)->SetNumTablets(num_tablets);
+}
+
+Status PgApiImpl::CreateIndexAddSplitRow(PgStatement *handle, int num_cols,
+                                         YBCPgTypeEntity **types, uint64_t *data) {
+  SCHECK(PgStatement::IsValidStmt(handle, StmtOp::STMT_CREATE_INDEX),
+      InvalidArgument,
+      "Invalid statement handle");
+  return down_cast<PgCreateIndex*>(handle)->AddSplitRow(num_cols, types, data);
 }
 
 Status PgApiImpl::ExecCreateIndex(PgStatement *handle) {
@@ -698,6 +749,10 @@ Result<IndexPermissions> PgApiImpl::WaitUntilIndexPermissionsAtLeast(
       table_id,
       index_id,
       target_index_permissions);
+}
+
+Status PgApiImpl::AsyncUpdateIndexPermissions(const PgObjectId& indexed_table_id) {
+  return pg_session_->AsyncUpdateIndexPermissions(indexed_table_id);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -819,6 +874,14 @@ Status PgApiImpl::InsertStmtSetUpsertMode(PgStatement *handle) {
   return Status::OK();
 }
 
+Status PgApiImpl::InsertStmtSetWriteTime(PgStatement *handle, const HybridTime write_time) {
+  if (!PgStatement::IsValidStmt(handle, StmtOp::STMT_INSERT)) {
+    // Invalid handle.
+    return STATUS(InvalidArgument, "Invalid statement handle");
+  }
+  RETURN_NOT_OK(down_cast<PgInsert*>(handle)->SetWriteTime(write_time));
+  return Status::OK();
+}
 
 // Update ------------------------------------------------------------------------------------------
 

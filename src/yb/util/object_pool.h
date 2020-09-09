@@ -187,12 +187,20 @@ class ReturnToPool {
 };
 
 template <class T>
+struct DefaultFactory {
+  T* operator()() const {
+    return new T;
+  }
+};
+
+template <class T>
 class ThreadSafeObjectPool {
  public:
   typedef std::function<T*()> Factory;
   typedef std::function<void(T*)> Deleter;
 
-  explicit ThreadSafeObjectPool(Factory factory, Deleter deleter = std::default_delete<T>())
+  explicit ThreadSafeObjectPool(Factory factory = DefaultFactory<T>(),
+                                Deleter deleter = std::default_delete<T>())
       : factory_(std::move(factory)), deleter_(std::move(deleter)) {
     // Need the actual number of CPUs, so we do not use the Gflag value
     auto num_cpus = base::RawNumCPUs();

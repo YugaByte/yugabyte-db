@@ -418,4 +418,51 @@ public class TestAuthentication extends BaseAuthenticationCQLTest {
     thrown.expectMessage("Cannot DROP primary role for current login");
     s2.execute(String.format("DROP ROLE %s", user));
   }
+
+  @Test
+  public void testDuplicatePasswordIsValid() throws Exception {
+    String role1 = "duplicate_password_role1";
+    String role2 = "duplicate_password_role2";
+    String password = "abc";
+
+    testCreateRoleHelper(role1, password, true, false);
+    testCreateRoleHelper(role2, password, true, false);
+
+    Session s1 = getSession(role1, password);
+    Session s2 = getSession(role2, password);
+  }
+
+  @Test
+  public void testMultipleLoginWithinCache() throws Exception {
+    int roleCount = 4;
+    String password = "abc";
+
+    for (int i = 0; i < roleCount; i++) {
+      String role = String.format("cache_role%d", i);
+      testCreateRoleHelper(role, password, true, false);
+    }
+
+    for (int j = 0; j < 3; j++) {
+      for (int i = 0; i < roleCount; i++) {
+        String role = String.format("cache_role%d", i);
+        Session s = getSession(role, password);
+      }
+    }
+  }
+
+  @Test(timeout=500000)
+  public void testLoginExhaustCache() throws Exception {
+    int roleCount = 10;
+    String password = "abc";
+
+    for (int i = 0; i < roleCount; i++) {
+      String role = String.format("exhaust_role%d", i);
+      testCreateRoleHelper(role, password, true, false);
+    }
+
+    for (int i = 0; i < roleCount; i++) {
+      String role = String.format("exhaust_role%d", i);
+      Session s = getSession(role, password);
+    }
+  }
 }

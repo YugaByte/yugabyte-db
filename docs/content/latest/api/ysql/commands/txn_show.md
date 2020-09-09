@@ -46,13 +46,13 @@ Use the `SHOW TRANSACTION` statement to show the current transaction isolation l
 
 ## Semantics
 
-Supports both Serializable and Snapshot Isolation using the PostgreSQL isolation level syntax of `SERIALIZABLE` and `REPEATABLE READS` respectively. Even `READ COMMITTED` and `READ UNCOMMITTED` isolation levels are mapped to Snapshot Isolation.
+Supports both Serializable and Snapshot Isolation using the PostgreSQL isolation level syntax of `SERIALIZABLE` and `REPEATABLE READ` respectively. Even `READ COMMITTED` and `READ UNCOMMITTED` isolation levels are mapped to Snapshot Isolation.
 
 ### TRANSACTION ISOLATION LEVEL
 
 Show the current transaction isolation level.
 
-The `TRANSACTION ISOLATION LEVEL` returned is either `SERIALIZABLE` or `REPEATABLE READS`. In YugabyteDB, the `READ COMMITTED` and `READ UNCOMMITTED` of PostgreSQL are mapped to `REPEATABLE READS`.
+The `TRANSACTION ISOLATION LEVEL` returned is either `SERIALIZABLE` or `REPEATABLE READ`. In YugabyteDB, the `READ COMMITTED` and `READ UNCOMMITTED` of PostgreSQL are mapped to `REPEATABLE READ`.
 
 ## See also
 

@@ -10,8 +10,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.avaje.ebean.Model;
-import com.avaje.ebean.annotation.EnumValue;
+import io.ebean.*;
+import io.ebean.annotation.*;
 
 import play.data.validation.Constraints;
 
@@ -51,7 +51,8 @@ public class YugawareProperty extends Model {
   @Column(columnDefinition = "TEXT")
   private String description;
 
-  public static final Find<String, YugawareProperty> find = new Find<String, YugawareProperty>(){};
+  public static final Finder<String, YugawareProperty> find =
+    new Finder<String, YugawareProperty>(YugawareProperty.class){};
 
   private YugawareProperty(String name, PropertyEntryType type, JsonNode value, String description) {
     this.name = name;

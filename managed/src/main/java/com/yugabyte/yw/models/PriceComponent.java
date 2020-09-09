@@ -1,7 +1,7 @@
 // Copyright (c) YugaByte, Inc.
 package com.yugabyte.yw.models;
 
-import com.avaje.ebean.Model;
+import io.ebean.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import play.data.validation.Constraints;
@@ -42,8 +42,8 @@ public class PriceComponent extends Model {
 
   public PriceDetails priceDetails = new PriceDetails();
 
-  private static final Find<PriceComponentKey, PriceComponent> find = new Find<PriceComponentKey,
-      PriceComponent>() {};
+  private static final Finder<PriceComponentKey, PriceComponent> find =
+    new Finder<PriceComponentKey, PriceComponent>(PriceComponent.class) {};
 
   /**
    * Get a single specified pricing component for a given provider and region.
@@ -72,7 +72,7 @@ public class PriceComponent extends Model {
    * @return A list of pricing components in the cloud provider.
    */
   public static List<PriceComponent> findByProvider(Provider provider) {
-    return PriceComponent.find.where()
+    return PriceComponent.find.query().where()
         .eq("provider_code", provider.code)
         .findList();
   }
@@ -85,7 +85,7 @@ public class PriceComponent extends Model {
    * @return A list of pricing components in the cloud provider's region.
    */
   public static List<PriceComponent> findByRegion(Provider provider, Region region) {
-    return PriceComponent.find.where()
+    return PriceComponent.find.query().where()
         .eq("provider_code", provider.code)
         .eq("region_code", region.code)
         .findList();

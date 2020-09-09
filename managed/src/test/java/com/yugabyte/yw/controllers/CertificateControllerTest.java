@@ -55,11 +55,10 @@ public class CertificateControllerTest extends FakeDBApplication {
 
   @Before
   public void setUp() {
-    when(mockAppConfig.getString("yb.storage.path")).thenReturn("/tmp");
     customer = ModelFactory.testCustomer();
     user = ModelFactory.testUser(customer);
     for (String cert: test_certs) {
-      test_certs_uuids.add(CertificateHelper.createRootCA(cert, customer.uuid, "/tmp/certs", true));
+      test_certs_uuids.add(CertificateHelper.createRootCA(cert, customer.uuid, "/tmp/certs"));
     }
   }
 
@@ -89,6 +88,11 @@ public class CertificateControllerTest extends FakeDBApplication {
     String uri = "/api/customers/" + customerUUID + "/certificates/" + rootUUID;
     return FakeApiHelper.doRequestWithAuthTokenAndBody("POST", uri, user.createAuthToken(),
                                                        bodyJson);
+  }
+
+  private Result getRootCertificate(UUID customerUUID, UUID rootUUID) {
+    String uri = "/api/customers/" + customerUUID + "/certificates/" + rootUUID + "/download";
+    return FakeApiHelper.doRequestWithAuthToken("GET", uri, user.createAuthToken());
   }
 
   @Test
@@ -158,7 +162,7 @@ public class CertificateControllerTest extends FakeDBApplication {
     bodyJson.put("certStart", date.getTime());
     bodyJson.put("certExpiry", date.getTime());
     UUID rootCA = CertificateHelper.createRootCA("test-universe", customer.uuid,
-                                                 "/tmp", false);
+                                                 "/tmp");
     Result result = createClientCertificate(customer.uuid, rootCA, bodyJson);
     JsonNode json = Json.parse(contentAsString(result));
     assertEquals(OK, result.status());
@@ -166,6 +170,18 @@ public class CertificateControllerTest extends FakeDBApplication {
     String clientKey = json.get("yugabytedb.key").asText();
     assertNotNull(clientCert);
     assertNotNull(clientKey);
+    assertAuditEntry(1, customer.uuid);
+  }
+
+  @Test
+  public void testGetRootCertificate() {
+    UUID rootCA = CertificateHelper.createRootCA("test-universe", customer.uuid,
+                                                 "/tmp");
+    Result result = getRootCertificate(customer.uuid, rootCA);
+    JsonNode json = Json.parse(contentAsString(result));
+    assertEquals(OK, result.status());
+    String rootCert = json.get("root.crt").asText();
+    assertNotNull(rootCert);
     assertAuditEntry(1, customer.uuid);
   }
 

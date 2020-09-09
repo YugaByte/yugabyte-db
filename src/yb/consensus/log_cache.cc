@@ -141,7 +141,7 @@ LogCache::~LogCache() {
   tracker_->UnregisterFromParent();
 }
 
-void LogCache::Init(const OpId& preceding_op) {
+void LogCache::Init(const OpIdPB& preceding_op) {
   std::lock_guard<simple_spinlock> l(lock_);
   CHECK_EQ(cache_.size(), 1) << "Cache should have only our special '0' op";
   next_sequential_op_index_ = preceding_op.index() + 1;

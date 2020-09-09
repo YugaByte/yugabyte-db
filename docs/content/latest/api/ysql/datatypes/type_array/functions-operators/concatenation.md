@@ -7,6 +7,7 @@ menu:
   latest:
     identifier: array-concatenation
     parent: array-functions-operators
+    weight: 40
 isTocNested: true
 showAsideToc: true
 ---
@@ -33,7 +34,7 @@ These rules follow directly from the fact that arrays are rectilinear. For examp
 
 **Example:**
 
-```postgresql
+```plpgsql
 create table t(k int primary key, arr int[]);
 insert into t(k, arr)
 values (1, '{3, 4, 5}'::int[]);
@@ -70,7 +71,7 @@ return value:             anyarray
 ```
 **Note:** The `DO` block shows that the `||` operator is able to implement the full functionality of the `array_cat()` function.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   arr_1 constant int[] := '{1, 2, 3}'::int[];
@@ -95,7 +96,7 @@ return value:             anyarray
 ```
 **Note:** The `DO` block shows that the `||` operator is able to implement the full functionality of the `array_append()` function. The values must be compatible.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   arr constant int[] := '{1, 2, 3, 4}'::int[];
@@ -119,7 +120,7 @@ return value:             anyarray
 ```
 **Note:** The `DO` block shows that the `||` operator is able to implement the full functionality of the `array_prepend()` function. The values must be compatible.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   arr constant int[] := '{1, 2, 3, 4}'::int[];
@@ -137,7 +138,7 @@ $body$;
 
 **Semantics for one-arrays**
 
-```postgresql
+```plpgsql
 create type rt as (f1 int, f2 text);
 
 do $body$
@@ -164,7 +165,7 @@ $body$;
 
 **Semantics for multidimensional arrays**
 
-```postgresql
+```plpgsql
 do $body$
 declare
   -- arr_1 and arr_2 are demensionally compatible.

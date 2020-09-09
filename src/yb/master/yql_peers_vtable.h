@@ -29,8 +29,6 @@ class PeersVTable : public YQLVirtualTable {
 
  private:
   Schema CreateSchema() const;
-
-  std::unique_ptr<Resolver> resolver_;
 };
 
 }  // namespace master

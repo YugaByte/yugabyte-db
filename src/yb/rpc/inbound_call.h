@@ -161,6 +161,10 @@ class InboundCall : public RpcCall, public MPSCQueueEntry<InboundCall> {
     return &task_;
   }
 
+  void ResetCallProcessedListener() {
+    call_processed_listener_ = decltype(call_processed_listener_)();
+  }
+
   virtual const std::string& method_name() const = 0;
   virtual const std::string& service_name() const = 0;
   virtual void RespondFailure(ErrorStatusPB::RpcErrorCodePB error_code, const Status& status) = 0;
@@ -230,7 +234,7 @@ class InboundCall : public RpcCall, public MPSCQueueEntry<InboundCall> {
   // The connection on which this inbound call arrived. Can be null for LocalYBInboundCall.
   ConnectionPtr conn_ = nullptr;
   RpcMetrics* rpc_metrics_;
-  const std::function<void(InboundCall*)> call_processed_listener_;
+  std::function<void(InboundCall*)> call_processed_listener_;
 
   class InboundCallTask : public ThreadPoolTask {
    public:

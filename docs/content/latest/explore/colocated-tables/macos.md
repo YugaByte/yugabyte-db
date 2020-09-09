@@ -3,7 +3,6 @@ title: Explore colocated tables in YugabyteDB on macOS
 headerTitle: Colocated tables
 linkTitle: Colocated tables
 description: Create and use colocated tables in a local YugabyteDB cluster on macOS.
-beta: /latest/faq/general/#what-is-the-definition-of-the-beta-feature-tag
 aliases:
   - /latest/explore/colocated-tables/
 menu:
@@ -37,14 +36,15 @@ Colocated tables can dramatically increase the number of relations (tables, inde
 
 In workloads that do very little IOPS and have a small data set, the bottleneck shifts from CPU/disk/network to the number of tablets one can host per node. There are practical limitations to the number of tablets that YugabyteDB can handle per node, even though this number could be very high, depending on the workload pattern. Since each table by default requires at least one tablet without colocation, a database with 5000 relations (tables, indexes, etc.) will have at least 5000 tablets, which increases the CPU/disk/network overhead. If most of these relations are small in size, then it's beneficial to use colocated tables.
 
-Colocating various SQL tables puts all of their data into a single tablet, called the _colocation tablet_.
-Note that all the data in the colocation tablet is still replicated across 3 nodes (or whatever the replication factor is).
+Colocating various SQL tables puts all of their data into a single tablet, called the _colocation tablet_. Note that all the data in the colocation tablet is still replicated across 3 nodes (or whatever the replication factor is).
 
-In this section, we'll explore creating and using colocated tables. If you haven't installed YugabyteDB yet, do so first by following the [Quick start](../../../quick-start/install/) guide.
+This tutorial uses the [yb-ctl](../../../admin/yb-ctl) local cluster management utility.
 
 ## 1. Create a universe
 
-You can create a universe by following [Create local cluster](../../../quick-start/create-local-cluster/).
+```sh
+$ ./bin/yb-ctl create
+```
 
 ## 2. Create a colocated database
 
@@ -111,7 +111,7 @@ If you go to tables view in [master UI](http://localhost:7000/tables), you'll se
 ## 4. Opt out table from colocation
 
 YugabyteDB has the flexibility to opt a table out of colocation. In this case, the table will use its own set of tablets
-instead of using the same tablet as the colocated database. This is useful for scaling out tables that we know are likely
+instead of using the same tablet as the colocated database. This is useful for scaling out tables that you know are likely
 to be large. You can do this by using `colocated = false` option while creating table.
 
 ```postgresql

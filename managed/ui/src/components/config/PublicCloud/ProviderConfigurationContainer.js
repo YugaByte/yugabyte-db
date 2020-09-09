@@ -51,6 +51,21 @@ const mapDispatchToProps = (dispatch) => {
       });
     },
 
+    createAzureProvider: (name, config, regionFormVals) => {
+      Object.keys(config).forEach((key) => { if (typeof config[key] === 'string' || config[key] instanceof String) config[key] = config[key].trim(); });
+      Object.keys(regionFormVals).forEach((key) => { if (typeof regionFormVals[key] === 'string' || regionFormVals[key] instanceof String) regionFormVals[key] = regionFormVals[key].trim(); });
+      dispatch(createProvider('azu', name.trim(), config)).then((response) => {
+        dispatch(createProviderResponse(response.payload));
+        if (response.payload.status === 200) {
+          dispatch(fetchCloudMetadata());
+          const providerUUID = response.payload.data.uuid;
+          dispatch(bootstrapProvider(providerUUID, regionFormVals)).then((boostrapResponse) => {
+            dispatch(bootstrapProviderResponse(boostrapResponse.payload));
+          });
+        }
+      });
+    },
+
     createRegion: (providerUUID, formVals) => {
       dispatch(createRegion(providerUUID, formVals)).then((response) => {
         dispatch(createRegionResponse(response.payload));
@@ -82,6 +97,7 @@ const mapDispatchToProps = (dispatch) => {
           dispatch(deleteProviderSuccess(response.payload));
           dispatch(fetchCloudMetadata());
           dispatch(reset('awsConfigForm'));
+          // TODO: maybe need to reset azure form as well
         }
       });
     },
@@ -90,8 +106,8 @@ const mapDispatchToProps = (dispatch) => {
       dispatch(resetProviderBootstrap());
     },
 
-    // Valid Provider Types are
-    // deleteGCPProvider, deleteAWSProvider
+    // Valid Provider Types are:
+    // deleteGCPProvider, deleteAWSProvider, deleteAzureProvider
     showDeleteProviderModal: (providerType) => {
       dispatch(openDialog(providerType));
     },
@@ -149,6 +165,7 @@ const mapStateToProps = (state) => {
     modal: state.modal,
     cloud: state.cloud,
     tasks: state.tasks,
+    featureFlags: state.customer.currentCustomer?.data?.features,
   };
 };
 

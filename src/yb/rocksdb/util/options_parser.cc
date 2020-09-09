@@ -443,7 +443,7 @@ Status RocksDBOptionsParser::EndSection(
       return s;
     }
   } else if (section == kOptionSectionVersion) {
-    for (const auto pair : opt_map) {
+    for (const auto& pair : opt_map) {
       if (pair.first == "rocksdb_version") {
         s = ParseVersionNumber(pair.first, pair.second, 3, db_version);
         if (!s.ok()) {
@@ -767,7 +767,7 @@ Status RocksDBOptionsParser::VerifyBlockBasedTableFactory(
     return STATUS(Corruption,
         "[RocksDBOptionsParser]: Inconsistent TableFactory class type");
   }
-  if (base_tf == nullptr) {
+  if (base_tf == nullptr || file_tf == nullptr) {
     return Status::OK();
   }
 

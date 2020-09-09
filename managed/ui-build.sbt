@@ -32,4 +32,4 @@ UIBuild := {
 /**
  *  Make SBT packaging depend on the UI build hook.
  */
-(packageZipTarball in Universal) <<= (packageZipTarball in Universal).dependsOn(UIBuild)
+packageZipTarball.in(Universal) := packageZipTarball.in(Universal).dependsOn(UIBuild).value

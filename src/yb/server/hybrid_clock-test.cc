@@ -166,7 +166,7 @@ void HybridClockTest::RunMultiThreadedTest(int num_reads_per_update) {
 
   SleepFor(MonoDelta::FromSeconds(10));
   stop.Store(true);
-  for (const scoped_refptr<Thread> t : threads) {
+  for (const scoped_refptr<Thread>& t : threads) {
     t->Join();
   }
 }

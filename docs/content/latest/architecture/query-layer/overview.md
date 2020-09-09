@@ -20,10 +20,8 @@ Every YB-TServer is configured to support these protocols, on different ports. P
 
 From the application perspective this is a stateless layer and the clients can connect to any (one or more) of the YB-TServers on the appropriate port to perform operations against the YugabyteDB cluster.
 
-The YQL layer running inside each YB-TServer implements some of the API specific aspects of each support API, but ultimately replicates/stores/retrieves/replicates data using DocDB, YugabyteDB’s common underlying strongly-consistent and distributed store. Some of the subcomponents in YQL for each API are:
+The YugabyteDB query layer (YQL) inside of each YB-TServer implements some API-specific aspects required for each of the supported APIs, but ultimately replicates, stores, and retrieves data using DocDB, YugabyteDB’s common underlying strongly-consistent and distributed store. Some of the subcomponents in YQL for each API are:
 
-- A “statement cache”, a cache for compiled/execution plan for prepared statements to avoid overheads associated with repeated parsing of statements.
+- A “statement cache” that caches compiled or execution plans for prepared statements to avoid overheads associated with repeated parsing of statements.
 - A command parser and execution layer
 - Support for language specific builtin operations, data type encodings, etc.
-
-

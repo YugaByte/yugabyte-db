@@ -18,6 +18,14 @@
 
 namespace boost {
 namespace asio {
+
+#if BOOST_VERSION >= 106600
+class io_context;
+typedef io_context io_service;
+#else
+class io_service;
+#endif
+
 namespace ip {
 
 class address;
@@ -41,11 +49,12 @@ namespace yb {
 
 typedef boost::asio::ip::address IpAddress;
 typedef boost::asio::ip::basic_endpoint<boost::asio::ip::tcp> Endpoint;
+class DnsResolver;
 class HostPort;
+class InetAddress;
 class Tunnel;
-typedef boost::asio::ip::basic_resolver<boost::asio::ip::tcp> Resolver;
+typedef boost::asio::io_service IoService;
 typedef boost::asio::ip::basic_resolver_results<boost::asio::ip::tcp> ResolverResults;
-
 
 } // namespace yb
 

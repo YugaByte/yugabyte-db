@@ -40,6 +40,7 @@ message HistogramSnapshotPB {
   required string type = 1;
   required string name = 2;
   optional string description = 3;
+  optional string level = 20;
   required string unit = 4;
   optional string label = 19;
 

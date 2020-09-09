@@ -83,7 +83,7 @@ YugabyteDB supports two flavors of distributed SQL.
 
 ### Yugabyte Cloud QL (YCQL)
 
-[YCQL](../../api/ycql/) is a SQL-based flexible-schema API that is best fit for internet-scale OLTP apps needing a semi-relational API highly optimized for write-intensive applications as well as blazing-fast queries. It supports distributed transactions, strongly consistent secondary indexes and a native JSON column type. YCQL has its roots in the Cassandra Query Language. Get started by [exploring YCQL features](../../api/ycql/quick-start/).
+[YCQL](../../api/ycql/) is a semi-relational SQL API that is best fit for internet-scale OLTP and HTAP applications needing massive data ingestion and blazing-fast queries. It supports distributed transactions, strongly consistent secondary indexes and a native JSON column type. YCQL has its roots in the Cassandra Query Language. Get started by [exploring YCQL features](../../api/ycql/quick-start/).
 
 {{< note title="Note" >}}
 
@@ -227,18 +227,18 @@ A post on our blog titled [Practical Tradeoffs in Google Cloud Spanner, Azure Co
 
 ## How many major releases YugabyteDB has had so far?
 
-YugabyteDB has had 7 major releases.
+YugabyteDB has had 8 major releases.
 
-- [v2.1](https://blog.yugabyte.com/yugabytedb-2-1-is-ga-scaling-new-heights-with-distributed-sql/) in February 2020
-- [v2.0](https://blog.yugabyte.com/announcing-yugabyte-db-2-0-ga:-jepsen-tested,-high-performance-distributed-sql/ ) in September 2019
-- [v1.3](https://blog.yugabyte.com/announcing-yugabyte-db-v1-3-with-enterprise-features-as-open-source/) in July 2019
-- [v1.2](https://blog.yugabyte.com/announcing-yugabyte-db-1-2-company-update-jepsen-distributed-sql/) in March 2019
-- [v1.1](https://blog.yugabyte.com/announcing-yugabyte-db-1-1-and-company-update/) in September 2018
-- [v1.0](https://blog.yugabyte.com/announcing-yugabyte-db-1-0-%F0%9F%8D%BE-%F0%9F%8E%89/) in May 2018
-- [v0.9 Beta](https://blog.yugabyte.com/yugabyte-has-arrived/) in November 2017
+- [v2.2](https://blog.yugabyte.com/) in July 2020.
+- [v2.1](https://blog.yugabyte.com/yugabytedb-2-1-is-ga-scaling-new-heights-with-distributed-sql/) in February 2020.
+- [v2.0](https://blog.yugabyte.com/announcing-yugabyte-db-2-0-ga:-jepsen-tested,-high-performance-distributed-sql/ ) in September 2019.
+- [v1.3](https://blog.yugabyte.com/announcing-yugabyte-db-v1-3-with-enterprise-features-as-open-source/) in July 2019.
+- [v1.2](https://blog.yugabyte.com/announcing-yugabyte-db-1-2-company-update-jepsen-distributed-sql/) in March 2019.
+- [v1.1](https://blog.yugabyte.com/announcing-yugabyte-db-1-1-and-company-update/) in September 2018.
+- [v1.0](https://blog.yugabyte.com/announcing-yugabyte-db-1-0-%F0%9F%8D%BE-%F0%9F%8E%89/) in May 2018.
+- [v0.9 Beta](https://blog.yugabyte.com/yugabyte-has-arrived/) in November 2017.
 
-
-The next major release is the v2.2 release in Summer 2020.
+The next major release is the v2.3 release in Fall 2020. Roadmap for this release can be found on [GitHub](https://github.com/yugabyte/yugabyte-db#whats-being-worked-on).
 
 ## Can I deploy YugabyteDB to production?
 
@@ -280,11 +280,11 @@ Starting with [v1.3](https://blog.yugabyte.com/announcing-yugabyte-db-v1-3-with-
 
 [YugabyteDB](../../quick-start/) is the 100% open source core database. It is the best choice for the startup organizations with strong technical operations expertise looking to deploy to production with traditional DevOps tools.
 
-[Yugabyte Platform](../../deploy/enterprise-edition/) is commercial software for running a self-managed YugabyteDB-as-a-Service. It has built-in cloud native operations, enterprise-grade deployment options and world-class support. It is the simplest way to run YugabyteDB in mission-critical production environments with one or more regions (across both public cloud and on-premise data centers).
+[Yugabyte Platform](../../yugabyte-platform/) is commercial software for running a self-managed YugabyteDB-as-a-Service. It has built-in cloud native operations, enterprise-grade deployment options and world-class support. It is the simplest way to run YugabyteDB in mission-critical production environments with one or more regions (across both public cloud and on-premises data centers).
 
-[Yugabyte Cloud](http://yugabyte.com/cloud) is Yugabyte's fully-managed cloud service on Amazon Web Services (AWS) and Google Cloud Platform (GCP). You can [sign up](https://www.yugabyte.com/cloud/) for early access now.
+[Yugabyte Cloud](../../yugabyte-cloud/) is Yugabyte's fully-managed cloud service on Amazon Web Services (AWS) and Google Cloud Platform (GCP). You can [sign up](https://www.yugabyte.com/cloud/) for early access now.
 
-For a more detailed comparison between YugabyteDB and Yugabyte Platform, see [Adopt YugabyteDB Your Way
+For a more detailed comparison between the above, see [Adopt YugabyteDB Your Way
 ](https://www.yugabyte.com/platform/#compare-editions).
 
 ## How does YugabyteDB compare to other SQL and NoSQL databases?

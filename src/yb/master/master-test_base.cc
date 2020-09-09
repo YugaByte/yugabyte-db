@@ -126,6 +126,33 @@ Status MasterTestBase::CreatePgsqlTable(const NamespaceId& namespace_id,
   return Status::OK();
 }
 
+Status MasterTestBase::CreateTablegroupTable(const NamespaceId& namespace_id,
+                                             const TableName& table_name,
+                                             const TablegroupId& tablegroup_id,
+                                             const Schema& schema) {
+  CreateTableRequestPB req, *request;
+  request = &req;
+  CreateTableResponsePB resp;
+
+  request->set_table_type(TableType::PGSQL_TABLE_TYPE);
+  request->set_name(table_name);
+  request->set_colocated(true);
+  request->set_tablegroup_id(tablegroup_id);
+  SchemaToPB(schema, request->mutable_schema());
+
+  if (!namespace_id.empty()) {
+    request->mutable_namespace_()->set_id(namespace_id);
+  }
+
+  // Dereferencing as the RPCs require const ref for request. Keeping request param as pointer
+  // though, as that helps with readability and standardization.
+  RETURN_NOT_OK(proxy_->CreateTable(*request, &resp, ResetAndGetController()));
+  if (resp.has_error()) {
+    RETURN_NOT_OK(StatusFromPB(resp.error().status()));
+  }
+  return Status::OK();
+}
+
 Status MasterTestBase::DoCreateTable(const NamespaceName& namespace_name,
                                      const TableName& table_name,
                                      const Schema& schema,
@@ -195,6 +222,47 @@ Status MasterTestBase::DeleteTable(const NamespaceName& namespace_name,
   return Status::OK();
 }
 
+Status MasterTestBase::CreateTablegroup(const TablegroupId& tablegroup_id,
+                                        const NamespaceId& namespace_id,
+                                        const NamespaceName& namespace_name) {
+  CreateTablegroupRequestPB req, *request;
+  request = &req;
+  CreateTablegroupResponsePB resp;
+
+  request->set_id(tablegroup_id);
+  request->set_namespace_id(namespace_id);
+  request->set_namespace_name(namespace_name);
+
+  // Dereferencing as the RPCs require const ref for request. Keeping request param as pointer
+  // though, as that helps with readability and standardization.
+  RETURN_NOT_OK(proxy_->CreateTablegroup(*request, &resp, ResetAndGetController()));
+  if (resp.has_error()) {
+    RETURN_NOT_OK(StatusFromPB(resp.error().status()));
+  }
+  return Status::OK();
+}
+
+Status MasterTestBase::DeleteTablegroup(const TablegroupId& tablegroup_id,
+                                        const NamespaceId& namespace_id) {
+  DeleteTablegroupRequestPB req;
+  DeleteTablegroupResponsePB resp;
+  req.set_id(tablegroup_id);
+  req.set_namespace_id(namespace_id);
+
+  RETURN_NOT_OK(proxy_->DeleteTablegroup(req, &resp, ResetAndGetController()));
+  if (resp.has_error()) {
+    RETURN_NOT_OK(StatusFromPB(resp.error().status()));
+  }
+  return Status::OK();
+}
+
+void MasterTestBase::DoListTablegroups(const ListTablegroupsRequestPB& req,
+                                       ListTablegroupsResponsePB* resp) {
+  ASSERT_OK(proxy_->ListTablegroups(req, resp, ResetAndGetController()));
+  SCOPED_TRACE(resp->DebugString());
+  ASSERT_FALSE(resp->has_error());
+}
+
 void MasterTestBase::DoListAllNamespaces(ListNamespacesResponsePB* resp) {
   DoListAllNamespaces(boost::none, resp);
 }
@@ -220,7 +288,7 @@ Status MasterTestBase::CreateNamespace(const NamespaceName& ns_name,
                                        const boost::optional<YQLDatabase>& database_type,
                                        CreateNamespaceResponsePB* resp) {
   RETURN_NOT_OK(CreateNamespaceAsync(ns_name, database_type, resp));
-  return CreateNamespaceWait(ns_name, database_type);
+  return CreateNamespaceWait(resp->id(), database_type);
 }
 
 Status MasterTestBase::CreateNamespaceAsync(const NamespaceName& ns_name,
@@ -239,12 +307,12 @@ Status MasterTestBase::CreateNamespaceAsync(const NamespaceName& ns_name,
   return Status::OK();
 }
 
-Status MasterTestBase::CreateNamespaceWait(const NamespaceName& ns_name,
+Status MasterTestBase::CreateNamespaceWait(const NamespaceId& ns_id,
                                            const boost::optional<YQLDatabase>& database_type) {
   Status status = Status::OK();
 
   IsCreateNamespaceDoneRequestPB is_req;
-  is_req.mutable_namespace_()->set_name(ns_name);
+  is_req.mutable_namespace_()->set_id(ns_id);
   if (database_type) {
     is_req.mutable_namespace_()->set_database_type(*database_type);
   }

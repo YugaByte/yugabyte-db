@@ -154,7 +154,7 @@ For cluster named `test-cluster`, this firewall rule will be named `default-yuga
 
 ## 4. Destroy the cluster (optional)
 
-To destroy what we just created, you can run the following command.
+To destroy what you just created, you can run the following command.
 
 ```sh
 $ terraform destroy

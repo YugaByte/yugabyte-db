@@ -72,6 +72,10 @@
 #ifndef YB_GUTIL_DYNAMIC_ANNOTATIONS_H
 #define YB_GUTIL_DYNAMIC_ANNOTATIONS_H
 
+#ifdef __cplusplus
+#include <utility>
+#endif
+
 #ifndef DYNAMIC_ANNOTATIONS_ENABLED
 # define DYNAMIC_ANNOTATIONS_ENABLED 0
 #endif
@@ -661,9 +665,40 @@ void __asan_set_death_callback(void (*callback)(void));
       };                                                              \
       static static_var ## _annotator the ## static_var ## _annotator;\
     }
+
+  template <class T>
+  class UnprotectedWriter {
+   public:
+    explicit UnprotectedWriter(T* t) : t_(t) {}
+
+    UnprotectedWriter(const UnprotectedWriter&) = default;
+    void operator=(const UnprotectedWriter&) = delete;
+
+    void operator=(const T& t) const {
+      ANNOTATE_IGNORE_WRITES_BEGIN();
+      *t_ = t;
+      ANNOTATE_IGNORE_WRITES_END();
+    }
+
+    void operator=(T&& t) const {
+      ANNOTATE_IGNORE_WRITES_BEGIN();
+      *t_ = std::move(t);
+      ANNOTATE_IGNORE_WRITES_END();
+    }
+
+   private:
+    T* t_;
+  };
+
+  template <class T>
+  auto ANNOTATE_UNPROTECTED_WRITE(T& t) { // NOLINT
+    return UnprotectedWriter<T>(&t);
+  }
+
 #else /* DYNAMIC_ANNOTATIONS_ENABLED == 0 */
 
   #define ANNOTATE_UNPROTECTED_READ(x) (x)
+  #define ANNOTATE_UNPROTECTED_WRITE(x) (x)
   #define ANNOTATE_BENIGN_RACE_STATIC(static_var, description)  /* empty */
 
 #endif /* DYNAMIC_ANNOTATIONS_ENABLED */

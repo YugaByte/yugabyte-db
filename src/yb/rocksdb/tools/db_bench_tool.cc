@@ -759,16 +759,12 @@ DEFINE_int64(keys_per_prefix, 0, "control average number of keys generated "
              "i.e. use the prefix comes with the generated random number.");
 DEFINE_bool(enable_io_prio, false, "Lower the background flush/compaction "
             "threads' IO priority");
-DEFINE_bool(identity_as_first_hash, false, "the first hash function of cuckoo "
-            "table becomes an identity function. This is only valid when key "
-            "is 8 bytes");
 
 enum RepFactory {
   kSkipList,
   kPrefixHash,
   kVectorRep,
-  kHashLinkedList,
-  kCuckoo
+  kHashLinkedList
 };
 
 enum RepFactory StringToRepFactory(const char* ctype) {
@@ -776,14 +772,15 @@ enum RepFactory StringToRepFactory(const char* ctype) {
 
   if (!strcasecmp(ctype, "skip_list"))
     return kSkipList;
-  else if (!strcasecmp(ctype, "prefix_hash"))
+
+  if (!strcasecmp(ctype, "prefix_hash"))
     return kPrefixHash;
-  else if (!strcasecmp(ctype, "vector"))
+
+  if (!strcasecmp(ctype, "vector"))
     return kVectorRep;
-  else if (!strcasecmp(ctype, "hash_linkedlist"))
+
+  if (!strcasecmp(ctype, "hash_linkedlist"))
     return kHashLinkedList;
-  else if (!strcasecmp(ctype, "cuckoo"))
-    return kCuckoo;
 
   fprintf(stdout, "Cannot parse memreptable %s\n", ctype);
   return kSkipList;
@@ -794,8 +791,6 @@ DEFINE_string(memtablerep, "skip_list", "");
 DEFINE_int64(hash_bucket_count, 1024 * 1024, "hash bucket count");
 DEFINE_bool(use_plain_table, false, "if use plain table "
             "instead of block-based table format");
-DEFINE_bool(use_cuckoo_table, false, "if use cuckoo table format");
-DEFINE_double(cuckoo_hash_ratio, 0.9, "Hash ratio for Cuckoo SST table.");
 DEFINE_bool(use_binary_search, false, "if use kBinarySearch "
             "instead of kMultiLevelBinarySearch. "
             "This is valid if only we use BlockTable");
@@ -1674,9 +1669,6 @@ class Benchmark {
       case kHashLinkedList:
         fprintf(stdout, "Memtablerep: hash_linkedlist\n");
         break;
-      case kCuckoo:
-        fprintf(stdout, "Memtablerep: cuckoo\n");
-        break;
     }
     fprintf(stdout, "Perf Level: %d\n", FLAGS_perf_level);
 
@@ -2456,10 +2448,6 @@ class Benchmark {
           new VectorRepFactory
         );
         break;
-      case kCuckoo:
-        options.memtable_factory.reset(NewHashCuckooRepFactory(
-            options.write_buffer_size, FLAGS_key_size + FLAGS_value_size));
-        break;
 #else
       default:
         fprintf(stderr, "Only skip list is supported in lite mode\n");
@@ -2490,21 +2478,6 @@ class Benchmark {
           NewPlainTableFactory(plain_table_options));
 #else
       fprintf(stderr, "Plain table is not supported in lite mode\n");
-      exit(1);
-#endif  // ROCKSDB_LITE
-    } else if (FLAGS_use_cuckoo_table) {
-#ifndef ROCKSDB_LITE
-      if (FLAGS_cuckoo_hash_ratio > 1 || FLAGS_cuckoo_hash_ratio < 0) {
-        fprintf(stderr, "Invalid cuckoo_hash_ratio\n");
-        exit(1);
-      }
-      rocksdb::CuckooTableOptions table_options;
-      table_options.hash_table_ratio = FLAGS_cuckoo_hash_ratio;
-      table_options.identity_as_first_hash = FLAGS_identity_as_first_hash;
-      options.table_factory = std::shared_ptr<TableFactory>(
-          NewCuckooTableFactory(table_options));
-#else
-      fprintf(stderr, "Cuckoo table is not supported in lite mode\n");
       exit(1);
 #endif  // ROCKSDB_LITE
     } else {

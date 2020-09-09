@@ -52,18 +52,18 @@ public class TestAuthorizationEnforcement extends BaseAuthenticationCQLTest {
   private static final String REVOKE = "revoke";
 
    // Session using 'cassandra' role.
-  private Session s = null;
+  protected Session s = null;
 
   // Session using the created role.
-  private Session s2;
+  protected Session s2;
 
-  private String username;
-  private String anotherUsername;
-  private String password;
-  private String keyspace;
-  private String anotherKeyspace;
-  private String table;
-  private String anotherTable;
+  protected String username;
+  protected String anotherUsername;
+  protected String password;
+  protected String keyspace;
+  protected String anotherKeyspace;
+  protected String table;
+  protected String anotherTable;
 
   @Rule
   public TestName testName = new TestName();
@@ -141,18 +141,18 @@ public class TestAuthorizationEnforcement extends BaseAuthenticationCQLTest {
         String.format("REVOKE %s ON %s %s FROM %s", permission, resourceType, resource,role));
   }
 
-  private void revokePermission(String permission, String resourceType, String resource,
+  protected void revokePermission(String permission, String resourceType, String resource,
                                 String role) throws Exception {
     revokePermissionNoSleep(permission, resourceType, resource, role);
     Thread.sleep(TIME_SLEEP_MS);
   }
 
-  private void grantPermission(String permission, String resourceType, String resource,
+  protected void grantPermission(String permission, String resourceType, String resource,
                                String role) throws Exception {
     grantPermission(permission, resourceType, resource, role, s);
   }
 
-  private void grantAllPermissionsExcept(List<String> exceptions, String resourceType,
+  protected void grantAllPermissionsExcept(List<String> exceptions, String resourceType,
                                          String resource, String role) throws Exception {
     List<String> permissions = getAllPermissionsExcept(exceptions);
     for (String permission : permissions) {
@@ -160,7 +160,7 @@ public class TestAuthorizationEnforcement extends BaseAuthenticationCQLTest {
     }
   }
 
-  private void grantAllPermission(String resourceType, String resource, String role)
+  protected void grantAllPermission(String resourceType, String resource, String role)
       throws Exception {
     grantPermission(ALL, resourceType, resource, role);
   }
@@ -169,7 +169,7 @@ public class TestAuthorizationEnforcement extends BaseAuthenticationCQLTest {
     grantPermission(permission, ALL_KEYSPACES, "", role);
   }
 
-  private void revokePermissionOnAllKeyspaces(String permission, String role) throws Exception {
+  protected void revokePermissionOnAllKeyspaces(String permission, String role) throws Exception {
     revokePermission(permission, ALL_KEYSPACES, "", role);
   }
 
@@ -198,7 +198,7 @@ public class TestAuthorizationEnforcement extends BaseAuthenticationCQLTest {
     assertEquals(1, list.size());
   }
 
-  private void createKeyspaceAndVerify(Session session, String keyspaceName) throws Exception {
+  protected void createKeyspaceAndVerify(Session session, String keyspaceName) throws Exception {
     session.execute("CREATE KEYSPACE " + keyspaceName);
     verifyKeyspaceExists(keyspaceName);
   }
@@ -224,7 +224,7 @@ public class TestAuthorizationEnforcement extends BaseAuthenticationCQLTest {
     assertEquals(1, list.size());
   }
 
-  private void createTableAndVerify(Session session, String keyspaceName, String tableName)
+  protected void createTableAndVerify(Session session, String keyspaceName, String tableName)
       throws Exception {
     // Now, username should be able to create the table.
     session.execute(String.format("CREATE TABLE %s.%s (h int, v int, PRIMARY KEY(h))",
@@ -281,7 +281,7 @@ public class TestAuthorizationEnforcement extends BaseAuthenticationCQLTest {
     verifyRow(s, keyspaceName, tableName, VALUE + 1);
   }
 
-  private void truncateTableAndVerify(Session session, String keyspaceName, String tableName)
+  protected void truncateTableAndVerify(Session session, String keyspaceName, String tableName)
       throws Exception {
     s2.execute(String.format("TRUNCATE %s.%s", keyspaceName, tableName));
 
@@ -289,7 +289,7 @@ public class TestAuthorizationEnforcement extends BaseAuthenticationCQLTest {
     assertEquals(0, rs.all().size());
   }
 
-  private void createTableAndInsertRecord(Session session, String keyspaceName, String tableName)
+  protected void createTableAndInsertRecord(Session session, String keyspaceName, String tableName)
       throws Exception {
     createTableAndVerify(session, keyspaceName, tableName);
     insertRow(session, keyspaceName, tableName);

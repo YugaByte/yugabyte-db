@@ -52,6 +52,7 @@ void QLTestBase::CreateSimulatedCluster(int num_tablet_servers) {
   YBClientBuilder builder;
   builder.add_master_server_addr(cluster_->mini_master()->bound_rpc_addr_str());
   builder.default_rpc_timeout(MonoDelta::FromSeconds(30));
+  builder.default_admin_operation_timeout(MonoDelta::FromSeconds(60));
   builder.set_tserver_uuid(cluster_->mini_tablet_server(0)->server()->permanent_uuid());
   client_ = ASSERT_RESULT(builder.Build());
   metadata_cache_ = std::make_shared<client::YBMetaDataCache>(client_.get(),

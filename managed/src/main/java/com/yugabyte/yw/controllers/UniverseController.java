@@ -22,19 +22,12 @@ import com.yugabyte.yw.common.YsqlQueryExecutor;
 import com.yugabyte.yw.common.ShellProcessHandler;
 import com.yugabyte.yw.common.kms.util.AwsEARServiceUtil.KeyType;
 import com.yugabyte.yw.common.services.YBClientService;
-import com.yugabyte.yw.forms.RunInShellFormData;
-import com.yugabyte.yw.forms.RunQueryFormData;
-import com.yugabyte.yw.forms.AlertConfigFormData;
-import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
-import com.yugabyte.yw.forms.EncryptionAtRestKeyParams;
-import com.yugabyte.yw.forms.DatabaseSecurityFormData;
-import com.yugabyte.yw.forms.DatabaseUserFormData;
-import com.yugabyte.yw.forms.DiskIncreaseFormData;
+import com.yugabyte.yw.forms.*;
 import com.yugabyte.yw.forms.UniverseTaskParams.EncryptionAtRestConfig.OpType;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.ClusterType;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.UserIntent;
-import com.yugabyte.yw.forms.UpgradeParams;
+import com.yugabyte.yw.forms.UniverseTaskParams.CommunicationPorts;
 import com.yugabyte.yw.forms.UniverseTaskParams.EncryptionAtRestConfig;
 import com.yugabyte.yw.metrics.MetricQueryHelper;
 import com.yugabyte.yw.models.helpers.PlacementInfo;
@@ -456,6 +449,12 @@ public class UniverseController extends AuthenticatedController {
       for (Cluster c : taskParams.clusters) {
         Provider provider = Provider.find.byId(UUID.fromString(c.userIntent.provider));
         c.userIntent.providerType = CloudType.valueOf(provider.code);
+        if (
+          c.userIntent.providerType.equals(CloudType.onprem) &&
+            provider.getConfig().containsKey("USE_HOSTNAME")
+        ) {
+          c.userIntent.useHostname = Boolean.parseBoolean(provider.getConfig().get("USE_HOSTNAME"));
+        }
         updatePlacementInfo(taskParams.getNodesInCluster(c.uuid), c.placementInfo);
       }
 
@@ -485,8 +484,14 @@ public class UniverseController extends AuthenticatedController {
                 primaryCluster.userIntent.enableClientToNodeEncrypt) {
           if (taskParams.rootCA == null) {
             taskParams.rootCA = CertificateHelper.createRootCA(taskParams.nodePrefix,
-                    customerUUID, appConfig.getString("yb.storage.path"),
-                    primaryCluster.userIntent.enableClientToNodeEncrypt);
+                    customerUUID, appConfig.getString("yb.storage.path"));
+          }
+          // If client encryption is enabled, generate the client cert file for each node.
+          if (primaryCluster.userIntent.enableClientToNodeEncrypt) {
+            CertificateHelper.createClientCertificate(taskParams.rootCA,
+                String.format(CertificateHelper.CERT_PATH, appConfig.getString("yb.storage.path"),
+                              customerUUID.toString(), taskParams.rootCA.toString()),
+                CertificateHelper.DEFAULT_CLIENT, null, null);
           }
           // Set the flag to mark the universe as using TLS enabled and therefore not allowing
           // insecure connections.
@@ -598,7 +603,10 @@ public class UniverseController extends AuthenticatedController {
         Json.toJson(formData), taskUUID);
       return Results.status(OK, resultNode);
     } catch (Exception e) {
-      String errMsg = "Error occurred attempting to set the universe encryption key";
+      String errMsg = String.format(
+              "Error occurred attempting to %s the universe encryption key",
+              taskParams.encryptionAtRestConfig.opType.name()
+      );
       LOG.error(errMsg, e);
       return ApiResponse.error(BAD_REQUEST, errMsg);
     }
@@ -1312,7 +1320,8 @@ public class UniverseController extends AuthenticatedController {
     // Get and return Leader IP
     try {
       client = ybService.getClient(hostPorts, certificate);
-      ObjectNode result = Json.newObject().put("privateIP", client.getLeaderMasterHostAndPort().getHostText());
+      ObjectNode result = Json.newObject()
+        .put("privateIP", client.getLeaderMasterHostAndPort().getHost());
       ybService.closeClient(client, hostPorts);
       return ApiResponse.success(result);
     } catch (RuntimeException e) {
@@ -1405,6 +1414,7 @@ public class UniverseController extends AuthenticatedController {
       TaskInfo taskInfo = TaskInfo.get(task.getTaskUUID());
       if (taskInfo != null) {
         taskInfo.setTaskState(TaskInfo.State.Failure);
+        taskInfo.save();
       }
     }
   }
@@ -1424,6 +1434,7 @@ public class UniverseController extends AuthenticatedController {
     ObjectMapper mapper = new ObjectMapper();
     ArrayNode nodeSetArray = null;
     EncryptionAtRestConfig encryptionConfig = new EncryptionAtRestConfig();
+    CommunicationPorts communicationPorts = new CommunicationPorts();
     int expectedUniverseVersion = -1;
     if (formData.get("nodeDetailsSet") != null && formData.get("nodeDetailsSet").size() > 0) {
       nodeSetArray = (ArrayNode)formData.get("nodeDetailsSet");
@@ -1436,16 +1447,27 @@ public class UniverseController extends AuthenticatedController {
     JsonNode config = formData.get("encryptionAtRestConfig");
     if (config != null) {
       formData.remove("encryptionAtRestConfig");
+
       if (config.get("configUUID") != null) {
         encryptionConfig.kmsConfigUUID = UUID.fromString(config.get("configUUID").asText());
+
         if (config.get("type") != null) {
           encryptionConfig.type = Enum.valueOf(KeyType.class, config.get("type").asText());
         }
+
         if (config.get("key_op") != null) {
           encryptionConfig.opType = Enum.valueOf(OpType.class, config.get("key_op").asText());
         }
       }
     }
+
+    JsonNode communicationPortsJson = formData.get("communicationPorts");
+
+    if (communicationPortsJson != null) {
+      formData.remove("communicationPorts");
+      communicationPorts = mapper.treeToValue(communicationPortsJson, CommunicationPorts.class);
+    }
+
     UniverseDefinitionTaskParams taskParams = null;
     List<Cluster> clusters = mapClustersInParams(formData);
     if (isUpgrade) {
@@ -1459,11 +1481,15 @@ public class UniverseController extends AuthenticatedController {
     if (nodeSetArray != null) {
       taskParams.nodeDetailsSet = new HashSet<>();
       for (JsonNode nodeItem : nodeSetArray) {
-        taskParams.nodeDetailsSet.add(mapper.treeToValue(nodeItem, NodeDetails.class));
+        NodeDetails nodeDetail = mapper.treeToValue(nodeItem, NodeDetails.class);
+        CommunicationPorts.setCommunicationPorts(communicationPorts, nodeDetail);
+
+        taskParams.nodeDetailsSet.add(nodeDetail);
       }
     }
     taskParams.expectedUniverseVersion = expectedUniverseVersion;
     taskParams.encryptionAtRestConfig = encryptionConfig;
+    taskParams.communicationPorts = communicationPorts;
     return taskParams;
   }
 

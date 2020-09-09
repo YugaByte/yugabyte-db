@@ -73,7 +73,7 @@ module "yugabyte-db-cluster" {
   # The name of the cluster to be created, change as per need.
   cluster_name = "test-cluster"
 
-  # Existing custom security group to be passed so that we can connect to the instances.
+  # Existing custom security group to be passed so that you can connect to the instances.
   # Make sure this security group allows your local machine to SSH into these instances.
   custom_security_group_id="SECURITY_GROUP_HERE"
 
@@ -156,7 +156,7 @@ For cluster named `test-cluster`, this security group will be named `yb-ce-test-
 
 ## 4. [Optional] Destroy the cluster
 
-To destroy what we just created, you can run the following command.
+To destroy what you just created, you can run the following command.
 
 ```sh
 $ terraform destroy

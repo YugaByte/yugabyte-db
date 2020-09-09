@@ -28,7 +28,7 @@ return value:      anyarray
 ```
 **Example:**
 
-```postgresql
+```plpgsql
 create type rt as (f1 int, f2 text);
 create table t(k int primary key, arr rt[]);
 insert into t(k, arr)
@@ -57,7 +57,7 @@ This is the result of the two queries:
 
 _One-dimensional array of primitive scalar values_.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   old_val constant int := 42;
@@ -80,7 +80,7 @@ _One-dimensional array of _"row"_ type values_.
 
 The definition of _"rt"_ used here is the same as the example above used. Don't create again if it already exists.
 
-```postgresql
+```plpgsql
 create type rt as (f1 int, f2 text);
 
 do $body$
@@ -103,10 +103,10 @@ end;
 $body$;
 ```
 
-_Two-dimensional array of primitive scalar values_. This is sufficient to illustrate the semantics of the general multidimensional case. The function's signature (at the start of this section) shows that the to-be-replaced value and the replacement value are instances of `anyelement`. There is no overload where these two parameters accept instances of `anyarray`. This restriction is understood by picturing the internal representation as a linear ribbon of values, as was explained in the [Synopsis](../../#synopsis) section. The replacement works by scanning along the ribbon, finding each occurrence in turn of the to-be-replaced value, and replacing it.
+_Two-dimensional array of primitive scalar values_. This is sufficient to illustrate the semantics of the general multidimensional case. The function's signature (at the start of this section) shows that the to-be-replaced value and the replacement value are instances of `anyelement`. There is no overload where these two parameters accept instances of `anyarray`. This restriction is understood by picturing the internal representation as a linear ribbon of values, as was explained in [Synopsis](../../#synopsis). The replacement works by scanning along the ribbon, finding each occurrence in turn of the to-be-replaced value, and replacing it.
 
 Here is a postive illustration:
-```postgresql
+```plpgsql
 do $body$
 declare
   old_val constant int := 22;
@@ -135,7 +135,7 @@ end;
 $body$;
 ```
 And here is a negative illustration:
-```postgresql
+```plpgsql
 do $body$
 declare
   old_val constant int[] := array[22, 23];
@@ -186,7 +186,7 @@ $body$;
 input/output value: anyarray, "vector of index values"
 ```
 **Example:**
-```postgresql
+```plpgsql
 create table t(k int primary key, arr int[]);
 
 insert into t(k, arr) values (1,
@@ -206,7 +206,7 @@ This is the result:
 
 _Array of primitive scalar values_. Notice that the starting value is "snapshotted" as `old_arr` and that this is marked `constant`. Notice too that _"expected_modified_arr"_ is marked `constant`. This proves that the modification was done in place within the only array value that is _not_ marked `constant`.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   old_val constant int := 42;
@@ -228,7 +228,7 @@ $body$;
 _Array of "record" type values_.
 
 The definition of _"rt"_ used here is the same as the example above used. Don't create again if it already exists.
-```postgresql
+```plpgsql
 create type rt as (f1 int, f2 text);
 
 do $body$
@@ -261,7 +261,7 @@ $body$;
 ```
 _Two-dimensional array of primitive scalar values_. This is sufficient to illustrate the semantics of the general multidimensional case. The approach is just the same as when `array_replace()` is used to meet the same goal. You have no choice but to target the values explicitly.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   old_val constant int[] := array[21, 22, 23, 24];

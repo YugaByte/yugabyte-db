@@ -37,6 +37,7 @@ public class CloudQueryHelper extends DevopsBase {
 
   private static final String YB_CLOUD_COMMAND_TYPE = "query";
   private static final String DEFAULT_IMAGE_KEY = "default_image";
+  private static final String DEFAULT_VNET_KEY = "vnet";
 
   @Override
   protected String getCommandType() { return YB_CLOUD_COMMAND_TYPE; }
@@ -145,5 +146,20 @@ public class CloudQueryHelper extends DevopsBase {
       }
     }
     return defaultImage;
+  }
+
+  public JsonNode queryVnet(UUID regionUUID) {
+    List<String> commandArgs = new ArrayList<String>();
+    return execAndParseCommandRegion(regionUUID, "vnet", commandArgs);
+  }
+
+  public String getVnet(Region region) {
+    JsonNode result = queryVnet(region.uuid);
+
+    JsonNode regionVnet = result.get(region.code);
+    if (regionVnet == null) {
+      throw new RuntimeException("Could not get vnet for region: " + region.code);
+    }
+    return regionVnet.asText();
   }
 }

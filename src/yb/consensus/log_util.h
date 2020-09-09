@@ -51,6 +51,7 @@
 #include "yb/util/monotime.h"
 #include "yb/util/opid.h"
 #include "yb/util/restart_safe_clock.h"
+#include "yb/util/tostring.h"
 
 // Used by other classes, now part of the API.
 DECLARE_bool(durable_wal_write);
@@ -79,12 +80,15 @@ extern const int kLogMinorVersion;
 
 class ReadableLogSegment;
 
-// Options for the State Machine/Write Ahead Log
+// Options for the Write Ahead Log. The LogOptions constructor initializes default field values
+// based on flags. See log_util.cc for details.
 struct LogOptions {
 
-  // The size of a Log segment
-  // Logs will rollover upon reaching this size (default 64 MB)
+  // The size of a Log segment.
+  // Logs will roll over upon reaching this size.
   size_t segment_size_bytes;
+
+  size_t initial_segment_size_bytes;
 
   // Whether to call fsync on every call to Append().
   bool durable_wal_write;
@@ -107,6 +111,8 @@ struct LogOptions {
   Env* env;
 
   std::string peer_uuid;
+
+  uint64_t initial_active_segment_sequence_number = 0;
 
   LogOptions();
 };
@@ -143,11 +149,11 @@ struct ReadEntriesResult {
 };
 
 struct FirstEntryMetadata {
-  yb::OpId committed_op_id;
-  RestartSafeCoarseTimePoint mono_time;
+  OpId op_id;
+  RestartSafeCoarseTimePoint entry_time;
 
   std::string ToString() const {
-    return Format("{ committed_op_id: $0 mono_time: $1 }", committed_op_id, mono_time);
+    return YB_STRUCT_TO_STRING(op_id, entry_time);
   }
 };
 
@@ -196,7 +202,9 @@ class ReadableLogSegment : public RefCountedThreadSafe<ReadableLogSegment> {
   //
   // All gathered information is returned in result.
   // In case of failure status field of result is not ok.
-  ReadEntriesResult ReadEntries();
+  //
+  // Will stop after reading max_entries_to_read entries.
+  ReadEntriesResult ReadEntries(int64_t max_entries_to_read = std::numeric_limits<int64_t>::max());
 
   // Reads the metadata of the first entry in the segment
   Result<FirstEntryMetadata> ReadFirstEntryMetadata();

@@ -17,6 +17,7 @@
 #include "yb/consensus/consensus_fwd.h"
 
 #include "yb/util/restart_safe_clock.h"
+#include "yb/util/status.h"
 
 namespace yb {
 
@@ -39,8 +40,8 @@ class RetryableRequests {
   RetryableRequests(RetryableRequests&& rhs);
   void operator=(RetryableRequests&& rhs);
 
-  // Tries to registers a new running request.
-  // Returns false if request with such id already present.
+  // Tries to register a new running retryable request.
+  // Returns false if request with such id is already present.
   bool Register(const ConsensusRoundPtr& round,
                 RestartSafeCoarseTimePoint entry_time = RestartSafeCoarseTimePoint());
 

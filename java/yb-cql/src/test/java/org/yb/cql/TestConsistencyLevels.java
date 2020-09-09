@@ -237,7 +237,7 @@ public class TestConsistencyLevels extends BaseCQLTest {
         for (String cmdline : entry.getValue().getCommandLine()) {
           if (cmdline.contains(REGION_PREFIX + i)) {
             tserver_webaddress = entry.getValue().getWebHostAndPort();
-            cqlproxy_webaddress = HostAndPort.fromParts(entry.getKey().getHostText(), entry
+            cqlproxy_webaddress = HostAndPort.fromParts(entry.getKey().getHost(), entry
               .getValue().getCqlWebPort());
           }
         }
@@ -246,10 +246,10 @@ public class TestConsistencyLevels extends BaseCQLTest {
       assertNotNull(cqlproxy_webaddress);
 
       // Note the current metrics.
-      Metrics tserverMetrics = new Metrics(tserver_webaddress.getHostText(),
+      Metrics tserverMetrics = new Metrics(tserver_webaddress.getHost(),
         tserver_webaddress.getPort(), "server");
       long tserverNumOpsBefore = tserverMetrics.getHistogram(TSERVER_READ_METRIC).totalCount;
-      Metrics cqlproxyMetrics = new Metrics(cqlproxy_webaddress.getHostText(),
+      Metrics cqlproxyMetrics = new Metrics(cqlproxy_webaddress.getHost(),
         cqlproxy_webaddress.getPort(), "server");
       long cqlproxyNumOpsBefore = cqlproxyMetrics.getHistogram(CQLPROXY_SELECT_METRIC).totalCount;
 
@@ -264,12 +264,12 @@ public class TestConsistencyLevels extends BaseCQLTest {
       // Verify all reads went to the same tserver and cql proxy. There could be some background
       // reads for system tables which increase the number of ops beyond NUM_OPS and hence we
       // assert that we received atleast NUM_OPS instead of exactly NUM_OPS.
-      tserverMetrics = new Metrics(tserver_webaddress.getHostText(), tserver_webaddress.getPort(),
+      tserverMetrics = new Metrics(tserver_webaddress.getHost(), tserver_webaddress.getPort(),
         "server");
       assertTrue(NUM_OPS <=
         tserverMetrics.getHistogram(TSERVER_READ_METRIC).totalCount - tserverNumOpsBefore);
 
-      cqlproxyMetrics = new Metrics(cqlproxy_webaddress.getHostText(),
+      cqlproxyMetrics = new Metrics(cqlproxy_webaddress.getHost(),
         cqlproxy_webaddress.getPort(), "server");
       assertTrue(NUM_OPS <=
         cqlproxyMetrics.getHistogram(CQLPROXY_SELECT_METRIC).totalCount - cqlproxyNumOpsBefore);
@@ -299,9 +299,9 @@ public class TestConsistencyLevels extends BaseCQLTest {
     long maxOps = 0, minOps = NUM_OPS + 1;
     HostAndPort cqlproxy_webaddress = null;
     for (Map.Entry<HostAndPort, MiniYBDaemon> entry: tservers.entrySet()) {
-      cqlproxy_webaddress = HostAndPort.fromParts(entry.getKey().getHostText(), entry
+      cqlproxy_webaddress = HostAndPort.fromParts(entry.getKey().getHost(), entry
               .getValue().getCqlWebPort());
-      Metrics cqlproxyMetrics = new Metrics(cqlproxy_webaddress.getHostText(),
+      Metrics cqlproxyMetrics = new Metrics(cqlproxy_webaddress.getHost(),
               cqlproxy_webaddress.getPort(), "server");
       long cqlproxyNumOps = cqlproxyMetrics.getHistogram(CQLPROXY_SELECT_METRIC).totalCount;
       assertTrue(cqlproxyNumOps > NUM_OPS/(STANDARD_DEVIATION_FACTOR*NUM_TABLET_SERVERS));

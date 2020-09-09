@@ -44,7 +44,7 @@ public class TestPgWrapper extends BasePgSQLTest {
       statement.execute("CREATE DATABASE dbtest");
 
       // Database already exists.
-      runInvalidQuery(statement, "CREATE DATABASE dbtest");
+      runInvalidQuery(statement, "CREATE DATABASE dbtest", "already exists");
 
       // Drop database.
       statement.execute("DROP DATABASE dbtest");
@@ -68,7 +68,7 @@ public class TestPgWrapper extends BasePgSQLTest {
       statement.execute("DROP TABLE test2");
 
       // Table does not exist.
-      runInvalidQuery(statement, "DROP TABLE test3");
+      runInvalidQuery(statement, "DROP TABLE test3", "does not exist");
     }
   }
 
@@ -186,8 +186,8 @@ public class TestPgWrapper extends BasePgSQLTest {
         assertEquals(i, rs.getInt("v3"));
       }
     }
-    Connection connection2 = createConnection();
-    try (Statement statement = connection2.createStatement()) {
+    try (Connection connection2 = getConnectionBuilder().connect();
+        Statement statement = connection2.createStatement()) {
       statement.execute("INSERT INTO testdefaultvaluetable(k, v3) VALUES(1000, 3)");
       ResultSet rs = statement.executeQuery("SELECT * FROM testdefaultvaluetable WHERE k = 1000");
       assertTrue(rs.next());

@@ -93,9 +93,6 @@ public class ReleaseInstanceFromUniverseTest extends CommissionerBaseTest {
     when(mockNodeManager.nodeCommand(any(), any()))
         .thenReturn(new ShellProcessHandler.ShellResponse());
     modifyBL = mock(ModifyMasterClusterConfigBlacklist.class);
-    try {
-      doNothing().when(modifyBL).doCall();
-    } catch (Exception e) {}
     dummyShellResponse =  new ShellProcessHandler.ShellResponse();
     dummyShellResponse.message = "true";
     when(mockNodeManager.nodeCommand(any(), any())).thenReturn(dummyShellResponse);

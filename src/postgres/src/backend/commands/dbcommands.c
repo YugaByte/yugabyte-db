@@ -147,7 +147,7 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
 	DefElem    *distemplate = NULL;
 	DefElem    *dallowconnections = NULL;
 	DefElem    *dconnlimit = NULL;
-	DefElem    **default_options[] = {&dctype, &dcollate, &dtablespacename};
+	DefElem    **default_options[] = {&dtablespacename};
 	char	   *dbname = stmt->dbname;
 	char	   *dbowner = NULL;
 	const char *dbtemplate = NULL;
@@ -404,6 +404,24 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
 					 errhint("Please report the issue on "
 							 "https://github.com/yugabyte/yugabyte-db/issues"),
 					 parser_errposition(pstate, dencoding->location)));
+
+		if (dcollate && dbcollate && strcmp(dbcollate, "C") != 0)
+			ereport(YBUnsupportedFeatureSignalLevel(),
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("Value other than 'C' for lc_collate "
+							"option is not yet supported"),
+					 errhint("Please report the issue on "
+							 "https://github.com/YugaByte/yugabyte-db/issues"),
+					 parser_errposition(pstate, dcollate->location)));
+
+		if (dctype && dbctype && strcmp(dbctype, "en_US.UTF-8") != 0)
+			ereport(YBUnsupportedFeatureSignalLevel(),
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("Value other than 'en_US.UTF-8' for lc_ctype "
+							"option is not yet supported"),
+					 errhint("Please report the issue on "
+							 "https://github.com/YugaByte/yugabyte-db/issues"),
+					 parser_errposition(pstate, dctype->location)));
 	}
 
 	if (!get_db_info(dbtemplate, ShareLock,

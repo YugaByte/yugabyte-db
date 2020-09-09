@@ -42,8 +42,8 @@ public class TestPgCacheConsistency extends BasePgSQLTest {
 
   @Test
   public void testBasicDDLOperations() throws Exception {
-    try (Connection connection1 = createConnection(0);
-         Connection connection2 = createConnection(1);
+    try (Connection connection1 = getConnectionBuilder().withTServer(0).connect();
+         Connection connection2 = getConnectionBuilder().withTServer(1).connect();
          Statement statement1 = connection1.createStatement();
          Statement statement2 = connection2.createStatement()) {
       Set<Row> expectedRows = new HashSet<>();
@@ -66,7 +66,7 @@ public class TestPgCacheConsistency extends BasePgSQLTest {
       // Drop table from connection 2.
       statement2.execute("DROP TABLE cache_test1");
 
-      // Check that insert now fails on both tables.
+      // Check that insert now fails on both connections.
       runInvalidQuery(statement1, "INSERT INTO cache_test1(a) VALUES (3)", "does not exist");
       runInvalidQuery(statement2, "INSERT INTO cache_test1(a) VALUES (4)", "does not exist");
 
@@ -194,8 +194,8 @@ public class TestPgCacheConsistency extends BasePgSQLTest {
 
   @Test
   public void testNoDDLRetry() throws Exception {
-    try (Connection connection1 = createConnection(0);
-         Connection connection2 = createConnection(1);
+    try (Connection connection1 = getConnectionBuilder().withTServer(0).connect();
+         Connection connection2 = getConnectionBuilder().withTServer(1).connect();
          Statement statement1 = connection1.createStatement();
          Statement statement2 = connection2.createStatement()) {
       // Create a table with connection 1.
@@ -209,8 +209,8 @@ public class TestPgCacheConsistency extends BasePgSQLTest {
 
   @Test
   public void testVersionMismatchWithoutRetry() throws Exception {
-    try (Connection connection1 = newConnectionBuilder().setTServer(0).connect();
-         Connection connection2 = newConnectionBuilder().setTServer(1).connect();
+    try (Connection connection1 = getConnectionBuilder().withTServer(0).connect();
+         Connection connection2 = getConnectionBuilder().withTServer(1).connect();
          Statement statement1 = connection1.createStatement();
          Statement statement2 = connection2.createStatement()) {
       statement1.execute("CREATE TABLE test_table(id int, PRIMARY KEY (id))");
@@ -264,8 +264,8 @@ public class TestPgCacheConsistency extends BasePgSQLTest {
 
   @Test
   public void testVersionMismatchWithFailedRetry() throws Exception {
-    try (Connection connection1 = newConnectionBuilder().setTServer(0).connect();
-         Connection connection2 = newConnectionBuilder().setTServer(1).connect();
+    try (Connection connection1 = getConnectionBuilder().withTServer(0).connect();
+         Connection connection2 = getConnectionBuilder().withTServer(1).connect();
          Statement statement1 = connection1.createStatement();
          Statement statement2 = connection2.createStatement()) {
       // Create table from connection 1.
@@ -317,8 +317,8 @@ public class TestPgCacheConsistency extends BasePgSQLTest {
 
   @Ignore // TODO enable after #1502
   public void testUndetectedSelectVersionMismatch() throws Exception {
-    try (Connection connection1 = newConnectionBuilder().setTServer(0).connect();
-         Connection connection2 = newConnectionBuilder().setTServer(1).connect();
+    try (Connection connection1 = getConnectionBuilder().withTServer(0).connect();
+         Connection connection2 = getConnectionBuilder().withTServer(1).connect();
          Statement statement1 = connection1.createStatement();
          Statement statement2 = connection2.createStatement()) {
       // Create table from connection 1.
@@ -340,8 +340,8 @@ public class TestPgCacheConsistency extends BasePgSQLTest {
 
   @Test
   public void testConsistentNonRetryableTransactions() throws Exception {
-    try (Connection connection1 = newConnectionBuilder().setTServer(0).connect();
-         Connection connection2 = newConnectionBuilder().setTServer(1).connect();
+    try (Connection connection1 = getConnectionBuilder().withTServer(0).connect();
+         Connection connection2 = getConnectionBuilder().withTServer(1).connect();
          Statement statement1 = connection1.createStatement();
          Statement statement2 = connection2.createStatement()) {
       // Create table from connection 1.
@@ -369,8 +369,8 @@ public class TestPgCacheConsistency extends BasePgSQLTest {
 
   @Test
   public void testConsistentPreparedStatements() throws Exception {
-    try (Connection connection1 = newConnectionBuilder().setTServer(0).connect();
-         Connection connection2 = newConnectionBuilder().setTServer(1).connect();
+    try (Connection connection1 = getConnectionBuilder().withTServer(0).connect();
+         Connection connection2 = getConnectionBuilder().withTServer(1).connect();
          Statement statement1 = connection1.createStatement();
          Statement statement2 = connection2.createStatement()) {
       // Create table from connection 1.
@@ -413,8 +413,8 @@ public class TestPgCacheConsistency extends BasePgSQLTest {
 
   @Test
   public void testConsistentExplain() throws Exception {
-    try (Connection connection1 = newConnectionBuilder().setTServer(0).connect();
-         Connection connection2 = newConnectionBuilder().setTServer(1).connect();
+    try (Connection connection1 = getConnectionBuilder().withTServer(0).connect();
+         Connection connection2 = getConnectionBuilder().withTServer(1).connect();
          Statement statement1 = connection1.createStatement();
          Statement statement2 = connection2.createStatement()) {
       // Create table with unique column from connection 1.
@@ -442,7 +442,7 @@ public class TestPgCacheConsistency extends BasePgSQLTest {
       assertQuery(
           statement2,
           "EXPLAIN (COSTS OFF) SELECT u FROM test_table WHERE u = 1",
-          new Row("Foreign Scan on test_table"),
+          new Row("Seq Scan on test_table"),
           new Row("  Filter: (u = 1)")
       );
     }
@@ -450,8 +450,8 @@ public class TestPgCacheConsistency extends BasePgSQLTest {
 
   @Test
   public void testConsistentGUCWrites() throws Exception {
-    try (Connection connection1 = newConnectionBuilder().setTServer(0).connect();
-         Connection connection2 = newConnectionBuilder().setTServer(1).connect();
+    try (Connection connection1 = getConnectionBuilder().withTServer(0).connect();
+         Connection connection2 = getConnectionBuilder().withTServer(1).connect();
          Statement statement1 = connection1.createStatement();
          Statement statement2 = connection2.createStatement()) {
       statement1.execute("CREATE ROLE some_role");
@@ -471,8 +471,8 @@ public class TestPgCacheConsistency extends BasePgSQLTest {
 
   @Test
   public void testInvalidationCallbacksWhenInsertingIntoList() throws Exception {
-    try (Connection connection1 = newConnectionBuilder().setTServer(0).connect();
-         Connection connection2 = newConnectionBuilder().setTServer(1).connect();
+    try (Connection connection1 = getConnectionBuilder().withTServer(0).connect();
+         Connection connection2 = getConnectionBuilder().withTServer(1).connect();
          Statement statement1 = connection1.createStatement();
          Statement statement2 = connection2.createStatement()) {
       statement1.execute("CREATE ROLE some_role CREATEROLE");

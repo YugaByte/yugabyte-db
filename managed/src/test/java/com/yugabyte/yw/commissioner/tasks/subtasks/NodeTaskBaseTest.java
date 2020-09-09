@@ -12,6 +12,10 @@ import play.inject.guice.GuiceApplicationBuilder;
 import play.test.Helpers;
 import play.test.WithApplication;
 
+import org.pac4j.play.CallbackController;
+import org.pac4j.play.store.PlayCacheSessionStore;
+import org.pac4j.play.store.PlaySessionStore;
+
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
@@ -21,6 +25,8 @@ public class NodeTaskBaseTest extends WithApplication {
   NodeManager mockNodeManager;
   Customer defaultCustomer;
   Commissioner mockCommissioner;
+  protected CallbackController mockCallbackController;
+  protected PlayCacheSessionStore mockSessionStore;
 
   @Before
   public void setUp() {
@@ -31,11 +37,15 @@ public class NodeTaskBaseTest extends WithApplication {
   protected Application provideApplication() {
     mockNodeManager = mock(NodeManager.class);
     mockCommissioner = mock(Commissioner.class);
+    mockCallbackController = mock(CallbackController.class);
+    mockSessionStore = mock(PlayCacheSessionStore.class);
 
     return new GuiceApplicationBuilder()
         .configure((Map) Helpers.inMemoryDatabase())
         .overrides(bind(NodeManager.class).toInstance(mockNodeManager))
         .overrides(bind(Commissioner.class).toInstance(mockCommissioner))
+        .overrides(bind(CallbackController.class).toInstance(mockCallbackController))
+        .overrides(bind(PlaySessionStore.class).toInstance(mockSessionStore))
         .build();
   }
 }

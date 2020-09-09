@@ -80,9 +80,9 @@ class PgApiImpl {
   // Create YB Memctx. Each memctx will be associated with a Postgres's MemoryContext.
   static PgMemctx *CreateMemctx();
   // Destroy YB Memctx.
-  static void DestroyMemctx(PgMemctx *memctx);
+  static CHECKED_STATUS DestroyMemctx(PgMemctx *memctx);
   // Reset YB Memctx.
-  static void ResetMemctx(PgMemctx *memctx);
+  static CHECKED_STATUS ResetMemctx(PgMemctx *memctx);
   // Cache statements in YB Memctx. When Memctx is destroyed, the statement is destructed.
   CHECKED_STATUS AddToCurrentPgMemctx(const PgStatement::ScopedRefPtr &stmt,
                                       PgStatement **handle);
@@ -94,6 +94,9 @@ class PgApiImpl {
 
   // Invalidate the sessions table cache.
   CHECKED_STATUS InvalidateCache();
+
+  // Get the gflag TEST_ysql_disable_transparent_cache_refresh_retry.
+  const bool GetDisableTransparentCacheRefreshRetry();
 
   Result<bool> IsInitDbDone();
 
@@ -179,6 +182,25 @@ class PgApiImpl {
   // Load table.
   Result<PgTableDesc::ScopedRefPtr> LoadTable(const PgObjectId& table_id);
 
+  // Invalidate the cache entry corresponding to table_id from the PgSession table cache.
+  void InvalidateTableCache(const PgObjectId& table_id);
+
+  //------------------------------------------------------------------------------------------------
+  // Create and drop tablegroup.
+
+  CHECKED_STATUS NewCreateTablegroup(const char *database_name,
+                                     const PgOid database_oid,
+                                     const PgOid tablegroup_oid,
+                                     PgStatement **handle);
+
+  CHECKED_STATUS ExecCreateTablegroup(PgStatement *handle);
+
+  CHECKED_STATUS NewDropTablegroup(const PgOid database_oid,
+                                   const PgOid tablegroup_oid,
+                                   PgStatement **handle);
+
+  CHECKED_STATUS ExecDropTablegroup(PgStatement *handle);
+
   //------------------------------------------------------------------------------------------------
   // Create, alter and drop table.
   CHECKED_STATUS NewCreateTable(const char *database_name,
@@ -189,6 +211,7 @@ class PgApiImpl {
                                 bool if_not_exist,
                                 bool add_primary_key,
                                 const bool colocated,
+                                const PgObjectId& tablegroup_oid,
                                 PgStatement **handle);
 
   CHECKED_STATUS CreateTableAddColumn(PgStatement *handle, const char *attr_name, int attr_num,
@@ -252,7 +275,9 @@ class PgApiImpl {
                                 const PgObjectId& table_id,
                                 bool is_shared_index,
                                 bool is_unique_index,
+                                const bool skip_index_backfill,
                                 bool if_not_exist,
+                                const PgObjectId& tablegroup_oid,
                                 PgStatement **handle);
 
   CHECKED_STATUS CreateIndexAddColumn(PgStatement *handle, const char *attr_name, int attr_num,
@@ -260,6 +285,9 @@ class PgApiImpl {
                                       bool is_range, bool is_desc, bool is_nulls_first);
 
   CHECKED_STATUS CreateIndexSetNumTablets(PgStatement *handle, int32_t num_tablets);
+
+  CHECKED_STATUS CreateIndexAddSplitRow(PgStatement *handle, int num_cols,
+                                        YBCPgTypeEntity **types, uint64_t *data);
 
   CHECKED_STATUS ExecCreateIndex(PgStatement *handle);
 
@@ -273,6 +301,8 @@ class PgApiImpl {
       const PgObjectId& table_id,
       const PgObjectId& index_id,
       const IndexPermissions& target_index_permissions);
+
+  CHECKED_STATUS AsyncUpdateIndexPermissions(const PgObjectId& indexed_table_id);
 
   //------------------------------------------------------------------------------------------------
   // All DML statements
@@ -351,6 +381,8 @@ class PgApiImpl {
   CHECKED_STATUS ExecInsert(PgStatement *handle);
 
   CHECKED_STATUS InsertStmtSetUpsertMode(PgStatement *handle);
+
+  CHECKED_STATUS InsertStmtSetWriteTime(PgStatement *handle, const HybridTime write_time);
 
   //------------------------------------------------------------------------------------------------
   // Update.

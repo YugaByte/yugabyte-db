@@ -110,6 +110,11 @@
       linux_packages: "{{ linux_packages + redhat_packages }}"
     when: install_dev_packages and ansible_os_family == "RedHat"
 
+  - name: Set Azure packages to Install
+    set_fact:
+      linux_packages: "{{ linux_packages + azure_packages }}"
+    when: cloud_type == "azu"
+
   - block:
     - name: Find all yum repos
       find:
@@ -149,7 +154,11 @@
     register: result
     until: result is succeeded
     retries: "{{ yum_retry_count }}"
-    when: ansible_os_family == "RedHat"
+    when: ansible_os_family == "RedHat" and ansible_distribution != "Amazon"
+
+  - name: Install epel-release if Amazon
+    command: sudo amazon-linux-extras install -y epel
+    when: ansible_distribution == "Amazon"
 
   - name: Install linux packages we need on our YugaByte clusters on CentOS
     become: yes

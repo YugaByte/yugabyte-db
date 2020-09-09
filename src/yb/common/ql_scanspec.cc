@@ -493,10 +493,9 @@ CHECKED_STATUS QLScanSpec::Match(const QLTableRow& table_row, bool* match) const
 
 //-------------------------------------- QL scan spec ---------------------------------------
 // Pgsql scan specification.
-PgsqlScanSpec::PgsqlScanSpec(QLClient client_type,
-                             const PgsqlExpressionPB *where_expr,
+PgsqlScanSpec::PgsqlScanSpec(const PgsqlExpressionPB *where_expr,
                              QLExprExecutor::SharedPtr executor)
-    : YQLScanSpec(client_type),
+    : YQLScanSpec(YQL_CLIENT_PGSQL),
       where_expr_(where_expr),
       executor_(executor) {
   if (executor_ == nullptr) {

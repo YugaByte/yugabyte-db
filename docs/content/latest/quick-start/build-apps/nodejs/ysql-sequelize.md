@@ -17,19 +17,19 @@ showAsideToc: true
 
 <ul class="nav nav-tabs-alt nav-tabs-yb">
   <li >
-    <a href="/latest/quick-start/build-apps/nodejs/ysql-pg" class="nav-link ">
+    <a href="{{< relref "./ysql-pg.md" >}}" class="nav-link ">
       <i class="icon-postgres" aria-hidden="true"></i>
       YSQL - PG driver
     </a>
   </li>
   <li >
-    <a href="/latest/quick-start/build-apps/nodejs/ysql-sequelize" class="nav-link active">
+    <a href="{{< relref "./ysql-sequelize.md" >}}" class="nav-link active">
       <i class="icon-postgres" aria-hidden="true"></i>
       YSQL - Sequelize
     </a>
   </li>
   <li>
-    <a href="/latest/quick-start/build-apps/nodejs/ycql" class="nav-link">
+    <a href="{{< relref "./ycql.md" >}}" class="nav-link">
       <i class="icon-cassandra" aria-hidden="true"></i>
       YCQL
     </a>

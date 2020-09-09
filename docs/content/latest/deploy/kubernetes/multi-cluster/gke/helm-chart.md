@@ -187,11 +187,11 @@ kubectl apply -f gke-us-east1-b.yaml --context gke_yugabyte_us-east1-b_yugabyted
 
 ## 2. Setup global DNS
 
-Now we will setup a global DNS system across all the 3 GKE clusters so that pods in one cluster can connect to pods in another cluster.
+Now you will set up a global DNS system across all the 3 GKE clusters so that pods in one cluster can connect to pods in another cluster.
 
 ### Create load balancer configuration for kube-dns
 
-The yaml shown below adds an internal load balancer (which is not exposed outside its own Google Cloud region) to Kubernetes's built-in `kube-dns` deployment. By default, the `kube-dns` deployment is accessed only by a `ClusterIP` and not a load balancer. Additionally, we allow this load balancer to be [globally accessible](https://cloud.google.com/kubernetes-engine/docs/how-to/internal-load-balancing#global_access) so that each such load balancer is now visible to the 2 other load balancers in the other 2 regions. Note that using external load balancers for this purpose is possible but is not recommended from a security best practices standpoint. This is because the DNS information for all the clusters would now be available for access on the public Internet.
+The YAML file shown below adds an internal load balancer (which is not exposed outside its own Google Cloud region) to Kubernetes's built-in `kube-dns` deployment. By default, the `kube-dns` deployment is accessed only by a `ClusterIP` and not a load balancer. Additionally, allow this load balancer to be [globally accessible](https://cloud.google.com/kubernetes-engine/docs/how-to/internal-load-balancing#global_access) so that each such load balancer is now visible to the 2 other load balancers in the other 2 regions. Note that using external load balancers for this purpose is possible but is not recommended from a security best practices standpoint. This is because the DNS information for all the clusters would now be available for access on the public Internet.
 
 Copy the contents to a file named `yb-dns-lb.yaml`.
 
@@ -475,11 +475,11 @@ Default replica placement policy treats every yb-tserver as equal irrespective o
 Run the following command to make the replica placement region/cluster-aware so that one replica is placed on each region/cluster.
 
 ```sh
-kubectl exec -it -n yb-demo-us-west1-b --context gke_yugabyte_us-west1-b_yugabytedb1 yb-master-0 bash \
--- -c "/home/yugabyte/master/bin/yb-admin --master_addresses yb-master-0.yb-masters.yb-demo-us-west1-b.svc.cluster.local:7100,yb-master-0.yb-masters.yb-demo-us-central1-b.svc.cluster.local:7100,yb-master-0.yb-masters.yb-demo-us-east1-b.svc.cluster.local:7100 modify_placement_info gke.us-west1.us-west1-b,gke.us-central1.us-central1-b,gke.us-east1.us-east1-b 3"
+kubectl exec -it -n yb-demo-us-west1-b --context gke_yugabyte_us-west1-b_yugabytedb1 yb-master-0 -- bash \
+-c "/home/yugabyte/master/bin/yb-admin --master_addresses yb-master-0.yb-masters.yb-demo-us-west1-b.svc.cluster.local:7100,yb-master-0.yb-masters.yb-demo-us-central1-b.svc.cluster.local:7100,yb-master-0.yb-masters.yb-demo-us-east1-b.svc.cluster.local:7100 modify_placement_info gke.us-west1.us-west1-b,gke.us-central1.us-central1-b,gke.us-east1.us-east1-b 3"
 ```
 
-Go to `http://<external-ip>:7000/cluster-config` to see the new configuration.
+To see the new configuration, go to `http://<external-ip>:7000/cluster-config`.
 
 ![after-regionaware](/images/deploy/kubernetes/gke-multicluster-after-regionaware.png)
 
@@ -489,14 +489,14 @@ To connect and use the YSQL Shell (`ysqlsh`), run the following command.
 
 ```sh
 $ kubectl exec -n yb-demo-us-west1-b --context gke_yugabyte_us-west1-b_yugabytedb1 \
- -it yb-tserver-0 -- /home/yugabyte/bin/ysqlsh -h yb-tserver-0.yb-tservers.yb-demo-us-west1-b
+ -it yb-tserver-0 -- ysqlsh -h yb-tserver-0.yb-tservers.yb-demo-us-west1-b
 ```
 
 To connect and use the YCQL Shell (`ycqlsh`), run the following command.
 
 ```sh
 $ kubectl exec -n yb-demo-us-west1-b --context gke_yugabyte_us-west1-b_yugabytedb1 \
--it yb-tserver-0 /home/yugabyte/bin/ycqlsh yb-tserver-0.yb-tservers.yb-demo-us-west1-b
+-it yb-tserver-0 -- ycqlsh yb-tserver-0.yb-tservers.yb-demo-us-west1-b
 ```
 
 You can follow the [Explore YSQL](../../../../../quick-start/explore-ysql) tutorial and then go to the `http://<external-ip>:7000/tablet-servers` page of the yb-master Admin UI to confirm that tablet peers and their leaders are placed evenly across all three zones for both user data and system data.
@@ -530,4 +530,4 @@ kubectl scale statefulset yb-master --replicas=0 -n yb-demo-us-central1-b \
  --context gke_yugabyte_us-central1-b_yugabytedb2
 ```
 
-If we re-run the queries from Step 6 after re-connecting to the nodes in the `us-west1` region, we will see that there is absolutely no impact to the availability of the cluster and the data stored therein. However, there is higher latency for some of the transactions since the farthest `us-east1` region now has to be involved in the write path. In other words, the database cluster is fully protected against region failures but may temporarily experience higher latency. This is a much better place to be than a complete outage of the business-critical database service. The post [Understanding How YugabyteDB Runs on Kubernetes](https://blog.yugabyte.com/understanding-how-yugabyte-db-runs-on-kubernetes/) details how YugabyteDB self-heals the replicas when subjected to the failure of a fault domain (the cloud region in this case) by auto-electing a new leader for each of the impacted shards in the remaining fault domains. The cluster goes back to its original configuration as soon as the nodes in the lost region become available again.
+If you re-run the queries from Step 6 after re-connecting to the nodes in the `us-west1` region, you will see that there is absolutely no impact to the availability of the cluster and the data stored therein. However, there is higher latency for some of the transactions since the farthest `us-east1` region now has to be involved in the write path. In other words, the database cluster is fully protected against region failures but may temporarily experience higher latency. This is a much better place to be than a complete outage of the business-critical database service. The post [Understanding How YugabyteDB Runs on Kubernetes](https://blog.yugabyte.com/understanding-how-yugabyte-db-runs-on-kubernetes/) details how YugabyteDB self-heals the replicas when subjected to the failure of a fault domain (the cloud region in this case) by auto-electing a new leader for each of the impacted shards in the remaining fault domains. The cluster goes back to its original configuration as soon as the nodes in the lost region become available again.

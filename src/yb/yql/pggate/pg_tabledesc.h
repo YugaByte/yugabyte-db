@@ -18,6 +18,7 @@
 #ifndef YB_YQL_PGGATE_PG_TABLEDESC_H_
 #define YB_YQL_PGGATE_PG_TABLEDESC_H_
 
+#include "yb/common/pgsql_protocol.pb.h"
 #include "yb/client/client.h"
 #include "yb/client/yb_op.h"
 #include "yb/yql/pggate/pg_column.h"
@@ -68,7 +69,11 @@ class PgTableDesc : public RefCountedThreadSafe<PgTableDesc> {
 
   int GetPartitionCount() const;
 
-  size_t FindPartitionStartIndex(const std::string& partition_key) const;
+  Result<int> FindPartitionStartIndex(const string& partition_key) const;
+  Result<int> FindPartitionStartIndex(const Slice& ybctid, uint16 *hash_code) const;
+  Result<int> FindPartitionStartIndex(
+      const google::protobuf::RepeatedPtrField<PgsqlExpressionPB>& hash_col_values,
+      uint16 *hash_code) const;
 
   bool IsTransactional() const;
   bool IsColocated() const;

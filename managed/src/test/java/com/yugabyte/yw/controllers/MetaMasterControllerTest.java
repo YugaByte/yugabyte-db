@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.yugabyte.yw.commissioner.Common;
 import com.yugabyte.yw.common.ApiHelper;
+import com.yugabyte.yw.common.FakeDBApplication;
 import com.yugabyte.yw.common.KubernetesManager;
 import com.yugabyte.yw.common.ModelFactory;
 import com.yugabyte.yw.common.ShellProcessHandler;
@@ -37,6 +38,10 @@ import com.yugabyte.yw.models.Universe;
 import com.yugabyte.yw.models.Users;
 import org.junit.Before;
 import org.junit.Test;
+
+import org.pac4j.play.CallbackController;
+import org.pac4j.play.store.PlayCacheSessionStore;
+import org.pac4j.play.store.PlaySessionStore;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.yugabyte.yw.common.ApiUtils;
@@ -62,16 +67,23 @@ public class MetaMasterControllerTest extends FakeDBApplication {
   Customer defaultCustomer;
   Users defaultUser;
 
+  protected CallbackController mockCallbackController;
+  protected PlayCacheSessionStore mockSessionStore;
+
   @Override
   protected Application provideApplication() {
     ApiHelper mockApiHelper = mock(ApiHelper.class);
     mockKubernetesManager = mock(KubernetesManager.class);
     Executors mockExecutors = mock(Executors.class);
+    mockCallbackController = mock(CallbackController.class);
+    mockSessionStore = mock(PlayCacheSessionStore.class);
     return new GuiceApplicationBuilder()
         .configure((Map) Helpers.inMemoryDatabase())
         .overrides(bind(ApiHelper.class).toInstance(mockApiHelper))
         .overrides(bind(KubernetesManager.class).toInstance(mockKubernetesManager))
         .overrides(bind(Executors.class).toInstance(mockExecutors))
+        .overrides(bind(CallbackController.class).toInstance(mockCallbackController))
+        .overrides(bind(PlaySessionStore.class).toInstance(mockSessionStore))
         .build();
   }
 

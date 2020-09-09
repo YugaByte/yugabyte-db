@@ -51,11 +51,12 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.yb.AssertionWrappers.assertTrue;
+import static org.yb.AssertionWrappers.fail;
 
 /**
  * Utility class to start and manipulate YB clusters. Relies on being IN the source code with
@@ -95,6 +96,10 @@ public class MiniYBCluster implements AutoCloseable {
   private static final int RPC_SLOW_QUERY_THRESHOLD = 10000000;
 
   private static final int YB_CLIENT_ADMIN_OPERATION_TIMEOUT_SEC = 120;
+
+  // Timeout for waiting process to terminate.
+  private static final long PROCESS_TERMINATE_TIMEOUT_MS =
+      (long) (180 * 1000 * SanitizerUtil.getTimeoutMultiplier());
 
   // List of threads that print log messages.
   private final List<LogPrinter> logPrinters = new ArrayList<>();
@@ -872,7 +877,7 @@ public class MiniYBCluster implements AutoCloseable {
 
   private void destroyDaemon(MiniYBDaemon daemon) throws Exception {
     LOG.warn("Destroying " + daemon + ", IsAlive: " + daemon.getProcess().isAlive());
-    daemon.getProcess().destroy();
+    daemon.terminate();
     processCoreFile(daemon);
   }
 
@@ -892,16 +897,16 @@ public class MiniYBCluster implements AutoCloseable {
       // The TS is already dead, good.
       return;
     }
-    assert(cqlContactPoints.remove(new InetSocketAddress(hostPort.getHostText(), CQL_PORT)));
+    assert(cqlContactPoints.remove(new InetSocketAddress(hostPort.getHost(), CQL_PORT)));
     // TODO: bug, we're using the multiple Hostnames with different ports for testing
     assertTrue(
         redisContactPoints.removeIf((InetSocketAddress addr) ->
-            addr.getHostName().equals(hostPort.getHostText())));
+            addr.getHostName().equals(hostPort.getHost())));
     assertTrue(
         pgsqlContactPoints.removeIf((InetSocketAddress addr) ->
-            addr.getHostName().equals(hostPort.getHostText())));
+            addr.getHostName().equals(hostPort.getHost())));
     destroyDaemonAndWait(ts);
-    usedBindIPs.remove(hostPort.getHostText());
+    usedBindIPs.remove(hostPort.getHost());
   }
 
   public Map<HostAndPort, MiniYBDaemon> getTabletServers() {
@@ -1007,9 +1012,33 @@ public class MiniYBCluster implements AutoCloseable {
     allDaemons.addAll(tserverProcesses.values());
     processes.addAll(destroyDaemons(masterProcesses.values()));
     processes.addAll(destroyDaemons(tserverProcesses.values()));
+    LOG.info(
+        "Waiting for " + (masterProcesses.size() + tserverProcesses.size()) +
+        " processes to terminate...");
+    final long deadlineMs = System.currentTimeMillis() + PROCESS_TERMINATE_TIMEOUT_MS;
     for (Process process : processes) {
-      process.waitFor();
+      final long timeLeftMs = deadlineMs - System.currentTimeMillis();
+      if (timeLeftMs > 0) {
+        process.waitFor(timeLeftMs, TimeUnit.MILLISECONDS);
+      } else {
+        break;
+      }
     }
+    boolean isTerminatedGracefully = true;
+    for (Process process : processes) {
+      if (process.isAlive()) {
+        isTerminatedGracefully = false;
+        final int pid = ProcessUtil.pidOfProcess(process);
+        LOG.info("Trying to kill stuck process " + pid);
+        process.destroyForcibly();
+        LOG.info(("Waiting for process " + pid + " to terminate ..."));
+        if (!process.waitFor(PROCESS_TERMINATE_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+          LOG.warn(
+              "Failed to kill process " + pid + " within " + PROCESS_TERMINATE_TIMEOUT_MS + " ms");
+        }
+      }
+    }
+    LOG.info("Stopping log printers...");
     for (LogPrinter logPrinter : logPrinters) {
       logPrinter.stop();
     }
@@ -1020,6 +1049,13 @@ public class MiniYBCluster implements AutoCloseable {
     if (syncClient != null) {
       syncClient.shutdown();
       syncClient = null;
+    }
+    if (!isTerminatedGracefully) {
+      final String errorMessage =
+          "Cluster failed to gracefully terminate within " + PROCESS_TERMINATE_TIMEOUT_MS +
+          " ms, had to forcibly kill some processes (see logs above).";
+      LOG.error(errorMessage);
+      fail(errorMessage);
     }
   }
 

@@ -22,7 +22,7 @@ import org.yb.util.YBTestRunnerNonTsanOnly;
 import static org.yb.AssertionWrappers.*;
 
 @RunWith(value=YBTestRunnerNonTsanOnly.class)
-public class TestPgSortNumeric extends BasePgSortingOrder {
+public class TestPgSortNumeric extends BasePgSortingOrderTest {
   private static final Logger LOG = LoggerFactory.getLogger(TestPgSortNumeric.class);
 
   // All typename MUST be in upper case for comparison purpose.
@@ -137,6 +137,6 @@ public class TestPgSortNumeric extends BasePgSortingOrder {
   // Testing sorting order for the listed types.
   @Test
   public void testSort() throws Exception {
-    RunTest(testTypes, testValues, testInvalidValues);
+    runSortingOrderTest(testTypes, testValues, testInvalidValues);
   }
 }

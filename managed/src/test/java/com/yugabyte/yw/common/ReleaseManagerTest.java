@@ -205,7 +205,6 @@ public class ReleaseManagerTest {
 
   @Test
   public void testLoadReleasesWithInvalidDockerPath() {
-    when(appConfig.getString("yb.docker.release")).thenReturn("foo");
     try {
       releaseManager.importLocalReleases();
     } catch (RuntimeException re) {

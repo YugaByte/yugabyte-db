@@ -7,6 +7,7 @@ menu:
   latest:
     identifier: array-slice-operator
     parent: array-functions-operators
+    weight: 30
 isTocNested: true
 showAsideToc: true
 ---
@@ -24,7 +25,7 @@ return value:      anyarray
 - The new array has the same dimensionality as the source array and its lower bound is `1` on each axis.
 
 **Example:**
-```postgresql
+```plpgsql
 create table t(k int primary key, arr text[]);
 
 insert into t(k, arr)
@@ -67,7 +68,7 @@ and:
     2 |    4 |    3 |    6 |    4 |    5
 ```
 Now do the slicing:
-```postgresql
+```plpgsql
 update t
 set arr = arr[2:3][4:5][3:4]
 where k = 1;

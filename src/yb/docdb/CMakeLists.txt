@@ -62,12 +62,14 @@ set(DOCDB_SRCS
         deadline_info.cc
         doc_boundary_values_extractor.cc
         docdb.cc
+        docdb_debug.cc
         docdb_pgapi.cc
         docdb_util.cc
         doc_ttl_util.cc
         docdb_compaction_filter.cc
         docdb_compaction_filter_intents.cc
         docdb-internal.cc
+        doc_reader.cc
         docdb_rocksdb_util.cc
         doc_expr.cc
         doc_pgsql_scanspec.cc

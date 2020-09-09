@@ -33,6 +33,40 @@ export default class ListBackups extends Component {
     this.props.resetUniverseBackups();
   }
 
+   isMultiTableBackup = (row) => {
+    if (row.tableUUIDList && row.tableUUIDList.length > 1) {
+      return true;
+    } else if (row.backupList && Array.isArray(row.backupList)) {
+      return true;
+    }
+    return false;
+  }
+
+  showMultiTableInfo = (row) => {
+    const { universeTableTypes } = this.props;
+    if (Array.isArray(row.backupList) && row.backupList.length) {
+      return row.backupList.map((backup, index) => {
+        const tableName = backup.tableUUIDList ? backup.tableNameList.join(', ') : backup.tableName;
+        const tableType = backup.tableUUIDList ? universeTableTypes[backup.tableUUIDList[0]] : universeTableTypes[backup.tableUUID];
+        return (
+          <div key={`universe-backup-${index}`} style={{display: 'flex', margin: '15px 0'}}>
+            <span style={{flex: '0 0 14.3%'}}>{backup.keyspace}</span>
+            <span style={{flex: '0 0 14.3%'}}>{tableName}</span>
+            <span style={{flex: '0 0 14.3%'}}>{tableType}</span>
+            <span style={{flex: '0 0 auto'}}>{backup.storageLocation}</span>
+          </div>
+        );
+      });
+    }
+    return row.tableUUIDList.map((uuid, index) => (
+      <div key={`multi-backup-${uuid}`} style={{display: 'flex', margin: '15px 0'}}>
+        <span style={{flex: '0 0 14.3%'}}>{row.keyspace}</span>
+        <span style={{flex: '0 0 14.3%'}}>{row.tableNameList[index]}</span>
+        <span style={{flex: '0 0 14.3%'}}>{universeTableTypes[uuid]}</span>
+      </div>
+    ));
+  }
+
   render() {
     const {
       currentCustomer,
@@ -50,7 +84,14 @@ export default class ListBackups extends Component {
         backupInfo.backupUUID = b.backupUUID;
         backupInfo.status = b.state;
         backupInfo.createTime = b.createTime;
-        backupInfo.tableType = universeTableTypes[b.backupInfo.tableUUID];
+        if (backupInfo.tableUUIDList && backupInfo.tableUUIDList.length > 1) {
+          backupInfo.tableName = backupInfo.tableNameList.join(', ');
+          backupInfo.tableType = [
+            ...new Set(backupInfo.tableUUIDList.map(v => universeTableTypes[v]))
+          ].join(', ');
+        } else {
+          backupInfo.tableType = universeTableTypes[b.backupInfo.tableUUID];
+        }
         // Show action button to restore/delete only when the backup is
         // create and which has completed successfully.
         backupInfo.showActions = (backupInfo.actionType === "CREATE" &&
@@ -91,7 +132,12 @@ export default class ListBackups extends Component {
             </div>
           }
           body={
-            <BootstrapTable data={backupInfos} pagination={true} className="backup-list-table">
+            <BootstrapTable data={backupInfos}
+              pagination={true}
+              className="backup-list-table"
+              expandableRow={this.isMultiTableBackup}
+              expandComponent={this.showMultiTableInfo}
+            >
               <TableHeaderColumn dataField="backupUUID" isKey={true} hidden={true}/>
               <TableHeaderColumn dataField="keyspace" dataSort
                                 columnClassName="no-border name-column" className="no-border">

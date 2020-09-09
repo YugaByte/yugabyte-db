@@ -1,0 +1,264 @@
+--
+-- YB_TABLEGROUP Testsuite: Testing Statments for TABLEGROUP.
+--
+--
+-- pg_catalog alterations. Validate columns of pg_tablegroup and oids.
+--
+\d pg_tablegroup
+            Table "pg_catalog.pg_tablegroup"
+   Column   |   Type    | Collation | Nullable | Default
+------------+-----------+-----------+----------+---------
+ grpname    | name      |           | not null |
+ grpowner   | oid       |           | not null |
+ grpacl     | aclitem[] |           |          |
+ grpoptions | text[]    |           |          |
+Indexes:
+    "pg_tablegroup_oid_index" PRIMARY KEY, lsm (oid)
+
+SELECT oid, relname, reltype, relnatts FROM pg_class WHERE relname IN ('pg_tablegroup', 'pg_tablegroup_oid_index');
+ oid  |         relname         | reltype | relnatts
+------+-------------------------+---------+----------
+ 8000 | pg_tablegroup           |    8002 |        4
+ 8001 | pg_tablegroup_oid_index |       0 |        1
+(2 rows)
+
+SELECT oid, typname, typrelid FROM pg_type WHERE typname LIKE 'pg_tablegroup';
+ oid  |    typname    | typrelid
+------+---------------+----------
+ 8002 | pg_tablegroup |     8000
+(1 row)
+
+--
+-- CREATE TABLEGROUP
+--
+CREATE TABLEGROUP tgroup1;
+CREATE TABLEGROUP tgroup2;
+CREATE TABLEGROUP tgroup3;
+CREATE TABLE tgroup_test1 (col1 int, col2 int) TABLEGROUP tgroup1;
+CREATE TABLE tgroup_test2 (col1 int, col2 int) TABLEGROUP tgroup1;
+CREATE TABLE nogroup (col1 int) NO TABLEGROUP; -- fail
+ERROR:  Cannot use NO TABLEGROUP in CREATE TABLE statement.
+SELECT grpname FROM pg_tablegroup;
+ grpname
+---------
+ tgroup1
+ tgroup2
+ tgroup3
+(3 rows)
+
+SELECT relname
+    FROM (SELECT relname, unnest(reloptions) AS opts FROM pg_class) s
+    WHERE opts LIKE '%tablegroup%';
+   relname
+--------------
+ tgroup_test1
+ tgroup_test2
+(2 rows)
+
+CREATE INDEX ON tgroup_test1(col2);
+CREATE TABLE tgroup_test3 (col1 int, col2 int) TABLEGROUP tgroup2;
+-- Index opt out - should not show up in following SELECT
+CREATE INDEX ON tgroup_test3(col1) NO TABLEGROUP;
+-- Index explicitly specify tablegroup other than that of indexed table
+CREATE INDEX ON tgroup_test3(col1) TABLEGROUP tgroup1;
+SELECT s.relname, pg_tablegroup.grpname
+    FROM (SELECT relname, unnest(reloptions) AS opts FROM pg_class) s, pg_tablegroup
+    WHERE opts LIKE CONCAT('%tablegroup=', CAST(pg_tablegroup.oid AS text), '%');
+        relname         | grpname
+------------------------+---------
+ tgroup_test1           | tgroup1
+ tgroup_test2           | tgroup1
+ tgroup_test1_col2_idx  | tgroup1
+ tgroup_test3           | tgroup2
+ tgroup_test3_col1_idx1 | tgroup1
+(5 rows)
+
+-- These should fail.
+CREATE TABLEGROUP tgroup1;
+ERROR:  tablegroup "tgroup1" already exists
+CREATE TABLE tgroup_test (col1 int, col2 int) TABLEGROUP bad_tgroupname;
+ERROR:  tablegroup "bad_tgroupname" does not exist
+CREATE TABLE tgroup_optout (col1 int, col2 int) WITH (colocated=false) TABLEGROUP tgroup1;
+ERROR:  cannot use 'colocated=true/false' with tablegroup
+CREATE TABLE tgroup_optout (col1 int, col2 int) WITH (colocated=true) TABLEGROUP tgroup1;
+ERROR:  cannot use 'colocated=true/false' with tablegroup
+CREATE TABLE tgroup_optout (col1 int, col2 int) WITH (colocated=false) TABLEGROUP bad_tgroupname;
+ERROR:  tablegroup "bad_tgroupname" does not exist
+CREATE TEMP TABLE tgroup_temp (col1 int, col2 int) TABLEGROUP tgroup1;
+ERROR:  Cannot use TABLEGROUP with TEMP table.
+--
+-- Usage of WITH clause or specifying tablegroup name for CREATE INDEX. These all fail.
+--
+CREATE TABLE tgroup_with (col1 int, col2 int) WITH (tablegroup=123);
+ERROR:  Cannot supply tablegroup through WITH clause.
+CREATE TABLE tgroup_with (col1 int, col2 int) WITH (tablegroup=123, colocated=true);
+ERROR:  Cannot supply tablegroup through WITH clause.
+CREATE TABLE tgroup_with (col1 int, col2 int) WITH (tablegroup=123) TABLEGROUP tgroup1;
+ERROR:  Cannot supply tablegroup through WITH clause.
+CREATE INDEX ON tgroup_test1(col1) WITH (tablegroup=123);
+ERROR:  Cannot supply tablegroup through WITH clause.
+CREATE INDEX ON tgroup_test1(col1) WITH (tablegroup=123, colocated=true);
+ERROR:  Cannot supply tablegroup through WITH clause.
+CREATE INDEX ON tgroup_test1(col1) WITH (tablegroup=123) TABLEGROUP tgroup1;
+ERROR:  Cannot supply tablegroup through WITH clause.
+--
+-- Usage of SPLIT clause with TABLEGROUP should fail
+--
+CREATE TABLE tgroup_split (col1 int PRIMARY KEY) SPLIT INTO 3 TABLETS TABLEGROUP tgroup1;
+ERROR:  Cannot use TABLEGROUP with SPLIT.
+CREATE TABLE tgroup_split (col1 int, col2 text) SPLIT INTO 3 TABLETS TABLEGROUP tgroup1;
+ERROR:  Cannot use TABLEGROUP with SPLIT.
+CREATE INDEX ON tgroup_test1(col1) SPLIT AT VALUES((10), (20), (30));
+ERROR:  Cannot use TABLEGROUP with SPLIT.
+DETAIL:  Please supply NO TABLEGROUP to opt-out of indexed table's tablegroup.
+CREATE INDEX ON tgroup_test1(col1) SPLIT AT VALUES((10), (20), (30)) TABLEGROUP tgroup2;
+ERROR:  Cannot use TABLEGROUP with SPLIT.
+CREATE INDEX ON tgroup_test1(col1) SPLIT AT VALUES((10), (20), (30)) NO TABLEGROUP; -- should succeed
+--
+-- Test describes
+--
+CREATE TABLE tgroup_test4 (col1 int, col2 int) TABLEGROUP tgroup2;
+CREATE INDEX ON tgroup_test4(col1);
+CREATE INDEX ON tgroup_test4(col2);
+-- Add comments
+COMMENT ON TABLEGROUP tgroup1 IS 'Comment for Tablegroup 1';
+COMMENT ON TABLEGROUP tgroup2 IS 'Comment for Tablegroup 2';
+\dgr
+List of tablegroups
+  Name   |  Owner
+---------+----------
+ tgroup1 | yugabyte
+ tgroup2 | yugabyte
+ tgroup3 | yugabyte
+(3 rows)
+
+\dgr+
+                             List of tablegroups
+  Name   |  Owner   | Access privileges |       Description        | Options
+---------+----------+-------------------+--------------------------+---------
+ tgroup1 | yugabyte |                   | Comment for Tablegroup 1 |
+ tgroup2 | yugabyte |                   | Comment for Tablegroup 2 |
+ tgroup3 | yugabyte |                   |                          |
+(3 rows)
+
+\dgrt
+                      List of tablegroup tables
+ Group Name | Group Owner |          Name          | Type  |  Owner
+------------+-------------+------------------------+-------+----------
+ tgroup1    | yugabyte    | tgroup_test1           | table | yugabyte
+ tgroup1    | yugabyte    | tgroup_test2           | table | yugabyte
+ tgroup1    | yugabyte    | tgroup_test1_col2_idx  | index | yugabyte
+ tgroup1    | yugabyte    | tgroup_test3_col1_idx1 | index | yugabyte
+ tgroup2    | yugabyte    | tgroup_test4_col2_idx  | index | yugabyte
+ tgroup2    | yugabyte    | tgroup_test4           | table | yugabyte
+ tgroup2    | yugabyte    | tgroup_test4_col1_idx  | index | yugabyte
+ tgroup2    | yugabyte    | tgroup_test3           | table | yugabyte
+(8 rows)
+
+\dgrt+
+                                                                    List of tablegroup tables
+ Group Name | Group Owner | Access privileges |    Group Description     | Group Options |          Name          | Type  |  Owner   | Rel Description |  Size
+------------+-------------+-------------------+--------------------------+---------------+------------------------+-------+----------+-----------------+---------
+ tgroup1    | yugabyte    |                   | Comment for Tablegroup 1 |               | tgroup_test1           | table | yugabyte |                 | 0 bytes
+ tgroup1    | yugabyte    |                   | Comment for Tablegroup 1 |               | tgroup_test2           | table | yugabyte |                 | 0 bytes
+ tgroup1    | yugabyte    |                   | Comment for Tablegroup 1 |               | tgroup_test1_col2_idx  | index | yugabyte |                 | 0 bytes
+ tgroup1    | yugabyte    |                   | Comment for Tablegroup 1 |               | tgroup_test3_col1_idx1 | index | yugabyte |                 | 0 bytes
+ tgroup2    | yugabyte    |                   | Comment for Tablegroup 2 |               | tgroup_test4_col2_idx  | index | yugabyte |                 | 0 bytes
+ tgroup2    | yugabyte    |                   | Comment for Tablegroup 2 |               | tgroup_test4           | table | yugabyte |                 | 0 bytes
+ tgroup2    | yugabyte    |                   | Comment for Tablegroup 2 |               | tgroup_test4_col1_idx  | index | yugabyte |                 | 0 bytes
+ tgroup2    | yugabyte    |                   | Comment for Tablegroup 2 |               | tgroup_test3           | table | yugabyte |                 | 0 bytes
+(8 rows)
+
+COMMENT ON TABLEGROUP tgroup2 IS NULL;
+\dgr+ tgroup2
+                      List of tablegroups
+  Name   |  Owner   | Access privileges | Description | Options
+---------+----------+-------------------+-------------+---------
+ tgroup2 | yugabyte |                   |             |
+(1 row)
+
+\dgrt tgroup2
+                      List of tablegroup tables
+ Group Name | Group Owner |         Name          | Type  |  Owner
+------------+-------------+-----------------------+-------+----------
+ tgroup2    | yugabyte    | tgroup_test3          | table | yugabyte
+ tgroup2    | yugabyte    | tgroup_test4          | table | yugabyte
+ tgroup2    | yugabyte    | tgroup_test4_col1_idx | index | yugabyte
+ tgroup2    | yugabyte    | tgroup_test4_col2_idx | index | yugabyte
+(4 rows)
+
+-- Describe table
+\d tgroup_test2
+            Table "public.tgroup_test2"
+ Column |  Type   | Collation | Nullable | Default
+--------+---------+-----------+----------+---------
+ col1   | integer |           |          |
+ col2   | integer |           |          |
+Tablegroup: "tgroup1"
+
+\d tgroup_test4
+            Table "public.tgroup_test4"
+ Column |  Type   | Collation | Nullable | Default
+--------+---------+-----------+----------+---------
+ col1   | integer |           |          |
+ col2   | integer |           |          |
+Indexes:
+    "tgroup_test4_col1_idx" lsm (col1), tablegroup "tgroup2"
+    "tgroup_test4_col2_idx" lsm (col2), tablegroup "tgroup2"
+Tablegroup: "tgroup2"
+
+\d tgroup_test4_col1_idx
+ Index "public.tgroup_test4_col1_idx"
+ Column |  Type   | Key? | Definition
+--------+---------+------+------------
+ col1   | integer | yes  | col1
+lsm, for table "public.tgroup_test4"
+Tablegroup: "tgroup2"
+
+CREATE TABLEGROUP tgroup_describe1;
+CREATE TABLEGROUP tgroup_describe2;
+CREATE TABLE tgroup_describe (col1 int) TABLEGROUP tgroup_describe1;
+CREATE INDEX ON tgroup_describe(col1);
+CREATE INDEX ON tgroup_describe(col1) NO TABLEGROUP;
+CREATE INDEX ON tgroup_describe(col1) TABLEGROUP tgroup_describe2;
+\d tgroup_describe
+          Table "public.tgroup_describe"
+ Column |  Type   | Collation | Nullable | Default
+--------+---------+-----------+----------+---------
+ col1   | integer |           |          |
+Indexes:
+    "tgroup_describe_col1_idx" lsm (col1), tablegroup "tgroup_describe1"
+    "tgroup_describe_col1_idx1" lsm (col1)
+    "tgroup_describe_col1_idx2" lsm (col1), tablegroup "tgroup_describe2"
+Tablegroup: "tgroup_describe1"
+
+--
+-- DROP TABLEGROUP
+--
+DROP TABLEGROUP tgroup3;
+-- These should fail. CREATE TABLE is to check that the row entry was deleted from pg_tablegroup.
+CREATE TABLE tgroup_test5 (col1 int, col2 int) TABLEGROUP tgroup3;
+ERROR:  tablegroup "tgroup3" does not exist
+DROP TABLEGROUP tgroup1;
+ERROR:  tablegroup "tgroup1" is not empty
+DROP TABLEGROUP bad_tgroupname;
+ERROR:  tablegroup "bad_tgroupname" does not exist
+-- This drop should work now.
+DROP TABLE tgroup_test1;
+DROP TABLE tgroup_test2;
+DROP INDEX tgroup_test3_col1_idx1;
+DROP TABLEGROUP tgroup1;
+-- Create a tablegroup with the name of a dropped tablegroup.
+CREATE TABLEGROUP tgroup1;
+--
+-- Interactions with colocated database.
+--
+CREATE DATABASE db_colocated colocated=true;
+\c db_colocated
+-- These should fail.
+CREATE TABLEGROUP tgroup1;
+ERROR:  cannot use tablegroups in a colocated database
+CREATE TABLE tgroup_test (col1 int, col2 int) TABLEGROUP tgroup1;
+ERROR:  cannot use tablegroups in a colocated database
+CREATE TABLE tgroup_optout (col1 int, col2 int) WITH (colocated=false) TABLEGROUP tgroup1;
+ERROR:  cannot use tablegroups in a colocated database

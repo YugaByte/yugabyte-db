@@ -18,7 +18,7 @@ This section uses the same approach as these sections: [The literal for an array
 
 ## Statement of the rules
 
-Just as in the [Statement of the rules](../array-of-primitive-values/#statement-of-the-rules) section that stated the rules for literals for an array of primitive values, the statement of these rules depends on understanding the notion of the canonical form of a literal.
+Just as in [Statement of the rules](../array-of-primitive-values/#statement-of-the-rules) that stated the rules for literals for an array of primitive values, the statement of these rules depends on understanding the notion of the canonical form of a literal.
 
 If you follow the rules that are stated here and illustrated in the demonstration below, then you will always produce a syntactically valid literal which expresses the semantics that you intend. There are many other legal variants—especially because of the freedoms for `text[]` values. This can also produce the result that you intend. However, these rules will not be documented because it is always sufficient to create your literals in canonical form.
 
@@ -26,7 +26,7 @@ The sufficient set of rules can be stated tersely:
 
 - Start off with the opening left curly brace.
 
-- First, prepare the literal for each _"row"_ type value according to the rules set out in the [The literal for a _"row"_ type value](../row/) section.
+- First, prepare the literal for each _"row"_ type value according to the rules set out in [The literal for a _"row"_ type value](../row/).
 
 - Then, understand that when these are used within the literal for _"row"_ type value within the literal for an array, the _"row"_ must itself be surrounded with double quotes, just like is the rule for, say, `timestamp` values or `text` values that include spaces or other troublesome characters.
 
@@ -40,7 +40,7 @@ The sufficient set of rules can be stated tersely:
 
 - Finish off with the closing right curly brace.
 
-These rules are presented in the [Pseudocode for generating the literal for a one-dimensional array of "row" type values](./#pseudocode-for-generating-the-literal-for-a-one-dimensional-array-of-row-type-values) section.
+These rules are presented in [Pseudocode for generating the literal for a one-dimensional array of "row" type values](./#pseudocode-for-generating-the-literal-for-a-one-dimensional-array-of-row-type-values).
 
 ## Example to illustrate the rules
 
@@ -49,15 +49,15 @@ The example uses a _"row"_ type with four fields: an `int` field; a `text` field
      <space>     ,     (     )     "     \
 ```
 First, create the _"row"_ type:
-```postgresql
+```plpgsql
 create type rt as (n int, s text, t timestamp, b boolean);
 ```
 Next, you create a table with a column with data type _"rt"_ so that you can populate it with six rows that jointly, in their `text` fields, use all of the "challenging" characters listed above:
-```postgresql
+```plpgsql
 create table t1(k int primary key, v rt);
 ```
 Finally, you populate the table by building the _"row"_ type values bottom-up using appropriately typed PL/pgSQL variables in a `DO` block and inspect the result. This technique allows the actual primitive values that were chosen for this demonstration so be seen individually as the ordinary SQL literals that each data type requires. This makes the code more readable and more understandable than any other approach. In other words, it shows that, for humanly written code, the usability of a value constructor for any composite value is much greater than that of the literal that produces the same value. Of course, this benefit is of no consequence for a programmatically constructed literal.
-```postgresql
+```plpgsql
 do $body$
 declare
   n1 constant int := 1;
@@ -126,12 +126,12 @@ The first four are unremarkable, as long as you remember that each of these four
 - The single backslash occurrence, in the source data, must be doubled up and then surrounded by double quotes.
 
 Next, you concatenate these six _"row"_ type values into an array value by using the `array_agg()` function (described in [`array_agg()`](../../functions-operators/array-agg-unnest/#array-agg)), like this:
-```postgresql
+```plpgsql
 select array_agg(v order by k) from t1;
 ```
 
 The demonstration is best served by inserting this value into a new table, like this:
-```postgresql
+```plpgsql
 create table t2(k int primary key, v1 rt[], v1_text_typecast text, v2 rt[]);
 insert into t2(k, v1)
 select 1, array_agg(v order by k) from t1;
@@ -140,12 +140,12 @@ select 1, array_agg(v order by k) from t1;
 The `\get` technique that you used in the earlier sections is not viable here because there's an upper limit on its size. So, instead insert the literal that you produce by `text` typecasting _"t2.v1"_ into the companion _"v1&#95;text&#95;typecast"_ field in the same table, like this:
 
 
-```postgresql
+```plpgsql
 update t2 set v1_text_typecast =
 (select v1::text from t2 where k = 1);
 ```
 Finally, use this array literal to recreate the original value and check that it's identical to what you started with, thus:
-```postgresql
+```plpgsql
 update t2 set v2 = 
 (select v1_text_typecast from t2 where k = 1)::rt[];
 
@@ -160,7 +160,7 @@ As promised, the canonical form of the array literal does indeed recreate the id
 ```
 
 You haven't yet looked at the literal for the array of _"row"_ type values. Now is the moment to do so, thus:
-```postgresql
+```plpgsql
 select v1_text_typecast from t2 where k = 1;
 ```
 The result that's produced is too hard to read without some manual introduction of whitespace. But this is allowed around the commas that delimit successive values within an array literal, thus:
@@ -180,7 +180,7 @@ With some effort, you'll see that this is indeed the properly formed canonical r
 
 ## Multidimensional array of "row" type values
 
-You can work out the rules for a multidimensional array of _"row"_ type values, should you need these, by straightforward induction from what has already been explained this enclosing [Create an array value using a literal](../../literals/) section.
+You can work out the rules for a multidimensional array of _"row"_ type values, should you need these, by straightforward induction from what has already been explained this enclosing section.
 
 ## Pseudocode for generating the literal for a one-dimensional array of "row" type values
 

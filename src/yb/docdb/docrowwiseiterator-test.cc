@@ -20,6 +20,7 @@
 
 #include "yb/docdb/doc_rowwise_iterator.h"
 #include "yb/docdb/docdb.h"
+#include "yb/docdb/docdb_debug.h"
 #include "yb/docdb/docdb_rocksdb_util.h"
 #include "yb/docdb/docdb_test_base.h"
 #include "yb/docdb/docdb_test_util.h"

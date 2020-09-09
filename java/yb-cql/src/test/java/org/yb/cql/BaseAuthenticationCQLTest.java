@@ -66,8 +66,8 @@ public class BaseAuthenticationCQLTest extends BaseCQLTest {
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    // Setting verbose level for debugging.
     BaseMiniClusterTest.tserverArgs.add("--use_cassandra_authentication=true");
+    BaseMiniClusterTest.tserverArgs.add("--password_hash_cache_size=0");
     BaseCQLTest.setUpBeforeClass();
   }
 

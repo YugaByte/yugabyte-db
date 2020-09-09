@@ -80,7 +80,7 @@ public final class ProcessUtil {
     if (rv != 0) {
       throw new IllegalStateException(
           String.format("unable to send SIG%s to process with pid=%d: " +
-                        "expected return code from kill, but got %d instead", sig, pid, pid, rv));
+                        "expected return code from kill, but got %d instead", sig, pid, rv));
     }
   }
 

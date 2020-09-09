@@ -17,11 +17,8 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableSet;
 
 import com.google.inject.Inject;
-import com.yugabyte.yw.commissioner.UserTaskDetails;
 import com.yugabyte.yw.commissioner.tasks.params.NodeTaskParams;
-import com.yugabyte.yw.commissioner.tasks.subtasks.KubernetesCommandExecutor;
-import com.yugabyte.yw.commissioner.tasks.subtasks.KubernetesWaitForPod;
-import com.yugabyte.yw.commissioner.tasks.subtasks.KubernetesWaitForPod.CommandType;
+import com.yugabyte.yw.forms.UniverseTaskParams;
 import com.yugabyte.yw.models.Customer;
 import com.yugabyte.yw.models.CustomerConfig;
 import com.yugabyte.yw.models.NodeInstance;
@@ -581,6 +578,12 @@ public abstract class UniverseDefinitionTaskBase extends UniverseTaskBase {
       params.useTimeSync = cloudInfo.useTimeSync;
       params.cmkArn = taskParams().cmkArn;
       params.ipArnString = userIntent.awsArnString;
+      // Set the ports to provision a node to use
+      params.communicationPorts = UniverseTaskParams.CommunicationPorts
+        .exportToCommunicationPorts(node);
+      // Whether to install node_exporter on nodes or not.
+      params.extraDependencies.installNodeExporter =
+        taskParams().extraDependencies.installNodeExporter;
 
       // Create the Ansible task to setup the server.
       AnsibleSetupServer ansibleSetupServer = new AnsibleSetupServer();

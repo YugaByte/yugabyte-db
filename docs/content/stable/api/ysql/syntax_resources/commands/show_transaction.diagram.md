@@ -1,0 +1,4 @@
+#### show_transaction
+
+<svg class="rrdiagram" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" width="369" height="35" viewbox="0 0 369 35"><path class="connector" d="M0 22h15m58 0h10m106 0h10m87 0h10m58 0h15"/><polygon points="0,29 5,22 0,15" style="fill:black;stroke-width:0"/><rect class="literal" x="15" y="5" width="58" height="25" rx="7"/><text class="text" x="25" y="22">SHOW</text><rect class="literal" x="83" y="5" width="106" height="25" rx="7"/><text class="text" x="93" y="22">TRANSACTION</text><rect class="literal" x="199" y="5" width="87" height="25" rx="7"/><text class="text" x="209" y="22">ISOLATION</text><rect class="literal" x="296" y="5" width="58" height="25" rx="7"/><text class="text" x="306" y="22">LEVEL</text><polygon points="365,29 369,29 369,15 365,15" style="fill:black;stroke-width:0"/></svg>
+

@@ -53,14 +53,19 @@ const std::string kRpcThreadCategory = "rpc_thread_pool";
 
 class Worker {
  public:
-  explicit Worker(ThreadPoolShare* share, size_t index)
+  explicit Worker(ThreadPoolShare* share)
       : share_(share) {
+  }
+
+  CHECKED_STATUS Start(size_t index) {
     auto name = strings::Substitute("rpc_tp_$0_$1", share_->options.name, index);
-    CHECK_OK(yb::Thread::Create(kRpcThreadCategory, name, &Worker::Execute, this, &thread_));
+    return yb::Thread::Create(kRpcThreadCategory, name, &Worker::Execute, this, &thread_);
   }
 
   ~Worker() {
-    thread_->Join();
+    if (thread_) {
+      thread_->Join();
+    }
   }
 
   Worker(const Worker& worker) = delete;
@@ -165,9 +170,6 @@ class ThreadPool::Impl {
                                              share_.options.queue_limit)) {
     LOG(INFO) << "Starting thread pool " << share_.options.ToString();
     workers_.reserve(share_.options.max_workers);
-    while (workers_.size() != share_.options.max_workers) {
-      workers_.emplace_back(nullptr);
-    }
   }
 
   const ThreadPoolOptions& options() const {
@@ -199,7 +201,15 @@ class ThreadPool::Impl {
     if (index < share_.options.max_workers) {
       std::lock_guard<std::mutex> lock(mutex_);
       if (!closing_) {
-        workers_[index].reset(new Worker(&share_, index));
+        auto new_worker = std::make_unique<Worker>(&share_);
+        auto status = new_worker->Start(workers_.size());
+        if (status.ok()) {
+          workers_.push_back(std::move(new_worker));
+        } else if (workers_.empty()) {
+          LOG(FATAL) << "Unable to start first worker: " << status;
+        } else {
+          LOG(WARNING) << "Unable to start worker: " << status;
+        }
       }
     } else {
       --created_workers_;
@@ -209,7 +219,7 @@ class ThreadPool::Impl {
 
   void Shutdown() {
     // Block creating new workers.
-    created_workers_ += workers_.size();
+    created_workers_ += share_.options.max_workers;
     {
       std::lock_guard<std::mutex> lock(mutex_);
       if (closing_) {
@@ -256,10 +266,10 @@ ThreadPool::ThreadPool(ThreadPoolOptions options)
     : impl_(new Impl(std::move(options))) {
 }
 
-ThreadPool::ThreadPool(ThreadPool&& rhs)
+ThreadPool::ThreadPool(ThreadPool&& rhs) noexcept
     : impl_(std::move(rhs.impl_)) {}
 
-ThreadPool& ThreadPool::operator=(ThreadPool&& rhs) {
+ThreadPool& ThreadPool::operator=(ThreadPool&& rhs) noexcept {
   impl_->Shutdown();
   impl_ = std::move(rhs.impl_);
   return *this;

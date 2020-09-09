@@ -21,6 +21,7 @@ def construct_command(args):
         '--vars_file {{vars_file}} ' \
         '--vault_password_file {{vault_password_file}} '\
         '--private_key_file {{private_key_file}} '\
+        '--ssh_user {{ssh_user}} '\
         '--mount_points %s '\
         {%- if not passwordless_sudo %}
         '--ask_sudo_pass ' \

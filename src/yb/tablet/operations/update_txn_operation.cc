@@ -78,7 +78,7 @@ Status UpdateTxnOperation::DoReplicated(int64_t leader_term, Status* complete_st
         .op_id = state->op_id(),
         .hybrid_time = state->hybrid_time(),
         .sealed = state->request()->sealed(),
-        .already_applied = AlreadyApplied::kFalse
+        .already_applied_to_regular_db = AlreadyAppliedToRegularDB::kFalse
     };
     return transaction_participant->ProcessReplicated(data);
   } else {

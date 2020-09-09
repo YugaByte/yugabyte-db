@@ -17,10 +17,8 @@ import com.yugabyte.yw.commissioner.Common;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.avaje.ebean.Ebean;
-import com.avaje.ebean.Model;
-import com.avaje.ebean.SqlUpdate;
-import com.avaje.ebean.annotation.EnumValue;
+import io.ebean.*;
+import io.ebean.annotation.EnumValue;
 
 import play.data.validation.Constraints;
 import play.libs.Json;
@@ -30,7 +28,7 @@ public class InstanceType extends Model {
   public static final Logger LOG = LoggerFactory.getLogger(InstanceType.class);
 
   public static List<String> AWS_INSTANCE_PREFIXES_SUPPORTED = ImmutableList.of(
-    "m3.", "c5.", "c4.", "c3.", "i3.");
+    "m3.", "c5.", "c5d.", "c4.", "c3.", "i3.");
 
   public enum VolumeType {
     @EnumValue("EBS")
@@ -72,8 +70,8 @@ public class InstanceType extends Model {
   private String instanceTypeDetailsJson;
   public InstanceTypeDetails instanceTypeDetails;
 
-  private static final Find<InstanceTypeKey, InstanceType> find =
-    new Find<InstanceTypeKey, InstanceType>() {};
+  private static final Finder<InstanceTypeKey, InstanceType> find =
+    new Finder<InstanceTypeKey, InstanceType>(InstanceType.class) {};
 
   public static InstanceType get(Common.CloudType providerCode, String instanceTypeCode) {
     return InstanceType.get(providerCode.toString(), instanceTypeCode);
@@ -172,18 +170,19 @@ public class InstanceType extends Model {
    * Query Helper to find supported instance types for a given cloud provider.
    */
   public static List<InstanceType> findByProvider(Provider provider) {
-    List<InstanceType> entries = InstanceType.find.where()
-        .eq("provider_code", provider.code)
-        .eq("active", true)
-        .findList();
+    List<InstanceType> entries = InstanceType.find.query().where()
+      .eq("provider_code", provider.code)
+      .eq("active", true)
+      .findList();
     if (provider.code.equals("aws")) {
       // For AWS, we would filter and show only supported instance prefixes
       entries = entries.stream()
-          .filter(supportedInstanceTypes(AWS_INSTANCE_PREFIXES_SUPPORTED))
-          .collect(Collectors.toList());
+        .filter(supportedInstanceTypes(AWS_INSTANCE_PREFIXES_SUPPORTED))
+        .collect(Collectors.toList());
     }
+
     return entries.stream().map(entry -> InstanceType.get(entry.getProviderCode(),
-        entry.getInstanceTypeCode())).collect(Collectors.toList());
+      entry.getInstanceTypeCode())).collect(Collectors.toList());
   }
 
   public static InstanceType createWithMetadata(Provider provider, String instanceTypeCode,
@@ -207,6 +206,7 @@ public class InstanceType extends Model {
   public static class InstanceTypeDetails {
     public static final int DEFAULT_VOLUME_COUNT = 1;
     public static final int DEFAULT_GCP_VOLUME_SIZE_GB = 375;
+    public static final int DEFAULT_AZU_VOLUME_SIZE_GB = 250;
 
     public List<VolumeDetails> volumeDetailsList;
     public PublicCloudConstants.Tenancy tenancy;
@@ -234,6 +234,13 @@ public class InstanceType extends Model {
     public static InstanceTypeDetails createGCPDefault() {
       InstanceTypeDetails instanceTypeDetails = new InstanceTypeDetails();
       instanceTypeDetails.setVolumeDetailsList(DEFAULT_VOLUME_COUNT, DEFAULT_GCP_VOLUME_SIZE_GB,
+          VolumeType.SSD);
+      return instanceTypeDetails;
+    }
+
+    public static InstanceTypeDetails createAZUDefault() {
+      InstanceTypeDetails instanceTypeDetails = new InstanceTypeDetails();
+      instanceTypeDetails.setVolumeDetailsList(DEFAULT_VOLUME_COUNT, DEFAULT_AZU_VOLUME_SIZE_GB,
           VolumeType.SSD);
       return instanceTypeDetails;
     }

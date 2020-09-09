@@ -6,7 +6,7 @@ description: Typecast between any pair of text, json, and jsonb values.
 menu:
   latest:
     identifier: typecast-operators
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 10
 isTocNested: true
 showAsideToc: true
@@ -33,7 +33,7 @@ new_rfc_7159_text := (orig_rfc_7159_text::jsonb)::text
 
 The round trip is, in general, literally, but not semantically, lossy because _"orig_rfc_7159_text"_ can contain arbitrary occurrences of whitespace characters but _"new_rfc_7159_text"_ has conventionally defined whitespace use: there are no newlines; and single spaces are used according to a rule.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   orig_rfc_7159_text constant text := '
@@ -64,7 +64,7 @@ new_rfc_7159_text := (orig_rfc_7159_text::json)::text
 
 is literally non-lossy because `json` stores the actual Unicode text, as is, that defines the JSON value.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   orig_rfc_7159_text constant text := '
@@ -87,7 +87,7 @@ $body$;
 
 This example illustrates the point dramatically:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   orig_rfc_7159_text constant text := '{"a": 42, "b": 17, "a": 99}';
@@ -118,7 +118,7 @@ new_json_value := (json_value::jsonb)::json;
 
 is lossy because the `json` representation stores the text definition of the JSON value.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   orig_json constant json := '

@@ -347,14 +347,14 @@ Default replica placement policy treats every yb-tserver as equal irrespective o
 
 ![before-zoneaware](/images/deploy/kubernetes/gke-aws-multizone-before-zoneaware.png)
 
-Run the following command to make the replica placement zone-aware so that one replica is placed on each zone.
+To make the replica placement zone-aware, so that one replica is placed in each zone, run the following command:
 
 ```sh
-kubectl exec -it -n yb-demo-us-central1-a yb-master-0 bash \
--- -c "/home/yugabyte/master/bin/yb-admin --master_addresses yb-master-0.yb-masters.yb-demo-us-central1-a.svc.cluster.local:7100,yb-master-0.yb-masters.yb-demo-us-central1-b.svc.cluster.local:7100,yb-master-0.yb-masters.yb-demo-us-central1-c.svc.cluster.local:7100 modify_placement_info gke.us-central1.us-central1-a,gke.us-central1.us-central1-b,gke.us-central1.us-central1-c 3"
+kubectl exec -it -n yb-demo-us-central1-a yb-master-0 -- bash \
+-c "/home/yugabyte/master/bin/yb-admin --master_addresses yb-master-0.yb-masters.yb-demo-us-central1-a.svc.cluster.local:7100,yb-master-0.yb-masters.yb-demo-us-central1-b.svc.cluster.local:7100,yb-master-0.yb-masters.yb-demo-us-central1-c.svc.cluster.local:7100 modify_placement_info gke.us-central1.us-central1-a,gke.us-central1.us-central1-b,gke.us-central1.us-central1-c 3"
 ```
 
-Go to `http://<external-ip>:7000/cluster-config` to see the new configuration.
+To see the new configuration, go to `http://<external-ip>:7000/cluster-config` to see the new configuration.
 
 ![after-zoneaware](/images/deploy/kubernetes/gke-multizone-after-zoneaware.png)
 
@@ -363,14 +363,14 @@ Go to `http://<external-ip>:7000/cluster-config` to see the new configuration.
 To connect and use the YSQL Shell (`ysqlsh`), run the following command.
 
 ```sh
-$ kubectl exec -n yb-demo-us-central1-a -it yb-tserver-0 -- /home/yugabyte/bin/ysqlsh \
+$ kubectl exec -n yb-demo-us-central1-a -it yb-tserver-0 -- ysqlsh \
   -h yb-tserver-0.yb-tservers.yb-demo-us-central1-a
 ```
 
-To connect and use the YCQL Shell (`ycqlsh`), run the following command.
+To open the YCQL Shell (`ycqlsh`), run the following command:
 
 ```sh
-$ kubectl exec -n yb-demo-us-central1-a -it yb-tserver-0 /home/yugabyte/bin/ycqlsh \
+$ kubectl exec -n yb-demo-us-central1-a -it yb-tserver-0 -- ycqlsh \
 yb-tserver-0.yb-tservers.yb-demo-us-central1-a
 ```
 

@@ -19,9 +19,16 @@ namespace yb {
 namespace master {
 namespace enterprise {
 
-Result<bool> ClusterLoadBalancer::HandleLeaderMoves(
-    TabletId* out_tablet_id, TabletServerId* out_from_ts, TabletServerId* out_to_ts) {
-  if (VERIFY_RESULT(HandleLeaderLoadIfNonAffinitized(out_tablet_id, out_from_ts, out_to_ts))) {
+Result<bool> ClusterLoadBalancer::HandleLeaderMoves(TabletId* out_tablet_id,
+                                                    TabletServerId* out_from_ts,
+                                                    TabletServerId* out_to_ts) {
+
+  // If the user sets 'transaction_tables_use_preferred_zones' gflag to 0 and the tablet
+  // being balanced is a transaction tablet, then logical flow will be changed to ignore
+  // preferred zones and instead proceed to normal leader balancing.
+  PerTableLoadState* ent_state = GetEntState();
+  if (ent_state->use_preferred_zones_ &&
+    VERIFY_RESULT(HandleLeaderLoadIfNonAffinitized(out_tablet_id, out_from_ts, out_to_ts))) {
     RETURN_NOT_OK(MoveLeader(*out_tablet_id, *out_from_ts, *out_to_ts));
     return true;
   }
@@ -31,7 +38,9 @@ Result<bool> ClusterLoadBalancer::HandleLeaderMoves(
 
 Status ClusterLoadBalancer::AnalyzeTabletsUnlocked(const TableId& table_uuid) {
   PerTableLoadState* ent_state = GetEntState();
-  GetAllAffinitizedZones(&ent_state->affinitized_zones_);
+  if (ent_state->use_preferred_zones_) {
+    GetAllAffinitizedZones(&ent_state->affinitized_zones_);
+  }
   return super::AnalyzeTabletsUnlocked(table_uuid);
 }
 

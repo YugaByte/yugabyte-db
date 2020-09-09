@@ -457,6 +457,12 @@ class Env {
   // All directory entries in 'path' must exist on the filesystem.
   virtual CHECKED_STATUS Canonicalize(const std::string& path, std::string* result) = 0;
 
+  Result<std::string> Canonicalize(const std::string& path) {
+    string result;
+    RETURN_NOT_OK(Canonicalize(path, &result));
+    return result;
+  }
+
   // Get the total amount of RAM installed on this machine.
   virtual CHECKED_STATUS GetTotalRAMBytes(int64_t* ram) = 0;
 
@@ -465,6 +471,17 @@ class Env {
 
   // Get ulimit
   virtual CHECKED_STATUS GetUlimit(int resource, int64_t* soft_limit, int64_t* hard_limit) = 0;
+
+  // Set ulimit
+  // Note that if running on macOS, the semantics of this API are a bit inconsistent across
+  // versions. Namely, setrlimit in some versions for some resources will return success even if
+  // the call did not change the resource limit to the desired value. This is specifically observed
+  // on at least RLIM_NPROC, where constraints around number of processes are a bit more restrictive
+  // than other POSIX systems.
+  // See: https://apple.stackexchange.com/questions/373063/why-is-macos-limited-to-1064-processes
+  virtual CHECKED_STATUS SetUlimit(int resource, int64_t value) = 0;
+  virtual CHECKED_STATUS SetUlimit(
+      int resource, int64_t value, const std::string& resource_name) = 0;
  private:
   // No copying allowed
   Env(const Env&);
@@ -793,6 +810,12 @@ class EnvWrapper : public Env {
   }
   CHECKED_STATUS GetUlimit(int resource, int64_t* soft_limit, int64_t* hard_limit) override {
     return target_->GetUlimit(resource, soft_limit, hard_limit);
+  }
+  CHECKED_STATUS SetUlimit(int resource, int64_t value) override {
+    return target_->SetUlimit(resource, value);
+  }
+  CHECKED_STATUS SetUlimit(int resource, int64_t value, const std::string& resource_name) override {
+    return target_->SetUlimit(resource, value, resource_name);
   }
  private:
   Env* target_;

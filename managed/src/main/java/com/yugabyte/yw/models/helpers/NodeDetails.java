@@ -3,6 +3,7 @@
 package com.yugabyte.yw.models.helpers;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.google.common.collect.ImmutableSet;
 import com.yugabyte.yw.common.NodeActionType;
 
@@ -14,6 +15,7 @@ import java.util.UUID;
 /**
  * Represents all the details of a cloud node that are of interest.
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class NodeDetails {
   // The id of the node. This is usually present in the node name.
   public int nodeIdx = -1;
@@ -98,6 +100,9 @@ public class NodeDetails {
   public int ysqlServerHttpPort = 13000;
   public int ysqlServerRpcPort = 5433;
 
+  // Which port node_exporter is running on.
+  public int nodeExporterPort = 9300;
+
   // List of states which are considered in-transit and ops such as upgrade should not be allowed.
   public static final Set<NodeState> IN_TRANSIT_STATES =
       ImmutableSet.of(NodeState.Removed, NodeState.Stopped, NodeState.Decommissioned);
@@ -166,8 +171,10 @@ public class NodeDetails {
       return new HashSet<>();
     }
     switch (state) {
+      case Adding:
+        return new HashSet<>(Arrays.asList(NodeActionType.REMOVE));
       case ToBeAdded:
-        return new HashSet<>(Arrays.asList(NodeActionType.DELETE));
+        return new HashSet<>(Arrays.asList(NodeActionType.DELETE, NodeActionType.REMOVE));
       case Live:
         return new HashSet<>(Arrays.asList(NodeActionType.STOP, NodeActionType.REMOVE));
       case Stopped:

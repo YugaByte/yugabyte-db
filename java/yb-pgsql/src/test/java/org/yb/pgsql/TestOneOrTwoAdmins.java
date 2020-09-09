@@ -79,74 +79,87 @@ public class TestOneOrTwoAdmins extends BasePgSQLTest {
 
   @Test
   public void testOneOrTwoAdmins() throws Exception {
-    Statement setupStatement = connection.createStatement();
-    setupStatement.execute(
-        "create table staff(" +
-        "  name text constraint staff_name primary key, " +
-        "  job  text constraint staff_job_id_nn not null, " +
-        "            constraint staff_job_id_chk check (job in ( " +
-        "              'Manager', "+
-        "              'Admin', " +
-        "              'Sales', " +
-        "              'Marketing', " +
-        "              'Developer'))" +
-        "  );");
-    setupStatement.execute(
-        "insert into staff(name, job) values" +
-        "  ('Mary',  'Manager')," +
-        "  ('Susan', 'Developer')," +
-        "  ('Helen', 'Sales')," +
-        "  ('Bill',  'Marketing')," +
-        "  ('Fred',  'Sales')," +
-        "  ('John',  'Admin');");
-    final IsolationLevel isolation = IsolationLevel.SERIALIZABLE;
-
-    Connection connection1 = createConnection(isolation, AutoCommit.DISABLED);
-    Statement statement1 = connection1.createStatement();
-
-    Connection connection2 = createConnection(isolation, AutoCommit.DISABLED);
-    Statement statement2 = connection2.createStatement();
-
-    Connection connectionForCleanup = createConnection(isolation, AutoCommit.ENABLED);
-    Statement statementForCleanup = connectionForCleanup.createStatement();
-
-    Connection connectionForReading = createConnection(
-        IsolationLevel.REPEATABLE_READ, AutoCommit.ENABLED);
-    Statement statementForReading = connectionForReading.createStatement();
-
-    int numSelectSuccess1 = 0;
-    int numSelectSuccess2 = 0;
-    final int NUM_ATTEMPTS = 100;
-    for (int i = 1; i <= NUM_ATTEMPTS; ++i) {
-      LOG.info("Starting iteration " + i);
-      ResultSet rs = statementForReading.executeQuery("SELECT name, job FROM staff");
-      while (rs.next()) {
-        LOG.info(
-            "Found existing row: name=" + rs.getString("name") + ", job=" + rs.getString("job"));
-      }
-
-      LOG.info("(txn 1) Adding Alice");
-      statement1.execute("insert into staff(name, job) values('Alice', 'Admin');");
-      LOG.info("(txn 2) Adding Bert");
-      statement2.execute("insert into staff(name, job) values('Bert', 'Admin');");
-
-      final boolean useCount = i % 2 == 0;
-      numSelectSuccess1 += checkAssertion("connection 1", statement1, useCount);
-      numSelectSuccess2 += checkAssertion("connection 2", statement2, useCount);
-
-      connection1.commit();
-      connection2.commit();
-
-      LOG.info("Cleanup");
-      statementForCleanup.execute("delete from staff where name in ('Alice', 'Bert')");
+    try (Statement setupStatement = connection.createStatement()) {
+      setupStatement.execute(
+          "create table staff(" +
+          "  name text constraint staff_name primary key, " +
+          "  job  text constraint staff_job_id_nn not null, " +
+          "            constraint staff_job_id_chk check (job in ( " +
+          "              'Manager', "+
+          "              'Admin', " +
+          "              'Sales', " +
+          "              'Marketing', " +
+          "              'Developer'))" +
+          "  );");
+      setupStatement.execute(
+          "insert into staff(name, job) values" +
+          "  ('Mary',  'Manager')," +
+          "  ('Susan', 'Developer')," +
+          "  ('Helen', 'Sales')," +
+          "  ('Bill',  'Marketing')," +
+          "  ('Fred',  'Sales')," +
+          "  ('John',  'Admin');");
     }
 
-    double skew = (numSelectSuccess1 - numSelectSuccess2) * 1.0 / NUM_ATTEMPTS;
-    LOG.info("Stats: numSelectSuccess1=" + numSelectSuccess1 +
-             ", numSelectSuccess2=" + numSelectSuccess2 +
-             ", skew=" + skew);
-    final double SKEW_LIMIT = 0.3;
-    assertTrue("Skew must be less than " + SKEW_LIMIT + ": " + skew, skew < SKEW_LIMIT);
+    try (
+        Connection connection1 = getConnectionBuilder()
+            .withIsolationLevel(IsolationLevel.SERIALIZABLE)
+            .withAutoCommit(AutoCommit.DISABLED)
+            .connect();
+        Statement statement1 = connection1.createStatement();
+
+        Connection connection2 = getConnectionBuilder()
+            .withIsolationLevel(IsolationLevel.SERIALIZABLE)
+            .withAutoCommit(AutoCommit.DISABLED)
+            .connect();
+        Statement statement2 = connection2.createStatement();
+
+        Connection connectionForCleanup = getConnectionBuilder()
+            .withIsolationLevel(IsolationLevel.SERIALIZABLE)
+            .withAutoCommit(AutoCommit.ENABLED)
+            .connect();
+        Statement statementForCleanup = connectionForCleanup.createStatement();
+
+        Connection connectionForReading = getConnectionBuilder()
+            .withIsolationLevel(IsolationLevel.REPEATABLE_READ)
+            .withAutoCommit(AutoCommit.ENABLED)
+            .connect();
+        Statement statementForReading = connectionForReading.createStatement()) {
+
+      int numSelectSuccess1 = 0;
+      int numSelectSuccess2 = 0;
+      final int NUM_ATTEMPTS = 100;
+      for (int i = 1; i <= NUM_ATTEMPTS; ++i) {
+        LOG.info("Starting iteration " + i);
+        ResultSet rs = statementForReading.executeQuery("SELECT name, job FROM staff");
+        while (rs.next()) {
+          LOG.info(
+              "Found existing row: name=" + rs.getString("name") + ", job=" + rs.getString("job"));
+        }
+
+        LOG.info("(txn 1) Adding Alice");
+        statement1.execute("insert into staff(name, job) values('Alice', 'Admin');");
+        LOG.info("(txn 2) Adding Bert");
+        statement2.execute("insert into staff(name, job) values('Bert', 'Admin');");
+
+        final boolean useCount = i % 2 == 0;
+        numSelectSuccess1 += checkAssertion("connection 1", statement1, useCount);
+        numSelectSuccess2 += checkAssertion("connection 2", statement2, useCount);
+
+        connection1.commit();
+        connection2.commit();
+
+        LOG.info("Cleanup");
+        statementForCleanup.execute("delete from staff where name in ('Alice', 'Bert')");
+      }
+
+      double skew = (numSelectSuccess1 - numSelectSuccess2) * 1.0 / NUM_ATTEMPTS;
+      LOG.info("Stats: numSelectSuccess1=" + numSelectSuccess1 +
+               ", numSelectSuccess2=" + numSelectSuccess2 +
+               ", skew=" + skew);
+      final double SKEW_LIMIT = 0.3;
+      assertTrue("Skew must be less than " + SKEW_LIMIT + ": " + skew, skew < SKEW_LIMIT);
+    }
   }
 
 }

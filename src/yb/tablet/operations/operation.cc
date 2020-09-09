@@ -40,6 +40,7 @@
 #include "yb/tserver/tserver_error.h"
 
 #include "yb/util/size_literals.h"
+#include "yb/util/trace.h"
 
 namespace yb {
 namespace tablet {
@@ -122,7 +123,22 @@ HybridTime OperationState::WriteHybridTime() const {
 }
 
 std::string OperationState::ConsensusRoundAsString() const {
+  std::lock_guard<simple_spinlock> l(mutex_);
   return AsString(consensus_round());
+}
+
+void OperationState::LeaderInit(const OpId& op_id, const OpId& committed_op_id) {
+  std::lock_guard<simple_spinlock> l(mutex_);
+  auto* replicate_msg = consensus_round_->replicate_msg().get();
+  op_id.ToPB(replicate_msg->mutable_id());
+  committed_op_id.ToPB(replicate_msg->mutable_committed_op_id());
+  replicate_msg->set_hybrid_time(hybrid_time_.ToUint64());
+  replicate_msg->set_monotonic_counter(*tablet()->monotonic_counter());
+}
+
+void ExclusiveSchemaOperationStateBase::ReleasePermitToken() {
+  permit_token_.Reset();
+  TRACE("Released permit token");
 }
 
 OperationCompletionCallback::OperationCompletionCallback()

@@ -19,4 +19,5 @@ copy_option ::= FORMAT format_name
                 | FORCE_NOT_NULL ( column_names )
                 | FORCE_NULL ( column_names )
                 | ENCODING 'encoding_name'
+                | ROWS_PER_TRANSACTION integer
 ```

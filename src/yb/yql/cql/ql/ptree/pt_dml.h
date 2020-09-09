@@ -394,7 +394,7 @@ class PTDmlStmt : public PTCollection {
 
   // Add all column refs to be read by DocDB.
   void AddRefForAllColumns() {
-    for (const auto pair : column_map_) {
+    for (const auto& pair : column_map_) {
       AddColumnRef(pair.second);
     }
   }

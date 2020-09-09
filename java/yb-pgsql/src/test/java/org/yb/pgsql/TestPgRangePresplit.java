@@ -13,24 +13,21 @@
 
 package org.yb.pgsql;
 
-import org.junit.After;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.postgresql.util.PSQLException;
+import org.yb.client.ListTablesResponse;
+import org.yb.client.YBClient;
 import org.yb.util.YBTestRunnerNonTsanOnly;
+import org.yb.master.Master;
 
-import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.yb.AssertionWrappers.assertEquals;
-import static org.yb.AssertionWrappers.assertFalse;
-import static org.yb.AssertionWrappers.assertTrue;
 
 @RunWith(value=YBTestRunnerNonTsanOnly.class)
 public class TestPgRangePresplit extends BasePgSQLTest {
@@ -268,5 +265,91 @@ public class TestPgRangePresplit extends BasePgSQLTest {
         assertEquals(expectedRows, getRowList(rs));
       }
     }
+  }
+
+  @Test
+  public void testIndexes() throws Exception {
+    List<Row> expectedRows = new ArrayList<>();
+
+    try (Statement statement = connection.createStatement()) {
+      statement.execute("CREATE TABLE test(k SERIAL PRIMARY KEY, a INT, b INT, v VARCHAR)");
+      statement.execute(
+              "CREATE INDEX test_ab_idx ON test(a ASC, b ASC) SPLIT AT VALUES((10), (10, 20))");
+      for (int a = 5; a <= 15; ++a) {
+        for (int b = 15; b <= 25; ++b) {
+          for (int i = 0; i < 2; ++i) {
+            statement.execute(String.format(
+              "INSERT INTO test(a, b, v) VALUES(%d, %d, 'a_%d_b_%d')", a, b, a, b));
+          }
+        }
+      }
+      expectedRows.clear();
+      expectedRows.add(new Row("Index Scan using test_ab_idx on test"));
+      expectedRows.add(new Row("  Index Cond: ((b < 22) AND (b > 17))"));
+      String query = "SELECT a,b,v FROM test WHERE b < 22 AND b > 17";
+      try (ResultSet rs = statement.executeQuery("EXPLAIN(COSTS OFF) " + query)) {
+        assertEquals(expectedRows, getRowList(rs));
+      }
+
+      expectedRows.clear();
+      for (int a = 5; a <= 15; ++a) {
+        for (int b = 18; b <= 21; ++b) {
+          for (int i = 0; i < 2; ++i) {
+            expectedRows.add(new Row(a, b, String.format("a_%d_b_%d", a, b)));
+          }
+        }
+      }
+      try (ResultSet rs = statement.executeQuery(query)) {
+        assertEquals(expectedRows, getSortedRowList(rs));
+      }
+    }
+    // Check index was splitted into 3 tablets
+    YBClient client = miniCluster.getClient();
+    List<Master.ListTablesResponsePB.TableInfo> tables =
+            client.getTablesList("test_ab_idx").getTableInfoList();
+    assertEquals(1, tables.size());
+    String tableUuid = tables.get(0).getId().toStringUtf8();
+    assertEquals(3, client.getTabletUUIDs(client.openTableByUUID(tableUuid)).size());
+  }
+
+  @Test
+  public void testUniqueIndexes() throws Exception {
+    List<Row> expectedRows = new ArrayList<>();
+
+    try (Statement statement = connection.createStatement()) {
+      statement.execute("CREATE TABLE test(k SERIAL PRIMARY KEY, a INT, b INT, v VARCHAR)");
+      statement.execute(
+        "CREATE UNIQUE INDEX test_ab_idx ON test(a ASC, b ASC) SPLIT AT VALUES((10), (10, 20))");
+      for (int a = 5; a <= 15; ++a) {
+        for (int b = 15; b <= 25; ++b) {
+          statement.execute(String.format(
+            "INSERT INTO test(a, b, v) VALUES(%d, %d, 'a_%d_b_%d')", a, b, a, b));
+        }
+      }
+      expectedRows.clear();
+      expectedRows.add(new Row("Index Scan using test_ab_idx on test"));
+      expectedRows.add(new Row("  Index Cond: ((b < 22) AND (b > 17))"));
+      String query = "SELECT a,b,v FROM test WHERE b < 22 AND b > 17";
+      try (ResultSet rs = statement.executeQuery("EXPLAIN(COSTS OFF) " + query)) {
+        assertEquals(expectedRows, getRowList(rs));
+      }
+
+      expectedRows.clear();
+      for (int a = 5; a <= 15; ++a) {
+        for (int b = 18; b <= 21; ++b) {
+          expectedRows.add(new Row(a, b, String.format("a_%d_b_%d", a, b)));
+        }
+      }
+      try (ResultSet rs = statement.executeQuery(query)) {
+        assertEquals(expectedRows, getSortedRowList(rs));
+      }
+    }
+    // Check index was splitted into 3 tablets
+    YBClient client = miniCluster.getClient();
+    List<Master.ListTablesResponsePB.TableInfo> tables =
+      client.getTablesList("test_ab_idx").getTableInfoList();
+    assertEquals(1, tables.size());
+    String tableUuid = tables.get(0).getId().toStringUtf8();
+    assertEquals(3, client.getTabletUUIDs(client.openTableByUUID(tableUuid)).size());
   }
 }

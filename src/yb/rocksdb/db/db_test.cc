@@ -523,10 +523,9 @@ TEST_F(DBTest, PutSingleDeleteGet) {
     ASSERT_EQ("v2", Get(1, "foo2"));
     ASSERT_OK(SingleDelete(1, "foo"));
     ASSERT_EQ("NOT_FOUND", Get(1, "foo"));
-    // Skip HashCuckooRep as it does not support single delete. FIFO and
-    // universal compaction do not apply to the test case. Skip MergePut
-    // because single delete does not get removed when it encounters a merge.
-  } while (ChangeOptions(kSkipHashCuckoo | kSkipFIFOCompaction |
+    // FIFO and universal compaction do not apply to the test case.
+    // Skip MergePut because single delete does not get removed when it encounters a merge.
+  } while (ChangeOptions(kSkipFIFOCompaction |
                          kSkipUniversalCompaction | kSkipMergePut));
 }
 
@@ -640,7 +639,7 @@ TEST_F(DBTest, ReadFromPersistedTier) {
         DestroyAndReopen(options);
       }
     }
-  } while (ChangeOptions(kSkipHashCuckoo));
+  } while (ChangeOptions());
 }
 
 TEST_F(DBTest, IteratorProperty) {
@@ -713,11 +712,9 @@ TEST_F(DBTest, SingleDeleteFlush) {
 
     ASSERT_EQ("NOT_FOUND", Get(1, "bar"));
     ASSERT_EQ("NOT_FOUND", Get(1, "foo"));
-    // Skip HashCuckooRep as it does not support single delete. FIFO and
-    // universal compaction do not apply to the test case. Skip MergePut
-    // because merges cannot be combined with single deletions.
-  } while (ChangeOptions(kSkipHashCuckoo | kSkipFIFOCompaction |
-                         kSkipUniversalCompaction | kSkipMergePut));
+    // FIFO and universal compaction do not apply to the test case.
+    // Skip MergePut because merges cannot be combined with single deletions.
+  } while (ChangeOptions(kSkipFIFOCompaction | kSkipUniversalCompaction | kSkipMergePut));
 }
 
 TEST_F(DBTest, SingleDeletePutFlush) {
@@ -736,11 +733,9 @@ TEST_F(DBTest, SingleDeletePutFlush) {
     ASSERT_OK(Flush(1));
 
     ASSERT_EQ("[ ]", AllEntriesFor("a", 1));
-    // Skip HashCuckooRep as it does not support single delete. FIFO and
-    // universal compaction do not apply to the test case. Skip MergePut
-    // because merges cannot be combined with single deletions.
-  } while (ChangeOptions(kSkipHashCuckoo | kSkipFIFOCompaction |
-                         kSkipUniversalCompaction | kSkipMergePut));
+    // FIFO and universal compaction do not apply to the test case.
+    // Skip MergePut because merges cannot be combined with single deletions.
+  } while (ChangeOptions(kSkipFIFOCompaction | kSkipUniversalCompaction | kSkipMergePut));
 }
 
 TEST_F(DBTest, EmptyFlush) {
@@ -758,11 +753,9 @@ TEST_F(DBTest, EmptyFlush) {
     ASSERT_OK(Flush(1));
 
     ASSERT_EQ("[ ]", AllEntriesFor("a", 1));
-    // Skip HashCuckooRep as it does not support single delete. FIFO and
-    // universal compaction do not apply to the test case. Skip MergePut
-    // because merges cannot be combined with single deletions.
-  } while (ChangeOptions(kSkipHashCuckoo | kSkipFIFOCompaction |
-                         kSkipUniversalCompaction | kSkipMergePut));
+    // FIFO and universal compaction do not apply to the test case.
+    // Skip MergePut because merges cannot be combined with single deletions.
+  } while (ChangeOptions(kSkipFIFOCompaction | kSkipUniversalCompaction | kSkipMergePut));
 }
 
 // Disable because not all platform can run it.
@@ -863,11 +856,6 @@ TEST_F(DBTest, GetSnapshot) {
       std::string key = (i == 0) ? std::string("foo") : std::string(200, 'x');
       ASSERT_OK(Put(1, key, "v1"));
       const Snapshot* s1 = db_->GetSnapshot();
-      if (option_config_ == kHashCuckoo) {
-        // Unsupported case.
-        ASSERT_TRUE(s1 == nullptr);
-        break;
-      }
       ASSERT_OK(Put(1, key, "v2"));
       ASSERT_EQ("v2", Get(1, key));
       ASSERT_EQ("v1", Get(1, key, s1));
@@ -1039,9 +1027,7 @@ TEST_F(DBTest, NonBlockingIteration) {
 
     // This test verifies block cache behaviors, which is not used by plain
     // table format.
-    // Exclude kHashCuckoo as it does not support iteration currently
-  } while (ChangeOptions(kSkipPlainTable | kSkipNoSeekToLast | kSkipHashCuckoo |
-                         kSkipMmapReads));
+  } while (ChangeOptions(kSkipPlainTable | kSkipNoSeekToLast | kSkipMmapReads));
 }
 
 #ifndef ROCKSDB_LITE
@@ -1105,9 +1091,7 @@ TEST_F(DBTest, ManagedNonBlockingIteration) {
 
     // This test verifies block cache behaviors, which is not used by plain
     // table format.
-    // Exclude kHashCuckoo as it does not support iteration currently
-  } while (ChangeOptions(kSkipPlainTable | kSkipNoSeekToLast | kSkipHashCuckoo |
-                         kSkipMmapReads));
+  } while (ChangeOptions(kSkipPlainTable | kSkipNoSeekToLast | kSkipMmapReads));
 }
 #endif  // ROCKSDB_LITE
 
@@ -1607,8 +1591,7 @@ TEST_F(DBTest, IterWithSnapshot) {
     }
     db_->ReleaseSnapshot(snapshot);
     delete iter;
-    // skip as HashCuckooRep does not support snapshot
-  } while (ChangeOptions(kSkipHashCuckoo));
+  } while (ChangeOptions());
 }
 
 TEST_F(DBTest, Recover) {
@@ -1758,7 +1741,7 @@ TEST_F(DBTest, IgnoreRecoveredLog) {
     }
     Status s = TryReopen(options);
     ASSERT_TRUE(!s.ok());
-  } while (ChangeOptions(kSkipHashCuckoo));
+  } while (ChangeOptions());
 }
 
 TEST_F(DBTest, CheckLock) {
@@ -2729,7 +2712,7 @@ TEST_F(DBTest, Snapshot) {
     ASSERT_EQ(0U, GetNumSnapshots());
     ASSERT_EQ("0v4", Get(0, "foo"));
     ASSERT_EQ("1v4", Get(1, "foo"));
-  } while (ChangeOptions(kSkipHashCuckoo));
+  } while (ChangeOptions());
 }
 
 TEST_F(DBTest, HiddenValuesAreRemoved) {
@@ -2766,9 +2749,7 @@ TEST_F(DBTest, HiddenValuesAreRemoved) {
     ASSERT_TRUE(Between(Size("", "pastfoo", 1), 0, 1000));
     // ApproximateOffsetOf() is not yet implemented in plain table format,
     // which is used by Size().
-    // skip HashCuckooRep as it does not support snapshot
-  } while (ChangeOptions(kSkipUniversalCompaction | kSkipFIFOCompaction |
-                         kSkipPlainTable | kSkipHashCuckoo));
+  } while (ChangeOptions(kSkipUniversalCompaction | kSkipFIFOCompaction | kSkipPlainTable));
 }
 #endif  // ROCKSDB_LITE
 
@@ -2823,8 +2804,7 @@ TEST_F(DBTest, CompactBetweenSnapshots) {
                            nullptr);
     ASSERT_EQ("sixth", Get(1, "foo"));
     ASSERT_EQ(AllEntriesFor("foo", 1), "[ sixth ]");
-    // skip HashCuckooRep as it does not support snapshot
-  } while (ChangeOptions(kSkipHashCuckoo | kSkipFIFOCompaction));
+  } while (ChangeOptions(kSkipFIFOCompaction));
 }
 
 TEST_F(DBTest, UnremovableSingleDelete) {
@@ -2869,11 +2849,9 @@ TEST_F(DBTest, UnremovableSingleDelete) {
     ASSERT_EQ("first", Get(1, "foo", snapshot));
     ASSERT_EQ("NOT_FOUND", Get(1, "foo"));
     db_->ReleaseSnapshot(snapshot);
-    // Skip HashCuckooRep as it does not support single delete.  FIFO and
-    // universal compaction do not apply to the test case.  Skip MergePut
-    // because single delete does not get removed when it encounters a merge.
-  } while (ChangeOptions(kSkipHashCuckoo | kSkipFIFOCompaction |
-                         kSkipUniversalCompaction | kSkipMergePut));
+    // FIFO and universal compaction do not apply to the test case.
+    // Skip MergePut because single delete does not get removed when it encounters a merge.
+  } while (ChangeOptions(kSkipFIFOCompaction | kSkipUniversalCompaction | kSkipMergePut));
 }
 
 #ifndef ROCKSDB_LITE
@@ -4408,10 +4386,7 @@ class MultiThreadedDBTest : public DBTest,
   static std::vector<int> GenerateOptionConfigs() {
     std::vector<int> optionConfigs;
     for (int optionConfig = kDefault; optionConfig < kEnd; ++optionConfig) {
-      // skip as HashCuckooRep does not support snapshot
-      if (optionConfig != kHashCuckoo) {
-        optionConfigs.push_back(optionConfig);
-      }
+      optionConfigs.push_back(optionConfig);
     }
     return optionConfigs;
   }
@@ -4939,11 +4914,8 @@ class DBTestRandomized : public DBTest,
 
   static std::vector<int> GenerateOptionConfigs() {
     std::vector<int> option_configs;
-    // skip cuckoo hash as it does not support snapshot.
     for (int option_config = kDefault; option_config < kEnd; ++option_config) {
-      if (!ShouldSkipOptions(option_config, kSkipDeletesFilterFirst |
-                                                kSkipNoSeekToLast |
-                                                kSkipHashCuckoo)) {
+      if (!ShouldSkipOptions(option_config, kSkipDeletesFilterFirst | kSkipNoSeekToLast)) {
         option_configs.push_back(option_config);
       }
     }
@@ -4974,7 +4946,6 @@ TEST_P(DBTestRandomized, Randomized) {
       int minimum = 0;
       if (option_config_ == kHashSkipList ||
           option_config_ == kHashLinkList ||
-          option_config_ == kHashCuckoo ||
           option_config_ == kPlainTableFirstBytePrefix ||
           option_config_ == kBlockBasedTableWithWholeKeyHashIndex ||
           option_config_ == kBlockBasedTableWithPrefixHashIndex) {

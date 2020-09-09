@@ -10,19 +10,12 @@
 
 package com.yugabyte.yw.commissioner.tasks;
 
-import com.yugabyte.yw.commissioner.SubTaskGroup;
 import com.yugabyte.yw.commissioner.SubTaskGroupQueue;
 import com.yugabyte.yw.commissioner.UserTaskDetails.SubTaskGroupType;
-import com.yugabyte.yw.commissioner.tasks.UniverseDefinitionTaskBase.ServerType;
-import com.yugabyte.yw.commissioner.tasks.UpgradeUniverse.UpgradeTaskType;
-import com.yugabyte.yw.commissioner.tasks.UpgradeUniverse.UpgradeTaskSubType;
 import com.yugabyte.yw.commissioner.tasks.params.NodeTaskParams;
-import com.yugabyte.yw.commissioner.tasks.subtasks.ChangeMasterConfig;
-import com.yugabyte.yw.commissioner.tasks.subtasks.ModifyBlackList;
-import com.yugabyte.yw.commissioner.tasks.subtasks.SetFlagInMemory;
-import com.yugabyte.yw.commissioner.tasks.subtasks.WaitForLoadBalance;
 import com.yugabyte.yw.common.DnsManager;
-import com.yugabyte.yw.common.PlacementInfoUtil;
+import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
+import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.UserIntent;
 import com.yugabyte.yw.models.Universe;
 import com.yugabyte.yw.models.helpers.NodeDetails;
@@ -31,7 +24,6 @@ import com.yugabyte.yw.models.helpers.NodeDetails.NodeState;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -121,6 +113,26 @@ public class AddNodeToUniverse extends UniverseDefinitionTaskBase {
         createChangeConfigTask(currentNode, true, SubTaskGroupType.WaitForDataMigration);
 
         masterAdded = true;
+      }
+
+      Cluster cluster = taskParams().getClusterByUuid(currentNode.placementUuid);
+
+      UniverseDefinitionTaskParams universeDetails = universe.getUniverseDetails();
+
+      // Explicitly set webserver ports for each dql
+      cluster.userIntent.tserverGFlags.put(
+        "redis_proxy_webserver_port",
+        Integer.toString(universeDetails.communicationPorts.redisServerHttpPort)
+      );
+      cluster.userIntent.tserverGFlags.put(
+        "cql_proxy_webserver_port",
+        Integer.toString(universeDetails.communicationPorts.yqlServerHttpPort)
+      );
+      if (universe.getUniverseDetails().getPrimaryCluster().userIntent.enableYSQL) {
+        cluster.userIntent.tserverGFlags.put(
+          "pgsql_proxy_webserver_port",
+          Integer.toString(universeDetails.communicationPorts.ysqlServerHttpPort)
+        );
       }
 
       // Set gflags for the tserver.

@@ -1,0 +1,12 @@
+# src/test/regress/yb_tablegroups_schedule
+#
+####################################################################################################
+# TABLEGROUP Testsuite: All DDL Statments on Tablegroups
+# - CREATE
+# - DROP
+# - (Future) ALTER
+####################################################################################################
+test: yb_tablegroup
+test: yb_tablegroup_permissions
+test: yb_tablegroup_dml
+test: yb_tablegroup_alter

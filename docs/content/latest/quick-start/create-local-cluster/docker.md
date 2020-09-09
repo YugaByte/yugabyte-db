@@ -49,9 +49,9 @@ showAsideToc: true
 
 {{< note title="Note" >}}
 
-This Docker Quick Start is based on the new [`yugabyted`](../../../reference/configuration/yugabyted/) server currently in BETA. You can refer to the older [`yb-docker-ctl`](../../../admin/yb-docker-ctl/) based instructions in the [v2.0 docs](/v2.0/quick-start/install/docker/).
+This Docker Quick Start is based on the new [`yugabyted`](../../../reference/configuration/yugabyted/) server. You can refer to the older [`yb-docker-ctl`](../../../admin/yb-docker-ctl/) based instructions in the [v2.0 docs](/v2.0/quick-start/install/docker/).
 
-Note that yugabyted currently supports creating a 1-node cluster only. Ability to create multi-node clusters is under [active development](https://github.com/yugabyte/yugabyte-db/issues/2057). Meanwhile, use the [v2.0 docs](/v2.0/quick-start/install/docker/) if you need to create local multi-node clusters.
+Note that yugabyted currently supports creating a single-node cluster only. Ability to create multi-node clusters is under [active development](https://github.com/yugabyte/yugabyte-db/issues/2057). 
 
 {{< /note >}}
 
@@ -62,16 +62,16 @@ To create a 1-node cluster with a replication factor (RF) of 1, run the command 
 ```sh
 $ docker run -d --name yugabyte  -p7000:7000 -p9000:9000 -p5433:5433 -p9042:9042\
  yugabytedb/yugabyte:latest bin/yugabyted start\
- --daemon=false --ui=false
+ --daemon=false
 ```
 
 As per the above docker run command, the data stored in YugabyteDB is not persistent across container restarts. If you want to make YugabyteDB persist data across restarts then you have to add the volume mount option to the docker run command as shown below.
 
 ```sh
 docker run -d --name yugabyte  -p7000:7000 -p9000:9000 -p5433:5433 -p9042:9042\
- -v yb_data:/home/yugabyte/var\
+ -v ~/yb_data:/home/yugabyte/var\
  yugabytedb/yugabyte:latest bin/yugabyted start\
- --daemon=false --ui=false
+ --daemon=false 
 ```
 
 Clients can now connect to the YSQL and YCQL APIs at `localhost:5433` and `localhost:9042` respectively.
@@ -93,7 +93,7 @@ The [yb-master Admin UI](../../../reference/configuration/yb-master/#admin-ui) i
 
 ### Overview and YB-Master status
 
-The yb-master home page shows that we have a cluster (or universe) with `Replication Factor` of 1 and `Num Nodes (TServers)` as 1. The `Num User Tables` is `0` since there are no user tables created yet. YugabyteDB version number is also shown for your reference.
+The yb-master home page shows that you have a cluster (or universe) with `Replication Factor` of 1 and `Num Nodes (TServers)` as 1. The `Num User Tables` is `0` since there are no user tables created yet. YugabyteDB version number is also shown for your reference.
 
 ![master-home](/images/admin/master-home-docker-rf1.png)
 
@@ -101,7 +101,7 @@ The Masters section highlights the cloud, region and zone placement for the yb-m
 
 ### YB-TServer status
 
-Clicking on the `See all nodes` takes us to the Tablet Servers page where we can observe the 1 tserver along with the time since it last connected to this master via regular heartbeats. 
+Clicking on the `See all nodes` takes us to the Tablet Servers page where you can observe the 1 tserver along with the time since it last connected to this master via regular heartbeats. 
 
 ![master-home](/images/admin/master-tservers-list-docker-rf1.png)
 

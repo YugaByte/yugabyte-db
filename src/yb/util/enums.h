@@ -28,7 +28,8 @@
 
 #include <boost/core/demangle.hpp>
 
-#include "yb/util/debug-util.h"
+#include <glog/logging.h>
+
 #include "yb/util/math_util.h"
 
 namespace yb {

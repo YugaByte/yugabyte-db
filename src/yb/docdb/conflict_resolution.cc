@@ -131,7 +131,7 @@ class ConflictResolver : public std::enable_shared_from_this<ConflictResolver> {
   void Resolve() {
     auto status = context_->ReadConflicts(this);
     if (!status.ok()) {
-      callback_(status);
+      InvokeCallback(status);
       return;
     }
 
@@ -217,16 +217,21 @@ class ConflictResolver : public std::enable_shared_from_this<ConflictResolver> {
   }
 
  private:
+  void InvokeCallback(const Result<HybridTime>& result) {
+    intent_iter_.Reset();
+    callback_(result);
+  }
+
   MUST_USE_RESULT bool CheckResolutionDone(const Result<bool>& result) {
     if (!result.ok()) {
       VLOG_WITH_PREFIX(4) << "Abort: " << result.status();
-      callback_(result.status());
+      InvokeCallback(result.status());
       return true;
     }
 
     if (result.get()) {
       VLOG_WITH_PREFIX(4) << "No conflicts: " << context_->GetResolutionHt();
-      callback_(context_->GetResolutionHt());
+      InvokeCallback(context_->GetResolutionHt());
       return true;
     }
 
@@ -236,7 +241,7 @@ class ConflictResolver : public std::enable_shared_from_this<ConflictResolver> {
   void ResolveConflicts() {
     VLOG_WITH_PREFIX(3) << "Conflicts: " << yb::ToString(conflicts_);
     if (conflicts_.empty()) {
-      callback_(context_->GetResolutionHt());
+      InvokeCallback(context_->GetResolutionHt());
       return;
     }
 
@@ -408,12 +413,6 @@ class ConflictResolver : public std::enable_shared_from_this<ConflictResolver> {
 };
 
 
-Result<boost::optional<DocKeyHash>> FetchDocKeyHash(const Slice& encoded_key) {
-  DocKey key;
-  RETURN_NOT_OK(key.DecodeFrom(encoded_key, DocKeyPart::kUpToHash));
-  return key.has_hash() ? key.hash() : boost::optional<DocKeyHash>();
-}
-
 using IntentTypesContainer = std::map<KeyBuffer, IntentTypeSet>;
 
 class IntentProcessor {
@@ -456,7 +455,7 @@ class StrongConflictChecker {
   {}
 
   CHECKED_STATUS Check(const Slice& intent_key) {
-    const auto hash = VERIFY_RESULT(FetchDocKeyHash(intent_key));
+    const auto hash = VERIFY_RESULT(DecodeDocKeyHash(intent_key));
     if (PREDICT_FALSE(!value_iter_.Initialized() || hash != value_iter_hash_)) {
       value_iter_ = CreateRocksDBIterator(
           resolver_.doc_db().regular,

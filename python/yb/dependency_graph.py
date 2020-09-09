@@ -16,7 +16,10 @@ import sys
 import unittest
 import pipes
 import platform
+
 from datetime import datetime
+
+from typing import Optional, List, Dict
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -88,7 +91,7 @@ NODE_TYPE_ANY = 'any'
 # If that changes, this needs to be updated. Note that the "bin" directory here is the
 # yugabyte/bin directory in the source tree, not the "bin" directory under the build
 # directory, so it only has scripts and not yb-master / yb-tserver binaries.
-DIRECTORIES_DONT_AFFECT_TESTS = [
+DIRECTORIES_THAT_DO_NOT_AFFECT_TESTS = [
     'architecture',
     'bin',
     'cloud',
@@ -1260,11 +1263,12 @@ def get_file_category(rel_path):
     """
     basename = os.path.basename(rel_path)
 
-    if rel_path.split(os.sep)[0] in DIRECTORIES_DONT_AFFECT_TESTS:
+    if rel_path.split(os.sep)[0] in DIRECTORIES_THAT_DO_NOT_AFFECT_TESTS:
         return CATEGORY_DOES_NOT_AFFECT_TESTS
 
     if rel_path == 'yb_build.sh':
-        # The main build script is being run anyway.
+        # The main build script is being run anyway, so we hope that most issues will come out at
+        # that stage.
         return CATEGORY_DOES_NOT_AFFECT_TESTS
 
     if basename == 'CMakeLists.txt' or basename.endswith('.cmake'):
@@ -1464,7 +1468,12 @@ def main():
         # than C++ / Java / files known not to affect unit tests, we force re-running all tests.
         unsafe_categories = updated_categories - CATEGORIES_NOT_CAUSING_RERUN_OF_ALL_TESTS
         user_said_all_tests = get_bool_env_var('YB_RUN_ALL_TESTS')
-        run_all_tests = bool(unsafe_categories) or user_said_all_tests
+
+        test_filter_re = os.getenv('YB_TEST_EXECUTION_FILTER_RE')
+        manual_test_filtering_with_regex = bool(test_filter_re)
+
+        select_all_tests_for_now = (
+            bool(unsafe_categories) or user_said_all_tests or manual_test_filtering_with_regex)
 
         user_said_all_cpp_tests = get_bool_env_var('YB_RUN_ALL_CPP_TESTS')
         user_said_all_java_tests = get_bool_env_var('YB_RUN_ALL_JAVA_TESTS')
@@ -1472,15 +1481,19 @@ def main():
         java_files_changed = 'java' in updated_categories
         yb_master_or_tserver_changed = bool(affected_basenames & set(['yb-master', 'yb-tserver']))
 
-        run_cpp_tests = run_all_tests or cpp_files_changed or user_said_all_cpp_tests
-        run_java_tests = (
-                run_all_tests or java_files_changed or yb_master_or_tserver_changed or
-                user_said_all_java_tests
-            )
+        run_cpp_tests = select_all_tests_for_now or cpp_files_changed or user_said_all_cpp_tests
 
-        if run_all_tests:
+        run_java_tests = (
+            select_all_tests_for_now or java_files_changed or yb_master_or_tserver_changed or
+            user_said_all_java_tests)
+
+        if select_all_tests_for_now:
             if user_said_all_tests:
                 logging.info("User explicitly specified that all tests should be run")
+            elif manual_test_filtering_with_regex:
+                logging.info(
+                    "YB_TEST_EXECUTION_FILTER_RE specified: %s, will filter tests at a later step",
+                    test_filter_re)
             else:
                 logging.info(
                     "All tests should be run based on file changes in these categories: {}".format(
@@ -1501,7 +1514,7 @@ def main():
                                      (['yb-{master,tserver} binaries changed']
                                       if yb_master_or_tserver_changed else [])))
 
-        if run_cpp_tests and not test_basename_list and not run_all_tests:
+        if run_cpp_tests and not test_basename_list and not select_all_tests_for_now:
             logging.info('There are no C++ test programs affected by the changes, '
                          'will skip running C++ tests.')
             run_cpp_tests = False
@@ -1511,7 +1524,12 @@ def main():
             run_java_tests=run_java_tests,
             file_changes_by_category=file_changes_by_category
         )
-        if not run_all_tests:
+        if test_filter_re:
+            test_conf.update(test_filter_re=test_filter_re)
+
+        if not select_all_tests_for_now:
+            # We only have this kind of fine-grained filtering for C++ test programs, and for Java
+            # tests we either run all of them or none.
             test_conf['cpp_test_programs'] = test_basename_list
             logging.info(
                     "{} C++ test programs should be run (out of {} possible, {}%)".format(

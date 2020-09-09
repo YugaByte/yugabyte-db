@@ -281,7 +281,7 @@ Result<bool> PgDml::ProcessSecondaryIndexRequest(const PgExecParameters *exec_pa
   }
 
   // Update request with the new batch of ybctids to fetch the next batch of rows.
-  RETURN_NOT_OK(doc_op_->SetBatchArgYbctid(ybctids, target_desc_.get()));
+  RETURN_NOT_OK(doc_op_->PopulateDmlByYbctidOps(ybctids));
   return true;
 }
 

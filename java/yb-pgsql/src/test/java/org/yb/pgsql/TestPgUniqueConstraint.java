@@ -290,7 +290,7 @@ public class TestPgUniqueConstraint extends BasePgSQLTest {
       assertQuery(
           stmt,
           "EXPLAIN (COSTS OFF) SELECT * FROM test WHERE (i1, i2) < (4, 4)",
-          new Row("Foreign Scan on test"),
+          new Row("Seq Scan on test"),
           new Row("  Filter: (ROW(i1, i2) < ROW(4, 4))")
       );
 
@@ -303,7 +303,7 @@ public class TestPgUniqueConstraint extends BasePgSQLTest {
       assertQuery(
           stmt,
           "EXPLAIN (COSTS OFF) SELECT * FROM test WHERE (i1, i2) < (4, 4)",
-          new Row("Foreign Scan on test"),
+          new Row("Seq Scan on test"),
           new Row("  Filter: (ROW(i1, i2) < ROW(4, 4))")
       );
     }

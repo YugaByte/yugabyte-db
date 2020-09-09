@@ -276,8 +276,7 @@ DEFINE_bool(through_db, false, "If enable, a DB instance will be created and "
             "a table reader.");
 DEFINE_bool(mmap_read, true, "Whether use mmap read");
 DEFINE_string(table_factory, "block_based",
-              "Table factory to use: `block_based` (default), `plain_table` or "
-              "`cuckoo_hash`.");
+              "Table factory to use: `block_based` (default) or `plain_table`.");
 DEFINE_string(time_unit, "microsecond",
               "The time unit used for measuring performance. User can specify "
               "`microsecond` (default) or `nanosecond`");
@@ -298,19 +297,7 @@ int main(int argc, char** argv) {
   options.create_if_missing = true;
   options.compression = rocksdb::CompressionType::kNoCompression;
 
-  if (FLAGS_table_factory == "cuckoo_hash") {
-#ifndef ROCKSDB_LITE
-    options.allow_mmap_reads = FLAGS_mmap_read;
-    env_options.use_mmap_reads = FLAGS_mmap_read;
-    rocksdb::CuckooTableOptions table_options;
-    table_options.hash_table_ratio = 0.75;
-    tf.reset(rocksdb::NewCuckooTableFactory(table_options));
-#else
-    fprintf(stderr, "Plain table is not supported in lite mode\n");
-    exit(1);
-#endif  // ROCKSDB_LITE
-  } else if (FLAGS_table_factory == "plain_table") {
-#ifndef ROCKSDB_LITE
+  if (FLAGS_table_factory == "plain_table") {
     options.allow_mmap_reads = FLAGS_mmap_read;
     env_options.use_mmap_reads = FLAGS_mmap_read;
 
@@ -322,10 +309,6 @@ int main(int argc, char** argv) {
     tf.reset(new rocksdb::PlainTableFactory(plain_table_options));
     options.prefix_extractor.reset(rocksdb::NewFixedPrefixTransform(
         FLAGS_prefix_len));
-#else
-    fprintf(stderr, "Cuckoo table is not supported in lite mode\n");
-    exit(1);
-#endif  // ROCKSDB_LITE
   } else if (FLAGS_table_factory == "block_based") {
     tf.reset(new rocksdb::BlockBasedTableFactory());
   } else {

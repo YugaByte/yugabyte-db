@@ -78,6 +78,7 @@ class MasterPathHandlers {
   enum TableType {
     kUserTable,
     kUserIndex,
+    kColocatedParentTable,
     kSystemTable,
     kNumTypes,
   };
@@ -114,7 +115,7 @@ class MasterPathHandlers {
   // Map of tserver UUID -> TabletCounts
   typedef std::unordered_map<std::string, TabletCounts> TabletCountMap;
 
-  const string table_type_[kNumTypes] = {"User", "Index", "System"};
+  const string table_type_[kNumTypes] = {"User", "Index", "Colocated", "System"};
 
   const string kNoPlacementUUID = "NONE";
 
@@ -153,6 +154,7 @@ class MasterPathHandlers {
                        Webserver::WebResponse* resp);
   void HandleTasksPage(const Webserver::WebRequest& req,
                        Webserver::WebResponse* resp);
+  void HandleTabletReplicasPage(const Webserver::WebRequest &req, Webserver::WebResponse *resp);
   void HandleMasters(const Webserver::WebRequest& req,
                      Webserver::WebResponse* resp);
   void HandleDumpEntities(const Webserver::WebRequest& req,
@@ -160,12 +162,18 @@ class MasterPathHandlers {
   void HandleGetTserverStatus(const Webserver::WebRequest& req,
                           Webserver::WebResponse* resp);
   void HandleGetClusterConfig(const Webserver::WebRequest& req, Webserver::WebResponse* resp);
+  void HandleGetClusterConfigJSON(const Webserver::WebRequest& req, Webserver::WebResponse* resp);
   void HandleHealthCheck(const Webserver::WebRequest& req, Webserver::WebResponse* resp);
   void HandleCheckIfLeader(const Webserver::WebRequest& req, Webserver::WebResponse* resp);
   void HandleGetMastersStatus(const Webserver::WebRequest& req, Webserver::WebResponse* resp);
+  void HandleGetReplicationStatus(const Webserver::WebRequest &req, Webserver::WebResponse *resp);
 
   // Calcuates number of leaders/followers per table.
   void CalculateTabletMap(TabletCountMap* tablet_map);
+
+  void GetLeaderlessTablets(TabletInfos* leaderless_tablets);
+  // Calculates the YSQL OID of a tablegroup / colocated database parent table
+  string GetParentTableOid(scoped_refptr<TableInfo> parent_table);
 
   // Convert location of peers to HTML, indicating the roles
   // of each tablet server in a consensus configuration.
@@ -183,6 +191,8 @@ class MasterPathHandlers {
   // anchor text 'link_text'.
   std::string RegistrationToHtml(
       const ServerRegistrationPB& reg, const std::string& link_text) const;
+
+  std::string GetHttpHostPortFromServerRegistration(const ServerRegistrationPB& reg) const;
 
   Master* master_;
 

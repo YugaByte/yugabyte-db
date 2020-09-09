@@ -25,7 +25,7 @@ The behavior of each of the functions for reporting the geometric properties of 
 
 Create and populate _"table t"_ thus:
 
-```postgresql
+```plpgsql
 create table t(k int primary key, arr_1 text[], arr_2 text[]);
 insert into t(k, arr_1, arr_2) values(1,
       '[3:10]={ 1, 2, 3, 4,   5, 6, 7, 8}',
@@ -48,7 +48,7 @@ return value:      int
 ```
 **Example:**
 
-```postgresql
+```plpgsql
 select
   array_ndims(arr_1) as ndims_1,
   array_ndims(arr_2) as ndims_2
@@ -71,7 +71,7 @@ return value:      int
 ```
 **Example:**
 
-```postgresql
+```plpgsql
 select
   array_lower(arr_1, 1) as arr_1_lb,
   array_lower(arr_2, 1) as arr_2_lb_1,
@@ -95,7 +95,7 @@ return value:      int
 ```
 **Example:**
 The use of `array_upper()` is exactly symmetrical with the use of `array_lower()`.
-```postgresql
+```plpgsql
 select
   array_upper(arr_1, 1) as arr_1_ub,
   array_upper(arr_2, 1) as arr_2_ub_1,
@@ -120,7 +120,7 @@ return value:      int
 **Example:**
 The use of `array_length()` is exactly symmetrical with the use of `array_lower()` and `array_upper()`.
 
-```postgresql
+```plpgsql
 select
   array_length(arr_1, 1) as arr_1_len,
   array_length(arr_2, 1) as arr_2_len_1,
@@ -144,7 +144,7 @@ return value:      int
 ```
 **Example:**
 
-```postgresql
+```plpgsql
 select
   cardinality(arr_1) as card_1,
   cardinality(arr_2) as card_2
@@ -168,7 +168,7 @@ return value:      text
 **Example:**
 The `array_dims()` function is useful to produce a result that is easily humanly readable. If you want to use the information that it returns programmatically, then you should use `array_lower()`, `array_upper()`, or `array_length()`.
 
-```postgresql
+```plpgsql
 select
   array_dims(arr_1) as arr_1_dims,
   array_dims(arr_2) as arr_2_dims
@@ -206,7 +206,7 @@ Meeting these requirements are allows the procedure to deliver two bonus benefit
 
 **Note:** There are no built-in functions for computing, for example, the product of two matrices or the product of a vector and a matrix. (A vector is a one-dimensional array, and a matrix is a two-dimensional array.) But, as long as you know how to traverse the values in a matrix in row-major order, you can implement the missing vector and matrix multiplication functionality for yourself.
 
-```postgresql
+```plpgsql
 create procedure assert_semantics_and_traverse_values(
   a in int[], b in int[],
 
@@ -299,7 +299,7 @@ $body$;
 ```
 
 Try it on the first data set:
-```postgresql
+```plpgsql
 do $body$
 declare
   a constant int[] :=            '{ 1, 2,   3,  4,   5,  6}';
@@ -333,7 +333,7 @@ a[ 5] = b[ 3][ 1] =  5
 a[ 6] = b[ 3][ 2] =  6
 ```
 Try it on the second data set:
-```postgresql
+```plpgsql
 do $body$
 declare
   a constant int[] :=     '[3:14]={ 1, 2, 3,   4, 5, 6,   7, 8, 9,   10, 11, 12}';
@@ -373,7 +373,7 @@ a[13] = b[ 6][ 7] = 11
 a[14] = b[ 6][ 8] = 12
 ```
 Try it on the third data set:
-```postgresql
+```plpgsql
 do $body$
 declare
   a constant int[] :=     '[3:18]={ 1, 2, 3, 4,   5, 6, 7, 8,   9, 10, 11, 12,   13, 14, 15, 16}';

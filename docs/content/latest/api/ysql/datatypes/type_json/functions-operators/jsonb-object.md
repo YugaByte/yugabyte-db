@@ -6,7 +6,7 @@ description: Create a JSON object from SQL arrays that specify keys with their v
 menu:
   latest:
     identifier: jsonb-object
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 150
 isTocNested: true
 showAsideToc: true
@@ -27,7 +27,7 @@ Precisely because you present a single `text` actual, you can avoid the fuss of 
 
 The first overload has a single `text[]` formal whose actual text expresses the variadic intention conventionally: the alternating _comma_ separated items are the respectively the key and the value of a key-value pair.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   array_values constant text[] :=
@@ -50,7 +50,7 @@ The potential loss of data type fidelity brought by `jsonb_object()` is a high p
 
 If you think that it improves the clarity, you can use the second overload. This has a single `text[][]` formal—in other words an array of arrays.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   array_values constant text[][] :=
@@ -75,7 +75,7 @@ This produces the identical result to that produced by the example for the first
 
 Again, if you think that it improves the clarity, you can use the third overload. This has a two `text[]` formals. The first expresses the list keys of the key-values pairs. And the second expresses the list values of the key-values pairs. The items must correspond pairwise, and clearly each array must have the same number of items. For example:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   array_keys constant text[] :=

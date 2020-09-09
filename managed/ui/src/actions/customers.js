@@ -1,7 +1,7 @@
 // Copyright (c) YugaByte, Inc.
 
 import axios from 'axios';
-import { ROOT_URL } from '../config';
+import {IN_DEVELOPMENT_MODE, ROOT_URL, USE_SSO} from '../config';
 import Cookies from 'js-cookie';
 
 // Get current user(me) from token in localStorage
@@ -104,6 +104,8 @@ export const CREATE_USER_RESPONSE = 'CREATE_USER_RESPONSE';
 export const DELETE_USER = 'DELETE_USER';
 export const DELETE_USER_RESPONSE  = 'DELETE_USER_RESPONSE';
 
+export const CHANGE_USER_ROLE = 'CHANGE_USER_ROLE';
+
 export function validateToken() {
   let cUUID = Cookies.get("customerId");
   if (cUUID) {
@@ -111,12 +113,23 @@ export function validateToken() {
   } else {
     cUUID = localStorage.getItem("customerId");
   }
-  const authToken = Cookies.get("authToken") || localStorage.getItem("authToken");
-  axios.defaults.headers.common['X-AUTH-TOKEN'] = authToken;
+
+  // in single sign-on mode authentication happens via PLAY_SESSION cookie and not via headers
+  if (!USE_SSO) {
+    axios.defaults.headers.common['X-AUTH-TOKEN'] = Cookies.get("authToken") || localStorage.getItem("authToken");
+  }
   const apiToken = Cookies.get("apiToken") || localStorage.getItem("apiToken");
   if (apiToken && apiToken !== '') {
     axios.defaults.headers.common['X-AUTH-YW-API-TOKEN'] = apiToken;
   }
+
+  axios.defaults.headers.common['Csrf-Token'] = Cookies.get("csrfCookie");
+
+  // in dev mode UI and API usually run on different hosts, so need to include cookies for cross-domain requests
+  if (IN_DEVELOPMENT_MODE) {
+    axios.defaults.withCredentials = true;
+  }
+
   const request = axios(`${ROOT_URL}/customers/${cUUID}`);
   return {
     type: VALIDATE_FROM_TOKEN,
@@ -177,7 +190,8 @@ export function insecureLoginResponse(response) {
 }
 
 export function logout() {
-  const request = axios.get(`${ROOT_URL}/logout`);
+  const url = USE_SSO ? `${ROOT_URL}/third_party_logout` : `${ROOT_URL}/logout`;
+  const request = axios.get(url);
   return {
     type: LOGOUT,
     payload: request
@@ -266,7 +280,7 @@ export function updatePassword(user, values) {
   const data = {
     ...values,
     role: user.role
-  }
+  };
   const request = axios.put(`${ROOT_URL}/customers/${cUUID}/users/${userUUID}/change_password`, data);
   return {
     type: UPDATE_PROFILE,
@@ -631,6 +645,15 @@ export function createUserResponse(response) {
   return {
     type: CREATE_USER_RESPONSE,
     payload: response
+  };
+}
+
+export function changeUserRole(userUUID, newRole) {
+  const cUUID = localStorage.getItem('customerId');
+  const request = axios.put(`${ROOT_URL}/customers/${cUUID}/users/${userUUID}?role=${newRole}`);
+  return {
+    type: CHANGE_USER_ROLE,
+    payload: request
   };
 }
 

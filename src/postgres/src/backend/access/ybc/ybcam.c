@@ -30,6 +30,7 @@
 #include "access/relscan.h"
 #include "access/sysattr.h"
 #include "commands/dbcommands.h"
+#include "commands/tablegroup.h"
 #include "catalog/index.h"
 #include "catalog/indexing.h"
 #include "catalog/catalog.h"
@@ -436,6 +437,13 @@ ybcSetupScanPlan(Relation relation, Relation index, bool xs_want_itup,
 																											 &colocated),
 																 &notfound);
 		ybScan->prepare_params.querying_colocated_table |= colocated;
+	}
+	else if (!ybScan->prepare_params.querying_colocated_table)
+	{
+		Oid tablegroupId = InvalidOid;
+		if (TablegroupCatalogExists)
+			tablegroupId = get_tablegroup_oid_by_table_oid(RelationGetRelid(relation));
+		ybScan->prepare_params.querying_colocated_table |= (tablegroupId != InvalidOid);
 	}
 
 	if (index)

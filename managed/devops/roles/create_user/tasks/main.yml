@@ -27,6 +27,7 @@
   shell: "{{ user_existence_check_cmd }} {{ create_user.name }}"
   register: user_existence_check_result
   ignore_errors: True
+  failed_when: False
 
 # Check if home_dir already exists, i.e. when it's specified for onprem.
 - name: Check if home directory exists

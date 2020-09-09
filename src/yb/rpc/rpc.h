@@ -124,7 +124,7 @@ class RpcRetrier {
 
   // Sets up deadline and returns controller.
   // Do not forget that setting deadline in RpcController is NOT thread safe.
-  RpcController* PrepareController(MonoDelta single_call_timeout);
+  RpcController* PrepareController();
 
   CoarseTimePoint deadline() const { return deadline_; }
 
@@ -208,8 +208,8 @@ class Rpc : public RpcCommand {
  protected:
   const RpcRetrier& retrier() const { return retrier_; }
   RpcRetrier* mutable_retrier() { return &retrier_; }
-  RpcController* PrepareController(MonoDelta single_call_timeout = MonoDelta()) {
-    return retrier_.PrepareController(single_call_timeout);
+  RpcController* PrepareController() {
+    return retrier_.PrepareController();
   }
 
  private:

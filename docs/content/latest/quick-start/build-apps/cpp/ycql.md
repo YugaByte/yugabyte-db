@@ -1,8 +1,8 @@
 ---
-title: Build a C++ application using YCQL
+title: Build a C++ application that uses YCQL
 headerTitle: Build a C++ application
 linkTitle: C++
-description: Build a C++ application that uses the YCQL API.
+description: Build a sample C++ application that uses the YCQL API.
 menu:
   latest:
     identifier: build-apps-cpp-2-ycql
@@ -35,13 +35,13 @@ showAsideToc: true
 The tutorial assumes that you have:
 
 - installed YugabyteDB, created a universe, and are able to interact with it using the YCQL shell (`ycqlsh`). If
-  not, please follow the steps in the [Quick Start guide](../../../../api/ycql/quick-start/).
+  not, follow the steps in [Quick Start](../../../../api/ycql/quick-start/).
 - have a 32-bit (x86) or 64-bit (x64) architecture machine.
 - have gcc 4.1.2 or later, Clang 3.4 or later installed.
 
-## Install the C/C++ driver
+## Install the YugabyteDB C++ Driver for YCQL
 
-To get the C/C++ driver, run:
+To get the [YugabyteDB C++ Driver for YCQL](https://github.com/yugabyte/cassandra-cpp-driver), clone the repository:
 
 ```sh
 $ git clone https://github.com/yugabyte/cassandra-cpp-driver.git
@@ -49,7 +49,7 @@ $ git clone https://github.com/yugabyte/cassandra-cpp-driver.git
 
 ### Dependencies
 
-The C/C++ driver depends on the following:
+The YugabyteDB C++ Driver for YCQL depends on the following:
 
 - CMake v2.6.4+
 - libuv 1.x
@@ -60,7 +60,7 @@ given [here](https://docs.datastax.com/en/developer/cpp-driver/2.9/topics/buildi
 
 ### Build and install
 
-To build and install the driver:
+To build and install the driver, run the following commands:
 
 ```sh
 $ mkdir build
@@ -169,7 +169,7 @@ CassError execute_and_log_select(CassSession* session, const char* stmt) {
 }
 
 int main() {
-  // Ensure we log errors.
+  // Ensure you log errors.
   cass_log_set_level(CASS_LOG_ERROR);
 
   CassCluster* cluster = NULL;
@@ -223,8 +223,9 @@ int main() {
 
 ### Run the application
 
-You can compile the file using gcc or clang. 
-For clang, you can use:
+You can compile the file using `gcc` or `clang`.
+
+For `clang`, run the following command:
 
 ```sh
 $ clang ybcql_hello_world.c -lcassandra -Iinclude -o yb_cql_hello_world

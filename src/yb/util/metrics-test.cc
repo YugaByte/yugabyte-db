@@ -66,6 +66,22 @@ class MetricsTest : public YBTest {
   }
 
  protected:
+  template <class LagType>
+  void DoLagTest(const MillisLagPrototype& metric) {
+    auto lag = new LagType(&metric);
+    ASSERT_EQ(metric.description(), lag->prototype()->description());
+    auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    SleepFor(MonoDelta::FromMilliseconds(100));
+    ASSERT_LT(now_ms, lag->lag_ms());
+    lag->UpdateTimestampInMilliseconds(now_ms);
+    ASSERT_GT(10000, lag->lag_ms());
+    // Set the timestamp to some time in the future to verify that the metric can correctly deal
+    // with this case.
+    lag->UpdateTimestampInMilliseconds(now_ms * 2);
+    ASSERT_EQ(0, lag->lag_ms());
+  }
+
   MetricRegistry registry_;
   scoped_refptr<MetricEntity> entity_;
 };
@@ -82,6 +98,17 @@ TEST_F(MetricsTest, SimpleCounterTest) {
   ASSERT_EQ(1, requests->value());
   requests->IncrementBy(2);
   ASSERT_EQ(3, requests->value());
+}
+
+METRIC_DEFINE_lag(test_entity, lag_simple, "Test MillisLag", "Test MillisLag Description");
+TEST_F(MetricsTest, SimpleLagTest) {
+  ASSERT_NO_FATALS(DoLagTest<MillisLag>(METRIC_lag_simple));
+}
+
+METRIC_DEFINE_lag(test_entity, atomic_lag_simple, "Test Atomic MillisLag",
+                  "Test Atomic MillisLag Description");
+TEST_F(MetricsTest, SimpleAtomicLagTest) {
+  ASSERT_NO_FATALS(DoLagTest<AtomicMillisLag>(METRIC_atomic_lag_simple));
 }
 
 METRIC_DEFINE_gauge_uint64(test_entity, fake_memory_usage, "Memory Usage",
@@ -345,6 +372,7 @@ TEST_F(MetricsTest, TestDumpJsonPrototypes) {
     "            \"type\": \"gauge\",\n"
     "            \"unit\": \"bytes\",\n"
     "            \"description\": \"Test Gauge 2\",\n"
+    "            \"level\": \"info\",\n"
     "            \"entity_type\": \"test_entity\"\n"
     "        }";
   ASSERT_STR_CONTAINS(json, expected);

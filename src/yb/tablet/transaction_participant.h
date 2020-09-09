@@ -67,25 +67,27 @@ namespace tablet {
 
 struct TransactionApplyData {
   int64_t leader_term = -1;
-  TransactionId transaction_id;
-  consensus::OpId op_id;
+  TransactionId transaction_id = TransactionId::Nil();
+  OpIdPB op_id;
   HybridTime commit_ht;
   HybridTime log_ht;
   bool sealed = false;
   TabletId status_tablet;
+  // Owned by running transaction if non-null.
+  const docdb::ApplyTransactionState* apply_state = nullptr;
 
   std::string ToString() const;
 };
 
 struct RemoveIntentsData {
-  consensus::OpId op_id;
+  OpIdPB op_id;
   HybridTime log_ht;
 };
 
 // Interface to object that should apply intents in RocksDB when transaction is applying.
 class TransactionIntentApplier {
  public:
-  virtual CHECKED_STATUS ApplyIntents(const TransactionApplyData& data) = 0;
+  virtual Result<docdb::ApplyTransactionState> ApplyIntents(const TransactionApplyData& data) = 0;
   virtual CHECKED_STATUS RemoveIntents(
       const RemoveIntentsData& data, const TransactionId& transaction_id) = 0;
   virtual CHECKED_STATUS RemoveIntents(
@@ -110,7 +112,8 @@ class TransactionParticipantContext {
   // Fills RemoveIntentsData with information about replicated state.
   virtual void GetLastReplicatedData(RemoveIntentsData* data) = 0;
 
-  virtual bool Enqueue(rpc::ThreadPoolTask* task) = 0;
+  // Enqueue task to participant context strand.
+  virtual void StrandEnqueue(rpc::StrandTask* task) = 0;
   virtual HybridTime Now() = 0;
   virtual void UpdateClock(HybridTime hybrid_time) = 0;
   virtual bool IsLeader() = 0;
@@ -183,10 +186,10 @@ class TransactionParticipant : public TransactionStatusManager {
   struct ReplicatedData {
     int64_t leader_term = -1;
     const tserver::TransactionStatePB& state;
-    const consensus::OpId& op_id;
+    const OpIdPB& op_id;
     HybridTime hybrid_time;
     bool sealed = false;
-    AlreadyApplied already_applied;
+    AlreadyAppliedToRegularDB already_applied_to_regular_db;
 
     std::string ToString() const;
   };
@@ -194,7 +197,7 @@ class TransactionParticipant : public TransactionStatusManager {
   CHECKED_STATUS ProcessReplicated(const ReplicatedData& data);
 
   void SetDB(
-      rocksdb::DB* db, const docdb::KeyBounds* key_bounds,
+      const docdb::DocDB& db, const docdb::KeyBounds* key_bounds,
       RWOperationCounter* pending_op_counter);
 
   CHECKED_STATUS CheckAborted(const TransactionId& id);

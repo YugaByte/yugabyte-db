@@ -288,8 +288,10 @@ void TwoDCOutputClient::HandleResponse() {
     response.status = error_status_;
     if (response.status.ok()) {
       response.last_applied_op_id = op_id_;
+      response.processed_record_count = processed_record_count_;
     }
     op_id_ = consensus::MinimumOpId();
+    processed_record_count_ = 0;
   }
   apply_changes_clbk_(response);
 }

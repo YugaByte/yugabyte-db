@@ -20,14 +20,14 @@ isTocNested: true
 <ul class="nav nav-tabs-alt nav-tabs-yb">
 
   <li >
-    <a href="/latest/benchmark/key-value-workload-ysql" class="nav-link">
+    <a href="{{< relref "./key-value-workload-ysql.md" >}}" class="nav-link">
       <i class="icon-postgres" aria-hidden="true"></i>
       YSQL
     </a>
   </li>
 
   <li >
-    <a href="/latest/benchmark/key-value-workload-ycql" class="nav-link active">
+    <a href="{{< relref "./key-value-workload-ycql.md" >}}" class="nav-link active">
       <i class="icon-cassandra" aria-hidden="true"></i>
       YCQL
     </a>
@@ -41,7 +41,7 @@ Use this benchmark to test the performance of YugabyteDB using a key-value workl
 
 ### Cluster configuration
 
-For this benchmark, we will setup a three-node YugabyteDB cluster with a replication factor of `3`.
+For this benchmark, you will set up a three-node YugabyteDB cluster with a replication factor of `3`.
 
 ### Machine configuration
 
@@ -55,7 +55,7 @@ For this benchmark, we will setup a three-node YugabyteDB cluster with a replica
   - Instance type: n1-standard-16
   - Storage: 2 x 375 GB SSD
 
-- On-premise data center
+- on-premises data center
 
   - Instance: 16 CPU cores
   - Storage: 1 x 200 GB SSD (minimum)
@@ -68,7 +68,7 @@ We will use the [YugabyteDB Workload Generator](https://github.com/yugabyte/yb-s
 To get the tool (``yb-sample-apps.jar`), run the following command.
 
 ```sh
-$ wget https://github.com/yugabyte/yb-sample-apps/releases/download/v1.2.0/yb-sample-apps.jar?raw=true -O yb-sample-apps.jar
+$ wget https://github.com/yugabyte/yb-sample-apps/releases/download/v1.3.0/yb-sample-apps.jar?raw=true -O yb-sample-apps.jar
 ```
 
 To run the workload generator tool, you must have:
@@ -102,7 +102,7 @@ $ java -jar ./yb-sample-apps.jar  \
 Name    | Observation
 --------|------
 Write Ops/sec | ~90k
-Read Latency | ~2.5-3.0 ms/op
+Write Latency | ~2.5-3.0 ms/op
 CPU (User + Sys) | 60%
 
 ## Run the read-heavy key-value workload

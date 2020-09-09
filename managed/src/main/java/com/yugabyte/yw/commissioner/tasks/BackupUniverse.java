@@ -13,6 +13,7 @@ package com.yugabyte.yw.commissioner.tasks;
 import com.yugabyte.yw.commissioner.SubTaskGroupQueue;
 import com.yugabyte.yw.commissioner.UserTaskDetails;
 import com.yugabyte.yw.forms.BackupTableParams;
+import com.yugabyte.yw.models.KmsConfig;
 import com.yugabyte.yw.models.Universe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,25 +45,40 @@ public class BackupUniverse extends UniverseTaskBase {
       UserTaskDetails.SubTaskGroupType groupType;
       if (taskParams().actionType == BackupTableParams.ActionType.CREATE) {
         groupType = UserTaskDetails.SubTaskGroupType.CreatingTableBackup;
+        createEncryptedUniverseKeyBackupTask().setSubTaskGroupType(groupType);
         updateBackupState(true);
         unlockUniverseForUpdate();
       } else if (taskParams().actionType == BackupTableParams.ActionType.RESTORE) {
         groupType = UserTaskDetails.SubTaskGroupType.RestoringTableBackup;
+
+        // Handle case of backup being encrypted at rest
+        if (KmsConfig.get(taskParams().kmsConfigUUID) != null) {
+          // Download universe keys backup file for encryption at rest
+          BackupTableParams restoreKeysParams = new BackupTableParams();
+          restoreKeysParams.storageLocation = taskParams().storageLocation;
+          restoreKeysParams.universeUUID = taskParams().universeUUID;
+          restoreKeysParams.storageConfigUUID = taskParams().storageConfigUUID;
+          restoreKeysParams.kmsConfigUUID = taskParams().kmsConfigUUID;
+          restoreKeysParams.actionType = BackupTableParams.ActionType.RESTORE_KEYS;
+          createTableBackupTask(restoreKeysParams, null).setSubTaskGroupType(groupType);
+
+          // Restore universe keys backup file for encryption at rest
+          createEncryptedUniverseKeyRestoreTask(taskParams()).setSubTaskGroupType(groupType);
+        }
       } else {
         throw new RuntimeException("Invalid backup action type: " + taskParams().actionType);
       }
+
       createTableBackupTask(taskParams(), null).setSubTaskGroupType(groupType);
 
       // Marks the update of this universe as a success only if all the tasks before it succeeded.
       createMarkUniverseUpdateSuccessTasks()
           .setSubTaskGroupType(UserTaskDetails.SubTaskGroupType.ConfigureUniverse);
 
-      if (taskParams().actionType == BackupTableParams.ActionType.CREATE) {
-        // Run all the tasks.
-        subTaskGroupQueue.run();
-      } else {
-        // Run all the tasks.
-        subTaskGroupQueue.run();
+      // Run all the tasks.
+      subTaskGroupQueue.run();
+
+      if (taskParams().actionType != BackupTableParams.ActionType.CREATE) {
         unlockUniverseForUpdate();
       }
     } catch (Throwable t) {

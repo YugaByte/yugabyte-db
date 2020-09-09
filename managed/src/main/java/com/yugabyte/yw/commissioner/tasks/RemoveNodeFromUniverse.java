@@ -97,7 +97,7 @@ public class RemoveNodeFromUniverse extends UniverseTaskBase {
               .setSubTaskGroupType(SubTaskGroupType.WaitForDataMigration);
           if (masterReachable) {
             createChangeConfigTask(currentNode, false, SubTaskGroupType.WaitForDataMigration);
-            createStopMasterTasks(new HashSet<NodeDetails>(Arrays.asList(currentNode)))
+            createStopMasterTasks(new HashSet<>(Arrays.asList(currentNode)))
                 .setSubTaskGroupType(SubTaskGroupType.StoppingNodeProcesses);
             createWaitForMasterLeaderTask()
                 .setSubTaskGroupType(SubTaskGroupType.WaitForDataMigration);
@@ -115,7 +115,7 @@ public class RemoveNodeFromUniverse extends UniverseTaskBase {
       }
 
       // Mark the tserver as blacklisted on the master leader.
-      createPlacementInfoTask(new HashSet<NodeDetails>(Arrays.asList(currentNode)))
+      createPlacementInfoTask(new HashSet<>(Arrays.asList(currentNode)))
           .setSubTaskGroupType(SubTaskGroupType.WaitForDataMigration);
 
       // Wait for tablet quorums to remove the blacklisted tserver. Do not perform load balance

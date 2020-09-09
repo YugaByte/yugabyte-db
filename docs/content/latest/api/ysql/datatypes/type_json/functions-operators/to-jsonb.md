@@ -6,7 +6,7 @@ description: Convert a single SQL value of any primitive or compound data type, 
 menu:
   latest:
     identifier: to-jsonb
-    parent: functions-operators
+    parent: json-functions-operators
 isTocNested: true
 showAsideToc: true
 ---
@@ -22,7 +22,7 @@ return value:      jsonb
 
 Use this `ysqlsh` script to create types _"t1"_ and _"t2"_ and then to execute the `DO` block that asserts that the behavior is as expected. For an arbitrary nest of SQL `record` and SQL array values, readability is improved by building the compound value from the bottom up.
 
-```postgresql
+```plpgsql
 create type t1 as(a int, b text);
 create type t2 as(x text, y boolean, z t1[]);
 

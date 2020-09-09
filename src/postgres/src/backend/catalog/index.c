@@ -131,6 +131,18 @@ static void UpdateIndexRelation(Oid indexoid, Oid heapoid,
 static void index_update_stats(Relation rel,
 				   bool hasindex,
 				   double reltuples);
+static double IndexBuildHeapRangeScanInternal(Relation heapRelation,
+											  Relation indexRelation,
+											  IndexInfo *indexInfo,
+											  bool allow_sync,
+											  bool anyvisible,
+											  BlockNumber start_blockno,
+											  BlockNumber numblocks,
+											  IndexBuildCallback callback,
+											  void *callback_state,
+											  HeapScanDesc scan,
+											  uint64_t *read_time,
+											  RowBounds *row_bounds);
 static void IndexCheckExclusion(Relation heapRelation,
 					Relation indexRelation,
 					IndexInfo *indexInfo);
@@ -770,7 +782,9 @@ index_create(Relation heapRelation,
 			 bool allow_system_table_mods,
 			 bool is_internal,
 			 Oid *constraintId,
-			 OptSplit *split_options)
+			 OptSplit *split_options,
+			 const bool skip_index_backfill,
+			 Oid tablegroupId)
 {
 	Oid			heapRelationId = RelationGetRelid(heapRelation);
 	Relation	pg_class;
@@ -971,7 +985,9 @@ index_create(Relation heapRelation,
 					   reloptions,
 					   indexRelationId,
 					   heapRelation,
-					   split_options);
+					   split_options,
+					   skip_index_backfill,
+					   tablegroupId);
 	}
 
 	/*
@@ -2453,6 +2469,86 @@ index_build(Relation heapRelation,
 	SetUserIdAndSecContext(save_userid, save_sec_context);
 }
 
+/*
+ * index_backfill - invoke access-method-specific index backfill procedure
+ *
+ * This is mainly a copy of index_build.  index_build is used for
+ * non-multi-stage index creation; index_backfill is used for multi-stage index
+ * creation.
+ */
+void
+index_backfill(Relation heapRelation,
+			   Relation indexRelation,
+			   IndexInfo *indexInfo,
+			   bool isprimary,
+			   uint64_t *read_time,
+			   RowBounds *row_bounds)
+{
+	Oid			save_userid;
+	int			save_sec_context;
+	int			save_nestlevel;
+
+	/*
+	 * sanity checks
+	 */
+	Assert(RelationIsValid(indexRelation));
+	Assert(PointerIsValid(indexRelation->rd_amroutine));
+	Assert(PointerIsValid(indexRelation->rd_amroutine->yb_ambackfill));
+
+	ereport(DEBUG1,
+			(errmsg("backfilling index \"%s\" on table \"%s\"",
+					RelationGetRelationName(indexRelation),
+					RelationGetRelationName(heapRelation))));
+
+	/*
+	 * Switch to the table owner's userid, so that any index functions are run
+	 * as that user.  Also lock down security-restricted operations and
+	 * arrange to make GUC variable changes local to this command.
+	 */
+	GetUserIdAndSecContext(&save_userid, &save_sec_context);
+	SetUserIdAndSecContext(heapRelation->rd_rel->relowner,
+						   save_sec_context | SECURITY_RESTRICTED_OPERATION);
+	save_nestlevel = NewGUCNestLevel();
+
+	/*
+	 * Call the access method's build procedure
+	 */
+	indexRelation->rd_amroutine->yb_ambackfill(heapRelation,
+											   indexRelation,
+											   indexInfo,
+											   read_time,
+											   row_bounds);
+
+	/*
+	 * I don't think we should be backfilling unlogged indexes.
+	 */
+	Assert(indexRelation->rd_rel->relpersistence != RELPERSISTENCE_UNLOGGED);
+
+	/*
+	 * Update heap and index pg_class rows
+	 * TODO(jason): properly update reltuples.  They can't be set here because
+	 * this backfill func is called for each backfill chunk request from
+	 * master, and we need some way to sum up the tuple numbers.  We also don't
+	 * even collect stats properly for heapRelation anyway, at the moment.
+	 */
+	index_update_stats(heapRelation,
+					   true,
+					   -1);
+
+	index_update_stats(indexRelation,
+					   false,
+					   -1);
+
+	/* Make the updated catalog row versions visible */
+	CommandCounterIncrement();
+
+	/* Roll back any GUC changes executed by index functions */
+	AtEOXact_GUC(false, save_nestlevel);
+
+	/* Restore userid and security context */
+	SetUserIdAndSecContext(save_userid, save_sec_context);
+}
+
 
 /*
  * IndexBuildHeapScan - scan the heap relation to find tuples to be indexed
@@ -2493,16 +2589,6 @@ IndexBuildHeapScan(Relation heapRelation,
 								   callback, callback_state, scan);
 }
 
-/*
- * As above, except that instead of scanning the complete heap, only the given
- * number of blocks are scanned.  Scan to end-of-rel can be signalled by
- * passing InvalidBlockNumber as numblocks.  Note that restricting the range
- * to scan cannot be done when requesting syncscan.
- *
- * When "anyvisible" mode is requested, all tuples visible to any transaction
- * are indexed and counted as live, including those inserted or deleted by
- * transactions that are still in progress.
- */
 double
 IndexBuildHeapRangeScan(Relation heapRelation,
 						Relation indexRelation,
@@ -2514,6 +2600,67 @@ IndexBuildHeapRangeScan(Relation heapRelation,
 						IndexBuildCallback callback,
 						void *callback_state,
 						HeapScanDesc scan)
+{
+	return IndexBuildHeapRangeScanInternal(heapRelation,
+										   indexRelation,
+										   indexInfo,
+										   allow_sync,
+										   anyvisible,
+										   start_blockno,
+										   numblocks,
+										   callback,
+										   callback_state,
+										   scan,
+										   NULL /* read_time */,
+										   NULL /* row_bounds */);
+}
+
+double
+IndexBackfillHeapRangeScan(Relation heapRelation,
+						   Relation indexRelation,
+						   IndexInfo *indexInfo,
+						   IndexBuildCallback callback,
+						   void *callback_state,
+						   uint64_t *read_time,
+						   RowBounds *row_bounds)
+{
+	return IndexBuildHeapRangeScanInternal(heapRelation,
+										   indexRelation,
+										   indexInfo,
+										   true /* allow_sync */,
+										   false /* any_visible */,
+										   0 /* start_blockno */,
+										   InvalidBlockNumber /* num_blocks */,
+										   callback,
+										   callback_state,
+										   NULL /* scan */,
+										   read_time,
+										   row_bounds);
+}
+
+/*
+ * As above, except that instead of scanning the complete heap, only the given
+ * number of blocks are scanned.  Scan to end-of-rel can be signalled by
+ * passing InvalidBlockNumber as numblocks.  Note that restricting the range
+ * to scan cannot be done when requesting syncscan.
+ *
+ * When "anyvisible" mode is requested, all tuples visible to any transaction
+ * are indexed and counted as live, including those inserted or deleted by
+ * transactions that are still in progress.
+ */
+static double
+IndexBuildHeapRangeScanInternal(Relation heapRelation,
+								Relation indexRelation,
+								IndexInfo *indexInfo,
+								bool allow_sync,
+								bool anyvisible,
+								BlockNumber start_blockno,
+								BlockNumber numblocks,
+								IndexBuildCallback callback,
+								void *callback_state,
+								HeapScanDesc scan,
+								uint64_t *read_time,
+								RowBounds *row_bounds)
 {
 	bool		is_system_catalog;
 	bool		checking_uniqueness;
@@ -2557,6 +2704,15 @@ IndexBuildHeapRangeScan(Relation heapRelation,
 	econtext = GetPerTupleExprContext(estate);
 	slot = MakeSingleTupleTableSlot(RelationGetDescr(heapRelation));
 
+	/*
+	 * Set some exec params.
+	 */
+	YBCPgExecParameters *exec_params = &estate->yb_exec_params;
+	if (read_time)
+		exec_params->read_time = *read_time;
+	if (row_bounds)
+		exec_params->partition_key = pstrdup(row_bounds->partition_key);
+
 	/* Arrange for econtext's scan tuple to be the tuple under test */
 	econtext->ecxt_scantuple = slot;
 
@@ -2598,6 +2754,8 @@ IndexBuildHeapRangeScan(Relation heapRelation,
 									NULL,	/* scan key */
 									true,	/* buffer access strategy OK */
 									allow_sync);	/* syncscan OK? */
+		if (IsYBRelation(heapRelation))
+			scan->ybscan->exec_params = exec_params;
 	}
 	else
 	{
@@ -2616,8 +2774,8 @@ IndexBuildHeapRangeScan(Relation heapRelation,
 	/*
 	 * Must call GetOldestXmin() with SnapshotAny.  Should never call
 	 * GetOldestXmin() with MVCC snapshot. (It's especially worth checking
-	 * this for parallel builds, since ambuild routines that support parallel
-	 * builds must work these details out for themselves.)
+	 * this for parallel builds, since yb_ambackfill routines that support
+	 * parallel builds must work these details out for themselves.)
 	 */
 	Assert(snapshot == SnapshotAny || IsMVCCSnapshot(snapshot));
 	Assert(snapshot == SnapshotAny ? TransactionIdIsValid(OldestXmin) :

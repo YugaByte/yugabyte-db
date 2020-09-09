@@ -142,7 +142,7 @@ class ClusterLoadBalancer {
   // is optional. When neither adding nor removing peer, it means just moving a leader from one
   // tablet server to another. If new_leader_ts_uuid is empty, a server will be picked by random
   // to be the new leader. Also takes in the role of the tablet for the creation flow.
-  virtual void SendReplicaChanges(
+  virtual Status SendReplicaChanges(
       scoped_refptr<TabletInfo> tablet, const TabletServerId& ts_uuid, const bool is_add,
       const bool should_remove_leader, const TabletServerId& new_leader_ts_uuid = "");
 
@@ -164,7 +164,7 @@ class ClusterLoadBalancer {
   // across the tablets for the given table. Returns an OK status if the method succeeded or an
   // error if there are transient errors in updating the internal state.
   virtual CHECKED_STATUS AnalyzeTabletsUnlocked(const TableId& table_uuid)
-  REQUIRES_SHARED(catalog_manager_->lock_);
+      REQUIRES_SHARED(catalog_manager_->lock_);
 
   // Processes any required replica additions, as part of moving load from a highly loaded TS to
   // one that is less loaded.
@@ -330,11 +330,10 @@ class ClusterLoadBalancer {
   // Information representing activity of load balancer.
   struct ActivityInfo {
     uint32_t table_tasks = 0;
-    uint32_t tserver_tasks = 0;
     uint32_t master_errors = 0;
 
     bool IsIdle() const {
-      return table_tasks == 0 && tserver_tasks == 0 && master_errors == 0;
+      return table_tasks == 0 && master_errors == 0;
     }
   };
 

@@ -48,12 +48,9 @@ showAsideToc: true
 
 With YugabyteDB, you can add nodes to scale your cluster up very efficiently and reliably in order to achieve more read and write IOPS (input/output operations per second). In this tutorial, you will look at how YugabyteDB can scale while a workload is running. You will run a read-write workload using the prepackaged [YugabyteDB workload generator](https://github.com/yugabyte/yb-sample-apps) against a 3-node local cluster with a replication factor of 3, and add nodes to it while the workload is running. Next, you can observe how the cluster scales out by verifying that the number of read and write IOPS are evenly distributed across all the nodes at all times.
 
-If you haven't installed YugabyteDB yet, you can get up and running YugabyteDB within five minutes by following the steps in the [Quick start](../../../quick-start/install/).
-
-**Note**: Verify that you have the required extra loopback addresses by reviewing the [Configure section](../../../quick-start/install/#macOS).
+This tutorial uses the [yb-ctl](../../../admin/yb-ctl) local cluster management utility.
 
 ## 1. Create universe
-
 
 If you have a previously running local universe, destroy it using the `yb-ctl destroy` command.
 
@@ -74,7 +71,7 @@ Each table now has four tablet-leaders in each YB-TServer and with a replication
 Download the YugabyteDB workload generator JAR file (`yb-sample-apps.jar`).
 
 ```sh
-$ wget https://github.com/yugabyte/yb-sample-apps/releases/download/v1.2.0/yb-sample-apps.jar?raw=true -O yb-sample-apps.jar
+$ wget https://github.com/yugabyte/yb-sample-apps/releases/download/v1.3.0/yb-sample-apps.jar?raw=true -O yb-sample-apps.jar
 ```
 
 Run the `SqlInserts` workload app against the local universe using the following command.

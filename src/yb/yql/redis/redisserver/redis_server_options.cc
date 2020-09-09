@@ -25,9 +25,8 @@ TAG_FLAG(redis_rpc_keepalive_time_ms, advanced);
 namespace yb {
 namespace redisserver {
 
-RedisServerOptions::RedisServerOptions() {
+RedisServerOptions::RedisServerOptions() : ServerBaseOptions(RedisServer::kDefaultPort) {
   server_type = "tserver";
-  rpc_opts.default_port = RedisServer::kDefaultPort;
   rpc_opts.connection_keepalive_time_ms = FLAGS_redis_rpc_keepalive_time_ms;
 }
 

@@ -108,7 +108,7 @@ class TestQLProcessor : public ClockHolder, public QLProcessor {
   TestQLProcessor(client::YBClient* client,
                   std::shared_ptr<client::YBMetaDataCache> cache,
                   const RoleName& role_name)
-      : QLProcessor(client, cache, nullptr /* ql_metrics */, clock_,
+      : QLProcessor(client, cache, nullptr /* ql_metrics */, nullptr /* parser_pool */, clock_,
                     TransactionPoolProvider()) {
     if (!role_name.empty()) {
       ql_env_.ql_session()->set_current_role_name(role_name);

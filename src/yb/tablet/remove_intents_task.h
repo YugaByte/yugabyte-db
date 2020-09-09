@@ -14,7 +14,7 @@
 #ifndef YB_TABLET_REMOVE_INTENTS_TASK_H
 #define YB_TABLET_REMOVE_INTENTS_TASK_H
 
-#include "yb/rpc/thread_pool.h"
+#include "yb/rpc/strand.h"
 
 #include "yb/tablet/running_transaction_context.h"
 
@@ -22,7 +22,7 @@ namespace yb {
 namespace tablet {
 
 // Used by RunningTransaction to remove its intents.
-class RemoveIntentsTask : public rpc::ThreadPoolTask {
+class RemoveIntentsTask : public rpc::StrandTask {
  public:
   RemoveIntentsTask(TransactionIntentApplier* applier,
                     TransactionParticipantContext* participant_context,
@@ -36,7 +36,7 @@ class RemoveIntentsTask : public rpc::ThreadPoolTask {
   virtual ~RemoveIntentsTask() = default;
 
  private:
-  const std::string& LogPrefix() const;
+  std::string LogPrefix() const;
 
   TransactionIntentApplier& applier_;
   TransactionParticipantContext& participant_context_;

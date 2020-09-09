@@ -39,6 +39,8 @@
 #include <string>
 #include <utility>
 
+#include "yb/util/opid.h"
+
 namespace yb {
 
 class OpIdPB;
@@ -46,7 +48,6 @@ class OpIdPB;
 namespace consensus {
 
 class ConsensusRequestPB;
-typedef yb::OpIdPB OpId;
 
 // Minimum possible term.
 extern const int64_t kMinimumTerm;
@@ -58,73 +59,74 @@ extern const int64_t kMinimumOpIdIndex;
 extern const int64_t kInvalidOpIdIndex;
 
 // Returns true iff left == right.
-bool OpIdEquals(const OpId& left, const OpId& right);
+bool OpIdEquals(const OpIdPB& left, const OpIdPB& right);
 
 // Returns true iff left < right.
-bool OpIdLessThan(const OpId& left, const OpId& right);
+bool OpIdLessThan(const OpIdPB& left, const OpIdPB& right);
 
 // Returns true iff left > right.
-bool OpIdBiggerThan(const OpId& left, const OpId& right);
+bool OpIdBiggerThan(const OpIdPB& left, const OpIdPB& right);
 
 // Copies to_compare into target under the following conditions:
 // - If to_compare is initialized and target is not.
 // - If they are both initialized and to_compare is less than target.
 // Otherwise, does nothing.
 // If to_compare is copied into target, returns true, else false.
-bool CopyIfOpIdLessThan(const OpId& to_compare, OpId* target);
+bool CopyIfOpIdLessThan(const OpIdPB& to_compare, OpIdPB* target);
 
 // Return -1 if left < right,
 //         0 if equal,
 //         1 if left > right.
-int OpIdCompare(const OpId& left, const OpId& right);
+int OpIdCompare(const OpIdPB& left, const OpIdPB& right);
 
 // OpId hash functor. Suitable for use with std::unordered_map.
 struct OpIdHashFunctor {
-  size_t operator() (const OpId& id) const;
+  size_t operator() (const OpIdPB& id) const;
 };
 
 // OpId equals functor. Suitable for use with std::unordered_map.
 struct OpIdEqualsFunctor {
-  bool operator() (const OpId& left, const OpId& right) const;
+  bool operator() (const OpIdPB& left, const OpIdPB& right) const;
 };
 
 // OpId less than functor for pointers.. Suitable for use with std::sort and std::map.
 struct OpIdLessThanPtrFunctor {
   // Returns true iff left < right.
-  bool operator() (const OpId* left, const OpId* right) const;
+  bool operator() (const OpIdPB* left, const OpIdPB* right) const;
 };
 
 // Sorts op id's by index only, disregarding the term.
 struct OpIdIndexLessThanPtrFunctor {
   // Returns true iff left.index() < right.index().
-  bool operator() (const OpId* left, const OpId* right) const;
+  bool operator() (const OpIdPB* left, const OpIdPB* right) const;
 };
 
 // OpId compare() functor. Suitable for use with std::sort and std::map.
 struct OpIdCompareFunctor {
   // Returns true iff left < right.
-  bool operator() (const OpId& left, const OpId& right) const;
+  bool operator() (const OpIdPB& left, const OpIdPB& right) const;
 };
 
 // OpId comparison functor that returns true iff left > right. Suitable for use
 // with std::sort and std::map to sort keys in increasing order.]
 struct OpIdBiggerThanFunctor {
-  bool operator() (const OpId& left, const OpId& right) const;
+  bool operator() (const OpIdPB& left, const OpIdPB& right) const;
 };
 
-std::ostream& operator<<(std::ostream& os, const consensus::OpId& op_id);
+std::ostream& operator<<(std::ostream& os, const OpIdPB& op_id);
 
 // Return the minimum possible OpId.
-OpId MinimumOpId();
+OpIdPB MinimumOpId();
 
 // Return the maximum possible OpId.
-OpId MaximumOpId();
+OpIdPB MaximumOpId();
 
-std::string OpIdToString(const OpId& id);
+std::string OpIdToString(const OpIdPB& id);
 
 std::string OpsRangeString(const ConsensusRequestPB& req);
 
-OpId MakeOpId(int64_t term, int64_t index);
+OpIdPB MakeOpId(int64_t term, int64_t index);
+OpIdPB MakeOpIdPB(const yb::OpId& op_id);
 
 }  // namespace consensus
 

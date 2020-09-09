@@ -22,6 +22,7 @@
 #include "yb/gutil/strings/substitute.h"
 #include "yb/rocksutil/yb_rocksdb.h"
 #include "yb/util/bytes_formatter.h"
+#include "yb/util/net/net_util.h"
 #include "yb/util/test_macros.h"
 #include "yb/util/test_util.h"
 
@@ -261,8 +262,7 @@ TEST_F(DocKeyTest, TestDocKeyEncoding) {
           )#"),
       FormatSliceAsStr(DocKey(PrimitiveValues("val1", 1000, "val2", 2000)).Encode().AsSlice()));
 
-  InetAddress addr;
-  ASSERT_OK(addr.FromString("1.2.3.4"));
+  InetAddress addr(ASSERT_RESULT(ParseIpAddress("1.2.3.4")));
 
   // To get a descending sorting, we store the negative of a decimal type. 100.2 gets converted to
   // -100.2 which in the encoded form is equal to \x1c\xea\xfe\xd7.

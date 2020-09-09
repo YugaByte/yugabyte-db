@@ -263,4 +263,14 @@ TEST(TestMonoTime, TestCondition) {
   }
 }
 
+TEST(TestMonoTime, TestSubtractDelta) {
+  MonoTime start = MonoTime::Now();
+  MonoDelta delta = MonoDelta::FromMilliseconds(100);
+  ASSERT_GT(start, start - delta);
+  MonoTime start_copy = start;
+  start_copy.SubtractDelta(delta);
+  ASSERT_EQ(start_copy, start - delta);
+  ASSERT_EQ(start_copy + delta, start);
+}
+
 } // namespace yb

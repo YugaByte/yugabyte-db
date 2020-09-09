@@ -290,6 +290,9 @@ YB_CLIENT_SPECIALIZE_SIMPLE(CreateCDCStream);
 YB_CLIENT_SPECIALIZE_SIMPLE(DeleteCDCStream);
 YB_CLIENT_SPECIALIZE_SIMPLE(ListCDCStreams);
 YB_CLIENT_SPECIALIZE_SIMPLE(GetCDCStream);
+YB_CLIENT_SPECIALIZE_SIMPLE(CreateTablegroup);
+YB_CLIENT_SPECIALIZE_SIMPLE(DeleteTablegroup);
+YB_CLIENT_SPECIALIZE_SIMPLE(ListTablegroups);
 // These are not actually exposed outside, but it's nice to auto-add using directive.
 YB_CLIENT_SPECIALIZE_SIMPLE(AlterTable);
 YB_CLIENT_SPECIALIZE_SIMPLE(FlushTables);
@@ -315,7 +318,6 @@ YBClient::Data::Data()
       id_(ClientId::GenerateRandom()) {}
 
 YBClient::Data::~Data() {
-  dns_resolver_.reset();
   rpcs_.Shutdown();
 }
 
@@ -625,6 +627,15 @@ Status YBClient::Data::DeleteTable(YBClient* client,
   if (wait && resp.has_table_id()) {
     RETURN_NOT_OK(WaitForDeleteTableToFinish(client, resp.table_id(), deadline));
   }
+  if (wait && resp.has_indexed_table()) {
+    auto res = WaitUntilIndexPermissionsAtLeast(
+        client, resp.indexed_table().table_id(), resp.table_id(), deadline,
+        IndexPermissions::INDEX_PERM_NOT_USED);
+    if (!res && !res.status().IsNotFound()) {
+      LOG(WARNING) << "Waiting for the index to be deleted from the indexed table, got " << res;
+      return res.status();
+    }
+  }
 
   // Return indexed table name if requested.
   if (resp.has_indexed_table() && indexed_table_name != nullptr) {
@@ -756,6 +767,7 @@ Status YBClient::Data::IsCreateNamespaceInProgress(
     YBClient* client,
     const std::string& namespace_name,
     const boost::optional<YQLDatabase>& database_type,
+    const std::string& namespace_id,
     CoarseTimePoint deadline,
     bool *create_in_progress) {
   DCHECK_ONLY_NOTNULL(create_in_progress);
@@ -766,7 +778,13 @@ Status YBClient::Data::IsCreateNamespaceInProgress(
   if (database_type) {
     req.mutable_namespace_()->set_database_type(*database_type);
   }
+  if (!namespace_id.empty()) {
+    req.mutable_namespace_()->set_id(namespace_id);
+  }
 
+  // RETURN_NOT_OK macro can't take templated function call as param,
+  // and SyncLeaderMasterRpc must be explicitly instantiated, else the
+  // compiler complains.
   const Status s =
       SyncLeaderMasterRpc<IsCreateNamespaceDoneRequestPB, IsCreateNamespaceDoneResponsePB>(
           deadline,
@@ -775,15 +793,17 @@ Status YBClient::Data::IsCreateNamespaceInProgress(
           nullptr /* num_attempts */,
           "IsCreateNamespaceDone",
           &MasterServiceProxy::IsCreateNamespaceDone);
-  // RETURN_NOT_OK macro can't take templated function call as param,
-  // and SyncLeaderMasterRpc must be explicitly instantiated, else the
-  // compiler complains.
+
+  // IsCreate could return a terminal/done state as FAILED. This would result in an error'd Status.
+  if (resp.has_done()) {
+    *create_in_progress = !resp.done();
+  }
+
   RETURN_NOT_OK(s);
   if (resp.has_error()) {
     return StatusFromPB(resp.error().status());
   }
 
-  *create_in_progress = !resp.done();
   return Status::OK();
 }
 
@@ -791,18 +811,20 @@ Status YBClient::Data::WaitForCreateNamespaceToFinish(
     YBClient* client,
     const std::string& namespace_name,
     const boost::optional<YQLDatabase>& database_type,
+    const std::string& namespace_id,
     CoarseTimePoint deadline) {
   return RetryFunc(
       deadline,
       "Waiting on Create Namespace to be completed",
       "Timed out waiting for Namespace Creation",
       std::bind(&YBClient::Data::IsCreateNamespaceInProgress, this, client,
-          namespace_name, database_type, _1, _2));
+          namespace_name, database_type, namespace_id, _1, _2));
 }
 
 Status YBClient::Data::IsDeleteNamespaceInProgress(YBClient* client,
     const std::string& namespace_name,
     const boost::optional<YQLDatabase>& database_type,
+    const std::string& namespace_id,
     CoarseTimePoint deadline,
     bool* delete_in_progress) {
   DCHECK_ONLY_NOTNULL(delete_in_progress);
@@ -812,6 +834,9 @@ Status YBClient::Data::IsDeleteNamespaceInProgress(YBClient* client,
   req.mutable_namespace_()->set_name(namespace_name);
   if (database_type) {
     req.mutable_namespace_()->set_database_type(*database_type);
+  }
+  if (!namespace_id.empty()) {
+    req.mutable_namespace_()->set_id(namespace_id);
   }
 
   const Status s =
@@ -841,13 +866,14 @@ Status YBClient::Data::IsDeleteNamespaceInProgress(YBClient* client,
 Status YBClient::Data::WaitForDeleteNamespaceToFinish(YBClient* client,
     const std::string& namespace_name,
     const boost::optional<YQLDatabase>& database_type,
+    const std::string& namespace_id,
     CoarseTimePoint deadline) {
   return RetryFunc(
       deadline,
       "Waiting on Delete Namespace to be completed",
       "Timed out waiting for Namespace Deletion",
       std::bind(&YBClient::Data::IsDeleteNamespaceInProgress, this,
-          client, namespace_name, database_type, _1, _2));
+          client, namespace_name, database_type, namespace_id, _1, _2));
 }
 
 Status YBClient::Data::AlterTable(YBClient* client,
@@ -917,25 +943,12 @@ Status YBClient::Data::WaitForAlterTableToFinish(YBClient* client,
               alter_name, table_id, _1, _2));
 }
 
-Status YBClient::Data::FlushTable(YBClient* client,
-                                  const YBTableName& table_name,
-                                  const std::string& table_id,
-                                  const CoarseTimePoint deadline,
-                                  const bool is_compaction) {
-  FlushTablesRequestPB req;
-  FlushTablesResponsePB resp;
+CHECKED_STATUS YBClient::Data::FlushTablesHelper(YBClient* client,
+                                                const CoarseTimePoint deadline,
+                                                const FlushTablesRequestPB req) {
   int attempts = 0;
+  FlushTablesResponsePB resp;
 
-  if (table_name.has_table()) {
-    table_name.SetIntoTableIdentifierPB(req.add_tables());
-  }
-  if (!table_id.empty()) {
-    req.add_tables()->set_table_id(table_id);
-  }
-
-  // TODO: flush related indexes
-
-  req.set_is_compaction(is_compaction);
   RETURN_NOT_OK((SyncLeaderMasterRpc<FlushTablesRequestPB, FlushTablesResponsePB>(
       deadline, req, &resp, &attempts, "FlushTables", &MasterServiceProxy::FlushTables)));
   if (resp.has_error()) {
@@ -947,10 +960,41 @@ Status YBClient::Data::FlushTable(YBClient* client,
     RETURN_NOT_OK(WaitForFlushTableToFinish(client, resp.flush_request_id(), deadline));
   }
 
-  LOG(INFO) << (is_compaction ? "Compacted" : "Flushed")
+  LOG(INFO) << (req.is_compaction() ? "Compacted" : "Flushed")
             << " table "
-            << req.tables(0).ShortDebugString();
+            << req.tables(0).ShortDebugString()
+            << (req.add_indexes() ? " and indexes" : "");
   return Status::OK();
+}
+
+CHECKED_STATUS YBClient::Data::FlushTables(YBClient* client,
+                                           const vector<YBTableName>& table_names,
+                                           bool add_indexes,
+                                           const CoarseTimePoint deadline,
+                                           const bool is_compaction) {
+  FlushTablesRequestPB req;
+  req.set_add_indexes(add_indexes);
+  req.set_is_compaction(is_compaction);
+  for (const auto& table : table_names) {
+    table.SetIntoTableIdentifierPB(req.add_tables());
+  }
+
+  return FlushTablesHelper(client, deadline, req);
+}
+
+CHECKED_STATUS YBClient::Data::FlushTables(YBClient* client,
+                                           const vector<TableId>& table_ids,
+                                           bool add_indexes,
+                                           const CoarseTimePoint deadline,
+                                           const bool is_compaction) {
+  FlushTablesRequestPB req;
+  req.set_add_indexes(add_indexes);
+  req.set_is_compaction(is_compaction);
+  for (const auto& table : table_ids) {
+    req.add_tables()->set_table_id(table);
+  }
+
+  return FlushTablesHelper(client, deadline, req);
 }
 
 Status YBClient::Data::IsFlushTableInProgress(YBClient* client,
@@ -1667,13 +1711,18 @@ Result<IndexPermissions> YBClient::Data::WaitUntilIndexPermissionsAtLeast(
       deadline,
       "Waiting for index to have desired permissions",
       "Timed out waiting for proper index permissions",
-      [&] (CoarseTimePoint deadline, bool* retry) -> Status {
-        IndexPermissions actual_index_permissions = VERIFY_RESULT(GetIndexPermissions(
-            client,
-            table_id,
-            index_id,
-            deadline));
-        *retry = (actual_index_permissions < target_index_permissions);
+      [&](CoarseTimePoint deadline, bool* retry) -> Status {
+        Result<IndexPermissions> result = GetIndexPermissions(client, table_id, index_id, deadline);
+        // Treat NotFound as success if we are looking for INDEX_PERM_NOT_USED.
+        if (!result && result.status().IsNotFound() &&
+            target_index_permissions == IndexPermissions::INDEX_PERM_NOT_USED) {
+          LOG(INFO) << "Waiting to delete index " << index_id << " from table " << table_id
+                    << " got " << result.ToString();
+          *retry = false;
+          return Status::OK();
+        }
+        IndexPermissions actual_index_permissions = VERIFY_RESULT(result);
+        *retry = actual_index_permissions < target_index_permissions;
         return Status::OK();
       }));
   // Now, the index permissions are guaranteed to be at (or beyond) the target.  Query again to

@@ -108,7 +108,7 @@ TabletInfo::TabletInfo(const scoped_refptr<TableInfo>& table, TabletId tablet_id
     : tablet_id_(std::move(tablet_id)),
       table_(table),
       last_update_time_(MonoTime::Now()),
-      reported_schema_version_(0) {}
+      reported_schema_version_({}) {}
 
 TabletInfo::~TabletInfo() {
 }
@@ -178,18 +178,22 @@ MonoTime TabletInfo::last_update_time() const {
   return last_update_time_;
 }
 
-bool TabletInfo::set_reported_schema_version(uint32_t version) {
+bool TabletInfo::set_reported_schema_version(const TableId& table_id, uint32_t version) {
   std::lock_guard<simple_spinlock> l(lock_);
-  if (version > reported_schema_version_) {
-    reported_schema_version_ = version;
+  if (reported_schema_version_.count(table_id) == 0 ||
+      version > reported_schema_version_[table_id]) {
+    reported_schema_version_[table_id] = version;
     return true;
   }
   return false;
 }
 
-uint32_t TabletInfo::reported_schema_version() const {
+uint32_t TabletInfo::reported_schema_version(const TableId& table_id) {
   std::lock_guard<simple_spinlock> l(lock_);
-  return reported_schema_version_;
+  if (reported_schema_version_.count(table_id) == 0) {
+    return 0;
+  }
+  return reported_schema_version_[table_id];
 }
 
 bool TabletInfo::colocated() const {
@@ -263,6 +267,11 @@ string TableInfo::ToStringWithState() const {
 const NamespaceId TableInfo::namespace_id() const {
   auto l = LockForRead();
   return l->data().namespace_id();
+}
+
+const NamespaceName TableInfo::namespace_name() const {
+  auto l = LockForRead();
+  return l->data().namespace_name();
 }
 
 const Status TableInfo::GetSchema(Schema* schema) const {
@@ -367,10 +376,10 @@ void TableInfo::GetTabletsInRange(const GetTableLocationsRequestPB* req, TabletI
 bool TableInfo::IsAlterInProgress(uint32_t version) const {
   shared_lock<decltype(lock_)> l(lock_);
   for (const TableInfo::TabletInfoMap::value_type& e : tablet_map_) {
-    if (e.second->reported_schema_version() < version) {
+    if (e.second->reported_schema_version(table_id_) < version) {
       VLOG(3) << "Table " << table_id_ << " ALTER in progress due to tablet "
               << e.second->ToString() << " because reported schema "
-              << e.second->reported_schema_version() << " < expected " << version;
+              << e.second->reported_schema_version(table_id_) << " < expected " << version;
       return true;
     }
   }
@@ -406,6 +415,13 @@ void TableInfo::SetCreateTableErrorStatus(const Status& status) {
 Status TableInfo::GetCreateTableErrorStatus() const {
   shared_lock<decltype(lock_)> l(lock_);
   return create_table_error_;
+}
+
+std::size_t TableInfo::NumLBTasks() const {
+  shared_lock<decltype(lock_)> l(lock_);
+  return std::count_if(pending_tasks_.begin(),
+                       pending_tasks_.end(),
+                       [](auto task) { return task->started_by_lb(); });
 }
 
 std::size_t TableInfo::NumTasks() const {
@@ -617,6 +633,41 @@ string NamespaceInfo::ToString() const {
   return Substitute("$0 [id=$1]", name(), namespace_id_);
 }
 
+// ================================================================================================
+// TablegroupInfo
+// ================================================================================================
+
+TablegroupInfo::TablegroupInfo(TablegroupId tablegroup_id, NamespaceId namespace_id) :
+                               tablegroup_id_(tablegroup_id), namespace_id_(namespace_id) {}
+
+void TablegroupInfo::AddChildTable(const TableId& table_id) {
+  std::lock_guard<simple_spinlock> l(lock_);
+  if (table_set_.find(table_id) != table_set_.end()) {
+    LOG(WARNING) << "Table ID " << table_id << " already in Tablegroup " << tablegroup_id_;
+  } else {
+    table_set_.insert(table_id);
+  }
+}
+
+void TablegroupInfo::DeleteChildTable(const TableId& table_id) {
+  std::lock_guard<simple_spinlock> l(lock_);
+  if (table_set_.find(table_id) != table_set_.end()) {
+    table_set_.erase(table_id);
+  } else {
+    LOG(WARNING) << "Table ID " << table_id << " not found in Tablegroup " << tablegroup_id_;
+  }
+}
+
+bool TablegroupInfo::HasChildTables() const {
+  std::lock_guard<simple_spinlock> l(lock_);
+  return !table_set_.empty();
+}
+
+
+std::size_t TablegroupInfo::NumChildTables() const {
+  std::lock_guard<simple_spinlock> l(lock_);
+  return table_set_.size();
+}
 
 // ================================================================================================
 // UDTypeInfo

@@ -90,7 +90,7 @@ class CDCWriteRpc : public rpc::Rpc, public client::internal::TabletRpc {
  private:
   void SendRpcToTserver(int attempt_num) override {
     InvokeAsync(invoker_.proxy().get(),
-                PrepareController(invoker_.client().default_rpc_timeout()),
+                PrepareController(),
                 std::bind(&CDCWriteRpc::Finished, this, Status::OK()));
   }
 
@@ -219,7 +219,7 @@ class CDCReadRpc : public rpc::Rpc, public client::internal::TabletRpc {
        &invoker_.client().proxy_cache(), invoker_.ProxyEndpoint());
 
     InvokeAsync(cdc_proxy_.get(),
-        PrepareController(invoker_.client().default_rpc_timeout()),
+        PrepareController(),
         std::bind(&CDCReadRpc::Finished, this, Status::OK()));
   }
 

@@ -6,7 +6,7 @@ description: Format the text representation of the JSON value that the input jso
 menu:
   latest:
     identifier: jsonb-pretty
-    parent: functions-operators
+    parent: json-functions-operators
     weight: 200
 isTocNested: true
 showAsideToc: true
@@ -27,7 +27,7 @@ Because, in the main, JSON is mechanically generated and mechanically consumed, 
 
 The pretty format makes conventional, and liberal, use of newlines and spaces, thus:
 
-```postgresql
+```plpgsql
 do $body$
 declare
   orig_text constant text := '

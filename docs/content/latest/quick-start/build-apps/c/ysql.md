@@ -2,7 +2,7 @@
 title: Build a C application that uses YSQL
 headerTitle: Build a C application
 linkTitle: C
-description: Build a C application that uses YSQL.
+description: Build a sample C application with libpq.
 aliases:
   - /develop/client-drivers/c/
   - /latest/develop/client-drivers/c/
@@ -35,9 +35,9 @@ The tutorial assumes that you have:
 - have a 32-bit (x86) or 64-bit (x64) architecture machine.
 - have gcc 4.1.2 or later, clang 3.4 or later installed.
 
-## Install the C driver (libpq)
+## Install the libpq C driver
 
-The C driver is already available as part of the YugabyteDB installation. You can use it by setting the `LD_LIBRARY_PATH` as follows :
+The `libpq` C driver is included in the YugabyteDB installation. You can use it by setting the `LD_LIBRARY_PATH` as follows :
   
 ```sh
 $ export LD_LIBRARY_PATH=<yugabyte-install-dir>/postgres/lib
@@ -45,7 +45,7 @@ $ export LD_LIBRARY_PATH=<yugabyte-install-dir>/postgres/lib
 
 Alternatively, you can download the PostgreSQL binaries or build the driver from source as documented [here](https://www.postgresql.org/download/).
 
-## Working example
+## Create the sample C application
 
 ### Sample C code
 
@@ -140,8 +140,8 @@ main(int argc, char **argv)
 
 ### Run the application
 
-You can compile the file using gcc or clang. 
-For gcc, you can use:
+You can compile the file using `gcc` or `clang`.
+To compile the application with`gcc`, run the following command:
 
 ```sh
 $ gcc ybsql_hello_world.c -lpq -I<yugabyte-install-dir>/postgres/include -o ybsql_hello_world

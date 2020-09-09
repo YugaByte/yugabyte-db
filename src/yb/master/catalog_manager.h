@@ -119,6 +119,8 @@ static const char* const kSecurityConfigType = "security-configuration";
 static const char* const kYsqlCatalogConfigType = "ysql-catalog-configuration";
 static const char* const kColocatedParentTableIdSuffix = ".colocated.parent.uuid";
 static const char* const kColocatedParentTableNameSuffix = ".colocated.parent.tablename";
+static const char* const kTablegroupParentTableIdSuffix = ".tablegroup.parent.uuid";
+static const char* const kTablegroupParentTableNameSuffix = ".tablegroup.parent.tablename";
 
 using PlacementId = std::string;
 
@@ -168,7 +170,7 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
   explicit CatalogManager(Master *master);
   virtual ~CatalogManager();
 
-  CHECKED_STATUS Init(bool is_first_run);
+  CHECKED_STATUS Init();
 
   void Shutdown();
   CHECKED_STATUS CheckOnline() const;
@@ -248,6 +250,8 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
   CHECKED_STATUS DeleteTable(const DeleteTableRequestPB* req,
                              DeleteTableResponsePB* resp,
                              rpc::RpcContext* rpc);
+  CHECKED_STATUS DeleteTableInternal(
+      const DeleteTableRequestPB* req, DeleteTableResponsePB* resp, rpc::RpcContext* rpc);
 
   // Get the information about an in-progress delete operation.
   CHECKED_STATUS IsDeleteTableDone(const IsDeleteTableDoneRequestPB* req,
@@ -354,6 +358,21 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
                                 RedisConfigGetResponsePB* resp,
                                 rpc::RpcContext* rpc);
 
+  CHECKED_STATUS CreateTablegroup(const CreateTablegroupRequestPB* req,
+                                  CreateTablegroupResponsePB* resp,
+                                  rpc::RpcContext* rpc);
+
+  CHECKED_STATUS DeleteTablegroup(const DeleteTablegroupRequestPB* req,
+                                  DeleteTablegroupResponsePB* resp,
+                                  rpc::RpcContext* rpc);
+
+  // List all the current tablegroups for a namespace.
+  CHECKED_STATUS ListTablegroups(const ListTablegroupsRequestPB* req,
+                                 ListTablegroupsResponsePB* resp,
+                                 rpc::RpcContext* rpc);
+
+  bool HasTablegroups();
+
   // Create a new User-Defined Type with the specified attributes.
   //
   // The RPC context is provided for logging/tracing purposes,
@@ -447,6 +466,7 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
   NamespaceName GetNamespaceName(const scoped_refptr<TableInfo>& table) const;
 
   // Is the table a system table?
+  bool IsSystemTable(const TableInfo& table) const;
   bool IsSystemTableUnlocked(const TableInfo& table) const REQUIRES_SHARED(lock_);
 
   // Is the table a user created table?
@@ -462,6 +482,9 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
 
   // Is the table a table created for colocated database?
   bool IsColocatedParentTable(const TableInfo& table) const;
+
+  // Is the table a table created for a tablegroup?
+  bool IsTablegroupParentTable(const TableInfo& table) const;
 
   // Is the table a table created in a colocated database?
   bool IsColocatedUserTable(const TableInfo& table) const;
@@ -647,6 +670,10 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
     return *encryption_manager_;
   }
 
+  CHECKED_STATUS SplitTablet(
+      const TabletId& tablet_id, const std::string& split_encoded_key,
+      const std::string& split_partition_key);
+
   // Splits tablet specified in the request using middle of the partition as a split point.
   CHECKED_STATUS SplitTablet(
       const SplitTabletRequestPB* req, SplitTabletResponsePB* resp, rpc::RpcContext* rpc);
@@ -658,6 +685,12 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
   // For now just indirect to running the task.
   // TODO(bogdan): Eventually schedule on a threadpool in a followup refactor.
   CHECKED_STATUS ScheduleTask(std::shared_ptr<RetryingTSRpcTask> task);
+
+  // Time since this peer became master leader. Caller should verify that it is leader before.
+  MonoDelta TimeSinceElectedLeader();
+
+  Result<std::vector<TableDescription>> CollectTables(
+      const google::protobuf::RepeatedPtrField<TableIdentifierPB>& tables, bool add_indexes);
 
  protected:
   // TODO Get rid of these friend classes and introduce formal interface.
@@ -691,7 +724,7 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
   // Called by SysCatalog::SysCatalogStateChanged when this node
   // becomes the leader of a consensus configuration.
   //
-  // Executes LoadSysCatalogDataTask below.
+  // Executes LoadSysCatalogDataTask below and marks the current time as time since leader.
   CHECKED_STATUS ElectedAsLeaderCb();
 
   // Loops and sleeps until one of the following conditions occurs:
@@ -764,6 +797,7 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
                                      const PartitionSchema& partition_schema,
                                      const bool create_tablets,
                                      const NamespaceId& namespace_id,
+                                     const NamespaceName& namespace_name,
                                      const vector<Partition>& partitions,
                                      IndexInfoPB* index_info,
                                      vector<TabletInfo*>* tablets,
@@ -792,7 +826,7 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
   // sys_catalog_.
   //
   // This method is thread-safe.
-  CHECKED_STATUS InitSysCatalogAsync(bool is_first_run);
+  CHECKED_STATUS InitSysCatalogAsync();
 
   // Helper for creating the initial TableInfo state
   // Leaves the table "write locked" with the new info in the
@@ -801,6 +835,7 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
                                            const Schema& schema,
                                            const PartitionSchema& partition_schema,
                                            const NamespaceId& namespace_id,
+                                           const NamespaceName& namespace_name,
                                            IndexInfoPB* index_info) REQUIRES(lock_);
 
   // Helper for creating the initial TabletInfo state.
@@ -820,7 +855,8 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
 
   // Delete index info from the indexed table.
   CHECKED_STATUS MarkIndexInfoFromTableForDeletion(
-      const TableId& indexed_table_id, const TableId& index_table_id, DeleteTableResponsePB* resp);
+      const TableId& indexed_table_id, const TableId& index_table_id, bool multi_stage,
+      DeleteTableResponsePB* resp);
 
   // Delete index info from the indexed table.
   CHECKED_STATUS DeleteIndexInfoFromTable(
@@ -831,6 +867,12 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
   // Returns Status::ServiceUnavailable if tablet is not running.
   CHECKED_STATUS BuildLocationsForTablet(const scoped_refptr<TabletInfo>& tablet,
                                          TabletLocationsPB* locs_pb);
+
+  // Check whether the tservers in the current replica map differs from those in the cstate when
+  // processing a tablet report. Ignore the roles reported by the cstate, just compare the
+  // tservers.
+  bool ReplicaMapDiffersFromConsensusState(const scoped_refptr<TabletInfo>& tablet,
+                                           const consensus::ConsensusStatePB& consensus_state);
 
   void ReconcileTabletReplicasInLocalMemoryWithReport(
       const scoped_refptr<TabletInfo>& tablet,
@@ -906,7 +948,8 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
                                   DeferredAssignmentActions* deferred,
                                   TabletInfos* new_tablets);
 
-  CHECKED_STATUS HandleTabletSchemaVersionReport(TabletInfo *tablet, uint32_t version);
+  CHECKED_STATUS HandleTabletSchemaVersionReport(TabletInfo *tablet, uint32_t version,
+                                                 const scoped_refptr<TableInfo>& table = nullptr);
 
   // Send the create tablet requests to the selected peers of the consensus configurations.
   // The creation is async, and at the moment there is no error checking on the
@@ -1046,6 +1089,12 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
   Result<TabletInfo*> RegisterNewTabletForSplit(
       const TabletInfo& source_tablet_info, const PartitionPB& partition);
 
+  Result<scoped_refptr<TabletInfo>> GetTabletInfo(const TabletId& tablet_id);
+
+  CHECKED_STATUS DoSplitTablet(
+      const scoped_refptr<TabletInfo>& source_tablet_info, const std::string& split_encoded_key,
+      const std::string& split_partition_key);
+
   // Splits tablet using specified split_hash_code as a split point.
   CHECKED_STATUS DoSplitTablet(
       const scoped_refptr<TabletInfo>& source_tablet_info, docdb::DocKeyHash split_hash_code);
@@ -1067,6 +1116,10 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
 
   // Creates a new TableInfo object.
   scoped_refptr<TableInfo> NewTableInfo(TableId id);
+
+  // Register the tablet server with the ts manager using the Raft config. This is called for
+  // servers that are part of the Raft config but haven't registered as yet.
+  CHECKED_STATUS RegisterTsFromRaftConfig(const consensus::RaftPeerPB& peer);
 
   template <class Loader>
   CHECKED_STATUS Load(const std::string& title, const int64_t term);
@@ -1216,6 +1269,14 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
   std::unordered_map<NamespaceId, scoped_refptr<TabletInfo>> colocated_tablet_ids_map_
       GUARDED_BY(lock_);
 
+  typedef std::unordered_map<TablegroupId, scoped_refptr<TabletInfo>> TablegroupTabletMap;
+
+  std::unordered_map<NamespaceId, TablegroupTabletMap> tablegroup_tablet_ids_map_
+      GUARDED_BY(lock_);
+
+  std::unordered_map<TablegroupId, scoped_refptr<TablegroupInfo>> tablegroup_ids_map_
+      GUARDED_BY(lock_);
+
   boost::optional<std::future<Status>> initdb_future_;
   boost::optional<InitialSysCatalogSnapshotWriter> initial_snapshot_writer_;
 
@@ -1231,6 +1292,8 @@ class CatalogManager : public tserver::TabletPeerLookupIf {
   scoped_refptr<TasksTracker> jobs_tracker_;
 
   std::unique_ptr<EncryptionManager> encryption_manager_;
+
+  MonoTime time_elected_leader_;
 
  private:
   virtual bool CDCStreamExistsUnlocked(const CDCStreamId& id) REQUIRES_SHARED(lock_);

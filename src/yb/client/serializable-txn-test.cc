@@ -24,6 +24,7 @@
 using namespace std::literals;
 
 DECLARE_int64(transaction_rpc_timeout_ms);
+DECLARE_int32(txn_max_apply_batch_records);
 
 namespace yb {
 namespace client {
@@ -37,6 +38,7 @@ class SerializableTxnTest : public TransactionCustomLogSegmentSizeTest<0, Transa
 
   void TestIncrements(bool transactional);
   void TestIncrement(int key, bool transactional);
+  void TestColoring();
 };
 
 TEST_F(SerializableTxnTest, NonConflictingWrites) {
@@ -233,7 +235,7 @@ void SerializableTxnTest::TestIncrement(int key, bool transactional) {
 // serializable isolation.
 // With retries the resulting value should be equal to number of increments.
 void SerializableTxnTest::TestIncrements(bool transactional) {
-  FLAGS_transaction_rpc_timeout_ms = MonoDelta(1min).ToMicroseconds();
+  FLAGS_transaction_rpc_timeout_ms = MonoDelta(1min).ToMilliseconds();
 
   const auto kThreads = RegularBuildVsSanitizers(3, 2);
 
@@ -270,7 +272,7 @@ TEST_F(SerializableTxnTest, IncrementNonTransactional) {
 //
 // The described prodecure is repeated multiple times to increase probability of catching bug,
 // w/o running test multiple times.
-TEST_F(SerializableTxnTest, Coloring) {
+void SerializableTxnTest::TestColoring() {
   constexpr auto kKeys = 20;
   constexpr auto kColors = 2;
   constexpr auto kIterations = 20;
@@ -377,6 +379,15 @@ TEST_F(SerializableTxnTest, Coloring) {
     }
     --iterations_left;
   }
+}
+
+TEST_F(SerializableTxnTest, Coloring) {
+  TestColoring();
+}
+
+TEST_F(SerializableTxnTest, ColoringWithLongApply) {
+  FLAGS_txn_max_apply_batch_records = 3;
+  TestColoring();
 }
 
 } // namespace client

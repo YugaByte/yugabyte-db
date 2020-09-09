@@ -90,7 +90,6 @@ public class KubernetesManagerTest extends FakeDBApplication {
   @Test
   public void testHelmUpgrade() {
     when(mockAppConfig.getString("yb.helm.package")).thenReturn("/my/helm.tgz");
-    when(mockAppConfig.getLong("yb.helm.timeout_secs")).thenReturn((long)600);
     runCommand(KubernetesCommandExecutor.CommandType.HELM_UPGRADE);
     assertEquals(ImmutableList.of("helm",  "upgrade",  "demo-universe", "/my/helm.tgz", "-f",
         "/tmp/override.yml", "--namespace", "demo-universe"),

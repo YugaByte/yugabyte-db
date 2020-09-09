@@ -1,0 +1,336 @@
+--
+-- Tablegroups
+--
+-- CREATE DATABASE test_tablegroups
+CREATE DATABASE test_tablegroups;
+\c test_tablegroups
+-- CREATE TABLEGROUP
+CREATE TABLEGROUP tg_test1;
+CREATE TABLEGROUP tg_test2;
+-- CREATE TABLE
+-- No primary key
+CREATE TABLE tab_nonkey (a INT) TABLEGROUP tg_test1;
+\d tab_nonkey
+             Table "public.tab_nonkey"
+ Column |  Type   | Collation | Nullable | Default
+--------+---------+-----------+----------+---------
+ a      | integer |           |          |
+Tablegroup: "tg_test1"
+
+-- Hash partitioned will fail
+CREATE TABLE tab_key (a INT, PRIMARY KEY(a HASH)) TABLEGROUP tg_test1;
+ERROR:  Invalid argument: Invalid table definition: Error creating table test_tablegroups.tab_key on the master: Cannot colocate hash partitioned table
+\d tab_key
+-- Range primary key
+CREATE TABLE tab_range (a INT, PRIMARY KEY (a ASC)) TABLEGROUP tg_test1;
+CREATE TABLE tab_range_multicol (a INT, b INT, PRIMARY KEY (a ASC, b DESC)) TABLEGROUP tg_test1;
+-- do not use tablegroup
+CREATE TABLE tab_nonkey_nogrp (a INT);
+CREATE TABLE tab_hash_nogrp (a INT PRIMARY KEY);
+-- INSERT
+INSERT INTO tab_range (a) VALUES (0), (1), (2);
+INSERT INTO tab_range (a, b) VALUES (0, '0'); -- fail
+ERROR:  column "b" of relation "tab_range" does not exist
+LINE 1: INSERT INTO tab_range (a, b) VALUES (0, '0');
+                                  ^
+INSERT INTO tab_range_multicol (a, b) VALUES (0, '0'), (1, '1');
+INSERT INTO tab_nonkey_nogrp (a) VALUES (0), (1), (2), (3);
+INSERT INTO tab_hash_nogrp (a) VALUES (0), (1), (2), (3);
+-- SELECT
+SELECT * FROM tab_range;
+ a
+---
+ 0
+ 1
+ 2
+(3 rows)
+
+SELECT * FROM tab_range WHERE a = 2;
+ a
+---
+ 2
+(1 row)
+
+SELECT * FROM tab_range WHERE n = '0'; -- fail
+ERROR:  column "n" does not exist
+LINE 1: SELECT * FROM tab_range WHERE n = '0';
+                                      ^
+SELECT * FROM tab_range_multicol;
+ a | b
+---+---
+ 0 | 0
+ 1 | 1
+(2 rows)
+
+SELECT * FROM tab_nonkey_nogrp ORDER BY a ASC;
+ a
+---
+ 0
+ 1
+ 2
+ 3
+(4 rows)
+
+SELECT * FROM tab_hash_nogrp ORDER BY a ASC;
+ a
+---
+ 0
+ 1
+ 2
+ 3
+(4 rows)
+
+BEGIN;
+INSERT INTO tab_range (a) VALUES (4);
+ROLLBACK;
+SELECT * FROM tab_range;
+ a
+---
+ 0
+ 1
+ 2
+(3 rows)
+
+BEGIN;
+INSERT INTO tab_range (a) VALUES (5);
+COMMIT;
+SELECT * FROM tab_range;
+ a
+---
+ 0
+ 1
+ 2
+ 5
+(4 rows)
+
+INSERT INTO tab_range VALUES (6), (6); -- fail
+ERROR:  duplicate key value violates unique constraint "tab_range_pkey"
+-- CREATE INDEX
+-- table with index in the tablegroup
+CREATE TABLE tab_range2 (a INT, b INT) TABLEGROUP tg_test2;
+CREATE INDEX idx_range2 ON tab_range2 (a);
+\d tab_range2
+             Table "public.tab_range2"
+ Column |  Type   | Collation | Nullable | Default
+--------+---------+-----------+----------+---------
+ a      | integer |           |          |
+ b      | integer |           |          |
+Indexes:
+    "idx_range2" lsm (a), tablegroup "tg_test2"
+Tablegroup: "tg_test2"
+
+INSERT INTO tab_range2 (a, b) VALUES (0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5);
+EXPLAIN (COSTS OFF) SELECT * FROM tab_range2 WHERE a = 1;
+                QUERY PLAN
+-------------------------------------------
+ Index Scan using idx_range2 on tab_range2
+   Index Cond: (a = 1)
+(2 rows)
+
+SELECT * FROM tab_range2 WHERE a = 1;
+ a | b
+---+---
+ 1 | 1
+(1 row)
+
+UPDATE tab_range2 SET b = b + 1 WHERE a > 3;
+SELECT * FROM tab_range2 ORDER BY a;
+ a | b
+---+---
+ 0 | 0
+ 1 | 1
+ 2 | 2
+ 3 | 3
+ 4 | 5
+ 5 | 6
+(6 rows)
+
+DELETE FROM tab_range2 WHERE a > 3;
+SELECT * FROM tab_range2 ORDER BY a;
+ a | b
+---+---
+ 0 | 0
+ 1 | 1
+ 2 | 2
+ 3 | 3
+(4 rows)
+
+-- table with no tablegroup with index
+CREATE TABLE tab_range_nogrp (a INT, b INT, PRIMARY KEY (a ASC));
+CREATE INDEX idx_range_nogrp ON tab_range_nogrp (a);
+\dt
+               List of relations
+ Schema |        Name        | Type  |  Owner
+--------+--------------------+-------+----------
+ public | tab_hash_nogrp     | table | yugabyte
+ public | tab_nonkey         | table | yugabyte
+ public | tab_nonkey_nogrp   | table | yugabyte
+ public | tab_range          | table | yugabyte
+ public | tab_range2         | table | yugabyte
+ public | tab_range_multicol | table | yugabyte
+ public | tab_range_nogrp    | table | yugabyte
+(7 rows)
+
+\di
+                            List of relations
+ Schema |          Name           | Type  |  Owner   |       Table
+--------+-------------------------+-------+----------+--------------------
+ public | idx_range2              | index | yugabyte | tab_range2
+ public | idx_range_nogrp         | index | yugabyte | tab_range_nogrp
+ public | tab_hash_nogrp_pkey     | index | yugabyte | tab_hash_nogrp
+ public | tab_range_multicol_pkey | index | yugabyte | tab_range_multicol
+ public | tab_range_nogrp_pkey    | index | yugabyte | tab_range_nogrp
+ public | tab_range_pkey          | index | yugabyte | tab_range
+(6 rows)
+
+-- TRUNCATE TABLE
+-- truncate tablegroup table with default index
+TRUNCATE TABLE tab_range;
+SELECT * FROM tab_range;
+ a
+---
+(0 rows)
+
+INSERT INTO tab_range VALUES (4);
+SELECT * FROM tab_range;
+ a
+---
+ 4
+(1 row)
+
+INSERT INTO tab_range VALUES (1);
+INSERT INTO tab_range VALUES (2), (5);
+SELECT * FROM tab_range;
+ a
+---
+ 1
+ 2
+ 4
+ 5
+(4 rows)
+
+DELETE FROM tab_range WHERE a = 2;
+SELECT * FROM tab_range;
+ a
+---
+ 1
+ 4
+ 5
+(3 rows)
+
+TRUNCATE TABLE tab_range;
+-- truncate tablegroup table with explicit index
+TRUNCATE TABLE tab_range2;
+SELECT * FROM tab_range2;
+ a | b
+---+---
+(0 rows)
+
+-- ALTER TABLE
+CREATE TABLE tab_range_alter (a INT, b INT, PRIMARY KEY (a ASC)) TABLEGROUP tg_test1;
+INSERT INTO tab_range (a) VALUES (0), (1), (2);
+INSERT INTO tab_range_alter (a, b) VALUES (0, 0), (1, 1);
+SELECT * FROM tab_range;
+ a
+---
+ 0
+ 1
+ 2
+(3 rows)
+
+SELECT * FROM tab_range_alter;
+ a | b
+---+---
+ 0 | 0
+ 1 | 1
+(2 rows)
+
+-- Alter tablegrouped tables
+ALTER TABLE tab_range ADD COLUMN x INT;
+ALTER TABLE tab_range_alter DROP COLUMN b;
+SELECT * FROM tab_range;
+ a | x
+---+---
+ 0 |
+ 1 |
+ 2 |
+(3 rows)
+
+SELECT * FROM tab_range_alter;
+ a
+---
+ 0
+ 1
+(2 rows)
+
+ALTER TABLE tab_range_alter RENAME TO tab_range_alter_renamed;
+SELECT * FROM tab_range_alter_renamed;
+ a
+---
+ 0
+ 1
+(2 rows)
+
+SELECT * FROM tab_range_alter;
+ERROR:  relation "tab_range_alter" does not exist
+LINE 1: SELECT * FROM tab_range_alter;
+                      ^
+-- DROP TABLE / INDEX
+-- drop table that is in a tablegroup with default index
+DROP TABLE tab_range;
+SELECT * FROM tab_range;
+ERROR:  relation "tab_range" does not exist
+LINE 1: SELECT * FROM tab_range;
+                      ^
+-- drop non-colocated table without index
+DROP TABLE tab_nonkey_nogrp;
+SELECT * FROM tab_nonkey_nogrp;
+ERROR:  relation "tab_nonkey_nogrp" does not exist
+LINE 1: SELECT * FROM tab_nonkey_nogrp;
+                      ^
+-- drop index on tablegrouped table
+DROP INDEX idx_range2;
+EXPLAIN SELECT * FROM tab_range2 WHERE a = 1;
+                          QUERY PLAN
+---------------------------------------------------------------
+ Seq Scan on tab_range2  (cost=0.00..102.50 rows=1000 width=8)
+   Filter: (a = 1)
+(2 rows)
+
+--- drop colocated table with dropped index
+DROP TABLE tab_range2;
+SELECT * FROM tab_range2;
+ERROR:  relation "tab_range2" does not exist
+LINE 1: SELECT * FROM tab_range2;
+                      ^
+\dt
+                  List of relations
+ Schema |          Name           | Type  |  Owner
+--------+-------------------------+-------+----------
+ public | tab_hash_nogrp          | table | yugabyte
+ public | tab_nonkey              | table | yugabyte
+ public | tab_range_alter_renamed | table | yugabyte
+ public | tab_range_multicol      | table | yugabyte
+ public | tab_range_nogrp         | table | yugabyte
+(5 rows)
+
+\di
+                               List of relations
+ Schema |          Name           | Type  |  Owner   |          Table
+--------+-------------------------+-------+----------+-------------------------
+ public | idx_range_nogrp         | index | yugabyte | tab_range_nogrp
+ public | tab_hash_nogrp_pkey     | index | yugabyte | tab_hash_nogrp
+ public | tab_range_alter_pkey    | index | yugabyte | tab_range_alter_renamed
+ public | tab_range_multicol_pkey | index | yugabyte | tab_range_multicol
+ public | tab_range_nogrp_pkey    | index | yugabyte | tab_range_nogrp
+(5 rows)
+
+-- DROP TABLEGROUP
+DROP TABLEGROUP tg_test1; -- fail
+ERROR:  tablegroup "tg_test1" is not empty
+DROP TABLEGROUP tg_test2;
+-- drop database
+\c yugabyte
+DROP DATABASE test_tablegroups;
+\c test_tablegroups
+\connect: FATAL:  database "test_tablegroups" does not exist

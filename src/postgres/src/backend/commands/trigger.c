@@ -3839,6 +3839,7 @@ typedef struct AfterTriggersData
 	/* per-subtransaction-level data: */
 	AfterTriggersTransData *trans_stack;	/* array of structs shown below */
 	int			maxtransdepth;	/* allocated len of above array */
+	List *ybc_txn_fdw_tuplestores; /* list of transaction level tuplestores */
 } AfterTriggersData;
 
 struct AfterTriggersQueryData
@@ -3846,6 +3847,7 @@ struct AfterTriggersQueryData
 	AfterTriggerEventList events;	/* events pending from this query */
 	Tuplestorestate *fdw_tuplestore;	/* foreign tuples for said events */
 	List	   *tables;			/* list of AfterTriggersTableData, see below */
+	Tuplestorestate *ybc_txn_fdw_tuplestore; /* tuplestore for deferred triggers */
 };
 
 struct AfterTriggersTransData
@@ -3904,33 +3906,38 @@ GetCurrentFDWTuplestore(AfterTriggerShared evtshared)
 	if (evtshared->ybc_txn_fdw_tuplestore)
 		return evtshared->ybc_txn_fdw_tuplestore;
 
-	ret = afterTriggers.query_stack[afterTriggers.query_depth].fdw_tuplestore;
+	Assert(afterTriggers.query_depth > -1);
+	AfterTriggersQueryData* trigger_data = &afterTriggers.query_stack[afterTriggers.query_depth];
+	const bool is_deferred = IsYugaByteEnabled() && afterTriggerCheckState(evtshared);
+	ret = is_deferred ? trigger_data->ybc_txn_fdw_tuplestore : trigger_data->fdw_tuplestore;
 	if (ret == NULL)
 	{
-		MemoryContext oldcxt;
-		ResourceOwner saveResourceOwner;
-
 		/*
 		 * Make the tuplestore valid until end of subtransaction.  We really
 		 * only need it until AfterTriggerEndQuery().
 		 * In YugaByte mode deferred trigger will access tuplestore
 		 * at the end of subtransaction (after AfterTriggerEndQuery).
 		 */
-		oldcxt = MemoryContextSwitchTo(CurTransactionContext);
-		saveResourceOwner = CurrentResourceOwner;
+		MemoryContext oldcxt = MemoryContextSwitchTo(CurTransactionContext);
+		ResourceOwner saveResourceOwner = CurrentResourceOwner;
 		CurrentResourceOwner = CurTransactionResourceOwner;
 
 		ret = tuplestore_begin_heap(false, false, work_mem);
 
-		/* Save tuplestore for trigger in DEFERRED state in ybc_txn_fdw_tuplestore field. */
-		if (IsYugaByteEnabled() && afterTriggerCheckState(evtshared))
-			evtshared->ybc_txn_fdw_tuplestore = ret;
+		if (is_deferred)
+		{
+			trigger_data->ybc_txn_fdw_tuplestore = ret;
+			afterTriggers.ybc_txn_fdw_tuplestores = lappend(afterTriggers.ybc_txn_fdw_tuplestores, ret);
+		}
 		else
-			afterTriggers.query_stack[afterTriggers.query_depth].fdw_tuplestore = ret;
+			trigger_data->fdw_tuplestore = ret;
 
 		CurrentResourceOwner = saveResourceOwner;
 		MemoryContextSwitchTo(oldcxt);
 	}
+
+	if (is_deferred)
+		evtshared->ybc_txn_fdw_tuplestore = ret;
 
 	return ret;
 }
@@ -3987,7 +3994,7 @@ afterTriggerCheckState(AfterTriggerShared evtshared)
  *	The passed-in event data is copied.
  * ----------
  */
-static AfterTriggerEvent
+static void
 afterTriggerAddEvent(AfterTriggerEventList *events,
 					 AfterTriggerEvent event, AfterTriggerShared evtshared)
 {
@@ -4107,7 +4114,6 @@ afterTriggerAddEvent(AfterTriggerEventList *events,
 
 	chunk->freeptr += eventsize;
 	events->tailfree = chunk->freeptr;
-	return newevent;
 }
 
 /* ----------
@@ -4812,6 +4818,7 @@ AfterTriggerBeginXact(void)
 	Assert(afterTriggers.events.head == NULL);
 	Assert(afterTriggers.trans_stack == NULL);
 	Assert(afterTriggers.maxtransdepth == 0);
+	Assert(afterTriggers.ybc_txn_fdw_tuplestores == NULL);
 }
 
 
@@ -4949,7 +4956,12 @@ AfterTriggerFreeQuery(AfterTriggersQueryData *qs)
 	qs->fdw_tuplestore = NULL;
 	if (ts)
 		tuplestore_end(ts);
-
+	/*
+	 * Tuplestore pointed by ybc_txn_fdw_tuplestore is registered in
+	 * AfterTriggersData::ybc_txn_fdw_tuplestores list and will be closed at transaction end,
+	 * no need to do it here.
+	 */
+	qs->ybc_txn_fdw_tuplestore = NULL;
 	/* Release per-table subsidiary storage */
 	tables = qs->tables;
 	foreach(lc, tables)
@@ -5057,28 +5069,6 @@ AfterTriggerEndXact(bool isCommit)
 	 */
 	if (afterTriggers.event_cxt)
 	{
-		/* Close all subtransaction level tuplestores. */
-		if (IsYugaByteEnabled())
-		{
-			AfterTriggerEventChunk *chunk;
-			for_each_chunk(chunk, afterTriggers.events)
-			{
-				AfterTriggerEvent event;
-				for_each_event(event, chunk)
-				{
-					AfterTriggerShared evtshared = GetTriggerSharedData(event);
-					if (evtshared->ybc_txn_fdw_tuplestore)
-					{
-						tuplestore_end(evtshared->ybc_txn_fdw_tuplestore);
-						/*
-						 * Multiple events may have same shared data,
-						 * so tuplestore must be nullified to avoid double closing.
-						 */
-						evtshared->ybc_txn_fdw_tuplestore = NULL;
-					}
-				}
-			}
-		}
 		MemoryContextDelete(afterTriggers.event_cxt);
 		afterTriggers.event_cxt = NULL;
 		afterTriggers.events.head = NULL;
@@ -5106,6 +5096,20 @@ AfterTriggerEndXact(bool isCommit)
 
 	/* No more afterTriggers manipulation until next transaction starts. */
 	afterTriggers.query_depth = -1;
+
+	if (IsYugaByteEnabled())
+	{
+		/* Close all transaction level tuplestores. */
+		ListCell *lc;
+		foreach(lc, afterTriggers.ybc_txn_fdw_tuplestores)
+		{
+			Tuplestorestate *tuplestore  = (Tuplestorestate *) lfirst(lc);
+			tuplestore_end(tuplestore);
+		}
+		afterTriggers.ybc_txn_fdw_tuplestores = NULL;
+	}
+	else
+		Assert(afterTriggers.ybc_txn_fdw_tuplestores == NULL);
 }
 
 /*
@@ -5302,6 +5306,7 @@ AfterTriggerEnlargeQueryState(void)
 		qs->events.tailfree = NULL;
 		qs->fdw_tuplestore = NULL;
 		qs->tables = NIL;
+		qs->ybc_txn_fdw_tuplestore = NULL;
 
 		++init_depth;
 	}
@@ -6037,13 +6042,11 @@ AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 		 * within a query execution.
 		 */
 		if ((IsYBBackedRelation(rel) || relkind == RELKIND_FOREIGN_TABLE) && row_trigger)
-		{
-			if (fdw_tuplestore == NULL)
-				new_event.ate_flags = AFTER_TRIGGER_FDW_FETCH;
-			else
-				/* subsequent event for the same tuple */
+				/*
+				 * Set flag to AFTER_TRIGGER_FDW_REUSE (0) by default.
+				 * AFTER_TRIGGER_FDW_FETCH flag will be added later if needed.
+				 */
 				new_event.ate_flags = AFTER_TRIGGER_FDW_REUSE;
-		}
 
 		/*
 		 * If the trigger is a deferred unique constraint check trigger, only
@@ -6081,37 +6084,56 @@ AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 		 * In vanilla postgres ybc_txn_fdw_tuplestore is always NULL so reuse strategy of
 		 * AfterTriggerShared object will not be changed.
 		 */
-		new_shared.ybc_txn_fdw_tuplestore =
-			ybc_txn_fdw_tuplestore && afterTriggerCheckState(&new_shared) ? ybc_txn_fdw_tuplestore
-			                                                              : NULL;
-		AfterTriggerEvent ev = afterTriggerAddEvent(
-				&afterTriggers.query_stack[afterTriggers.query_depth].events, &new_event, &new_shared);
-
+		new_shared.ybc_txn_fdw_tuplestore = NULL;
 		/*
 		 * In YugaByte mode we also use the tuplestore to store/pass tuples
 		 * within a query execution.
 		 */
-		if ((IsYBBackedRelation(rel) || relkind == RELKIND_FOREIGN_TABLE) &&
-			row_trigger && fdw_tuplestore == NULL)
+		if ((IsYBBackedRelation(rel) || relkind == RELKIND_FOREIGN_TABLE) && row_trigger)
 		{
-			AfterTriggerShared evtshared = GetTriggerSharedData(ev);
-			fdw_tuplestore = GetCurrentFDWTuplestore(evtshared);
-			/* Save tuplestore for deferred triggers only. */
-			ybc_txn_fdw_tuplestore = evtshared->ybc_txn_fdw_tuplestore;
+			if (IsYugaByteEnabled() && afterTriggerCheckState(&new_shared))
+			{
+				/* deferred trigger case */
+				if (!ybc_txn_fdw_tuplestore)
+				{
+					new_event.ate_flags |= AFTER_TRIGGER_FDW_FETCH;
+					ybc_txn_fdw_tuplestore = GetCurrentFDWTuplestore(&new_shared);
+					Assert(new_shared.ybc_txn_fdw_tuplestore == ybc_txn_fdw_tuplestore);
+				}
+				else
+					new_shared.ybc_txn_fdw_tuplestore = ybc_txn_fdw_tuplestore;
+			}
+			else if (!fdw_tuplestore)
+			{
+				new_event.ate_flags |= AFTER_TRIGGER_FDW_FETCH;
+				fdw_tuplestore = GetCurrentFDWTuplestore(&new_shared);
+			}
 		}
+
+		afterTriggerAddEvent(
+				&afterTriggers.query_stack[afterTriggers.query_depth].events, &new_event, &new_shared);
 	}
 
 	/*
 	 * Finally, spool any foreign tuple(s).  The tuplestore squashes them to
 	 * minimal tuples, so this loses any system columns.  The executor lost
 	 * those columns before us, for an unrelated reason, so this is fine.
+	 *
+	 * In case table has more than one trigger one can be deferred and another non-deferred.
+	 * In this case both fdw_tuplestore and ybc_txn_fdw_tuplestore will be non NULL.
+	 * Value should be written into both tuplestores.
 	 */
-	if (fdw_tuplestore)
+	Tuplestorestate * tuplestores[2] = {fdw_tuplestore, ybc_txn_fdw_tuplestore};
+	for (Tuplestorestate **tuplestore = tuplestores, **end = tuplestores + 2;
+	     tuplestore != end; ++tuplestore)
 	{
-		if (oldtup != NULL)
-			tuplestore_puttuple(fdw_tuplestore, oldtup);
-		if (newtup != NULL)
-			tuplestore_puttuple(fdw_tuplestore, newtup);
+		if (*tuplestore)
+		{
+			if (oldtup != NULL)
+				tuplestore_puttuple(*tuplestore, oldtup);
+			if (newtup != NULL)
+				tuplestore_puttuple(*tuplestore, newtup);
+		}
 	}
 }
 

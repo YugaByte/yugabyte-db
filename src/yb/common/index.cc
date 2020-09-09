@@ -78,7 +78,17 @@ IndexInfo::IndexInfo(const IndexInfoPB& pb)
       index_permissions_(pb.index_permissions()),
       use_mangled_column_name_(pb.use_mangled_column_name()) {
   for (const IndexInfo::IndexColumn &index_col : columns_) {
-    covered_column_ids_.insert(index_col.indexed_column_id);
+    // Mark column as covered if the index column is the column itself.
+    // Do not mark a column as covered when indexing by an expression of that column.
+    // - When an expression such as "jsonb->>'field'" is used, then the "jsonb" column should not
+    //   be included in the covered list.
+    // - Currently we only support "jsonb->>" expression, but this is true for all expressions.
+    if (index_col.colexpr.expr_case() == QLExpressionPB::ExprCase::kColumnId ||
+        index_col.colexpr.expr_case() == QLExpressionPB::ExprCase::EXPR_NOT_SET) {
+      covered_column_ids_.insert(index_col.indexed_column_id);
+    } else {
+      has_index_by_expr_ = true;
+    }
   }
 }
 
@@ -93,10 +103,10 @@ void IndexInfo::ToPB(IndexInfoPB* pb) const {
   }
   pb->set_hash_column_count(hash_column_count_);
   pb->set_range_column_count(range_column_count_);
-  for (const auto id : indexed_hash_column_ids_) {
+  for (const auto& id : indexed_hash_column_ids_) {
     pb->add_indexed_hash_column_ids(id);
   }
-  for (const auto id : indexed_range_column_ids_) {
+  for (const auto& id : indexed_range_column_ids_) {
     pb->add_indexed_range_column_ids(id);
   }
   pb->set_use_mangled_column_name(use_mangled_column_name_);
@@ -105,15 +115,15 @@ void IndexInfo::ToPB(IndexInfoPB* pb) const {
 
 vector<ColumnId> IndexInfo::index_key_column_ids() const {
   unordered_map<ColumnId, ColumnId> map;
-  for (const auto column : columns_) {
+  for (const auto& column : columns_) {
     map[column.indexed_column_id] = column.column_id;
   }
   vector<ColumnId> ids;
   ids.reserve(indexed_hash_column_ids_.size() + indexed_range_column_ids_.size());
-  for (const auto id : indexed_hash_column_ids_) {
+  for (const auto& id : indexed_hash_column_ids_) {
     ids.push_back(map[id]);
   }
-  for (const auto id : indexed_range_column_ids_) {
+  for (const auto& id : indexed_range_column_ids_) {
     ids.push_back(map[id]);
   }
   return ids;
@@ -130,6 +140,15 @@ bool IndexInfo::PrimaryKeyColumnsOnly(const Schema& indexed_schema) const {
 
 bool IndexInfo::IsColumnCovered(const ColumnId column_id) const {
   return covered_column_ids_.find(column_id) != covered_column_ids_.end();
+}
+
+bool IndexInfo::IsColumnCovered(const std::string& column_name) const {
+  for (const auto &col : columns_) {
+    if (column_name == col.column_name) {
+      return true;
+    }
+  }
+  return false;
 }
 
 int32_t IndexInfo::IsExprCovered(const string& expr_name) const {
@@ -160,6 +179,26 @@ int32_t IndexInfo::IsExprCovered(const string& expr_name) const {
   return -1;
 }
 
+// Check for dependency is used for DDL operations, so it does not need to be fast. As a result,
+// the dependency list does not need to be cached in a member id list for fast access.
+bool IndexInfo::CheckColumnDependency(ColumnId column_id) const {
+  for (const IndexInfo::IndexColumn &index_col : columns_) {
+    // The protobuf data contains IDs of all columns that this index is referencing.
+    // Examples:
+    // 1. Index by column
+    // - INDEX ON tab (a_column)
+    // - The ID of "a_column" is included in protobuf data.
+    //
+    // 2. Index by expression of column:
+    // - INDEX ON tab (j_column->>'field')
+    // - The ID of "j_column" is included in protobuf data.
+    if (index_col.indexed_column_id == column_id) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int32_t IndexInfo::FindKeyIndex(const string& key_expr_name) const {
   for (int32_t idx = 0; idx < key_column_count(); idx++) {
     const auto& col = columns_[idx];
@@ -185,7 +224,7 @@ void IndexMap::FromPB(const google::protobuf::RepeatedPtrField<IndexInfoPB>& ind
 
 void IndexMap::ToPB(google::protobuf::RepeatedPtrField<IndexInfoPB>* indexes) const {
   indexes->Clear();
-  for (const auto itr : *this) {
+  for (const auto& itr : *this) {
     itr.second.ToPB(indexes->Add());
   }
 }

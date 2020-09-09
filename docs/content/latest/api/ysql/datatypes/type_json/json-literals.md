@@ -17,7 +17,7 @@ The mutual relationship between a JSON value and its `::text` typecast is an ins
 
 This `DO` block follows, for `jsonb`,  the same pattern that is used in that section for a variety of different data types. See also the section [::jsonb and ::json and ::text (typecast)](../functions-operators/typecast-operators/).
 
-```postgresql
+```plpgsql
 create type t as (f1 int, f2 text, f3 boolean, f4 text[]);
 
 do $body$
@@ -52,7 +52,7 @@ And it shows that the `::text` typecast of a `jsonb` value that has been constru
 
 The next block follows the same pattern for `json`. However, the `ASSERT` must be written differently because the [`=` operator](../functions-operators/equality-operator/) has no overload for `json`.
 
-```postgresql
+```plpgsql
 do $body$
 declare
   v1 constant int     := 42;

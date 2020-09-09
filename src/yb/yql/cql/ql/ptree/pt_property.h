@@ -118,7 +118,7 @@ class PTPropertyListNode : public TreeListNode<PTProperty> {
     if (tnode_list == nullptr) {
       return;
     }
-    for (const auto tnode : tnode_list->node_list()) {
+    for (const auto& tnode : tnode_list->node_list()) {
       Append(tnode);
     }
   }

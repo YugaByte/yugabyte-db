@@ -14,8 +14,10 @@
 #ifndef YB_TSERVER_TABLET_SERVER_INTERFACE_H
 #define YB_TSERVER_TABLET_SERVER_INTERFACE_H
 
-#include "yb/client/meta_cache.h"
+#include "yb/client/client_fwd.h"
+#include "yb/rpc/rpc_fwd.h"
 #include "yb/server/clock.h"
+#include "yb/tserver/local_tablet_server.h"
 #include "yb/util/metrics.h"
 
 namespace yb {
@@ -27,9 +29,6 @@ class TSInformationPB;
 }
 
 namespace tserver {
-
-class TabletPeerLookupIf;
-class TSTabletManager;
 
 class TabletServerIf : public LocalTabletServer {
  public:

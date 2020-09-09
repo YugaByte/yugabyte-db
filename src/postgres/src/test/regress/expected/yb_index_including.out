@@ -119,7 +119,7 @@ explain (costs off)
 select * from tbl where (c1,c2,c3) < (2,5,1);
                  QUERY PLAN
 --------------------------------------------
- Foreign Scan on tbl
+ Seq Scan on tbl
    Filter: (ROW(c1, c2, c3) < ROW(2, 5, 1))
 (2 rows)
 

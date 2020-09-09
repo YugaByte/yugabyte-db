@@ -95,6 +95,7 @@ build_cpp_code() {
   set_yb_src_root "$1"
 
   heading "Building C++ code in $YB_SRC_ROOT."
+
   remote_opt=""
   if [[ ${YB_REMOTE_COMPILATION:-} == "1" ]]; then
     # This helps with our background script resizing the build cluster, because it looks at all
@@ -187,13 +188,8 @@ export YB_USE_NINJA=1
 set_cmake_build_type_and_compiler_type
 
 if [[ ${YB_DOWNLOAD_THIRDPARTY:-auto} == "auto" ]]; then
-  if is_linux; then
-    log "Setting YB_DOWNLOAD_THIRDPARTY=1 automatically on Linux"
-    export YB_DOWNLOAD_THIRDPARTY=1
-  else
-    log "Setting YB_DOWNLOAD_THIRDPARTY=0 automatically (not Linux)"
-    export YB_DOWNLOAD_THIRDPARTY=0
-  fi
+  log "Setting YB_DOWNLOAD_THIRDPARTY=1 automatically"
+  export YB_DOWNLOAD_THIRDPARTY=1
 fi
 log "YB_DOWNLOAD_THIRDPARTY=$YB_DOWNLOAD_THIRDPARTY"
 

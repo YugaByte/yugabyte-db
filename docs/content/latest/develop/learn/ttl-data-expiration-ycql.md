@@ -43,11 +43,11 @@ non-primary key columns are deleted only in the case of inserts.
 ## Table level TTL
 
 YCQL allows the TTL property to be specified at the table level. 
-In this case, we do not store the TTL on a per KV basis in DocDB; but the TTL is implicitly enforced 
+In this case, you do not store the TTL on a per KV basis in DocDB; but the TTL is implicitly enforced 
 on reads as well as during compactions (to reclaim space).
 Table level TTL can be defined with `default_time_to_live` [property](../../../api/ycql/ddl_create_table#table-properties-1). 
 
-Below, we will look at how the row-level TTL is achieved in detail.
+Below, you will look at how the row-level TTL is achieved in detail.
 
 ## Row level TTL
 
@@ -55,7 +55,7 @@ YCQL allows the TTL property to be specified at the level of each INSERT/UPDATE 
 Row level TTL expires the whole row. The value is specified at insert/update time with `USING TTL` clause.
 In such cases, the TTL is stored as part of the DocDB value. A simple query would be:
 
-```cassandraql
+```sql
 INSERT INTO pageviews(path) VALUES ('/index') USING TTL 10;
 SELECT * FROM pageviews;
 
@@ -67,7 +67,7 @@ SELECT * FROM pageviews;
 ```
 After 10 seconds, the row is expired:
 
-```cassandraql
+```sql
 SELECT * FROM pageviews;
 
  path | views
@@ -79,9 +79,9 @@ SELECT * FROM pageviews;
 ## Column level TTL
 
 YCQL also allows to set column level TTL. In such cases, the TTL is stored as part of the DocDB column value. 
-But we can set it only when updating the column:
+But you can set it only when updating the column:
 
-```cassandraql
+```sql
 INSERT INTO pageviews(path,views) VALUES ('/index', 10);
 
 SELECT * FROM pageviews;
@@ -97,7 +97,7 @@ UPDATE pageviews USING TTL 10 SET views=10 WHERE path='/index';
 
 After 10 seconds, querying for the rows the `views` column will return `NULL` but notice that the row still exists:
 
-```cassandraql
+```sql
 SELECT * FROM pageviews;
 
  path   | views

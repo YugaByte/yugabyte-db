@@ -255,7 +255,7 @@ pull_varattnos_walker(Node *node, pull_varattnos_context *context)
 
 /*
  * The same as pull_varattnos() but attribute numbers are offset by
- * (rel->min_attr + 1) instead of FirstLowInvalidHeapAttributeNumber.
+ * (rel->min_attr - 1) instead of FirstLowInvalidHeapAttributeNumber.
  */
 void
 pull_varattnos_min_attr(Node *node, Index varno, Bitmapset **varattnos, AttrNumber min_attr)
@@ -272,7 +272,7 @@ pull_varattnos_min_attr(Node *node, Index varno, Bitmapset **varattnos, AttrNumb
 
 /*
  * The same as pull_varattnos_walker() but attribute numbers are offset by
- * (rel->min_attr + 1) instead of FirstLowInvalidHeapAttributeNumber.
+ * (rel->min_attr - 1) instead of FirstLowInvalidHeapAttributeNumber.
  */
 static bool
 pull_varattnos_walker_min_attr(Node *node, pull_varattnos_context *context, AttrNumber min_attr)

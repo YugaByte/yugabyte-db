@@ -12,6 +12,7 @@ import com.yugabyte.yw.models.Users;
 import play.mvc.Http;
 import play.mvc.Result;
 import play.test.Helpers;
+import play.libs.Files;
 
 import java.util.List;
 import java.util.Random;
@@ -21,13 +22,13 @@ import static com.yugabyte.yw.models.Users.Role;
 
 public class FakeApiHelper {
   private static String getAuthToken() {
-    Customer customer = Customer.find.where().eq("code", "tc").findUnique();
+    Customer customer = Customer.find.query().where().eq("code", "tc").findOne();
     Users user;
     if (customer == null) {
       customer = Customer.create("vc", "Valid Customer");
       user = Users.create("foo@bar.com", "password", Role.Admin, customer.uuid);
     }
-    user = Users.find.where().eq("customer_uuid", customer.uuid).findUnique();
+    user = Users.find.query().where().eq("customer_uuid", customer.uuid).findOne();
     return user.createAuthToken();
   }
 
@@ -59,12 +60,15 @@ public class FakeApiHelper {
   }
 
   public static Result doRequestWithAuthTokenAndMultipartData(
-      String method, String url, String authToken,
+      String method,
+      String url,
+      String authToken,
       List<Http.MultipartFormData.Part<Source<ByteString, ?>>> data,
-      Materializer mat) {
+      Materializer mat
+  ) {
     Http.RequestBuilder request = Helpers.fakeRequest(method, url)
         .header("X-AUTH-TOKEN", authToken)
-        .bodyMultipart(data, mat);
+        .bodyMultipart(data, Files.singletonTemporaryFileCreator(), mat);
     return route(request);
   }
 }

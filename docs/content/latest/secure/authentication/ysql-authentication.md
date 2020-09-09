@@ -230,7 +230,7 @@ yugabyte=# ALTER ROLE john PASSWORD 'new-password';
 
 #### Granting and removing superuser privileges
 
-In the example above, we can verify that `john` is not a superuser using the following `SELECT` statement:
+In the example above, you can verify that `john` is not a superuser using the following `SELECT` statement:
 
 ```postgresql
 yugabyte=# SELECT rolname, rolsuper, rolcanlogin FROM pg_roles WHERE rolname='john';
@@ -298,7 +298,7 @@ yugabyte=# ALTER ROLE john WITH NOSUPERUSER;
 
 ### Enable and disable login privileges
 
-In the example above, we can verify that `john` can login to the database by doing the following:
+In the example above, you can verify that `john` can login to the database by doing the following:
 
 ```postgresql
 yugabyte=# SELECT role, rolcanlogin FROM pg_roles WHERE role='john';

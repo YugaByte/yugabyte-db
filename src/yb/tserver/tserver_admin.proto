@@ -64,6 +64,9 @@ message ChangeMetadataRequestPB {
   optional bytes remove_table_id = 10;
 
   optional bool is_backfilling = 11;
+
+  // Used for alter schema on a non-primary table (e.g. colocated user table).
+  optional bytes alter_table_id = 12;
 }
 
 // This is used to export tablet metadata changes to a protobuf file to be reloaded on a new cluster
@@ -105,6 +108,7 @@ message BackfillIndexRequestPB {
 
   required bytes tablet_id = 2;
 
+  // Indexes on the _same table_ to backfill.
   repeated IndexInfoPB indexes = 3;
 
   optional uint32 schema_version = 4;
@@ -115,6 +119,9 @@ message BackfillIndexRequestPB {
   optional bytes end_key = 7;
 
   optional fixed64 propagated_hybrid_time = 8;
+
+  // Currently only used for YSQL.
+  optional string namespace_name = 9;
 }
 
 message BackfillIndexResponsePB {
@@ -154,6 +161,8 @@ message CreateTabletRequestPB {
   // The partition of the tablet.
   optional PartitionPB partition = 9;
 
+  optional bytes namespace_id = 14;
+  optional bytes namespace_name = 15;
   required string table_name = 5;
   optional TableType table_type = 11;
   required SchemaPB schema = 6;

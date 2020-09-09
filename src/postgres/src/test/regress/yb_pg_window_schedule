@@ -1,0 +1,15 @@
+# src/test/regress/yb_pg_window_schedule
+#
+####################################################################################################
+# This includes tests for Window Functions
+####################################################################################################
+# Dependencies for `yb_pg_window`
+test: yb_pg_int4
+
+# Chain of dependencies for `yb_pg_window`
+test: yb_pg_create_function_1
+test: yb_pg_create_type
+test: yb_pg_create_table
+test: yb_pg_copy
+
+test: yb_pg_window

@@ -12,6 +12,9 @@
 #include "yb/yql/cql/ql/ptree/sem_context.h"
 #include "yb/gutil/strings/ascii_ctype.h"
 
+DEFINE_bool(cql_raise_index_where_clause_error, true,
+            "Raise unsupported error if where clause is specified for create index");
+
 namespace yb {
 namespace ql {
 

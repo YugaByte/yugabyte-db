@@ -80,10 +80,10 @@ public class TestFullMoveWithHeartBeatDelay extends TestClusterBase {
       assertEquals("Masters: " + masters, 3, masters.split(",").length);
       // Ensure old masters not present and new masters are present.
       for (HostAndPort master : newMasters) {
-        assertTrue(masters.contains(master.getHostText()));
+        assertTrue(masters.contains(master.getHost()));
       }
       for (HostAndPort master : oldMasters) {
-        assertFalse(masters.contains(master.getHostText()));
+        assertFalse(masters.contains(master.getHost()));
       }
     }
 

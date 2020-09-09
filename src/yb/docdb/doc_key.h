@@ -64,6 +64,7 @@ using DocKeyHash = uint16_t;
 //     2. ValueType::kGroupEnd terminates the sequence.
 YB_DEFINE_ENUM(
     DocKeyPart,
+    (kUpToHashCode)
     (kUpToHash)
     (kUpToId)
     // Includes all doc key components up to hashed ones. If there are no hashed components -
@@ -447,6 +448,8 @@ Result<bool> ConsumePrimitiveValueFromKey(Slice* slice);
 // @param result - vector to append decoded values to.
 Status ConsumePrimitiveValuesFromKey(rocksdb::Slice* slice,
                                      std::vector<PrimitiveValue>* result);
+
+Result<boost::optional<DocKeyHash>> DecodeDocKeyHash(const Slice& encoded_key);
 
 inline std::ostream& operator <<(std::ostream& out, const DocKey& doc_key) {
   out << doc_key.ToString();
@@ -892,6 +895,10 @@ struct KeyBounds {
            (upper.empty() || key.compare(upper) < 0);
   }
 
+  bool IsInitialized() const {
+    return !lower.empty() || !upper.empty();
+  }
+
   std::string ToString() const {
     return Format("{ lower: $0 upper: $1 }", lower, upper);
   }
@@ -900,9 +907,9 @@ struct KeyBounds {
 // Combined DB to store regular records and intents.
 // TODO: move this to a more appropriate header file.
 struct DocDB {
-  rocksdb::DB* regular;
-  rocksdb::DB* intents;
-  const KeyBounds* key_bounds;
+  rocksdb::DB* regular = nullptr;
+  rocksdb::DB* intents = nullptr;
+  const KeyBounds* key_bounds = nullptr;
 
   static DocDB FromRegularUnbounded(rocksdb::DB* regular) {
     return {regular, nullptr /* intents */, &KeyBounds::kNoBounds};

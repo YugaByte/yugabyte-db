@@ -11,6 +11,7 @@ allowed_cloud_types:
   - aws
   - gcp
   - onprem
+  - azu
 
 cloud_region: us-west-2
 

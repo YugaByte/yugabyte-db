@@ -42,3 +42,14 @@ message ConsensusFrontierPB {
   optional fixed64 history_cutoff = 3;
   optional fixed64 hybrid_time_filter = 4;
 }
+
+message ApplyTransactionStatePB {
+  // Apply should be continued from this key in reverse index.
+  optional bytes key = 1;
+
+  // Write id for first continued record.
+  optional uint32 write_id = 2;
+
+  // Transaction commit hybrid time.
+  optional fixed64 commit_ht = 3;
+}

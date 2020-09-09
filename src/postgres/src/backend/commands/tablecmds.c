@@ -71,6 +71,7 @@
 #include "commands/sequence.h"
 #include "commands/tablecmds.h"
 #include "commands/tablespace.h"
+#include "commands/tablegroup.h"
 #include "commands/trigger.h"
 #include "commands/typecmds.h"
 #include "commands/user.h"
@@ -639,6 +640,58 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("only shared relations can be placed in pg_global tablespace")));
 
+	/*
+	 * Select tablegroup to use. If not specified, InvalidOid.
+	 * Disallow mixing of COLOCATED=true/false syntax and TABLEGROUP. Cannot use tablegroups
+	 * in colocated databases.
+	 * If the pg_tablegroup system table has not been created, get_tablegroup_oid will produce
+	 * an error.
+	 */
+	Oid tablegroupId = InvalidOid;
+	if (stmt->tablegroup)
+	{
+		OptTableGroup *grp = stmt->tablegroup;
+		if (MyDatabaseColocated)
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("cannot use tablegroups in a colocated database")));
+		else if (!grp->has_tablegroup)
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_TABLE_DEFINITION),
+					 errmsg("Cannot use NO TABLEGROUP in CREATE TABLE statement.")));
+		}
+		else
+			tablegroupId = get_tablegroup_oid(grp->tablegroup_name, false);
+	}
+
+	/*
+	 * Check permissions for tablegroup. To create a table within a tablegroup, a user must
+	 * either be a superuser, the owner of the tablegroup, or have create perms on it.
+	 */
+	if (OidIsValid(tablegroupId) && !pg_tablegroup_ownercheck(tablegroupId, GetUserId()))
+	{
+		AclResult  aclresult;
+
+		aclresult = pg_tablegroup_aclcheck(tablegroupId, GetUserId(), ACL_CREATE);
+		if (aclresult != ACLCHECK_OK)
+			aclcheck_error(aclresult, OBJECT_TABLEGROUP,
+						   get_tablegroup_name(tablegroupId));
+	}
+
+	/*
+	 * Prepend to stmt->options to be parsed for reloptions if tablegroupId is valid.
+	 * We set this here instead of in parse_utilcmd since we need to do the above
+	 * preprocessing and RBAC checks first. This still happens before transformReloptions
+	 * so this option is included in the reloptions text array.
+	 */
+	if (OidIsValid(tablegroupId))
+	{
+		stmt->options = lcons(makeDefElem("tablegroup",
+										  (Node *) makeInteger(tablegroupId), -1),
+										  stmt->options);
+	}
+
 	/* Identify user ID that will own the table */
 	if (!OidIsValid(ownerId))
 		ownerId = GetUserId();
@@ -796,9 +849,6 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 										  InvalidOid,
 										  typaddress);
 
-	/* Store inheritance information for new rel. */
-	StoreCatalogInheritance(relationId, inheritOids, stmt->partbound != NULL);
-
 	/*
 	 * We must bump the command counter to make the newly-created relation
 	 * tuple visible for opening.
@@ -808,7 +858,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	if (IsYugaByteEnabled())
 	{
 		CheckIsYBSupportedRelationByKind(relkind);
-		YBCCreateTable(stmt, relkind, descriptor, relationId, namespaceId);
+		YBCCreateTable(stmt, relkind, descriptor, relationId, namespaceId, tablegroupId);
 	}
 
 	/*
@@ -3406,12 +3456,6 @@ AlterTableInternal(Oid relid, List *cmds, bool recurse)
 	EventTriggerAlterTableRelid(relid);
 
 	ATController(NULL, rel, cmds, recurse, lockmode);
-
-	if (IsYugaByteEnabled())
-	{
-		YBReportFeatureUnsupported("Alter table is not yet supported");
-	}
-
 }
 
 /*
@@ -6894,7 +6938,7 @@ ATExecDropColumn(List **wqueue, Relation rel, const char *colName,
 
 	/* Don't drop columns used in the partition key */
 	if (has_partition_attrs(rel,
-							bms_make_singleton(attnum - FirstLowInvalidHeapAttributeNumber),
+							bms_make_singleton(attnum - YBGetFirstLowInvalidAttributeNumber(rel)),
 							&is_expr))
 	{
 		if (!is_expr)
@@ -9621,7 +9665,7 @@ ATPrepAlterColumnType(List **wqueue,
 
 	/* Don't alter columns used in the partition key */
 	if (has_partition_attrs(rel,
-							bms_make_singleton(attnum - FirstLowInvalidHeapAttributeNumber),
+							bms_make_singleton(attnum - YBGetFirstLowInvalidAttributeNumber(rel)),
 							&is_expr))
 	{
 		if (!is_expr)
@@ -10130,6 +10174,7 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
 			case OCLASS_TSCONFIG:
 			case OCLASS_ROLE:
 			case OCLASS_DATABASE:
+			case OCLASS_TBLGROUP:
 			case OCLASS_TBLSPACE:
 			case OCLASS_FDW:
 			case OCLASS_FOREIGN_SERVER:

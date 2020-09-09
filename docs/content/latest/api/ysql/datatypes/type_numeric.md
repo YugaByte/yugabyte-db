@@ -21,13 +21,13 @@ YSQL support integers, floating-point numbers, and fixed-point numbers of differ
 Data type | Description | Min | Max |
 ----------|-------------|-----|-----|
 `BIGINT` | 8 bytes | -9,223,372,036,854,775,808 | 9,223,372,036,854,775,807 |
-`DEC` | Exact 64-bit fixed point number | variable | variable |
-`DECIMAL` | Exact 64-bit fixed point number | variable | variable |
+`DEC` | user-specified precision, exact | <131072 digits.16383 digits> | <131072 digits.16383 digits> |
+`DECIMAL` | user-specified precision, exact | <131072 digits.16383 digits> | <131072 digits.16383 digits> |
 `DOUBLE PRECISION` | Inexact 64-bit floating point number | 15-digit precision | 15-digit precision|
 `FLOAT` | Inexact 64-bit floating point number | variable | variable |
 `INTEGER` | 4-byte integer | -2,147,483,648 | 2,147,483,647 |
 `INT` | 4-byte interger | -2,147,483,648 | 2,147,483,647 |
-`NUMERIC` | Exact 64-bit fixed point number | variable | variable |
+`NUMERIC` | user-specified precision, exact | <131072 digits.16383 digits> | <131072 digits.16383 digits> |
 `REAL` | Inexact 32-bit floating point number | 6-digit precision | 6-digit precision |
 `SMALLINT` | 2-byte integer | -32,768 | 32,767 |
 
@@ -62,7 +62,8 @@ floating_point_literal ::= non_integer_fixed_point_literal | "NaN" | "Infinity" 
 
 ## Fixed-point numbers
 
-The following keywords are used to specify a column of floating-point types for different constraints including its value ranges.
+The following keywords are used to specify a column of exact user-specified precision types for different constraints
+ including its value ranges.
 
 ```
 type_specification ::= { DEC | DECIMAL | NUMERIC }

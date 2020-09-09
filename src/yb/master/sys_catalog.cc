@@ -143,6 +143,7 @@ SysCatalogTable::SysCatalogTable(Master* master, MetricRegistry* metrics,
   CHECK_OK(ThreadPoolBuilder("raft").Build(&raft_pool_));
   CHECK_OK(ThreadPoolBuilder("prepare").set_min_threads(1).Build(&tablet_prepare_pool_));
   CHECK_OK(ThreadPoolBuilder("append").set_min_threads(1).Build(&append_pool_));
+  CHECK_OK(ThreadPoolBuilder("log-alloc").set_min_threads(1).Build(&allocation_pool_));
 
   setup_config_dns_histogram_ = METRIC_dns_resolve_latency_during_sys_catalog_setup.Instantiate(
       metric_entity_);
@@ -288,19 +289,20 @@ Status SysCatalogTable::CreateNew(FsManager *fs_manager) {
   DCHECK_EQ(1, partitions.size());
 
   RETURN_NOT_OK(tablet::RaftGroupMetadata::CreateNew(
-    fs_manager,
-    kSysCatalogTableId,
-    kSysCatalogTabletId,
-    table_name(),
-    TableType::YQL_TABLE_TYPE,
-    schema,
-    IndexMap(),
-    partition_schema,
-    partitions[0],
-    boost::none /* index_info */,
-    0 /* schema_version */,
-    tablet::TABLET_DATA_READY,
-    &metadata));
+      fs_manager,
+      kSysCatalogTableId,
+      kSysCatalogTabletId,
+      "",
+      table_name(),
+      TableType::YQL_TABLE_TYPE,
+      schema,
+      IndexMap(),
+      partition_schema,
+      partitions[0],
+      boost::none /* index_info */,
+      0 /* schema_version */,
+      tablet::TABLET_DATA_READY,
+      &metadata));
 
   RaftConfigPB config;
   RETURN_NOT_OK_PREPEND(SetupConfig(master_->opts(), &config),
@@ -479,10 +481,14 @@ void SysCatalogTable::SetupTabletPeer(const scoped_refptr<tablet::RaftGroupMetad
   // TODO: handle crash mid-creation of tablet? do we ever end up with a
   // partially created tablet here?
   auto tablet_peer = std::make_shared<tablet::TabletPeer>(
-      metadata, local_peer_pb_, scoped_refptr<server::Clock>(master_->clock()),
+      metadata,
+      local_peer_pb_,
+      scoped_refptr<server::Clock>(master_->clock()),
       metadata->fs_manager()->uuid(),
       Bind(&SysCatalogTable::SysCatalogStateChanged, Unretained(this), metadata->raft_group_id()),
-      metric_registry_, nullptr /* tablet_splitter */);
+      metric_registry_,
+      nullptr /* tablet_splitter */,
+      master_->async_client_initializer().get_client_future());
 
   std::atomic_store(&tablet_peer_, tablet_peer);
 }
@@ -532,6 +538,7 @@ Status SysCatalogTable::OpenTablet(const scoped_refptr<tablet::RaftGroupMetadata
       .tablet_init_data = tablet_init_data,
       .listener = tablet_peer()->status_listener(),
       .append_pool = append_pool(),
+      .allocation_pool = allocation_pool_.get(),
       .retryable_requests = nullptr,
   };
   RETURN_NOT_OK(BootstrapTablet(data, &tablet, &log, &consensus_info));
@@ -542,7 +549,6 @@ Status SysCatalogTable::OpenTablet(const scoped_refptr<tablet::RaftGroupMetadata
   RETURN_NOT_OK_PREPEND(
       tablet_peer()->InitTabletPeer(
           tablet,
-          master_->async_client_initializer().get_client_future(),
           master_->mem_tracker(),
           master_->messenger(),
           &master_->proxy_cache(),
@@ -707,7 +713,7 @@ Status SysCatalogTable::Visit(VisitorBase* visitor) {
     std::unique_ptr<GaugePrototype<uint64>> counter_gauge =
         std::make_unique<OwningGaugePrototype<uint64>>(
             "server", id, description, yb::MetricUnit::kEntries, description,
-            yb::EXPOSE_AS_COUNTER);
+            yb::MetricLevel::kInfo, yb::EXPOSE_AS_COUNTER);
     visitor_duration_metrics_[id] = metric_entity_->FindOrCreateGauge(
         std::move(counter_gauge), static_cast<uint64>(0) /* initial_value */);
   }
@@ -718,7 +724,8 @@ Status SysCatalogTable::Visit(VisitorBase* visitor) {
     string description = id + " metric for SysCatalogTable::Visit";
     std::unique_ptr<GaugePrototype<uint64>> duration_gauge =
         std::make_unique<OwningGaugePrototype<uint64>>(
-            "server", id, description, yb::MetricUnit::kMilliseconds, description);
+            "server", id, description, yb::MetricUnit::kMilliseconds, description,
+            yb::MetricLevel::kInfo);
     visitor_duration_metrics_[id] = metric_entity_->FindOrCreateGauge(
         std::move(duration_gauge), static_cast<uint64>(0) /* initial_value */);
   }
