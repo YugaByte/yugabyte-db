@@ -680,7 +680,7 @@ Status ClusterAdminClient::ChangeConfig(
           leader_uuid, tablet_id, /* new_leader_uuid */ std::string(), &consensus_proxy));
     sleep(5);  // TODO - election completion timing is not known accurately
     RETURN_NOT_OK(SetTabletPeerInfo(tablet_id, LEADER, &leader_uuid, &leader_addr));
-    if (leader_uuid != old_leader_uuid) {
+    if (leader_uuid == old_leader_uuid) {
       return STATUS(ConfigurationError,
                     "Old tablet server leader same as new even after re-election!");
     }
