@@ -1,7 +1,7 @@
 ---
-title: Recover failed tserver for failed tablets
-linkTitle: Recover failed tserver for failed tablets
-description: Recover failed tserver for failed tablets
+title: Recover failed YB-TServer for failed tablets
+linkTitle: Recover failed YB-TServer for failed tablets
+description: Recover failed YB-TServer for failed tablets
 aliases:
   - /troubleshoot/cluster/recover-tserver-failed-tablets/
   - /latest/troubleshoot/cluster/recover-tserver-failed-tablets/
@@ -39,4 +39,3 @@ find /mnt/disk1 -name '*FOO*' | xargs rm -rf
 ```
 3. You need to repeat the command above for each disk in `--fs_data_dirs`
 3. Start back the yb-tserver process
-
