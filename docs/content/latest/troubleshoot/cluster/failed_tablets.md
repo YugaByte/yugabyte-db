@@ -13,7 +13,7 @@ isTocNested: true
 showAsideToc: true
 ---
 
-When a YB-TServer or YB-Master process or node has failed, YugabyteDB will automatically trigger a remote bootstrap for
+When a YB-TServer process or node has failed, YugabyteDB will automatically trigger a remote bootstrap for
  most types of tablet data corruption or failures. 
 
 However, there are still a number of cases where this automatic mechanism might not be able to help.
