@@ -1,7 +1,7 @@
 ---
-title: Recover failed YB-TServer for failed tablets
-linkTitle: Recover failed YB-TServer for failed tablets
-description: Recover failed YB-TServer for failed tablets
+title: Recover YB-TServer from crash loop
+linkTitle: Recover YB-TServer from crash loop
+description: Recover YB-TServer from crash loop
 aliases:
   - /troubleshoot/cluster/recover-tserver-failed-tablets/
   - /latest/troubleshoot/cluster/recover-tserver-failed-tablets/
