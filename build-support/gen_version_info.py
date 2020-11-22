@@ -44,6 +44,7 @@ import sys
 import time
 import pipes
 import socket
+import getpass
 from time import strftime, localtime
 
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'python'))
@@ -93,6 +94,8 @@ def main():
     hostname = socket.gethostname()
     build_time = "%s %s" % (strftime("%d %b %Y %H:%M:%S", localtime()), time.tzname[0])
     username = os.getenv("USER")
+    if username is None:
+        username = getpass.getuser()
 
     git_repo_dir = get_yb_src_root_from_build_root(os.getcwd(), must_succeed=False, verbose=True)
     clean_repo = bool(git_repo_dir) and is_git_repo_clean(git_repo_dir)
