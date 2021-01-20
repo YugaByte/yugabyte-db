@@ -17,9 +17,7 @@
 #include "yb/docdb/docdb-internal.h"
 #include "yb/gutil/strings/substitute.h"
 #include "yb/rocksutil/yb_rocksdb.h"
-
-using strings::Substitute;
-using std::string;
+#include "yb/util/fast_varint.h"
 
 namespace yb {
 namespace docdb {
@@ -27,6 +25,13 @@ namespace docdb {
 void AppendDocHybridTime(const DocHybridTime& doc_ht, KeyBytes* key) {
   key->AppendValueType(ValueType::kHybridTime);
   doc_ht.AppendEncodedInDocDbFormat(key->mutable_data());
+}
+
+void KeyBytes::AppendUInt64AsVarInt(uint64_t value) {
+  unsigned char buf[util::kMaxVarIntBufferSize];
+  size_t len = 0;
+  util::FastEncodeUnsignedVarInt(value, buf, &len);
+  AppendRawBytes(Slice(buf, len));
 }
 
 }  // namespace docdb

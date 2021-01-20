@@ -172,8 +172,7 @@ set(TSERVER_SRCS
   tserver_metrics_heartbeat_data_provider.cc
   ${TSERVER_SRCS_EXTENSIONS})
 
-add_library(tserver ${TSERVER_SRCS})
-target_link_libraries(tserver
+set(TSERVER_DEPS
   protobuf
   backup_proto
   tserver_proto
@@ -193,6 +192,11 @@ target_link_libraries(tserver
   yb_client
   yb_pggate_flags
   ${TSERVER_LIB_EXTENSIONS})
+
+ADD_YB_LIBRARY(tserver
+  SRCS ${TSERVER_SRCS}
+  DEPS ${TSERVER_DEPS}
+  NONLINK_DEPS postgres)
 
 #########################################
 # yb-tserver

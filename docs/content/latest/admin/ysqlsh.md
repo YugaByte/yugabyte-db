@@ -83,13 +83,13 @@ Specifies that `ysqlsh` is to execute the given command string, *command*. This 
 
 The command (*command*) must be either a command string that is completely parsable by the server (that is, it contains no `ysqlsh`-specific features), or a single backslash (`\`) command. Thus, you cannot mix SQL and `ysqlsh` meta-commands within a `-c` flag. To achieve that, you could use repeated `-c` flags or pipe the string into `ysqlsh`, for example:
 
-```postgresql
+```plpgsql
 ysqlsh -c '\x' -c 'SELECT * FROM foo;'
 ```
 
 or
 
-```postgresql
+```plpgsql
 echo '\x \\ SELECT * FROM foo;' | ./bin/ysqlsh
 ```
 
@@ -99,7 +99,7 @@ Each SQL statement string passed to `-c` is sent to the server as a single query
 
 Because of this behavior, putting more than one SQL statement in a single `-c` string often has unexpected results. It's better to use repeated `-c` commands or feed multiple commands to `ysqlsh`'s standard input, either using `echo` as illustrated above, or using a shell here-document, for example:
 
-```postgresql
+```plpgsql
 ./bin/ysqlsh<<EOF
 \x
 SELECT * FROM foo;
@@ -240,9 +240,9 @@ Set the record separator for unaligned output to a zero byte. This is useful for
 
 ##### -1, --single-transaction
 
-This option can only be used in combination with one or more `-c` and/or `-f` options. It causes `ysqlsh` to issue a [`BEGIN`](../../api/ysql/commands/txn_begin) statement before the first such option and a [`COMMIT`](../../api/ysql/commands/txn_commit) statement after the last one, thereby wrapping all the commands into a single transaction. This ensures that either all the commands complete successfully, or no changes are applied.
+This option can only be used in combination with one or more `-c` and/or `-f` options. It causes `ysqlsh` to issue a [`BEGIN`](../../api/ysql/the-sql-language/statements/txn_begin) statement before the first such option and a [`COMMIT`](../../api/ysql/the-sql-language/statements/txn_commit) statement after the last one, thereby wrapping all the commands into a single transaction. This ensures that either all the commands complete successfully, or no changes are applied.
 
-If the statements themselves contain [`BEGIN`](../../api/ysql/commands/txn_begin), [`COMMIT`](../../api/ysql/commands/txn_commit), or [`ROLLBACK`](../../api/ysql/commands/txn_rollback), this option will not have the desired effects. Also, if an individual statement cannot be executed inside a transaction block, specifying this option will cause the whole transaction to fail.
+If the statements themselves contain [`BEGIN`](../../api/ysql/the-sql-language/statements/txn_begin), [`COMMIT`](../../api/ysql/the-sql-language/statements/txn_commit), or [`ROLLBACK`](../../api/ysql/the-sql-language/statements/txn_rollback), this option will not have the desired effects. Also, if an individual statement cannot be executed inside a transaction block, specifying this option will cause the whole transaction to fail.
 
 ##### -?, --help[=*topic*]
 
@@ -268,7 +268,7 @@ When the defaults aren't quite right, you can save yourself some typing by setti
 
 An alternative way to specify connection parameters is in a *conninfo* string or a URI, which is used instead of a database name. This mechanism gives you wide control over the connection. For example:
 
-```postgresql
+```plpgsql
 $ ysqlsh "service=myservice sslmode=require"
 $ ysqlsh postgresql://dbmaster:5433/mydb?sslmode=require
 ```
@@ -281,7 +281,7 @@ If both standard input and standard output are a terminal, then `ysql` sets the 
 
 In normal operation, `ysqlsh` provides a prompt with the name of the database to which `ysqlsh` is currently connected, followed by the string `=>`. For example:
 
-```postgresql
+```plpgsql
 $ ysqlsh testdb
 ysqlsh ()
 Type "help" for help.
@@ -341,7 +341,7 @@ If the new connection is successfully made, the previous connection is closed. I
 
 Examples:
 
-```postgresql
+```plpgsql
 => \c mydb myuser host.dom 6432
 => \c service=foo
 => \c "host=localhost port=5432 dbname=mydb connect_timeout=10 sslmode=disable"
@@ -377,7 +377,7 @@ The syntax of this command is similar to that of the SQL `COPY` statement. All o
 
 {{< note title="Tip" >}}
 
-Another way to obtain the same result as `\copy ... to` is to use the SQL [`COPY ... TO STDOUT`](../../api/ysql/commands/cmd_copy) statement and terminate it with `\g *filename*` or `\g |*program*`. Unlike `\copy`, this method allows the command to span multiple lines; also, variable interpolation and backquote expansion can be used.
+Another way to obtain the same result as `\copy ... to` is to use the SQL [`COPY ... TO STDOUT`](../../api/ysql/the-sql-language/statements/cmd_copy) statement and terminate it with `\g *filename*` or `\g |*program*`. Unlike `\copy`, this method allows the command to span multiple lines; also, variable interpolation and backquote expansion can be used.
 
 {{< /note >}}
 
@@ -441,7 +441,7 @@ Shows the descriptions of objects of type constraint, operator class, operator f
 
 `\dd` displays descriptions for objects matching the *pattern*, or of visible objects of the appropriate type if no argument is given. But in either case, only objects that have a description are listed. By default, only user-created objects are shown; supply a pattern or the `S` modifier to include system objects.
 
-Descriptions for objects can be created with the SQL [`COMMENT`](../../api/ysql/commands/ddl_comment) statement.
+Descriptions for objects can be created with the SQL [`COMMENT`](../../api/ysql/the-sql-language/statements/ddl_comment) statement.
 
 ##### \dD[S+] [ *pattern* ]
 
@@ -451,7 +451,7 @@ Lists domains. If *pattern* is specified, only domains whose names match the pat
 
 Lists default access privilege settings. An entry is shown for each role (and schema, if applicable) for which the default privilege settings have been changed from the built-in defaults. If *pattern* is specified, only entries whose role name or schema name matches the pattern are listed.
 
-The [`ALTER DEFAULT PRIVILEGES`](../../api/ysql/commands/dcl_alter_default_privileges) statement is used to set default access privileges. The meaning of the privilege display is explained under [`GRANT`](../../api/ysql/commands/dcl_grant).
+The [`ALTER DEFAULT PRIVILEGES`](../../api/ysql/the-sql-language/statements/dcl_alter_default_privileges) statement is used to set default access privileges. The meaning of the privilege display is explained under [`GRANT`](../../api/ysql/the-sql-language/statements/dcl_grant).
 
 ##### \dE[S+], \di[S+], \dm[S+], \ds[S+], \dt[S+], \dv[S+] [ *pattern* ]
 
@@ -533,13 +533,13 @@ Lists collations. If *pattern* is specified, only collations whose names match t
 
 Lists tables, views, and sequences with their associated access privileges. If *pattern* is specified, only tables, views, and sequences whose names match the pattern are listed.
 
-The [`GRANT`](../../api/ysql/commands/dcl_grant)](../../api/ysql/commands/dcl_grant) and [`REVOKE`](../../api/ysql/commands/dcl_revoke) statements are used to set access privileges. The meaning of the privilege display is explained under [`GRANT`](../../api/ysql/commands/dcl_grant).
+The [`GRANT`](../../api/ysql/the-sql-language/statements/dcl_grant)](../../api/ysql/the-sql-language/statements/dcl_grant) and [`REVOKE`](../../api/ysql/the-sql-language/statements/dcl_revoke) statements are used to set access privileges. The meaning of the privilege display is explained under [`GRANT`](../../api/ysql/the-sql-language/statements/dcl_grant).
 
 ##### \drds [ *role-pattern* [ *database-pattern* ] ]
 
 Lists defined configuration settings. These settings can be role-specific, database-specific, or both. *role-pattern* and *database-pattern* are used to select specific roles and databases to list, respectively. If omitted, or if `*` is specified, all settings are listed, including those not role-specific or database-specific, respectively.
 
-The [`ALTER ROLE`](../../api/ysql/commands/dcl_alter_role) and [`ALTER DATABASE`](../../api/ysql/commands/ddl_alter_db) statements are used to define per-role and per-database configuration settings.
+The [`ALTER ROLE`](../../api/ysql/the-sql-language/statements/dcl_alter_role) and [`ALTER DATABASE`](../../api/ysql/the-sql-language/statements/ddl_alter_db) statements are used to define per-role and per-database configuration settings.
 
 ##### \dRp[+] [ *pattern* ]
 
@@ -598,7 +598,7 @@ If you use the `\o` command to redirect your query output, you might wish to use
 
 ##### \ef [ *function_description* [ *line_number* ] ]
 
-This command fetches and edits the definition of the named function, in the form of a [`CREATE OR REPLACE FUNCTION`](../../api/ysql/commands/ddl_create_function) statement. Editing is done in the same way as for [`\edit`](#e-edit-filename-line-number). After the editor exits, the updated command waits in the query buffer; type semicolon (`;`) or [`\g`](#g-filename-g-command) to send it, or [`\r`](#r-reset) to cancel.
+This command fetches and edits the definition of the named function, in the form of a [`CREATE OR REPLACE FUNCTION`](../../api/ysql/the-sql-language/statements/ddl_create_function) statement. Editing is done in the same way as for [`\edit`](#e-edit-filename-line-number). After the editor exits, the updated command waits in the query buffer; type semicolon (`;`) or [`\g`](#g-filename-g-command) to send it, or [`\r`](#r-reset) to cancel.
 
 The target function can be specified by name alone, or by name and arguments, for example, `foo(integer, text)`. The argument types must be given if there is more than one function of the same name.
 
@@ -648,7 +648,7 @@ If the argument begins with `|`, then the entire remainder of the line is taken 
 
 Sends the current query buffer to the server, then treats each column of each row of the query's output (if any) as a SQL statement to be executed. For example, to create an index on each column of `my_table`:
 
-```postgresql
+```plpgsql
 => SELECT format('create index on my_table(%I)', attname)
 -> FROM pg_attribute
 -> WHERE attrelid = 'my_table'::regclass AND attnum > 0
@@ -668,7 +668,7 @@ If the current query buffer is empty, the most recently sent query is re-execute
 
 Sends the current query buffer to the server and stores the query's output into `ysqlsh` variables (see [Variables](#variables)). The query to be executed must return exactly one row. Each column of the row is stored into a separate variable, named the same as the column. For example:
 
-```postgresql
+```plpgsql
 => SELECT 'hello' AS var1, 10 AS var2
 -> \gset
 => \echo :var1 :var2
@@ -677,7 +677,7 @@ hello 10
 
 If you specify a *prefix*, that string is prepended to the query's column names to create the variable names to use:
 
-```postgresql
+```plpgsql
 => SELECT 'hello' AS var1, 10 AS var2
 -> \gset result_
 => \echo :result_var1 :result_var2
@@ -738,7 +738,7 @@ All the backslash commands of a given conditional block must appear in the same 
 
 Here is an example:
 
-```postgresql
+```plpgsql
 -- check for the existence of two separate records in the database and store
 -- the results in separate "ysqlsh" variables
 SELECT
@@ -824,7 +824,7 @@ Print the current query buffer to the standard output. If the current query buff
 
 ##### \password [* username* ]
 
-Changes the password of the specified user (by default, the current user). This command prompts for the new password, encrypts it, and sends it to the server as an [ALTER ROLE](../../api/ysql/commands/dcl_alter_role) statement. This makes sure that the new password does not appear in cleartext in the command history, the server log, or elsewhere.
+Changes the password of the specified user (by default, the current user). This command prompts for the new password, encrypts it, and sends it to the server as an [ALTER ROLE](../../api/ysql/the-sql-language/statements/dcl_alter_role) statement. This makes sure that the new password does not appear in cleartext in the command history, the server log, or elsewhere.
 
 ##### \prompt [ *text* ] *name*
 
@@ -989,7 +989,7 @@ testdb=> \setenv LESS -imx4F
 
 ##### \sf[+] function_description
 
-This command fetches and shows the definition of the named function, in the form of a [`CREATE OR REPLACE FUNCTION`](../../api/ysql/commands/ddl_create_function) statement. The definition is printed to the current query output channel, as set by `\o`.
+This command fetches and shows the definition of the named function, in the form of a [`CREATE OR REPLACE FUNCTION`](../../api/ysql/the-sql-language/statements/ddl_create_function) statement. The definition is printed to the current query output channel, as set by `\o`.
 
 The target function can be specified by name alone, or by name and arguments, for example, `foo(integer, text)`. The argument types must be given if there is more than one function of the same name.
 
@@ -999,7 +999,7 @@ Unlike most other meta-commands, the entire remainder of the line is always take
 
 ##### \sv[+] *view_name*
 
-This command fetches and shows the definition of the named view, in the form of a [`CREATE OR REPLACE VIEW`](../../api/ysql/commands/ddl_create_view) statement. The definition is printed to the current query output channel, as set by `\o`.
+This command fetches and shows the definition of the named view, in the form of a [`CREATE OR REPLACE VIEW`](../../api/ysql/the-sql-language/statements/ddl_create_view) statement. The definition is printed to the current query output channel, as set by `\o`.
 
 If `+` is appended to the command name, then the output lines are numbered from `1`.
 
@@ -1104,7 +1104,7 @@ The specially treated variables are:
 
 ##### AUTOCOMMIT
 
-When `on` (the default), each SQL statement is automatically committed upon successful completion. To postpone commit in this mode, you must enter a [`BEGIN`](../../api/ysql/commands/txn_begin) or [`START TRANSACTION`](../../api/ysql/commands/) SQL statement. When `off` or unset, SQL statements are not committed until you explicitly issue `COMMIT` or `END` statements. The autocommit-off mode works by issuing an implicit `BEGIN` for you, just before any statement that is not already in a transaction block and is not itself a `BEGIN` or other transaction-control statement, nor a statement that cannot be executed inside a transaction block (such as `VACUUM`).
+When `on` (the default), each SQL statement is automatically committed upon successful completion. To postpone commit in this mode, you must enter a [`BEGIN`](../../api/ysql/the-sql-language/statements/txn_begin) or [`START TRANSACTION`](../../api/ysql/the-sql-language/statements/) SQL statement. When `off` or unset, SQL statements are not committed until you explicitly issue `COMMIT` or `END` statements. The autocommit-off mode works by issuing an implicit `BEGIN` for you, just before any statement that is not already in a transaction block and is not itself a `BEGIN` or other transaction-control statement, nor a statement that cannot be executed inside a transaction block (such as `VACUUM`).
 
 {{< note title="Note" >}}
 
@@ -1140,7 +1140,7 @@ The current client character set encoding. This is set every time you connect to
 
 ##### FETCH_COUNT
 
-If this variable is set to an integer value greater than `0` (zero), the results of [`SELECT`](../../api/ysql/commands/dml_select) queries are fetched and displayed in groups of that many rows, rather than the default behavior of collecting the entire result set before display. Therefore, only a limited amount of memory is used, regardless of the size of the result set. Settings of `100` to `1000` are commonly used when enabling this feature. Keep in mind that when using this feature, a query might fail after having already displayed some rows.
+If this variable is set to an integer value greater than `0` (zero), the results of [`SELECT`](../../api/ysql/the-sql-language/statements/dml_select) queries are fetched and displayed in groups of that many rows, rather than the default behavior of collecting the entire result set before display. Therefore, only a limited amount of memory is used, regardless of the size of the result set. Settings of `100` to `1000` are commonly used when enabling this feature. Keep in mind that when using this feature, a query might fail after having already displayed some rows.
 
 {{< note title="Tip" >}}
 
@@ -1200,7 +1200,7 @@ This feature was shamelessly plagiarized from Bash.
 
 ##### LASTOID
 
-The value of the last affected OID, as returned from an [`INSERT`](../../api/ysql/commands/dml_insert) statement or [`\lo_import`](#lo-import-filename-comment) command. This variable is only guaranteed to be valid until after the result of the next SQL statement has been displayed.
+The value of the last affected OID, as returned from an [`INSERT`](../../api/ysql/the-sql-language/statements/dml_insert) statement or [`\lo_import`](#lo-import-filename-comment) command. This variable is only guaranteed to be valid until after the result of the next SQL statement has been displayed.
 
 ##### ON_ERROR_ROLLBACK
 
@@ -1254,7 +1254,7 @@ These variables are set at program start-up to reflect `ysqlsh`'s version, respe
 
 A key feature of `ysqlsh` variables is that you can substitute (“interpolate”) them into regular SQL statements, as well as the arguments of meta-commands. Furthermore, `ysqlsh` provides facilities for ensuring that variable values used as SQL literals and identifiers are properly quoted. The syntax for interpolating a value without any quoting is to prepend the variable name with a colon (`:`). For example,
 
-```postgresql
+```plpgsql
 testdb=> \set foo 'my_table'
 testdb=> SELECT * FROM :foo;
 ```
@@ -1263,7 +1263,7 @@ would query the table `my_table`. Note that this may be unsafe: the value of the
 
 When a value is to be used as an SQL literal or identifier, it is safest to arrange for it to be quoted. To quote the value of a variable as an SQL literal, write a colon followed by the variable name in single quotes. To quote the value as an SQL identifier, write a colon followed by the variable name in double quotes. These constructs deal correctly with quotes and other special characters embedded within the variable value. The previous example would be more safely written this way:
 
-```postgresql
+```plpgsql
 testdb=> \set foo 'my_table'
 testdb=> SELECT * FROM :"foo";
 ```
@@ -1272,7 +1272,7 @@ Variable interpolation will not be performed within quoted SQL literals and iden
 
 One example use of this mechanism is to copy the contents of a file into a table column. First, load the file into a variable, and then interpolate the variable's value as a quoted string:
 
-```postgresql
+```plpgsql
 testdb=> \set content `cat my_file.txt`
 testdb=> INSERT INTO my_table VALUES (:'content');
 ```
@@ -1285,7 +1285,7 @@ The colon syntax for variables is standard SQL for embedded query languages, suc
 
 ## Prompting
 
-The prompts `ysqlsh` issues can be customized to your preference. The three variables [`PROMPT1`, `PROMPT2`, and `PROMPT3`](#prompt1-prompt2-prompt3) contain strings and special escape sequences that describe the appearance of the prompt. Prompt 1 is the normal prompt that is issued when `ysqlsh` requests a new command. Prompt 2 is issued when more input is expected during command entry, for example because the command was not terminated with a semicolon or a quote was not closed. Prompt 3 is issued when you are running an SQL [`COPY FROM STDIN`](../../api/ysql/commands/cmd_copy) statement and you need to type in a row value on the terminal.
+The prompts `ysqlsh` issues can be customized to your preference. The three variables [`PROMPT1`, `PROMPT2`, and `PROMPT3`](#prompt1-prompt2-prompt3) contain strings and special escape sequences that describe the appearance of the prompt. Prompt 1 is the normal prompt that is issued when `ysqlsh` requests a new command. Prompt 2 is issued when more input is expected during command entry, for example because the command was not terminated with a semicolon or a quote was not closed. Prompt 3 is issued when you are running an SQL [`COPY FROM STDIN`](../../api/ysql/the-sql-language/statements/cmd_copy) statement and you need to type in a row value on the terminal.
 
 The value of the selected prompt variable is printed literally, except where a percent sign (`%`) is encountered. Depending on the next character, certain other text is substituted instead. Defined substitutions are:
 
@@ -1303,7 +1303,7 @@ The port number at which the database server is listening.
 
 ##### %n
 
-The database session user name. (The expansion of this value might change during a database session as the result of the [`SET SESSION AUTHORIZATION`](../../api/ysql/commands/dcl_set_session_authorization) statement.)
+The database session user name. (The expansion of this value might change during a database session as the result of the [`SET SESSION AUTHORIZATION`](../../api/ysql/the-sql-language/statements/dcl_set_session_authorization) statement.)
 
 ##### %/
 
@@ -1315,7 +1315,7 @@ Like `%/`, but the output is `~` (tilde) if the database is your default databas
 
 ##### %#
 
-If the session user is a database superuser, then a `#`, otherwise a `>`. (The expansion of this value might change during a database session as the result of the [`SET SESSION AUTHORIZATION`](../../api/ysql/commands/dcl_set_session_authorization) statement.)
+If the session user is a database superuser, then a `#`, otherwise a `>`. (The expansion of this value might change during a database session as the result of the [`SET SESSION AUTHORIZATION`](../../api/ysql/the-sql-language/statements/dcl_set_session_authorization) statement.)
 
 ##### %p
 
@@ -1349,7 +1349,7 @@ The output of *command*, similar to ordinary “back-tick” substitution.
 
 Prompts can contain terminal control characters which, for example, change the color, background, or style of the prompt text, or change the title of the terminal window. In order for the line editing features of Readline to work properly, these non-printing control characters must be designated as invisible by surrounding them with `%[` and `%]`. Multiple pairs of these can occur within the prompt. For example:
 
-```postgresql
+```plpgsql
 testdb=> \set PROMPT1 '%[%033[1;33;40m%]%n@%/%R%[%033[0m%]%# '
 ```
 
@@ -1365,7 +1365,7 @@ This feature was shamelessly plagiarized from `tcsh`.
 
 ### Command-line editing
 
-`ysqlsh` supports the Readline library for convenient line editing and retrieval. The command history is automatically saved when `ysqlsh` exits and is reloaded when `ysqlsh` starts up. Tab-completion is also supported, although the completion logic makes no claim to be an SQL parser. The queries generated by tab-completion can also interfere with other SQL statements, for example, the [`SET TRANSACTION ISOLATION LEVEL`](../../api/ysql/commands/txn_set) statement. If for some reason you do not like the tab completion, you can turn it off by putting this in a file named `.inputrc` in your home directory:
+`ysqlsh` supports the Readline library for convenient line editing and retrieval. The command history is automatically saved when `ysqlsh` exits and is reloaded when `ysqlsh` starts up. Tab-completion is also supported, although the completion logic makes no claim to be an SQL parser. The queries generated by tab-completion can also interfere with other SQL statements, for example, the [`SET TRANSACTION ISOLATION LEVEL`](../../api/ysql/the-sql-language/statements/txn_set) statement. If for some reason you do not like the tab completion, you can turn it off by putting this in a file named `.inputrc` in your home directory:
 
 ```
 $if psql
@@ -1454,7 +1454,7 @@ If you want to use `ysqlsh` to connect to several servers of different major ver
 
 The first example shows how to spread a SQL statement over several lines of input. Notice the changing prompt:
 
-```postgresql
+```plpgsql
 testdb=> CREATE TABLE my_table (
 testdb(>  first integer not null default 0,
 testdb(>  second text)
@@ -1464,7 +1464,7 @@ CREATE TABLE
 
 Now look at the table definition again:
 
-```postgresql
+```plpgsql
 testdb=> \d my_table
               Table "public.my_table"
  Column |  Type   | Collation | Nullable | Default
@@ -1475,14 +1475,14 @@ testdb=> \d my_table
 
 Now you change the prompt to something more interesting:
 
-```postgresql
+```plpgsql
 testdb=> \set PROMPT1 '%n@%m %~%R%# '
 peter@localhost testdb=>
 ```
 
 Let's assume you have filled the table with data and want to take a look at it:
 
-```postgresql
+```plpgsql
 peter@localhost testdb=> SELECT * FROM my_table;
  first | second
 -------+--------
@@ -1495,7 +1495,7 @@ peter@localhost testdb=> SELECT * FROM my_table;
 
 You can display tables in different ways by using the [`\pset`](#pset-option-value) command:
 
-```postgresql
+```plpgsql
 peter@localhost testdb=> \pset border 2
 Border style is 2.
 peter@localhost testdb=> SELECT * FROM my_table;
@@ -1510,7 +1510,7 @@ peter@localhost testdb=> SELECT * FROM my_table;
 (4 rows)
 ```
 
-```postgresql
+```plpgsql
 peter@localhost testdb=> \pset border 0
 Border style is 0.
 peter@localhost testdb=> SELECT * FROM my_table;
@@ -1523,7 +1523,7 @@ first second
 (4 rows)
 ```
 
-```postgresql
+```plpgsql
 peter@localhost testdb=> \pset border 1
 Border style is 1.
 peter@localhost testdb=> \pset format unaligned
@@ -1541,7 +1541,7 @@ four,4
 
 Alternatively, use the short commands:
 
-```postgresql
+```plpgsql
 peter@localhost testdb=> \a \t \x
 Output format is aligned.
 Tuples only is off.
@@ -1563,7 +1563,7 @@ second | four
 
 When suitable, query results can be shown in a crosstab representation with the `\crosstabview` command:
 
-```postgresql
+```plpgsql
 testdb=> SELECT first, second, first > 2 AS gt2 FROM my_table;
  first | second | gt2 
 -------+--------+-----
@@ -1585,7 +1585,7 @@ testdb=> \crosstabview first second
 
 This second example shows a multiplication table with rows sorted in reverse numerical order and columns with an independent, ascending numerical order.
 
-```postgresql
+```plpgsql
 testdb=> SELECT t1.first as "A", t2.first+100 AS "B", t1.first*(t2.first+100) as "AxB",
 testdb(> row_number() over(order by t2.first) AS ord
 testdb(> FROM my_table t1 CROSS JOIN my_table t2 ORDER BY 1 DESC

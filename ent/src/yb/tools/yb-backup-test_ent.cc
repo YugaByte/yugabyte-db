@@ -121,8 +121,8 @@ class YBBackupTest : public pgwrapper::PgCommandTestBase {
   string tmp_dir_;
 };
 
-TEST_F(YBBackupTest, YB_DISABLE_TEST_IN_SANITIZERS(TestYCQLKeyspaceBackup)) {
-  client::KeyValueTableTest::CreateTable(
+TEST_F(YBBackupTest, YB_DISABLE_TEST_IN_SANITIZERS_OR_MAC(TestYCQLKeyspaceBackup)) {
+  client::kv_table_test::CreateTable(
       client::Transactional::kFalse, CalcNumTablets(3), client_.get(), &table_);
   const string& keyspace = table_.name().namespace_name();
 
@@ -190,17 +190,17 @@ void YBBackupTest::DoTestYSQLKeyspaceBackup(helpers::TableOp tableOp) {
   ));
 }
 
-TEST_F(YBBackupTest, YB_DISABLE_TEST_IN_SANITIZERS(TestYSQLKeyspaceBackup)) {
+TEST_F(YBBackupTest, YB_DISABLE_TEST_IN_SANITIZERS_OR_MAC(TestYSQLKeyspaceBackup)) {
   DoTestYSQLKeyspaceBackup(helpers::TableOp::kKeepTable);
   LOG(INFO) << "Test finished: " << CURRENT_TEST_CASE_AND_TEST_NAME_STR();
 }
 
-TEST_F(YBBackupTest, YB_DISABLE_TEST_IN_SANITIZERS(TestYSQLKeyspaceBackupWithDropTable)) {
+TEST_F(YBBackupTest, YB_DISABLE_TEST_IN_SANITIZERS_OR_MAC(TestYSQLKeyspaceBackupWithDropTable)) {
   DoTestYSQLKeyspaceBackup(helpers::TableOp::kDropTable);
   LOG(INFO) << "Test finished: " << CURRENT_TEST_CASE_AND_TEST_NAME_STR();
 }
 
-TEST_F(YBBackupTest, YB_DISABLE_TEST_IN_SANITIZERS(TestYSQLRestoreBackupToNewKeyspace)) {
+TEST_F(YBBackupTest, YB_DISABLE_TEST_IN_SANITIZERS_OR_MAC(TestYSQLRestoreBackupToNewKeyspace)) {
   // Test hash-table.
   ASSERT_NO_FATALS(CreateTable("CREATE TABLE hashtbl(k INT PRIMARY KEY, v TEXT)"));
   // Test single shard range-table.
@@ -462,8 +462,8 @@ TEST_F(YBBackupTest, YB_DISABLE_TEST_IN_SANITIZERS(TestYSQLRestoreBackupToNewKey
   LOG(INFO) << "Test finished: " << CURRENT_TEST_CASE_AND_TEST_NAME_STR();
 }
 
-TEST_F(YBBackupTest, YB_DISABLE_TEST_IN_SANITIZERS(TestYBBackupWrongUsage)) {
-  client::KeyValueTableTest::CreateTable(
+TEST_F(YBBackupTest, YB_DISABLE_TEST_IN_SANITIZERS_OR_MAC(TestYBBackupWrongUsage)) {
+  client::kv_table_test::CreateTable(
       client::Transactional::kTrue, CalcNumTablets(3), client_.get(), &table_);
   const string& keyspace = table_.name().namespace_name();
   const string& table = table_.name().table_name();
@@ -483,6 +483,59 @@ TEST_F(YBBackupTest, YB_DISABLE_TEST_IN_SANITIZERS(TestYBBackupWrongUsage)) {
       {"--backup_location", backup_dir, "--table", "new_" + table, "restore"}));
 
   ASSERT_OK(RunBackupCommand({"--backup_location", backup_dir, "restore"}));
+
+  LOG(INFO) << "Test finished: " << CURRENT_TEST_CASE_AND_TEST_NAME_STR();
+}
+
+TEST_F(YBBackupTest, YB_DISABLE_TEST_IN_SANITIZERS_OR_MAC(TestYSQLBackupWithDropYugabyteDB)) {
+  ASSERT_NO_FATALS(CreateTable("CREATE TABLE mytbl (k INT PRIMARY KEY, v TEXT)"));
+  ASSERT_NO_FATALS(InsertOneRow("INSERT INTO mytbl (k, v) VALUES (100, 'foo')"));
+  ASSERT_NO_FATALS(RunPsqlCommand(
+      "SELECT k, v FROM mytbl ORDER BY k",
+      R"#(
+          k  |  v
+        -----+-----
+         100 | foo
+        (1 row)
+      )#"
+  ));
+
+  const string backup_dir = GetTempDir("backup");
+  ASSERT_OK(RunBackupCommand(
+      {"--backup_location", backup_dir, "--keyspace", "ysql.yugabyte", "create"}));
+
+  ASSERT_NO_FATALS(InsertOneRow("INSERT INTO mytbl (k, v) VALUES (200, 'bar')"));
+  ASSERT_NO_FATALS(RunPsqlCommand(
+      "SELECT k, v FROM mytbl ORDER BY k",
+      R"#(
+          k  |  v
+        -----+-----
+         100 | foo
+         200 | bar
+        (2 rows)
+      )#"
+  ));
+
+  ASSERT_NO_FATALS(RunPsqlCommand("CREATE DATABASE db", "CREATE DATABASE"));
+  SetDbName("db"); // Connecting to the second DB from the moment.
+  // Validate that the DB restoration works even if the default 'yugabyte' db was recreated.
+  ASSERT_NO_FATALS(RunPsqlCommand("DROP DATABASE yugabyte", "DROP DATABASE"));
+  ASSERT_NO_FATALS(RunPsqlCommand("CREATE DATABASE yugabyte", "CREATE DATABASE"));
+  SetDbName("yugabyte"); // Connecting to the recreated 'yugabyte' DB from the moment.
+
+  // Restore into the recreated "ysql.yugabyte" YSQL DB.
+  ASSERT_OK(RunBackupCommand({"--backup_location", backup_dir, "restore"}));
+
+  // Check the table data.
+  ASSERT_NO_FATALS(RunPsqlCommand(
+      "SELECT k, v FROM mytbl ORDER BY k",
+      R"#(
+          k  |  v
+        -----+-----
+         100 | foo
+        (1 row)
+      )#"
+  ));
 
   LOG(INFO) << "Test finished: " << CURRENT_TEST_CASE_AND_TEST_NAME_STR();
 }

@@ -36,29 +36,10 @@ namespace tserver {
 
 // Non-template helpers.
 
-inline void SetupErrorAndRespond(TabletServerErrorPB* error,
+void SetupErrorAndRespond(TabletServerErrorPB* error,
                           const Status& s,
                           TabletServerErrorPB::Code code,
-                          rpc::RpcContext* context) {
-  // Generic "service unavailable" errors will cause the client to retry later.
-  if (code == TabletServerErrorPB::UNKNOWN_ERROR) {
-    if (s.IsServiceUnavailable()) {
-      TabletServerDelay delay(s);
-      if (!delay.value().Initialized()) {
-        context->RespondRpcFailure(rpc::ErrorStatusPB::ERROR_SERVER_TOO_BUSY, s);
-        return;
-      }
-    }
-    consensus::ConsensusError consensus_error(s);
-    if (consensus_error.value() == consensus::ConsensusErrorPB::TABLET_SPLIT) {
-      code = TabletServerErrorPB::TABLET_SPLIT;
-    }
-  }
-
-  StatusToPB(s, error->mutable_status());
-  error->set_code(code);
-  context->RespondSuccess();
-}
+                          rpc::RpcContext* context);
 
 void SetupErrorAndRespond(TabletServerErrorPB* error,
                           const Status& s,
@@ -124,19 +105,24 @@ StdStatusCallback BindHandleResponse(RespType* resp,
   return std::bind(&HandleResponse<RespType>, resp, context, std::placeholders::_1);
 }
 
+struct TabletPeerTablet {
+  std::shared_ptr<tablet::TabletPeer> tablet_peer;
+  tablet::TabletPtr tablet;
+};
+
 // Lookup the given tablet, ensuring that it both exists and is RUNNING.
 // If it is not, respond to the RPC associated with 'context' after setting
 // resp->mutable_error() to indicate the failure reason.
 //
 // Returns true if successful.
 template<class RespClass>
-Result<std::shared_ptr<tablet::TabletPeer>> LookupTabletPeerOrRespond(
+Result<TabletPeerTablet> LookupTabletPeerOrRespond(
     TabletPeerLookupIf* tablet_manager,
     const string& tablet_id,
     RespClass* resp,
     rpc::RpcContext* context) {
-  std::shared_ptr<tablet::TabletPeer> result;
-  Status status = tablet_manager->GetTabletPeer(tablet_id, &result);
+  TabletPeerTablet result;
+  Status status = tablet_manager->GetTabletPeer(tablet_id, &result.tablet_peer);
   if (PREDICT_FALSE(!status.ok())) {
     TabletServerErrorPB::Code code = status.IsServiceUnavailable() ?
                                      TabletServerErrorPB::UNKNOWN_ERROR :
@@ -146,7 +132,7 @@ Result<std::shared_ptr<tablet::TabletPeer>> LookupTabletPeerOrRespond(
   }
 
   // Check RUNNING state.
-  tablet::RaftGroupStatePB state = result->state();
+  tablet::RaftGroupStatePB state = result.tablet_peer->state();
   if (PREDICT_FALSE(state != tablet::RUNNING)) {
     Status s = STATUS(IllegalState, "Tablet not RUNNING", tablet::RaftGroupStateError(state))
         .CloneAndAddErrorCode(TabletServerError(TabletServerErrorPB::TABLET_NOT_RUNNING));
@@ -154,6 +140,14 @@ Result<std::shared_ptr<tablet::TabletPeer>> LookupTabletPeerOrRespond(
     return s;
   }
 
+  result.tablet = result.tablet_peer->shared_tablet();
+  if (!result.tablet) {
+    Status s = STATUS(IllegalState,
+                      "Tablet not running",
+                      TabletServerError(TabletServerErrorPB::TABLET_NOT_RUNNING));
+    SetupErrorAndRespond(resp->mutable_error(), s, context);
+    return s;
+  }
   return result;
 }
 
@@ -206,6 +200,7 @@ std::unique_ptr<tablet::OperationCompletionCallback> MakeRpcOperationCompletionC
 
 struct LeaderTabletPeer {
   tablet::TabletPeerPtr peer;
+  tablet::TabletPtr tablet;
   int64_t leader_term;
 
   bool operator!() const {
@@ -213,6 +208,7 @@ struct LeaderTabletPeer {
   }
 
   bool FillTerm(TabletServerErrorPB* error, rpc::RpcContext* context);
+  void FillTabletPeer(TabletPeerTablet source);
 };
 
 // The "peer" argument could be provided by the caller in case the caller has already performed
@@ -223,9 +219,12 @@ LeaderTabletPeer LookupLeaderTabletOrRespond(
     const std::string& tablet_id,
     RespClass* resp,
     rpc::RpcContext* context,
-    std::shared_ptr<tablet::TabletPeer> peer = nullptr) {
-  if (peer) {
-    DCHECK_EQ(peer->tablet_id(), tablet_id);
+    TabletPeerTablet peer = TabletPeerTablet()) {
+  if (peer.tablet_peer) {
+    LOG_IF(DFATAL, peer.tablet_peer->tablet_id() != tablet_id)
+        << "Mismatching table ids: peer " << peer.tablet_peer->tablet_id()
+        << " vs " << tablet_id;
+    LOG_IF(DFATAL, !peer.tablet) << "Empty tablet pointer for tablet id : " << tablet_id;
   } else {
     auto peer_result = LookupTabletPeerOrRespond(tablet_manager, tablet_id, resp, context);
     if (!peer_result.ok()) {
@@ -234,7 +233,7 @@ LeaderTabletPeer LookupLeaderTabletOrRespond(
     peer = std::move(*peer_result);
   }
   LeaderTabletPeer result;
-  result.peer = std::move(peer);
+  result.FillTabletPeer(std::move(peer));
 
   if (!result.FillTerm(resp->mutable_error(), context)) {
     return LeaderTabletPeer();

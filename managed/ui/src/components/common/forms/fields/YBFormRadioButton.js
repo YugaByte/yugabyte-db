@@ -3,7 +3,6 @@
 import React, { Component } from 'react';
 
 export default class YBFormRadioButton extends Component {
-
   render() {
     const {
       field: { name, value, onChange, onBlur },
@@ -23,7 +22,7 @@ export default class YBFormRadioButton extends Component {
     if (isReadOnly) {
       labelClass += ' readonly';
     }
-    const key = name + "_" + id;
+    const key = name + '_' + id;
     return (
       <label htmlFor={key} className={labelClass}>
         <input

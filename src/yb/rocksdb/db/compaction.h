@@ -320,10 +320,10 @@ class Compaction {
 
   const int start_level_;    // the lowest level to be compacted
   const int output_level_;  // levels to which output files are stored
-  uint64_t max_output_file_size_;
-  uint64_t max_grandparent_overlap_bytes_;
+  uint64_t max_output_file_size_ = 0;
+  uint64_t max_grandparent_overlap_bytes_ = 0;
   MutableCFOptions mutable_cf_options_;
-  Version* input_version_;
+  Version* input_version_ = nullptr;
   uint64_t input_version_number_ = 0;
   bool input_version_level0_non_overlapping_ = false;
   VersionSet* vset_ = nullptr;
@@ -362,7 +362,7 @@ class Compaction {
 
   // True if we can do trivial move in Universal multi level
   // compaction
-  bool is_trivial_move_;
+  bool is_trivial_move_ = false;
 
   bool IsCompactionStyleUniversal() const;
 

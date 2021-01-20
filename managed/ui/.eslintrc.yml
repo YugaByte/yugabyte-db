@@ -1,9 +1,15 @@
 ---
 extends:
   - 'react-app'
+  - 'prettier/@typescript-eslint'
+#  - 'plugin:@typescript-eslint/recommended' # TODO: uncomment and fix all eslint warnings/errors separately
+
+parser:
+  '@typescript-eslint/parser'
 
 plugins:
   - import
+#  - '@typescript-eslint' # TODO: uncomment and fix all eslint warnings/errors separately
 
 rules:
   import/named: 2

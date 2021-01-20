@@ -55,7 +55,7 @@ To reset the session user back to current authenticated user, `RESET SESSION AUT
 
 - Set session user to John.
 
-```postgresql
+```plpgsql
 yugabyte=# select session_user, current_user;
  session_user | current_user
 --------------+--------------

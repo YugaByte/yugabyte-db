@@ -77,7 +77,10 @@ public class MetricConfig extends Model {
     return new Layout();
   }
 
-  public Map<String, String> getQueries(Map<String, String> additionalFilters, int queryRangeSecs) {
+  public Map<String, String> getQueries(
+    Map<String, String> additionalFilters,
+    int queryRangeSecs
+  ) {
     MetricConfig metricConfig = getConfig();
     if (metricConfig.metric == null) {
       throw new RuntimeException("Invalid MetricConfig: metric attribute is required");
@@ -112,7 +115,11 @@ public class MetricConfig extends Model {
    *  - avg(collectd_memory{memory=~"used|buffered|cached|free"}) by (memory) /10
    * @return, a valid prometheus query string
    */
-  public String getQuery(String metric, Map<String, String> additionalFilters, int queryRangeSecs) {
+  public String getQuery(
+    String metric,
+    Map<String, String> additionalFilters,
+    int queryRangeSecs
+  ) {
     // Special case searchs for .avg to convert into the respective ratio of
     // avg(irate(metric_sum)) / avg(irate(metric_count))
     if (metric.endsWith(".avg")) {

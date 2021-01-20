@@ -121,5 +121,15 @@ std::future<Result> MakeFuture(const Functor& functor) {
   return future;
 }
 
+template <class T>
+bool IsReady(const std::shared_future<T>& f) {
+  return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+}
+
+template <class T>
+bool IsReady(const std::future<T>& f) {
+  return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+}
+
 } // namespace yb
 #endif /* YB_UTIL_ASYNC_UTIL_H */

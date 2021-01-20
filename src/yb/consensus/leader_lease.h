@@ -26,7 +26,7 @@ struct LeaseTraits<CoarseTimePoint> {
 template <>
 struct LeaseTraits<MicrosTime> {
   static MicrosTime NoneValue() {
-    return HybridTime::kMin.GetPhysicalValueMicros();
+    return 0;
   }
 };
 

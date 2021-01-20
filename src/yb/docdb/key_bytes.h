@@ -136,6 +136,8 @@ class KeyBytes {
     data_.append(encoded_varint_str);
   }
 
+  void AppendUInt64AsVarInt(uint64_t value);
+
   void AppendVarIntDescending(const std::string& encoded_varint_str) {
     // Flipping all the bits negates the varint number this string represents.
 

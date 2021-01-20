@@ -11,7 +11,7 @@
 .import-release-modal {
   .form-group.file-upload {
     display: block;
-    
+
     .upload-file-button {
       border-radius: 7px;
       overflow: hidden;
@@ -22,7 +22,7 @@
         width: 200px;
       }
       .drop-zone-file {
-        width: calc( 100% - 230px );
+        width: calc(100% - 230px);
         border-radius: 6px 0 0 6px;
         height: 40px;
         background-color: #fff;
@@ -39,7 +39,7 @@
   }
   .form-group.file-upload.form-alt.has-value {
     .drop-zone-file {
-      width: calc( 100% - 250px );
+      width: calc(100% - 250px);
       left: auto;
     }
   }

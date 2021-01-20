@@ -15,7 +15,6 @@
 #ifndef YB_YQL_PGGATE_PG_DML_H_
 #define YB_YQL_PGGATE_PG_DML_H_
 
-#include "yb/docdb/primitive_value.h"
 #include "yb/yql/pggate/pg_session.h"
 #include "yb/yql/pggate/pg_statement.h"
 #include "yb/yql/pggate/pg_doc_op.h"
@@ -72,9 +71,6 @@ class PgDml : public PgStatement {
 
   // Returns TRUE if desired row is found.
   Result<bool> GetNextRow(PgTuple *pg_tuple);
-
-  // Build tuple id (ybctid) of the given Postgres tuple.
-  Result<std::string> BuildYBTupleId(const PgAttrValueDescriptor *attrs, int32_t nattrs);
 
   virtual void SetCatalogCacheVersion(uint64_t catalog_cache_version) = 0;
 
@@ -149,10 +145,10 @@ class PgDml : public PgStatement {
   PgTableDesc::ScopedRefPtr bind_desc_;
 
   // Prepare control parameters.
-  PgPrepareParameters prepare_params_ = { kInvalidOid /* index_oid */,
-                                          false /* index_only_scan */,
-                                          false /* use_secondary_index */,
-                                          false /* querying_colocated_table */ };
+  PgPrepareParameters prepare_params_ = { .index_oid = kInvalidOid,
+                                          .index_only_scan = false,
+                                          .use_secondary_index = false,
+                                          .querying_colocated_table = false };
 
   // -----------------------------------------------------------------------------------------------
   // Data members for nested query: This is used for an optimization in PgGate.
@@ -162,7 +158,7 @@ class PgDml : public PgStatement {
   // - In most cases, the Postgres layer processes the subquery "SELECT ybctid from INDEX".
   // - Under certain conditions, to optimize the performance, the PgGate layer might operate on
   //   the INDEX subquery itself.
-  scoped_refptr<PgSelectIndex> secondary_index_query_;
+  std::unique_ptr<PgSelectIndex> secondary_index_query_;
 
   // -----------------------------------------------------------------------------------------------
   // Data members for generated protobuf.

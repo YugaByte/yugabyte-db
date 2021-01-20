@@ -88,7 +88,7 @@ void LocalTabletWriter::Submit(std::unique_ptr<Operation> operation, int64_t ter
   write_promise_.set_value(Status::OK());
 }
 
-HybridTime LocalTabletWriter::ReportReadRestart() {
+Result<HybridTime> LocalTabletWriter::ReportReadRestart() {
   return HybridTime();
 }
 

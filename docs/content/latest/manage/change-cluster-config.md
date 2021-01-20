@@ -77,7 +77,7 @@ Run the command below to bring up the new YB-Master server on the new master nod
 The `master_addresses` parameter should not be set for these new masters.
 {{< /note >}}
 
-Refer to [starting master servers](../../../../deploy/manual-deployment/start-masters/) for further parameters and options.
+Refer to [starting master servers](../../deploy/manual-deployment/start-masters/) for further parameters and options.
 
 ## 3. Start YB-TServer servers
 
@@ -91,7 +91,7 @@ export MASTERS=node1:7100,node2:7100,node3:7100,node7:7100,node8:7100,node9:7100
     >& /mnt/d0/yb-tserver.out &
 ```
 
-Refer to [starting `tserver` servers](../../../../deploy/manual-deployment/start-tservers/) for further parameters and options.
+Refer to [starting `tserver` servers](../../deploy/manual-deployment/start-tservers/) for further parameters and options.
 
 {{< note title="Note" >}}
 The `tserver_master_addrs` parameter includes the new master IPs as well, so that they can keep heartbeating/reporting to the new master even after the old masters are removed from master quorum.

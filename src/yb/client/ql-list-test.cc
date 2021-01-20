@@ -59,7 +59,7 @@ int32_t ListEntry(int32_t hash_seed, int32_t range, int32_t i) {
 
 } // namespace
 
-class QLListTest : public QLDmlTestBase {
+class QLListTest : public QLDmlTestBase<MiniCluster> {
  public:
   QLListTest() {
   }

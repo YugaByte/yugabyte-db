@@ -20,6 +20,7 @@
 namespace yb {
 
 Uuid::Uuid() {
+  memset(&boost_uuid_, 0, sizeof(boost_uuid_));
 }
 
 Uuid::Uuid(const Uuid& other) {
@@ -73,13 +74,16 @@ void Uuid::EncodeToComparable(std::string* bytes) const {
   bytes->assign(reinterpret_cast<char *>(output), kUuidSize);
 }
 
-CHECKED_STATUS Uuid::ToBytes(std::string* bytes) const {
-  try {
-    (*bytes).assign(boost_uuid_.begin(), boost_uuid_.end());
-  } catch (std::exception& e) {
-    return STATUS(Corruption, "Couldn't serialize Uuid to raw bytes!");
-  }
-  return Status::OK();
+void Uuid::ToBytes(std::string* bytes) const {
+  bytes->assign(boost_uuid_.begin(), boost_uuid_.end());
+}
+
+void Uuid::ToBytes(std::array<uint8_t, kUuidSize>* out) const {
+  memcpy(out->data(), boost_uuid_.data, kUuidSize);
+}
+
+Slice Uuid::AsSlice() const {
+  return Slice(boost_uuid_.data, boost_uuid_.size());
 }
 
 CHECKED_STATUS Uuid::FromSlice(const Slice& slice, size_t size_hint) {
@@ -96,35 +100,51 @@ CHECKED_STATUS Uuid::FromSlice(const Slice& slice, size_t size_hint) {
 }
 
 CHECKED_STATUS Uuid::FromBytes(const std::string& bytes) {
-  Slice slice (bytes.data(), bytes.size());
-  return FromSlice(slice);
+  return FromSlice(Slice(bytes.data(), bytes.size()));
+}
+
+std::string Uuid::ToHexString() const {
+  using Word = unsigned long long; // NOLINT
+  constexpr size_t kWordSize = sizeof(Word);
+  char buffer[kUuidSize * 2 + 1];
+  for (size_t i = boost_uuid_.size(); i != 0;) {
+    char* outpos = buffer + (kUuidSize - i) * 2;
+    i -= kWordSize;
+    Word value;
+    memcpy(&value, boost_uuid_.data + i, kWordSize);
+    static_assert(sizeof(Word) == 8, "Adjust little endian conversion below");
+    snprintf(outpos, kWordSize * 2 + 1, "%016" PRIx64, LittleEndian::ToHost64(value));
+  }
+  return std::string(buffer, sizeof(buffer) - 1);
 }
 
 CHECKED_STATUS Uuid::FromHexString(const std::string& hex_string) {
-  if (hex_string.size() != kUuidSize * 2) {
+  constexpr size_t kInputLen = kUuidSize * 2;
+  if (hex_string.length() != kInputLen) {
     return STATUS_SUBSTITUTE(InvalidArgument, "Size of hex_string is invalid: $0, expected: $1",
-                             hex_string.size(), kUuidSize * 2);
+                             hex_string.size(), kInputLen);
   }
-  std::string bytes;
-  for (int i = 0; i < hex_string.size(); i+=2) {
-    string byte = hex_string.substr(i, 2);
-    int64_t byte_val = -1;
-    try {
-      byte_val = std::stol(byte.c_str(), NULL, 16);
-      // Verify the value fits within a byte.
-      if (byte_val > std::numeric_limits<uint8_t>::max() || byte_val < 0) {
-        return STATUS_SUBSTITUTE(InvalidArgument, "$0 is not a valid uuid", hex_string);
-      }
-    } catch (std::invalid_argument& ia) {
-      return STATUS_SUBSTITUTE(InvalidArgument, "$0 is not a valid uuid", hex_string);
+  using Word = unsigned long long; // NOLINT
+  constexpr size_t kWordLen = sizeof(Word) * 2;
+  static_assert(kInputLen % kWordLen == 0, "Unexpected word size");
+  char buffer[kWordLen + 1];
+  buffer[kWordLen] = 0;
+
+  for (size_t i = 0; i != kInputLen;) {
+    memcpy(buffer, hex_string.c_str() + i, kWordLen);
+    char* endptr = nullptr;
+    auto value = strtoull(buffer, &endptr, 0x10);
+    if (endptr != buffer + kWordLen) {
+      return STATUS_FORMAT(
+          InvalidArgument, "$0 is not a valid uuid at $1", hex_string, i + endptr - buffer);
     }
-    bytes.insert(bytes.end(), static_cast<char>(byte_val));
+    static_assert(sizeof(Word) == 8, "Adjust little endian conversion below");
+    value = LittleEndian::FromHost64(value);
+    i += kWordLen;
+    memcpy(boost_uuid_.data + boost_uuid_.size() - i / 2, &value, sizeof(value));
   }
-  // We have been provided a string in host byte order and we need to convert to network byte
-  // order for FromBytes().
-  std::reverse(bytes.begin(), bytes.end());
-  DCHECK_EQ(kUuidSize, bytes.size());
-  return FromBytes(bytes);
+
+  return Status::OK();
 }
 
 CHECKED_STATUS Uuid::DecodeFromComparableSlice(const Slice& slice, size_t size_hint) {

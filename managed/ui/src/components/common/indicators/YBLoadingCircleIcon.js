@@ -7,11 +7,12 @@ import './stylesheets/YBLoadingIcon.scss';
 
 export default class YBLoadingCircleIcon extends Component {
   static propTypes = {
-    size: PropTypes.oneOf(['xsmall', 'small', 'medium', 'large', 'inline']),
+    size: PropTypes.oneOf(['xsmall', 'small', 'medium', 'large', 'inline'])
   };
 
   render() {
-    const className = "yb-loader-circle" + (this.props.size ? " yb-loader-circle-"+this.props.size : "");
+    const className =
+      'yb-loader-circle' + (this.props.size ? ' yb-loader-circle-' + this.props.size : '');
     return (
       <div className={className}>
         <div className="yb-loader-circle1 yb-child"></div>

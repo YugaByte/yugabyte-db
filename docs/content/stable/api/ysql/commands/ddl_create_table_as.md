@@ -68,19 +68,19 @@ Specify the name of a column in the new table. When not specified, column names 
 
 ## Examples
 
-```postgresql
+```plpgsql
 CREATE TABLE sample(k1 int, k2 int, v1 int, v2 text, PRIMARY KEY (k1, k2));
 ```
 
-```postgresql
+```plpgsql
 INSERT INTO sample VALUES (1, 2.0, 3, 'a'), (2, 3.0, 4, 'b'), (3, 4.0, 5, 'c');
 ```
 
-```postgresql
+```plpgsql
 CREATE TABLE selective_sample SELECT * FROM sample WHERE k1 > 1;
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT * FROM selective_sample ORDER BY k1;
 ```
 

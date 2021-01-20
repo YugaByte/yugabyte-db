@@ -83,7 +83,6 @@ BuildEventTriggerCache(void)
 	HTAB	   *cache;
 	MemoryContext oldcontext;
 	Relation	rel;
-	Relation	irel;
 	SysScanDesc scan;
 
 	if (EventTriggerCacheContext != NULL)
@@ -127,83 +126,90 @@ BuildEventTriggerCache(void)
 	cache = hash_create("Event Trigger Cache", 32, &ctl,
 						HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 
-	if (!IsYugaByteEnabled())
+	/*
+	 * Prepare to scan pg_event_trigger in name order.
+	 */
+	rel  = relation_open(EventTriggerRelationId, AccessShareLock);
+	scan = systable_beginscan(rel, EventTriggerNameIndexId, true /* indexOK */,
+	                          NULL, 0, NULL);
+
+	/*
+	 * Build a cache item for each pg_event_trigger tuple, and append each one
+	 * to the appropriate cache entry.
+	 */
+	for (;;)
 	{
-		/*
-		 * Prepare to scan pg_event_trigger in name order.
-		 */
-		rel  = relation_open(EventTriggerRelationId, AccessShareLock);
-		irel = index_open(EventTriggerNameIndexId, AccessShareLock);
-		scan = systable_beginscan_ordered(rel, irel, NULL, 0, NULL);
+		HeapTuple              tup;
+		Form_pg_event_trigger  form;
+		char                   *evtevent;
+		EventTriggerEvent      event;
+		EventTriggerCacheItem  *item;
+		Datum                  evttags;
+		bool                   evttags_isnull;
+		EventTriggerCacheEntry *entry;
+		bool                   found;
 
-		/*
-		 * Build a cache item for each pg_event_trigger tuple, and append each one
-		 * to the appropriate cache entry.
-		 */
-		for (;;)
+		/* Get next tuple. */
+		tup = systable_getnext(scan);
+		if (!HeapTupleIsValid(tup))
+			break;
+
+		/* Skip trigger if disabled. */
+		form = (Form_pg_event_trigger) GETSTRUCT(tup);
+		if (form->evtenabled == TRIGGER_DISABLED)
+			continue;
+
+		/* Decode event name. */
+		evtevent  = NameStr(form->evtevent);
+		if (strcmp(evtevent, "ddl_command_start") == 0)
+			event = EVT_DDLCommandStart;
+		else if (strcmp(evtevent, "ddl_command_end") == 0)
+			event = EVT_DDLCommandEnd;
+		else if (strcmp(evtevent, "sql_drop") == 0)
+			event = EVT_SQLDrop;
+		else if (strcmp(evtevent, "table_rewrite") == 0)
+			event = EVT_TableRewrite;
+		else
+			continue;
+
+		/* Allocate new cache item. */
+		item = palloc0(sizeof(EventTriggerCacheItem));
+		item->fnoid   = form->evtfoid;
+		item->enabled = form->evtenabled;
+
+		/* Decode and sort tags array. */
+		evttags = heap_getattr(tup,
+								Anum_pg_event_trigger_evttags,
+								RelationGetDescr(rel),
+								&evttags_isnull);
+		if (!evttags_isnull)
 		{
-			HeapTuple              tup;
-			Form_pg_event_trigger  form;
-			char                   *evtevent;
-			EventTriggerEvent      event;
-			EventTriggerCacheItem  *item;
-			Datum                  evttags;
-			bool                   evttags_isnull;
-			EventTriggerCacheEntry *entry;
-			bool                   found;
-
-			/* Get next tuple. */
-			tup = systable_getnext_ordered(scan, ForwardScanDirection);
-			if (!HeapTupleIsValid(tup))
-				break;
-
-			/* Skip trigger if disabled. */
-			form = (Form_pg_event_trigger) GETSTRUCT(tup);
-			if (form->evtenabled == TRIGGER_DISABLED)
-				continue;
-
-			/* Decode event name. */
-			evtevent  = NameStr(form->evtevent);
-			if (strcmp(evtevent, "ddl_command_start") == 0)
-				event = EVT_DDLCommandStart;
-			else if (strcmp(evtevent, "ddl_command_end") == 0)
-				event = EVT_DDLCommandEnd;
-			else if (strcmp(evtevent, "sql_drop") == 0)
-				event = EVT_SQLDrop;
-			else if (strcmp(evtevent, "table_rewrite") == 0)
-				event = EVT_TableRewrite;
-			else
-				continue;
-
-			/* Allocate new cache item. */
-			item = palloc0(sizeof(EventTriggerCacheItem));
-			item->fnoid   = form->evtfoid;
-			item->enabled = form->evtenabled;
-
-			/* Decode and sort tags array. */
-			evttags = heap_getattr(tup,
-			                       Anum_pg_event_trigger_evttags,
-			                       RelationGetDescr(rel),
-			                       &evttags_isnull);
-			if (!evttags_isnull)
-			{
-				item->ntags = DecodeTextArrayToCString(evttags, &item->tag);
-				qsort(item->tag, item->ntags, sizeof(char *), pg_qsort_strcmp);
-			}
-
-			/* Add to cache entry. */
-			entry = hash_search(cache, &event, HASH_ENTER, &found);
-			if (found)
-				entry->triggerlist = lappend(entry->triggerlist, item);
-			else
-				entry->triggerlist = list_make1(item);
+			item->ntags = DecodeTextArrayToCString(evttags, &item->tag);
+			qsort(item->tag, item->ntags, sizeof(char *), pg_qsort_strcmp);
 		}
 
-		/* Done with pg_event_trigger scan. */
-		systable_endscan_ordered(scan);
-		index_close(irel, AccessShareLock);
-		relation_close(rel, AccessShareLock);
+		/* Add to cache entry. */
+		entry = hash_search(cache, &event, HASH_ENTER, &found);
+		if (found)
+			entry->triggerlist = lappend(entry->triggerlist, item);
+		else
+			entry->triggerlist = list_make1(item);
 	}
+
+	/* Done with pg_event_trigger scan. */
+	systable_endscan(scan);
+
+	/*
+	 * Also manually clean up the yb_memctx used for the scan.
+	 * Normally this gets destroyed when the PG memory context is deleted.
+	 * But here we are in a cache memory context which is permanent.
+	 */
+	if (EventTriggerCacheContext->yb_memctx)
+		HandleYBStatus(YBCPgDestroyMemctx(EventTriggerCacheContext->yb_memctx));
+	EventTriggerCacheContext->yb_memctx = NULL;
+
+	relation_close(rel, AccessShareLock);
+
 	/* Restore previous memory context. */
 	MemoryContextSwitchTo(oldcontext);
 

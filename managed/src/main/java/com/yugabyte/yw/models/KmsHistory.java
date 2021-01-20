@@ -93,7 +93,7 @@ public class KmsHistory extends Model {
                 .setParameter(4, targetType)
                 .setParameter(5, keyRef);
         int rows = update.execute();
-        LOG.debug(String.format("Updating active status for %d rows", rows));
+        LOG.debug(String.format("setKeyRefStatus kms_history: Updating active status for %d rows", rows));
     }
 
     public static void activateKeyRef(

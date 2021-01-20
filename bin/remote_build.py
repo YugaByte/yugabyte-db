@@ -17,11 +17,13 @@
 import argparse
 import os
 import sys
+import logging
 
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'python'))  # noqa
 
 from yb import remote
+from yb.common_util import init_env
 
 
 def add_extra_ybd_args(ybd_args, extra_args):
@@ -48,7 +50,9 @@ def main():
                               'variable.').format(remote.REMOTE_BUILD_HOST_ENV_VAR))
     home = os.path.expanduser('~')
     cwd = os.getcwd()
-    default_path = '~/{0}'.format(cwd[len(home) + 1:] if cwd.startswith(home) else 'code/yugabyte')
+    default_path = '~/{0}'.format(
+        cwd[len(home) + 1:] if cwd.startswith(home + '/') else 'code/yugabyte'
+    )
 
     # Note: don't specify default arguments here, because they may come from the "profile".
     parser.add_argument('--remote-path', type=str,
@@ -64,6 +68,9 @@ def main():
     parser.add_argument('--profile',
                         help='Use a "profile" specified in the {} file'.format(
                             remote.CONFIG_FILE_PATH))
+    parser.add_argument('--verbose',
+                        action='store_true',
+                        help='Verbose output')
     parser.add_argument('build_args', nargs=argparse.REMAINDER,
                         help='arguments for yb_build.sh')
 
@@ -72,8 +79,9 @@ def main():
         # after remote_build.py.
         sys.argv[1:2] = ['--']
     args = parser.parse_args()
+    init_env(verbose=args.verbose)
 
-    remote.load_profile(['host', 'remote_path', 'branch'], args, args.profile)
+    remote.load_profile(args, args.profile)
 
     # ---------------------------------------------------------------------------------------------
     # Default arguments go here.

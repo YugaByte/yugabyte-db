@@ -33,5 +33,10 @@ leak:escape_single_quotes_ascii
 leak:gaih_inet
 leak:pg_strdup
 
+# When we push down PG/YSQL expression execution we prepare long-lived, thread-local memory
+# contexts in DocDB to use for evaluating the expressions. These contexts are never deleted, only
+# reset, so LSAN/ASAN reports it as a leak for relevant PG/YSQL tests.
+leak:YbgPrepareMemoryContext
+
 # https://gist.githubusercontent.com/mbautin/015cb594c8281e1afc7ee7b3b5230fce/raw
 leak:__strdup

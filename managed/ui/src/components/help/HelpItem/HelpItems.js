@@ -1,7 +1,7 @@
 // Copyright (c) YugaByte, Inc.
 
 import React, { Component } from 'react';
-import {Row, Col} from 'react-bootstrap';
+import { Row, Col } from 'react-bootstrap';
 
 import slackIcon from '../../common/nav_bar/images/slack-monochrome-black.svg';
 import './HelpItems.scss';
@@ -14,12 +14,17 @@ export default class HelpItems extends Component {
 
         <Row>
           <Col lg={6}>
-            <h4><i className="fa fa-support"></i> Talk to Community</h4>
+            <h4>
+              <i className="fa fa-support"></i> Talk to Community
+            </h4>
           </Col>
           <Col lg={6}>
             <p>
               <a href="https://www.yugabyte.com/slack" target="_blank" rel="noopener noreferrer">
-                <object data={slackIcon} type="image/svg+xml" width="16">Icon</object> Slack
+                <object data={slackIcon} type="image/svg+xml" width="16">
+                  Icon
+                </object>{' '}
+                Slack
               </a>
             </p>
             <p>
@@ -28,8 +33,10 @@ export default class HelpItems extends Component {
               </a>
             </p>
             <p>
-              <a href="https://stackoverflow.com/questions/tagged/yugabyte-db"
-                target="_blank" rel="noopener noreferrer"
+              <a
+                href="https://stackoverflow.com/questions/tagged/yugabyte-db"
+                target="_blank"
+                rel="noopener noreferrer"
               >
                 <i className="fa fa-stack-overflow"></i> StackOverflow
               </a>
@@ -39,7 +46,9 @@ export default class HelpItems extends Component {
 
         <Row>
           <Col lg={6}>
-            <h4><i className="fa fa-globe"></i> Resources</h4>
+            <h4>
+              <i className="fa fa-globe"></i> Resources
+            </h4>
           </Col>
           <Col lg={6}>
             <p>
@@ -53,8 +62,8 @@ export default class HelpItems extends Component {
               </a>
             </p>
           </Col>
-        </Row><br/>
-
+        </Row>
+        <br />
       </div>
     );
   }

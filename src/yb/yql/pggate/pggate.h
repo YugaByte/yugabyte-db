@@ -84,7 +84,7 @@ class PgApiImpl {
   // Reset YB Memctx.
   static CHECKED_STATUS ResetMemctx(PgMemctx *memctx);
   // Cache statements in YB Memctx. When Memctx is destroyed, the statement is destructed.
-  CHECKED_STATUS AddToCurrentPgMemctx(const PgStatement::ScopedRefPtr &stmt,
+  CHECKED_STATUS AddToCurrentPgMemctx(std::unique_ptr<PgStatement> stmt,
                                       PgStatement **handle);
   // Cache table descriptor in YB Memctx. When Memctx is destroyed, the descriptor is destructed.
   CHECKED_STATUS AddToCurrentPgMemctx(size_t table_desc_id,
@@ -101,6 +101,7 @@ class PgApiImpl {
   Result<bool> IsInitDbDone();
 
   Result<uint64_t> GetSharedCatalogVersion();
+  Result<uint64_t> GetSharedAuthKey();
 
   // Setup the table to store sequences data.
   CHECKED_STATUS CreateSequencesDataTable();
@@ -134,6 +135,8 @@ class PgApiImpl {
                                    bool *is_called);
 
   CHECKED_STATUS DeleteSequenceTuple(int64_t db_oid, int64_t seq_oid);
+
+  void DeleteStatement(PgStatement *handle);
 
   // Remove all values and expressions that were bound to the given statement.
   CHECKED_STATUS ClearBinds(PgStatement *handle);
@@ -220,8 +223,7 @@ class PgApiImpl {
 
   CHECKED_STATUS CreateTableSetNumTablets(PgStatement *handle, int32_t num_tablets);
 
-  CHECKED_STATUS CreateTableAddSplitRow(PgStatement *handle, int num_cols,
-                                        YBCPgTypeEntity **types, uint64_t *data);
+  CHECKED_STATUS AddSplitBoundary(PgStatement *handle, PgExpr **exprs, int expr_count);
 
   CHECKED_STATUS ExecCreateTable(PgStatement *handle);
 
@@ -229,7 +231,7 @@ class PgApiImpl {
                                PgStatement **handle);
 
   CHECKED_STATUS AlterTableAddColumn(PgStatement *handle, const char *name,
-                                     int order, const YBCPgTypeEntity *attr_type, bool is_not_null);
+                                     int order, const YBCPgTypeEntity *attr_type);
 
   CHECKED_STATUS AlterTableRenameColumn(PgStatement *handle, const char *oldname,
                                         const char *newname);
@@ -244,8 +246,6 @@ class PgApiImpl {
   CHECKED_STATUS NewDropTable(const PgObjectId& table_id,
                               bool if_exist,
                               PgStatement **handle);
-
-  CHECKED_STATUS ExecDropTable(PgStatement *handle);
 
   CHECKED_STATUS NewTruncateTable(const PgObjectId& table_id,
                                   PgStatement **handle);
@@ -295,14 +295,16 @@ class PgApiImpl {
                               bool if_exist,
                               PgStatement **handle);
 
-  CHECKED_STATUS ExecDropIndex(PgStatement *handle);
-
   Result<IndexPermissions> WaitUntilIndexPermissionsAtLeast(
       const PgObjectId& table_id,
       const PgObjectId& index_id,
       const IndexPermissions& target_index_permissions);
 
   CHECKED_STATUS AsyncUpdateIndexPermissions(const PgObjectId& indexed_table_id);
+
+  CHECKED_STATUS ExecPostponedDdlStmt(PgStatement *handle);
+
+  CHECKED_STATUS BackfillIndex(const PgObjectId& table_id);
 
   //------------------------------------------------------------------------------------------------
   // All DML statements
@@ -350,10 +352,9 @@ class PgApiImpl {
   CHECKED_STATUS DmlAddYBTupleIdColumn(PgStatement *handle, int attr_num, uint64_t datum,
                                        bool is_null, const YBCPgTypeEntity *type_entity);
 
-
-  // This function returns the tuple id (ybctid) of a Postgres tuple.
-  CHECKED_STATUS DmlBuildYBTupleId(PgStatement *handle, const PgAttrValueDescriptor *attrs,
-                                   int32_t nattrs, uint64_t *ybctid);
+  using YBTupleIdProcessor = std::function<Status(const Slice&)>;
+  CHECKED_STATUS ProcessYBTupleId(const YBCPgYBTupleIdDescriptor& descr,
+                                  const YBTupleIdProcessor& processor);
 
   // DB Operations: SET, WHERE, ORDER_BY, GROUP_BY, etc.
   // + The following operations are run by DocDB.
@@ -383,6 +384,8 @@ class PgApiImpl {
   CHECKED_STATUS InsertStmtSetUpsertMode(PgStatement *handle);
 
   CHECKED_STATUS InsertStmtSetWriteTime(PgStatement *handle, const HybridTime write_time);
+
+  CHECKED_STATUS InsertStmtSetIsBackfill(PgStatement *handle, const bool is_backfill);
 
   //------------------------------------------------------------------------------------------------
   // Update.
@@ -424,6 +427,7 @@ class PgApiImpl {
   PgTxnManager* GetPgTxnManager() { return pg_txn_manager_.get(); }
 
   CHECKED_STATUS BeginTransaction();
+  CHECKED_STATUS RecreateTransaction();
   CHECKED_STATUS RestartTransaction();
   CHECKED_STATUS CommitTransaction();
   CHECKED_STATUS AbortTransaction();
@@ -443,6 +447,8 @@ class PgApiImpl {
   // Constant expressions.
   CHECKED_STATUS NewConstant(YBCPgStatement stmt, const YBCPgTypeEntity *type_entity,
                              uint64_t datum, bool is_null, YBCPgExpr *expr_handle);
+  CHECKED_STATUS NewConstantVirtual(YBCPgStatement stmt, const YBCPgTypeEntity *type_entity,
+                                    YBCPgDatumKind datum_kind, YBCPgExpr *expr_handle);
   CHECKED_STATUS NewConstantOp(YBCPgStatement stmt, const YBCPgTypeEntity *type_entity,
                              uint64_t datum, bool is_null, YBCPgExpr *expr_handle, bool is_gt);
 
@@ -467,10 +473,9 @@ class PgApiImpl {
   CHECKED_STATUS OperatorAppendArg(PgExpr *op_handle, PgExpr *arg);
 
   // Foreign key reference caching.
-  bool ForeignKeyReferenceExists(YBCPgOid table_id, std::string&& ybctid);
-  CHECKED_STATUS CacheForeignKeyReference(YBCPgOid table_id, std::string&& ybctid);
-  CHECKED_STATUS DeleteForeignKeyReference(YBCPgOid table_id, std::string&& ybctid);
-  void ClearForeignKeyReferenceCache();
+  void DeleteForeignKeyReference(PgOid table_id, const Slice& ybctid);
+  Result<bool> ForeignKeyReferenceExists(PgOid table_id, const Slice& ybctid, PgOid database_id);
+  void AddForeignKeyReferenceIntent(PgOid table_id, const Slice& ybctid);
 
   // Sets the specified timeout in the rpc service.
   void SetTimeout(int timeout_ms);

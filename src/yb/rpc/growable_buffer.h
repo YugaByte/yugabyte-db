@@ -67,7 +67,7 @@ class GrowableBufferDeleter {
 
  private:
   GrowableBufferAllocator* allocator_;
-  bool was_forced_;
+  bool was_forced_ = false;
 };
 
 // Convenience buffer for receiving bytes. Consists of chunks of allocated data.

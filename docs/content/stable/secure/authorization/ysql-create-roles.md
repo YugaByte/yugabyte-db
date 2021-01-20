@@ -4,13 +4,13 @@ Create a role with a password. You can do this with the [CREATE ROLE](../../../a
 
 As an example, let us create a role `engineering` for an engineering team in an organization.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE ROLE engineering;
 ```
 
 Roles that have `LOGIN` privileges are users. As an example, you can create a user `john` as follows:
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE ROLE john LOGIN PASSWORD 'PasswdForJohn';
 ```
 
@@ -22,7 +22,7 @@ You can grant a role to another role (which can be a user), or revoke a role tha
 
 As an example, you can grant the `engineering` role you created above to the user `john` as follows:
 
-```postgresql
+```plpgsql
 yugabyte=# GRANT engineering TO john;
 ```
 
@@ -36,13 +36,13 @@ As an example, let us say that in the above example, you want to create a `devel
 
 First, create the `developer` role.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE ROLE developer;
 ```
 
 Next, `GRANT` the `engineering` role to the `developer` role.
 
-```postgresql
+```plpgsql
 yugabyte=# GRANT engineering TO developer;
 ```
 
@@ -50,7 +50,7 @@ yugabyte=# GRANT engineering TO developer;
 
 You can list all the roles by running the following statement:
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT rolname, rolcanlogin, rolsuper, memberof FROM pg_roles;
 ```
 
@@ -80,13 +80,13 @@ Roles can be revoked using the [REVOKE](../../../api/ysql/commands/dcl_revoke/) 
 
 In the above example, you can revoke the `engineering` role from the user `john` as follows:
 
-```postgresql
+```plpgsql
 yugabyte=# REVOKE engineering FROM john;
 ```
 
 Listing all the roles now shows that `john` no longer inherits from the `engineering` role:
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT rolname, rolcanlogin, rolsuperuser, memberof FROM pg_roles;
 ```
 
@@ -107,13 +107,13 @@ Roles can be dropped with the [DROP ROLE](../../../api/ysql/commands/dcl_drop_ro
 
 In the above example, you can drop the `developer` role with the following statement:
 
-```postgresql
+```plpgsql
 yugabyte=# DROP ROLE developer;
 ```
 
 The `developer` role would no longer be present upon listing all the roles:
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT rolname, rolcanlogin, rolsuper, memberof FROM pg_roles;
 ```
 

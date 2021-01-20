@@ -116,6 +116,7 @@
 #include "utils/ruleutils.h"
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
+#include "utils/timestamp.h"
 #include "utils/tqual.h"
 #include "utils/typcache.h"
 
@@ -820,6 +821,10 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 			attr->attidentity = colDef->identity;
 	}
 
+	/* Check for WITH (table_oid = x). */
+	relationId = GetTableOidFromRelOptions(
+		stmt->options, tablespaceId, stmt->relation->relpersistence);
+
 	/*
 	 * Create the relation.  Inherited defaults and constraints are passed in
 	 * for immediate handling --- since they don't need parsing, they can be
@@ -828,7 +833,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	relationId = heap_create_with_catalog(relname,
 										  namespaceId,
 										  tablespaceId,
-										  InvalidOid,
+										  relationId,
 										  InvalidOid,
 										  ofTypeId,
 										  ownerId,
@@ -1067,7 +1072,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	 */
 	if (rawDefaults || stmt->constraints)
 		AddRelationNewConstraints(rel, rawDefaults, stmt->constraints,
-															true, true, false);
+								true, true, false, queryString);
 
 	ObjectAddressSet(address, RelationRelationId, relationId);
 
@@ -4901,7 +4906,7 @@ ATRewriteTable(AlteredTableInfo *tab, Oid OIDNewHeap, LOCKMODE lockmode)
 				 * Process supplied expressions to replace selected columns.
 				 * Expression inputs come from the old tuple.
 				 */
-				ExecStoreTuple(tuple, oldslot, InvalidBuffer, false);
+				ExecStoreHeapTuple(tuple, oldslot, false);
 				econtext->ecxt_scantuple = oldslot;
 
 				foreach(l, tab->newvals)
@@ -4931,7 +4936,7 @@ ATRewriteTable(AlteredTableInfo *tab, Oid OIDNewHeap, LOCKMODE lockmode)
 			}
 
 			/* Now check any constraints on the possibly-changed tuple */
-			ExecStoreTuple(tuple, newslot, InvalidBuffer, false);
+			ExecStoreHeapTuple(tuple, newslot, false);
 			econtext->ecxt_scantuple = newslot;
 
 			foreach(l, notnull_attrs)
@@ -5726,7 +5731,7 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
 		 * _list_ of defaults, but we just do one.
 		 */
 		AddRelationNewConstraints(rel, list_make1(rawEnt), NIL,
-								  false, true, false);
+								  false, true, false, NULL);
 
 		/* Make the additional catalog changes visible */
 		CommandCounterIncrement();
@@ -6317,7 +6322,7 @@ ATExecColumnDefault(Relation rel, const char *colName,
 		 * _list_ of defaults, but we just do one.
 		 */
 		AddRelationNewConstraints(rel, list_make1(rawEnt), NIL,
-								  false, true, false);
+								  false, true, false, NULL);
 	}
 
 	ObjectAddressSubSet(address, RelationRelationId,
@@ -7353,7 +7358,8 @@ ATAddCheckConstraint(List **wqueue, AlteredTableInfo *tab, Relation rel,
 										list_make1(copyObject(constr)),
 										recursing | is_readd,	/* allow_merge */
 										!recursing, /* is_local */
-										is_readd);	/* is_internal */
+										is_readd,	/* is_internal */
+										NULL);		/* queryString not available here */
 
 	/* we don't expect more than one constraint here */
 	Assert(list_length(newcons) <= 1);
@@ -9041,7 +9047,7 @@ validateCheckConstraint(Relation rel, HeapTuple constrtup)
 
 	while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
 	{
-		ExecStoreTuple(tuple, slot, InvalidBuffer, false);
+		ExecStoreHeapTuple(tuple, slot, false);
 
 		if (!ExecCheck(exprstate, econtext))
 			ereport(ERROR,
@@ -9113,7 +9119,7 @@ validateForeignKeyConstraint(char *conname,
 
 	while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
 	{
-		FunctionCallInfoData fcinfo;
+		LOCAL_FCINFO(fcinfo, 0);
 		TriggerData trigdata;
 
 		/*
@@ -9121,7 +9127,7 @@ validateForeignKeyConstraint(char *conname,
 		 *
 		 * No parameters are passed, but we do set a context
 		 */
-		MemSet(&fcinfo, 0, sizeof(fcinfo));
+		MemSet(fcinfo, 0, SizeForFunctionCallInfo(0));
 
 		/*
 		 * We assume RI_FKey_check_ins won't look at flinfo...
@@ -9135,9 +9141,9 @@ validateForeignKeyConstraint(char *conname,
 		trigdata.tg_trigtuplebuf = scan->rs_cbuf;
 		trigdata.tg_newtuplebuf = InvalidBuffer;
 
-		fcinfo.context = (Node *) &trigdata;
+		fcinfo->context = (Node *) &trigdata;
 
-		RI_FKey_check_ins(&fcinfo);
+		RI_FKey_check_ins(fcinfo);
 	}
 
 	heap_endscan(scan);
@@ -9856,11 +9862,15 @@ ATPrepAlterColumnType(List **wqueue,
  * When the data type of a column is changed, a rewrite might not be required
  * if the new type is sufficiently identical to the old one, and the USING
  * clause isn't trying to insert some other value.  It's safe to skip the
- * rewrite if the old type is binary coercible to the new type, or if the
- * new type is an unconstrained domain over the old type.  In the case of a
- * constrained domain, we could get by with scanning the table and checking
- * the constraint rather than actually rewriting it, but we don't currently
- * try to do that.
+ * rewrite in these cases:
+ *
+ * - the old type is binary coercible to the new type
+ * - the new type is an unconstrained domain over the old type
+ * - {NEW,OLD} or {OLD,NEW} is {timestamptz,timestamp} and the timezone is UTC
+ *
+ * In the case of a constrained domain, we could get by with scanning the
+ * table and checking the constraint rather than actually rewriting it, but we
+ * don't currently try to do that.
  */
 static bool
 ATColumnChangeRequiresRewrite(Node *expr, AttrNumber varattno)
@@ -9881,6 +9891,23 @@ ATColumnChangeRequiresRewrite(Node *expr, AttrNumber varattno)
 			if (DomainHasConstraints(d->resulttype))
 				return true;
 			expr = (Node *) d->arg;
+		}
+		else if (IsA(expr, FuncExpr))
+		{
+			FuncExpr   *f = (FuncExpr *) expr;
+
+			switch (f->funcid)
+			{
+				case F_TIMESTAMPTZ_TIMESTAMP:
+				case F_TIMESTAMP_TIMESTAMPTZ:
+					if (TimestampTimestampTzRequiresRewrite())
+						return true;
+					else
+						expr = linitial(f->args);
+					break;
+				default:
+					return true;
+			}
 		}
 		else
 			return true;
@@ -10051,7 +10078,7 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
 							tab->changedIndexOids = lappend_oid(tab->changedIndexOids,
 																foundObject.objectId);
 							tab->changedIndexDefs = lappend(tab->changedIndexDefs,
-															pg_get_indexdef_string(foundObject.objectId));
+											pg_get_indexdef_string(foundObject.objectId));
 						}
 					}
 					else if (relKind == RELKIND_SEQUENCE)
@@ -10979,7 +11006,7 @@ ATExecChangeOwner(Oid relationOid, Oid newOwnerId, bool recursing, LOCKMODE lock
 		case RELKIND_TOASTVALUE:
 			if (recursing)
 				break;
-			/* FALL THRU */
+			switch_fallthrough();
 		default:
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),

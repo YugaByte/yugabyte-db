@@ -151,19 +151,19 @@ $ bin/yb-ctl --rf=3 create --num_shards_per_tserver=1
 
 2. Create a sample table and insert some data.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE t (k VARCHAR, v TEXT, PRIMARY KEY (k)) SPLIT INTO 1 TABLETS;
 ```
 
 3. Insert some sample data (100K rows) into this table.
 
-```postgresql
+```plpgsql
 yugabyte=# INSERT INTO t (k, v) 
              SELECT i::text, left(md5(random()::text), 4)
              FROM generate_series(1, 100000) s(i);
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# select count(*) from t;
  count
 --------

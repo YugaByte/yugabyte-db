@@ -1463,10 +1463,9 @@ postgresIterateForeignScan(ForeignScanState *node)
 	/*
 	 * Return the next tuple.
 	 */
-	ExecStoreTuple(fsstate->tuples[fsstate->next_tuple++],
-				   slot,
-				   InvalidBuffer,
-				   false);
+	ExecStoreHeapTuple(fsstate->tuples[fsstate->next_tuple++],
+					   slot,
+					   false);
 
 	return slot;
 }
@@ -3525,7 +3524,7 @@ store_returning_result(PgFdwModifyState *fmstate,
 											NULL,
 											fmstate->temp_cxt);
 		/* tuple will be deleted when it is cleared from the slot */
-		ExecStoreTuple(newtup, slot, InvalidBuffer, true);
+		ExecStoreHeapTuple(newtup, slot, true);
 	}
 	PG_CATCH();
 	{
@@ -3798,7 +3797,7 @@ get_returning_data(ForeignScanState *node)
 												dmstate->retrieved_attrs,
 												node,
 												dmstate->temp_cxt);
-			ExecStoreTuple(newtup, slot, InvalidBuffer, false);
+			ExecStoreHeapTuple(newtup, slot, false);
 		}
 		PG_CATCH();
 		{
@@ -4199,8 +4198,8 @@ postgresAcquireSampleRowsFunc(Relation relation, int elevel,
 	reservoir_init_selection_state(&astate.rstate, targrows);
 
 	/* Remember ANALYZE context, and create a per-tuple temp context */
-	astate.anl_cxt = CurrentMemoryContext;
-	astate.temp_cxt = AllocSetContextCreate(CurrentMemoryContext,
+	astate.anl_cxt = GetCurrentMemoryContext();
+	astate.temp_cxt = AllocSetContextCreate(GetCurrentMemoryContext(),
 											"postgres_fdw temporary data",
 											ALLOCSET_SMALL_SIZES);
 

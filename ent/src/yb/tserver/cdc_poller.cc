@@ -49,6 +49,7 @@ CDCPoller::CDCPoller(const cdc::ProducerTabletInfo& producer_tablet_info,
                      std::function<bool(void)> should_continue_polling,
                      std::function<void(void)> remove_self_from_pollers_map,
                      ThreadPool* thread_pool,
+                     rpc::Rpcs* rpcs,
                      const std::shared_ptr<CDCClient>& local_client,
                      const std::shared_ptr<CDCClient>& producer_client,
                      CDCConsumer* cdc_consumer,
@@ -63,11 +64,18 @@ CDCPoller::CDCPoller(const cdc::ProducerTabletInfo& producer_tablet_info,
         cdc_consumer,
         consumer_tablet_info,
         local_client,
+        rpcs,
         std::bind(&CDCPoller::HandleApplyChanges, this, std::placeholders::_1),
         use_local_tserver)),
     producer_client_(producer_client),
     thread_pool_(thread_pool),
+    rpcs_(rpcs),
+    poll_handle_(rpcs_->InvalidHandle()),
     cdc_consumer_(cdc_consumer) {}
+
+CDCPoller::~CDCPoller() {
+  rpcs_->Abort({&poll_handle_});
+}
 
 std::string CDCPoller::LogPrefixUnlocked() const {
   return strings::Substitute("P [$0:$1] C [$2:$3]: ",
@@ -127,29 +135,25 @@ void CDCPoller::DoPoll() {
     *req.mutable_from_checkpoint() = checkpoint;
   }
 
-  auto rpcs = producer_client_->rpcs;
-  auto read_rpc_handle = rpcs->Prepare();
-  if (read_rpc_handle != rpcs->InvalidHandle()) {
-    *read_rpc_handle = CreateGetChangesCDCRpc(
-        CoarseMonoClock::now() + MonoDelta::FromMilliseconds(FLAGS_cdc_read_rpc_timeout_ms),
-        nullptr, /* RemoteTablet: will get this from 'req' */
-        producer_client_->client.get(),
-        &req,
-        [=](const Status &status, cdc::GetChangesResponsePB &&new_resp) {
-          auto retained = rpcs->Unregister(read_rpc_handle);
-          auto resp = std::make_shared<cdc::GetChangesResponsePB>(std::move(new_resp));
-          WARN_NOT_OK(thread_pool_->SubmitFunc(std::bind(&CDCPoller::HandlePoll, this,
-                                                         status, resp)),
-                      "Could not submit HandlePoll to thread pool");
-        });
-    (**read_rpc_handle).SendRpc();
-  } else {
-    // Handle the Poll as a failure so repeated invocations will incur backoff.
-    WARN_NOT_OK(thread_pool_->SubmitFunc(std::bind(&CDCPoller::HandlePoll, this,
-                  STATUS(Aborted, LogPrefixUnlocked() + "InvalidHandle for GetChangesCDCRpc"),
-                  resp_)),
-                "Could not submit HandlePoll to thread pool");
+  auto rpcs = rpcs_;
+  poll_handle_ = rpcs->Prepare();
+  if (poll_handle_ == rpcs->InvalidHandle()) {
+    return remove_self_from_pollers_map_();
   }
+
+  *poll_handle_ = CreateGetChangesCDCRpc(
+      CoarseMonoClock::now() + MonoDelta::FromMilliseconds(FLAGS_cdc_read_rpc_timeout_ms),
+      nullptr, /* RemoteTablet: will get this from 'req' */
+      producer_client_->client.get(),
+      &req,
+      [=](const Status &status, cdc::GetChangesResponsePB &&new_resp) {
+        auto retained = rpcs->Unregister(&poll_handle_);
+        auto resp = std::make_shared<cdc::GetChangesResponsePB>(std::move(new_resp));
+        WARN_NOT_OK(thread_pool_->SubmitFunc(std::bind(&CDCPoller::HandlePoll, this,
+                                                       status, resp)),
+                    "Could not submit HandlePoll to thread pool");
+      });
+  (**poll_handle_).SendRpc();
 }
 
 void CDCPoller::HandlePoll(yb::Status status,

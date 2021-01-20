@@ -257,10 +257,10 @@ class AzureBootstrapClient():
         return
 
     def peer(self, components):
-        region_and_vnet_tuples = [(r, c.get("vpc_id")) for r, c in components.iteritems()]
-        for i in xrange(len(region_and_vnet_tuples) - 1):
+        region_and_vnet_tuples = [(r, c.get("vpc_id")) for r, c in components.items()]
+        for i in range(len(region_and_vnet_tuples) - 1):
             i_region, i_vnet = region_and_vnet_tuples[i]
-            for j in xrange(i + 1, len(region_and_vnet_tuples)):
+            for j in range(i + 1, len(region_and_vnet_tuples)):
                 j_region, j_vnet = region_and_vnet_tuples[j]
                 self.create_peering(i_region, i_vnet, j_region, j_vnet)
         return

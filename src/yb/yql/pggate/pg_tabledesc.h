@@ -22,6 +22,7 @@
 #include "yb/client/client.h"
 #include "yb/client/yb_op.h"
 #include "yb/yql/pggate/pg_column.h"
+#include "yb/docdb/doc_key.h"
 
 namespace yb {
 namespace pggate {
@@ -65,21 +66,33 @@ class PgTableDesc : public RefCountedThreadSafe<PgTableDesc> {
 
   CHECKED_STATUS GetColumnInfo(int16_t attr_number, bool *is_primary, bool *is_hash) const;
 
+  bool IsHashPartitioned() const;
+
+  bool IsRangePartitioned() const;
+
   const std::vector<std::string>& GetPartitions() const;
 
   int GetPartitionCount() const;
 
-  Result<int> FindPartitionStartIndex(const string& partition_key) const;
-  Result<int> FindPartitionStartIndex(const Slice& ybctid, uint16 *hash_code) const;
-  Result<int> FindPartitionStartIndex(
-      const google::protobuf::RepeatedPtrField<PgsqlExpressionPB>& hash_col_values,
-      uint16 *hash_code) const;
+  // When reading a row given its associated ybctid, the ybctid value is decoded to the row.
+  Result<string> DecodeYbctid(const Slice& ybctid) const;
+
+  // Seek the tablet partition where the row whose "ybctid" value was given can be found.
+  Result<int> FindPartitionIndex(const Slice& ybctid) const;
+
+  // These values are set by  PgGate to optimize query to narrow the scanning range of a query.
+  CHECKED_STATUS SetScanBoundary(PgsqlReadRequestPB *req,
+                                 const string& partition_lower_bound,
+                                 bool lower_bound_is_inclusive,
+                                 const string& partition_upper_bound,
+                                 bool upper_bound_is_inclusive);
 
   bool IsTransactional() const;
   bool IsColocated() const;
 
  private:
   std::shared_ptr<client::YBTable> table_;
+  const std::shared_ptr<const client::VersionedTablePartitions> table_partitions_;
 
   std::vector<PgColumn> columns_;
   std::unordered_map<int, size_t> attr_num_map_; // Attr number to column index map.

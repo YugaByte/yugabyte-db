@@ -82,8 +82,26 @@ Status MasterTabletServer::StartRemoteBootstrap(const StartRemoteBootstrapReques
   return STATUS(NotSupported, "Remote bootstrap not supported by master tserver");
 }
 
-uint64_t MasterTabletServer::ysql_catalog_version() const {
-  return master_->catalog_manager()->GetYsqlCatalogVersion();
+void MasterTabletServer::get_ysql_catalog_version(uint64_t* current_version,
+                                                  uint64_t* last_breaking_version) const {
+  Status s = master_->catalog_manager()->GetYsqlCatalogVersion(current_version,
+                                                               last_breaking_version);
+  if (!s.ok()) {
+    /*
+     * This should never happen, but if it does then we cannot guarantee that user requests
+     * received by this master's tserver interface have a compatible version.
+     * Log an error and return the highest possible version to ensure we reject the request if
+     * it needs a catalog version compatibility check.
+     */
+    LOG(ERROR) << "Could not get YSQL catalog version for master's tserver API: "
+               << s.ToUserMessage();
+    if (current_version) {
+      *current_version = UINT64_MAX;
+    }
+    if (last_breaking_version) {
+      *last_breaking_version = UINT64_MAX;
+    }
+  }
 }
 
 } // namespace master

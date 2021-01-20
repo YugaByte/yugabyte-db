@@ -62,6 +62,24 @@ class QLValue {
   // Set the value to null by clearing all existing values.
   void SetNull() { pb_.Clear(); }
 
+  //-------------------------------- virtual value methods ----------------------------------
+  static bool IsVirtual(const QLValuePB& pb) {
+    return pb.value_case() == QLValuePB::kVirtualValue;
+  }
+  bool IsVirtual() const {
+    return type() == QLValuePB::kVirtualValue;
+  }
+  static bool IsMax(const QLValuePB& pb) {
+    return IsVirtual(pb) && pb.virtual_value() == QLVirtualValuePB::LIMIT_MAX;
+  }
+  static bool IsMin(const QLValuePB& pb) {
+    return IsVirtual(pb) && pb.virtual_value() == QLVirtualValuePB::LIMIT_MIN;
+  }
+  bool IsMax() const { return IsMax(pb_); }
+  bool IsMin() const { return IsMin(pb_); }
+  void SetMax() { pb_.set_virtual_value(QLVirtualValuePB::LIMIT_MAX); }
+  void SetMin() { pb_.set_virtual_value(QLVirtualValuePB::LIMIT_MIN); }
+
   //----------------------------------- get value methods -----------------------------------
   // Get different datatype values. CHECK failure will result if the value stored is not of the
   // expected datatype or the value is null.
@@ -221,6 +239,9 @@ class QLValue {
   virtual void set_jsonb_value(std::string&& val) {
     pb_.set_jsonb_value(std::move(val));
   }
+  void set_jsonb_value(const std::string& val) {
+    pb_.set_jsonb_value(val);
+  }
   virtual void set_bool_value(bool val) {
     pb_.set_bool_value(val);
   }
@@ -266,15 +287,8 @@ class QLValue {
     set_inetaddress_value(val, &pb_);
   }
 
-  virtual void set_jsonb_value(const std::string& val) {
-    pb_.set_jsonb_value(val);
-  }
-  virtual void set_jsonb_value(const std::string&& val) {
-    pb_.set_jsonb_value(std::move(val));
-  }
-
   static void set_uuid_value(const Uuid& val, QLValuePB* out) {
-    CHECK_OK(val.ToBytes(out->mutable_uuid_value()));
+    val.ToBytes(out->mutable_uuid_value());
   }
 
   void set_uuid_value(const Uuid& val) {
@@ -283,9 +297,7 @@ class QLValue {
 
   virtual void set_timeuuid_value(const Uuid& val) {
     CHECK_OK(val.IsTimeUuid());
-    std::string bytes;
-    CHECK_OK(val.ToBytes(&bytes));
-    pb_.set_timeuuid_value(std::move(bytes));
+    val.ToBytes(pb_.mutable_timeuuid_value());
   }
   virtual void set_varint_value(const util::VarInt& val) {
     pb_.set_varint_value(val.EncodeToComparable());
@@ -365,7 +377,7 @@ class QLValue {
 
   //----------------------------------- comparison methods -----------------------------------
   virtual bool Comparable(const QLValue& other) const {
-    return type() == other.type() || EitherIsNull(other);
+    return type() == other.type() || EitherIsNull(other) || EitherIsVirtual(other);
   }
   virtual bool BothNotNull(const QLValue& other) const {
     return !IsNull() && !other.IsNull();
@@ -375,6 +387,9 @@ class QLValue {
   }
   virtual bool EitherIsNull(const QLValue& other) const {
     return IsNull() || other.IsNull();
+  }
+  virtual bool EitherIsVirtual(const QLValue& other) const {
+    return IsVirtual() || other.IsVirtual();
   }
 
   virtual int CompareTo(const QLValue& other) const;

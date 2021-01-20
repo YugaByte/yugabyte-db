@@ -57,14 +57,6 @@ create or replace function unsupported1() returns void as $$
 declare a text collate "en_US";
 begin
 end$$ language plpgsql;
-create or replace function unsupported5() returns void as $$
-declare a refcursor;
-begin
-end$$ language plpgsql;
-create or replace function unsupported3() returns void as $$
-declare a cursor;
-begin
-end$$ language plpgsql;
 
 create table test(k int, v int);
 
@@ -103,3 +95,20 @@ begin
 end $$;
 
 select * from test order by k;
+
+create procedure p(a inout int)
+  language plpgsql
+as $body$
+begin
+  a := a + 1;
+end;
+$body$;
+
+do $body$
+declare
+  a int := 10;
+begin
+  call p(a);
+  raise info '%', a::text;
+end;
+$body$;

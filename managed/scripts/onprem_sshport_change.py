@@ -28,7 +28,7 @@ def main():
                 break
             uuid_to_json[str(row[0])] = str(row[1])
 
-        for uuid, json_str in uuid_to_json.iteritems():
+        for uuid, json_str in uuid_to_json.items():
             details_json = json.loads(json_str)
             details_json["sshPort"] = int(args.ssh_port)
             cur.execute("UPDATE node_instance SET node_details_json=%s WHERE node_uuid=%s",

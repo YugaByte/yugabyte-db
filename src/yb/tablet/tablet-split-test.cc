@@ -59,7 +59,7 @@ class TabletSplitTest : public YBTabletTest {
   }
 
   Result<std::vector<QLRow>> SelectAll(Tablet* tablet) {
-    ReadHybridTime read_time = ReadHybridTime::SingleTime(tablet->SafeTime());
+    ReadHybridTime read_time = ReadHybridTime::SingleTime(VERIFY_RESULT(tablet->SafeTime()));
     QLReadRequestPB req;
     QLAddColumns(schema_, {}, &req);
     QLReadRequestResult result;

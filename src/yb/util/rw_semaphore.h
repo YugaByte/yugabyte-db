@@ -65,9 +65,11 @@ namespace yb {
 // ... and then in gdb, print the contents of the semaphore, and you should
 // see the collected stack trace.
 class rw_semaphore {
+#ifndef NDEBUG
+  static constexpr int64_t kInvalidThreadId = -1;
+#endif
  public:
-  rw_semaphore() : state_(0) {
-  }
+  rw_semaphore() : state_(0) {}
   ~rw_semaphore() {}
 
   void lock_shared() {
@@ -152,7 +154,7 @@ class rw_semaphore {
     DCHECK_EQ(base::subtle::NoBarrier_Load(&state_), kWriteFlag);
 
 #ifndef NDEBUG
-    writer_tid_ = -1; // Invalid tid.
+    writer_tid_ = kInvalidThreadId; // Invalid tid.
 #endif // NDEBUG
 
     ResetLockHolderStack();
@@ -202,7 +204,7 @@ class rw_semaphore {
  private:
   volatile Atomic32 state_;
 #ifndef NDEBUG
-  int64_t writer_tid_;
+  int64_t writer_tid_ = kInvalidThreadId;
 #endif // NDEBUG
 };
 

@@ -140,12 +140,6 @@ JENKINS_ENV_VARS = [
 # In addition, all variables with names starting with the following prefix are propagated.
 PROPAGATED_ENV_VAR_PREFIX = 'YB_'
 
-# This directory inside $BUILD_ROOT contains files listing all C++ tests (one file per test
-# program).
-#
-# This must match the constant with the same name in common-test-env.sh.
-LIST_OF_TESTS_DIR_NAME = 'list_of_tests'
-
 SPARK_URLS = {
     'linux_default': os.getenv(
         'YB_LINUX_PY3_SPARK_URL',

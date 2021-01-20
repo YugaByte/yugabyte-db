@@ -220,8 +220,8 @@ struct TransactionMetadata {
   IsolationLevel isolation = IsolationLevel::NON_TRANSACTIONAL;
   TabletId status_tablet;
 
-  // By default random value is picked for newly created transaction.
-  uint64_t priority;
+  // By default, a random value is picked for a newly created transaction.
+  uint64_t priority = 0;
 
   // Used for snapshot isolation (as read time and for conflict resolution).
   // start_time is used only for backward compability during rolling update.
@@ -230,6 +230,8 @@ struct TransactionMetadata {
   static Result<TransactionMetadata> FromPB(const TransactionMetadataPB& source);
 
   void ToPB(TransactionMetadataPB* dest) const;
+
+  void TransactionIdToPB(TransactionMetadataPB* dest) const;
 
   // Fill dest with full metadata even when isolation is non transactional.
   void ForceToPB(TransactionMetadataPB* dest) const;
@@ -254,6 +256,8 @@ CoarseTimePoint TransactionRpcDeadline();
 
 extern const std::string kTransactionsTableName;
 extern const std::string kMetricsSnapshotsTableName;
+
+YB_DEFINE_ENUM(CleanupType, (kGraceful)(kImmediate))
 
 } // namespace yb
 

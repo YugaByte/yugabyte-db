@@ -8,7 +8,6 @@ image: /images/section_icons/troubleshoot/troubleshoot.png
 aliases:
   - /develop/tools/
   - /latest/develop/tools/
-type: page
 section: REFERENCE
 menu:
   latest:

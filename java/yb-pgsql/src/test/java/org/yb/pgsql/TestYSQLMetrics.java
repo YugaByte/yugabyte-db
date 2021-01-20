@@ -77,6 +77,44 @@ public class TestYSQLMetrics extends BasePgSQLTest {
   }
 
   @Test
+  public void testMetricRows() throws Exception {
+    try (Statement stmt = connection.createStatement()) {
+      verifyStatementMetricRows(
+        stmt,"CREATE TABLE test (k INT PRIMARY KEY, v INT)",
+        OTHER_STMT_METRIC, 1, 0);
+
+      verifyStatementMetricRows(
+        stmt, "INSERT INTO test VALUES (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)",
+        INSERT_STMT_METRIC, 1, 5);
+
+      verifyStatementMetricRows(
+        stmt, "UPDATE test SET v = v + 1 WHERE v % 2 = 0",
+        UPDATE_STMT_METRIC, 1, 2);
+
+      verifyStatementMetricRows(
+        stmt, "SELECT count(k) FROM test",
+        AGGREGATE_PUSHDOWNS_METRIC, 1, 1);
+
+      verifyStatementMetricRows(
+        stmt, "SELECT * FROM test",
+        SELECT_STMT_METRIC, 1, 5);
+
+      verifyStatementMetricRows(
+        stmt, "INSERT INTO test VALUES (6, 6), (7, 7)",
+        TRANSACTIONS_METRIC, 1, 2);
+
+      // Single row transaction.
+      verifyStatementMetricRows(
+        stmt, "INSERT INTO test VALUES (8, 8)",
+        TRANSACTIONS_METRIC, 0, 0);
+
+      verifyStatementMetricRows(
+        stmt, "DELETE FROM test",
+        DELETE_STMT_METRIC, 1, 8);
+    }
+  }
+
+  @Test
   public void testStatementStats() throws Exception {
     Statement statement = connection.createStatement();
 

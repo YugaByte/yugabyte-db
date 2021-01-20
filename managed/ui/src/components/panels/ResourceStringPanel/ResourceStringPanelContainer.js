@@ -5,7 +5,7 @@ import { connect } from 'react-redux';
 
 function mapStateToProps(state) {
   return {
-    providers: state.cloud.providers,
+    providers: state.cloud.providers
   };
 }
 

@@ -1241,6 +1241,7 @@ _equalCreateStmt(const CreateStmt *a, const CreateStmt *b)
 	COMPARE_STRING_FIELD(tablespacename);
 	COMPARE_NODE_FIELD(tablegroup);
 	COMPARE_SCALAR_FIELD(if_not_exists);
+	COMPARE_NODE_FIELD(split_options);
 
 	return true;
 }

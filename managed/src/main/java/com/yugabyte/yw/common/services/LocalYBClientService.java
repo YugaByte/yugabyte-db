@@ -29,7 +29,7 @@ public class LocalYBClientService implements YBClientService {
   @Override
   public synchronized void closeClient(YBClient client, String masterHostPorts) {
     if (client != null) {
-      LOG.info("Closing client masters={}.", masterHostPorts);
+      LOG.debug("Closing client masters={}.", masterHostPorts);
       try {
         client.close();
       } catch (Exception e) {

@@ -139,6 +139,9 @@ class HybridClock : public Clock {
 
   static void RegisterProvider(std::string name, PhysicalClockProvider provider);
 
+  // Enables check whether clock skew within configured bounds.
+  static void EnableClockSkewControl();
+
   const PhysicalClockPtr& TEST_clock() { return clock_; }
 
  private:
@@ -152,6 +155,9 @@ class HybridClock : public Clock {
 
   // Used to get the current error, for metrics.
   uint64_t ErrorForMetrics();
+
+  // Used to get the current error, for metrics.
+  int64_t SkewForMetrics();
 
   PhysicalClockPtr clock_;
   boost::atomic<HybridClockComponents> components_{HybridClockComponents(0, 0)};

@@ -52,7 +52,7 @@ Use the `CREATE TRIGGER` statement to define a new trigger.
 - Set up a table with triggers for tracking modification time and user (role).
     Use the pre-installed extensions `insert_username` and `moddatetime`.
 
-    ```postgresql
+    ```plpgsql
     CREATE EXTENSION insert_username;
     CREATE EXTENSION moddatetime;
 
@@ -78,7 +78,7 @@ Use the `CREATE TRIGGER` statement to define a new trigger.
     For each insert, the triggers should set the current role as `username` and the current timestamp as `moddate`.
 
 
-    ```postgresql
+    ```plpgsql
     SET ROLE yugabyte;
     INSERT INTO posts VALUES(1, 'desc1');
 
@@ -110,7 +110,7 @@ Use the `CREATE TRIGGER` statement to define a new trigger.
 - Update some rows.
     For each update the triggers should set both `username`  and `moddate` accordingly.
 
-    ```postgresql
+    ```plpgsql
     UPDATE posts SET content = 'desc1_updated' WHERE id = 1;
     UPDATE posts SET content = 'desc3_updated' WHERE id = 3;
 

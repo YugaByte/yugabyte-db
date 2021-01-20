@@ -122,6 +122,20 @@ TEST_F(ThreadTest, TestCallOnExit) {
   ASSERT_EQ("hello 1, hello 2", s);
 }
 
+TEST_F(ThreadTest, TestThreadNameWithoutPadding) {
+  ThreadPtr t;
+  string name = string(25, 'a');
+  t = CHECK_RESULT(Thread::Make("test", name, [](){}));
+  ASSERT_EQ(t->name(), name);
+}
+
+TEST_F(ThreadTest, TestThreadNameWithPadding) {
+  ThreadPtr t;
+  string name = string(5, 'a');
+  t = CHECK_RESULT(Thread::Make("test", name, [](){}));
+  ASSERT_EQ(t->name(), name + string(10, Thread::kPaddingChar));
+}
+
 // The following tests only run in debug mode, since thread restrictions are no-ops
 // in release builds.
 #ifndef NDEBUG

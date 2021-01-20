@@ -7,7 +7,7 @@ export default class Alerts extends Component {
   render() {
     return (
       <div className="dashboard-container">
-        <AlertsListContainer/>
+        <AlertsListContainer />
       </div>
     );
   }

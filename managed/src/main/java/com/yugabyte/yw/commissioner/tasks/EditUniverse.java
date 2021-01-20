@@ -14,14 +14,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
-
-import com.yugabyte.yw.commissioner.Common.CloudType;
-import com.yugabyte.yw.commissioner.SubTaskGroup;
 import com.yugabyte.yw.common.Util;
-import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.ClusterType;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.UserIntent;
@@ -30,10 +24,6 @@ import org.slf4j.LoggerFactory;
 
 import com.yugabyte.yw.commissioner.SubTaskGroupQueue;
 import com.yugabyte.yw.commissioner.UserTaskDetails.SubTaskGroupType;
-import com.yugabyte.yw.commissioner.tasks.UniverseDefinitionTaskBase.UniverseOpType;
-import com.yugabyte.yw.commissioner.tasks.subtasks.ChangeMasterConfig;
-import com.yugabyte.yw.commissioner.tasks.subtasks.WaitForDataMove;
-import com.yugabyte.yw.commissioner.tasks.subtasks.WaitForLoadBalance;
 import com.yugabyte.yw.common.DnsManager;
 import com.yugabyte.yw.common.PlacementInfoUtil;
 import com.yugabyte.yw.models.Universe;
@@ -53,8 +43,10 @@ public class EditUniverse extends UniverseDefinitionTaskBase {
   @Override
   public void run() {
     LOG.info("Started {} task for uuid={}", getName(), taskParams().universeUUID);
+    String errorString = null;
 
     try {
+      checkUniverseVersion();
       // Verify the task params.
       verifyParams(UniverseOpType.EDIT);
 
@@ -68,25 +60,31 @@ public class EditUniverse extends UniverseDefinitionTaskBase {
       // Set all the node names.
       setNodeNames(UniverseOpType.EDIT, universe);
 
-      // Select master nodes, if needed.
-      selectMasters();
+      // Run preflight checks on onprem nodes to be added.
+      if (reserveAndCheckOnpremNodesToBeAdded()) {
+        // Select master nodes, if needed.
+        selectMasters();
 
-      // Update the user intent.
-      writeUserIntentToUniverse();
+        // Update the user intent.
+        writeUserIntentToUniverse(false, false);
 
-      for (Cluster cluster : taskParams().clusters) {
-        editCluster(universe, cluster);
+        for (Cluster cluster : taskParams().clusters) {
+          addDefaultGFlags(cluster.userIntent);
+          editCluster(universe, cluster);
+        }
+
+        // Update the DNS entry for this universe, based in primary provider info.
+        UserIntent primaryIntent = universe.getUniverseDetails().getPrimaryCluster().userIntent;
+        createDnsManipulationTask(DnsManager.DnsCommandType.Edit, false, primaryIntent.providerType,
+                primaryIntent.provider, primaryIntent.universeName)
+                .setSubTaskGroupType(SubTaskGroupType.ConfigureUniverse);
+
+        // Marks the update of this universe as a success only if all the tasks before it succeeded.
+        createMarkUniverseUpdateSuccessTasks()
+          .setSubTaskGroupType(SubTaskGroupType.ConfigureUniverse);
+      } else {
+        errorString = "Preflight checks failed.";
       }
-
-      // Update the DNS entry for this universe, based in primary provider info.
-      UserIntent primaryIntent = universe.getUniverseDetails().getPrimaryCluster().userIntent;
-      createDnsManipulationTask(DnsManager.DnsCommandType.Edit, false, primaryIntent.providerType,
-              primaryIntent.provider, primaryIntent.universeName)
-              .setSubTaskGroupType(SubTaskGroupType.ConfigureUniverse);
-
-      // Marks the update of this universe as a success only if all the tasks before it succeeded.
-      createMarkUniverseUpdateSuccessTasks()
-        .setSubTaskGroupType(SubTaskGroupType.ConfigureUniverse);
 
       // Run all the tasks.
       subTaskGroupQueue.run();
@@ -96,7 +94,7 @@ public class EditUniverse extends UniverseDefinitionTaskBase {
     } finally {
       // Mark the update of the universe as done. This will allow future edits/updates to the
       // universe to happen.
-      unlockUniverseForUpdate();
+      unlockUniverseForUpdate(errorString);
     }
     LOG.info("Finished {} task.", getName());
   }
@@ -166,6 +164,10 @@ public class EditUniverse extends UniverseDefinitionTaskBase {
         throw new IllegalStateException(errMsg);
       }
     }
+
+    // All necessary nodes are created. Data moving will coming soon.
+    createSetNodeStateTasks(nodesToProvision, NodeDetails.NodeState.ToJoinCluster)
+        .setSubTaskGroupType(SubTaskGroupType.Provisioning);
 
     // Creates the primary cluster by first starting the masters.
     if (!newMasters.isEmpty()) {

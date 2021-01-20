@@ -164,9 +164,10 @@ Footer::Footer(uint64_t _table_magic_number, uint32_t _version)
 }
 
 Status Footer::DecodeFrom(Slice* input) {
-  DSCHECK(!HasInitializedTableMagicNumber(), IllegalState, "Decoding into the same footer twice");
-  DSCHECK(input != nullptr, IllegalState, "input can't be null");
-  DSCHECK_GE(input->size(), kMinEncodedLength, Corruption, "Footer size is too small");
+  RSTATUS_DCHECK(
+      !HasInitializedTableMagicNumber(), IllegalState, "Decoding into the same footer twice");
+  RSTATUS_DCHECK(input != nullptr, IllegalState, "input can't be null");
+  RSTATUS_DCHECK_GE(input->size(), kMinEncodedLength, Corruption, "Footer size is too small");
 
   const char *magic_ptr = input->cend() - kMagicNumberLengthByte;
   const uint32_t magic_lo = DecodeFixed32(magic_ptr);

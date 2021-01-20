@@ -33,6 +33,7 @@ public class TokenAuthenticator extends Action.Simple {
   public static final String AUTH_TOKEN_HEADER =  "X-AUTH-TOKEN";
   public static final String COOKIE_API_TOKEN = "apiToken";
   public static final String API_TOKEN_HEADER = "X-AUTH-YW-API-TOKEN";
+  public static final String COOKIE_PLAY_SESSION = "PLAY_SESSION";
 
   @Inject
   ConfigHelper configHelper;
@@ -44,7 +45,11 @@ public class TokenAuthenticator extends Action.Simple {
   private PlaySessionStore playSessionStore;
 
   private Users getCurrentAuthenticatedUser(Http.Context ctx) {
+    String token;
+    Users user = null;
     boolean useOAuth = appConfig.getBoolean("yb.security.use_oauth", false);
+    Http.Cookie cookieValue = ctx.request().cookie(COOKIE_PLAY_SESSION);
+
     if (useOAuth) {
       final PlayWebContext context = new PlayWebContext(ctx, playSessionStore);
       final ProfileManager<CommonProfile> profileManager = new ProfileManager(context);
@@ -56,18 +61,19 @@ public class TokenAuthenticator extends Action.Simple {
         } else {
           email = (String) profileManager.get(true).get().getAttribute(emailAttr);
         }
-        return Users.getByEmail(email.toLowerCase());
+        user = Users.getByEmail(email.toLowerCase());
       }
-      return null;
     } else {
-      String token = fetchToken(ctx, true);
+      token = fetchToken(ctx, false /* isApiToken */);
+      user = Users.authWithToken(token);
+    }
+    if (user == null && cookieValue == null) {
+      token = fetchToken(ctx, true /* isApiToken */);
       if (token != null) {
-        return Users.authWithApiToken(token);
-      } else {
-        token = fetchToken(ctx, false);
-        return Users.authWithToken(token);
+        user = Users.authWithApiToken(token);
       }
     }
+    return user;
   }
 
   @Override

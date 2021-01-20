@@ -63,7 +63,8 @@ message ChangeMetadataRequestPB {
 
   optional bytes remove_table_id = 10;
 
-  optional bool is_backfilling = 11;
+  // Note that we don't use the value of this and just check has_mark_backfill_done.
+  optional bool mark_backfill_done = 11;
 
   // Used for alter schema on a non-primary table (e.g. colocated user table).
   optional bytes alter_table_id = 12;

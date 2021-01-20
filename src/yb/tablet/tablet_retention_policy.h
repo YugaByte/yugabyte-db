@@ -46,6 +46,8 @@ class TabletRetentionPolicy : public docdb::HistoryRetentionPolicy {
   CHECKED_STATUS RegisterReaderTimestamp(HybridTime timestamp);
   void UnregisterReaderTimestamp(HybridTime timestamp);
 
+  void EnableHistoryCutoffPropagation(bool value);
+
  private:
   bool ShouldRetainDeleteMarkersInMajorCompaction() const;
   HybridTime EffectiveHistoryCutoff() REQUIRES(mutex_);
@@ -67,6 +69,21 @@ class TabletRetentionPolicy : public docdb::HistoryRetentionPolicy {
   std::multiset<HybridTime> active_readers_ GUARDED_BY(mutex_);
   HybridTime committed_history_cutoff_ GUARDED_BY(mutex_) = HybridTime::kMin;
   CoarseTimePoint next_history_cutoff_propagation_ GUARDED_BY(mutex_) = CoarseTimePoint::min();
+  int disable_counter_ GUARDED_BY(mutex_) = 0;
+};
+
+class HistoryCutoffPropagationDisabler {
+ public:
+  explicit HistoryCutoffPropagationDisabler(TabletRetentionPolicy* policy) : policy_(policy) {
+    policy_->EnableHistoryCutoffPropagation(false);
+  }
+
+  ~HistoryCutoffPropagationDisabler() {
+    policy_->EnableHistoryCutoffPropagation(true);
+  }
+
+ private:
+  TabletRetentionPolicy* policy_;
 };
 
 }  // namespace tablet

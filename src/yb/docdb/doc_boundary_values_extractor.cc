@@ -156,10 +156,12 @@ class DocBoundaryValuesExtractor : public rocksdb::BoundaryValuesExtractor {
 
   Status Extract(Slice user_key, Slice value, rocksdb::UserBoundaryValues* values) override {
     if (user_key.TryConsumeByte(ValueTypeAsChar::kTransactionId) ||
-        user_key.TryConsumeByte(ValueTypeAsChar::kTransactionApplyState)) {
+        user_key.TryConsumeByte(ValueTypeAsChar::kTransactionApplyState) ||
+        user_key.TryConsumeByte(ValueTypeAsChar::kExternalTransactionId)) {
       // Skipping:
       // For intents db:
       // - reverse index from transaction id to keys of write intents belonging to that transaction.
+      // - external transaction records (transactions that originated on a CDC producer)
       // For regular db:
       // - transaction apply state records.
       return Status::OK();

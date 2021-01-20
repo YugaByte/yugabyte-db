@@ -7,7 +7,7 @@ export default class YBFormCheckboxGroup extends Component {
     super(props);
   }
 
-  handleChange = event => {
+  handleChange = (event) => {
     const target = event.currentTarget;
     let valueArray = [...this.props.value] || [];
 
@@ -29,10 +29,10 @@ export default class YBFormCheckboxGroup extends Component {
     const { value, error, touched, label, className, children } = this.props;
 
     const classes = classNames(
-      "input-field",
+      'input-field',
       {
-        "is-success": value || (!error && touched), // handle prefilled or user-filled
-        "is-error": !!error && touched
+        'is-success': value || (!error && touched), // handle prefilled or user-filled
+        'is-error': !!error && touched
       },
       className
     );
@@ -41,7 +41,7 @@ export default class YBFormCheckboxGroup extends Component {
       <div className={classes}>
         <fieldset>
           <legend>{label}</legend>
-          {React.Children.map(children, child => {
+          {React.Children.map(children, (child) => {
             return React.cloneElement(child, {
               field: {
                 value: value.includes(child.props.id),

@@ -10,7 +10,7 @@ menu:
     identifier: 2dc-deployment
     weight: 633
 aliases:
- - /stable/deploy/replicate-2dc/
+  - /stable/deploy/replicate-2dc/
 type: page
 isTocNested: true
 showAsideToc: true

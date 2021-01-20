@@ -10,4 +10,4 @@ const mapStateToProps = (state) => {
   };
 };
 
-export default connect( mapStateToProps)(CustomerMetricsPanel);
+export default connect(mapStateToProps)(CustomerMetricsPanel);

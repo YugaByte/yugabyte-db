@@ -1,11 +1,11 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../_style/colors.scss";
-@import "../../../_style/mixins.scss";
+@import '../../../_style/colors.scss';
+@import '../../../_style/mixins.scss';
 
-
-.universe-display-item-container, .schedule-display-item-container {
-  height: 178px;
+.universe-display-item-container,
+.schedule-display-item-container {
+  max-height: 200px;
   margin-bottom: 24px;
   padding: 12px 14px;
   color: $YB_TEXT_COLOR;
@@ -13,7 +13,7 @@
 
   &:before {
     position: absolute;
-    content: "";
+    content: '';
     top: 0;
     left: 0;
     right: 0;
@@ -93,7 +93,9 @@
   }
 }
 
-a:hover > .universe-display-item-container, a:hover > .schedule-display-item-container, .create-universe-button:hover {
+a:hover > .universe-display-item-container,
+a:hover > .schedule-display-item-container,
+.create-universe-button:hover {
   &:before {
     @include transition(0.3s);
     transform: scale(1.03, 1.03);
@@ -109,11 +111,9 @@ a:hover > .universe-display-item-container, a:hover > .schedule-display-item-con
 }
 
 .universe-display-item-container,
-.checkbox-inline input[type="checkbox"] {
+.checkbox-inline input[type='checkbox'] {
   position: relative !important;
 }
-
-
 
 .universe-display-panel-container {
   h3 {
@@ -123,7 +123,8 @@ a:hover > .universe-display-item-container, a:hover > .schedule-display-item-con
   .list-group.row {
     margin: 20px -12px 0 -12px;
 
-    .col-lg-2, .col-md-3 {
+    .col-lg-2,
+    .col-md-3 {
       padding: 0 12px;
     }
   }
@@ -140,7 +141,7 @@ a:hover > .universe-display-item-container, a:hover > .schedule-display-item-con
   &:before {
     position: absolute;
     border-radius: 7px;
-    content: "";
+    content: '';
     top: 0;
     left: 0;
     right: 0;
@@ -171,7 +172,7 @@ a:hover > .universe-display-item-container, a:hover > .schedule-display-item-con
     &:hover:before {
       opacity: 1;
       transform: scale(1.03, 1);
-      @include transition-property (0.25s, all, 0.2s);
+      @include transition-property(0.25s, all, 0.2s);
     }
 
     &:before {
@@ -195,7 +196,8 @@ a:hover > .universe-display-item-container, a:hover > .schedule-display-item-con
       border-radius: 0;
       opacity: 0;
 
-      &, &:hover {
+      &,
+      &:hover {
         border: none;
         background: none;
       }
@@ -214,12 +216,11 @@ a:hover > .universe-display-item-container, a:hover > .schedule-display-item-con
         }
       }
 
-
       &:hover {
         background-color: $YB_GRAY_HOVER;
-        
+
         span {
-          color: $YB_VIOLET_TEXT;   
+          color: $YB_VIOLET_TEXT;
           transform: translateX(-5px);
         }
 
@@ -279,17 +280,17 @@ a:hover > .universe-display-item-container, a:hover > .schedule-display-item-con
     & > .button-group {
       a.btn {
         opacity: 1;
-        @include transition-property (0.35s, opacity, 0s);
+        @include transition-property(0.35s, opacity, 0s);
 
         div {
           opacity: 1;
           visibility: visible;
           transform: translate(0, 0);
-          @include transition-property (0.25s, all, 0.07s);
+          @include transition-property(0.25s, all, 0.07s);
         }
 
         &:last-child div {
-          @include transition-property (0.25s, all, 0.2s);
+          @include transition-property(0.25s, all, 0.2s);
         }
       }
     }
@@ -311,7 +312,7 @@ a:hover > .universe-display-item-container, a:hover > .schedule-display-item-con
     font-family: Rubik, sans-serif;
     font-size: 30px;
     font-weight: 500;
-    letter-spacing: -.02em;
+    letter-spacing: -0.02em;
     div {
       margin: 0 auto 20px;
       line-height: 1.2em;
@@ -323,7 +324,6 @@ a:hover > .universe-display-item-container, a:hover > .schedule-display-item-con
     margin: 50px auto;
     display: block;
   }
-  
 }
 
 .universe-create-date {

@@ -36,6 +36,16 @@ namespace docdb {
 // Types
 //-----------------------------------------------------------------------------
 
+struct DocPgParamDesc {
+    int32_t attno;
+    int32_t typid;
+    int32_t typmod;
+
+    DocPgParamDesc(int32_t attno, int32_t typid, int32_t typmod)
+        : attno(attno), typid(typid), typmod(typmod)
+    {}
+};
+
 const YBCPgTypeEntity* DocPgGetTypeEntity(YbgTypeDesc pg_type);
 
 //-----------------------------------------------------------------------------
@@ -43,9 +53,7 @@ const YBCPgTypeEntity* DocPgGetTypeEntity(YbgTypeDesc pg_type);
 //-----------------------------------------------------------------------------
 
 Status DocPgEvalExpr(const std::string& expr_str,
-                     int32_t col_attrno,
-                     int32_t ret_typeid,
-                     int32_t ret_typemod,
+                     std::vector<DocPgParamDesc> params,
                      const QLTableRow& table_row,
                      const Schema *schema,
                      QLValue* result);

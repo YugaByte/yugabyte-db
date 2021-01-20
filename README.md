@@ -20,24 +20,24 @@
 
 # What is YugabyteDB?
 
-YugabyteDB is a high-performance, cloud-native distributed SQL database that aims to support all PostgreSQL features. It is best fit for cloud-native OLTP (i.e. real-time, business critical) applications that need absolute data correctness and require at least one of the following: scalability, high tolerance to failures, globally-distributed deployments.
+**YugabyteDB** is a **high-performance, cloud-native distributed SQL database** that aims to support **all PostgreSQL features**. It is best to fit for **cloud-native OLTP (i.e. real-time, business-critical) applications** that need absolute **data correctness** and require at least one of the following: **scalability, high tolerance to failures, globally-distributed deployments.**
 
 
 The core features of YugabyteDB include:
 
 * **Powerful RDBMS capabilities** Yugabyte SQL (*YSQL* for short) reuses the query layer of PostgreSQL (similar to Amazon Aurora PostgreSQL), thereby supporting most of its features (datatypes, queries, expressions, operators and functions, stored procedures, triggers, extensions, etc). Here is a detailed [list of features currently supported by YSQL](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/YSQL-Features-Supported.md).
 
-* **Distributed transactions** The transactions design is based on the Google Spanner architecture. Strongly consistency of writes is achieved by using Raft consensus for replication and cluster-wide distributed ACID transactions using *hybrid logical clocks*. *Snapshot * and *serializable* isolation levels are supported.  Reads (queries) have strong consistency by default, but can be tuned dynamically to read from followers and read-replicas.
+* **Distributed transactions** The transaction design is based on the Google Spanner architecture. Strongly consistency of writes is achieved by using Raft consensus for replication and cluster-wide distributed ACID transactions using *hybrid logical clocks*. *Snapshot* and *serializable* isolation levels are supported.  Reads (queries) have strong consistency by default, but can be tuned dynamically to read from followers and read-replicas.
 
-* **Continuous availability** YugabyteDB is extremely resilient to common outages with native failover and repair. YugabyteDB can be configured to tolerate disk, node, zone, region and cloud failures automatically. For a typical deployment where a YugabyteDB cluster is deployed in one region across multiple zones on a public cloud, the RPO is 0 (meaning no data is lost on a failure) and the RTO is 3 seconds (meaning the data being served by the failed node is available in 3 seconds).
+* **Continuous availability** YugabyteDB is extremely resilient to common outages with native failover and repair. YugabyteDB can be configured to tolerate disk, node, zone, region and cloud failures automatically. For a typical deployment where a YugabyteDB cluster is deployed in one region across multiple zones on a public cloud, the RPO is 0 (meaning no data is lost on failure) and the RTO is 3 seconds (meaning the data being served by the failed node is available in 3 seconds).
 
-* **Horizontal scalability** Scaling a YugabyteDB cluster in order to achieve more IOPS or data storage is as simple as adding nodes to the cluster.
+* **Horizontal scalability** Scaling a YugabyteDB cluster to achieve more IOPS or data storage is as simple as adding nodes to the cluster.
 
 * **Geo-distributed, multi-cloud** YugabyteDB can be deployed in public clouds and natively inside Kubernetes. It supports deployments that span three or more fault domains, such as multi-zone, multi-region and multi-cloud deployments. It also supports xCluster asynchronous replication with unidirectional master-slave and bidirectional multi-master configurations that can be leveraged in two-region deployments. To serve (stale) data with low latencies, read replicas are also a supported feature.
 
 * **Multi API design** The query layer of YugabyteDB is built to be extensible. Currently, YugabyteDB supports two distributed SQL APIs **[Yugabyte SQL (YSQL)](https://docs.yugabyte.com/latest/api/ysql/)**, a fully relational API that re-uses query layer of PostgreSQL, and **[Yugabyte Cloud QL (YCQL)](https://docs.yugabyte.com/latest/api/ycql/)**, a semi-relational SQL-like API with documents/indexing support with Apache Cassandra QL roots.
 
-* **100% open source** YugabyteDB is fully open-source under the [Apache 2.0 license](https://github.com/yugabyte/yugabyte-db/blob/master/LICENSE.md). The open-source version has powerful enterprise features distributed backups, encryption of data at-rest, in-flight TLS encryption, change data capture, read replicas and others.
+* **100% open source** YugabyteDB is fully open-source under the [Apache 2.0 license](https://github.com/yugabyte/yugabyte-db/blob/master/LICENSE.md). The open-source version has powerful enterprise features distributed backups, encryption of data-at-rest, in-flight TLS encryption, change data capture, read replicas and others.
 
 Read more about YugabyteDB in our [Docs](https://docs.yugabyte.com/latest/introduction/).
 
@@ -55,7 +55,7 @@ Cannot find what you are looking for? Have a question? Please post your question
 
 # Build Apps
 
-YugabyteDB supports a number of languages and client drivers. Below is a brief list.
+YugabyteDB supports several languages and client drivers. Below is a brief list.
 
 | Language  | ORM | YSQL Drivers | YCQL Drivers |
 | --------- | --- | ------------ | ------------ |
@@ -70,45 +70,51 @@ YugabyteDB supports a number of languages and client drivers. Below is a brief l
 
 # What's being worked on?
 
-> This section has been updated on July 22, 2020.
+> This section has been updated on **Dec 14, 2020**.
 
 ## Current roadmap
 
-Here is a list of some of the key features being worked on for the upcoming releases. Note that the YugabyteDB v2.2 ~~release is expected around July 2020~~ was released July 15 2020 and the v2.3 release is expected in Nov 2020.
+Here is a list of some of the key features being worked on for the upcoming releases (the YugabyteDB **v2.5 latest release** was released on **Nov 12, 2020**, the **v2.4 stable release** is expected in **Jan 2021**).
 
 | Feature                                         | Status    | Release Target | Progress        |  Comments     |
 | ----------------------------------------------- | --------- | -------------- | --------------- | ------------- |
-| Support Liquibase, Flyway, ORM schema migrations | PROGRESS | v2.3           |                 |               |
-| [Online schema migration](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/online-schema-migrations.md)  | PROGRESS  | v2.3 | [Track](https://github.com/yugabyte/yugabyte-db/issues/4192) | YCQL already supports online schema changes |
-| [Support for most `ALTER TABLE` variants](https://github.com/yugabyte/yugabyte-db/issues/1124) | PROGRESS | v2.3 | [Track](https://github.com/yugabyte/yugabyte-db/issues/1124) |  |
-| Database runtime activity monitoring | PLANNING  | v2.3  | [Track](https://github.com/yugabyte/yugabyte-db/issues/1331) | Activity monitoring, audit logging, inactivity monitoring |
-| Identity and access management in YSQL | PLANNING  | v2.3  | [Track](https://github.com/yugabyte/yugabyte-db/issues/2393) | LDAP and Active Directory support |
-| YSQL cluster administration features | PLANNING  | v2.3  | [Track](https://github.com/yugabyte/yugabyte-db/issues/4194) | See currently active queries, find which queries are slow, slow query logging, etc. |
-| Improving day 2 operations of Yugabyte Platform | PROGRESS  |  v2.3 | [Track](https://github.com/yugabyte/yugabyte-db/issues/4420) |  |
-| [Row-level geo-partitioning](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/ysql-row-level-partitioning.md) | PROGRESS  |  v2.3 | [Track](https://github.com/yugabyte/yugabyte-db/issues/1958) | This feature will be done in two phases: supporting PostgreSQL partitions followed by geo-placement support for partitions |
-| Improve TPC-C benchmarking | PROGRESS  | v2.3  | [Track](https://github.com/yugabyte/yugabyte-db/issues/3226) |  |
-| Improvements to [automatic tablet splitting](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/docdb-automatic-tablet-splitting.md) | PLANNING  | v2.3 | [Track](https://github.com/yugabyte/yugabyte-db/issues/1004) |
-| Support transactions with large batches of operations during data loads | PLANNING  |   | [Track](https://github.com/yugabyte/yugabyte-db/issues/5241)
-| Transparently restart transactions | PLANNING  |   |  | This should decrease the incidence of transaction restart errors seen in various scenarios |
+| [Automatic tablet splitting enabled by default](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/docdb-automatic-tablet-splitting.md) | PROGRESS  | v2.4, v2.5 | [Track](https://github.com/yugabyte/yugabyte-db/issues/1004) |
+| [Point in time restores](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/distributed-backup-point-in-time-recovery.md) | PROGRESS  |  v2.6, v2.7 | [Track](https://github.com/yugabyte/yugabyte-db/issues/1820) |  |
+| Pessimistic locking | PROGRESS  | v2.7  | [Track](https://github.com/yugabyte/yugabyte-db/issues/5680) |  |
+| YSQL: table statistics and CBO | PROGRESS  |  v2.7 | [Track](https://github.com/yugabyte/yugabyte-db/issues/5242) |  |
+| [Support `GIN` indexes](https://github.com/yugabyte/yugabyte-db/issues/1337) | PROGRESS | v2.7 | [Track](https://github.com/yugabyte/yugabyte-db/issues/1337) | |
+| [Support `ALTER TABLE` add primary key](https://github.com/yugabyte/yugabyte-db/issues/1124) | PROGRESS | v2.6, v2.7 | [Track](https://github.com/yugabyte/yugabyte-db/issues/1124) |  |
+| [Online schema migration](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/online-schema-migrations.md)  | PROGRESS  | v2.7 | [Track](https://github.com/yugabyte/yugabyte-db/issues/4192) |  |
+| Support Liquibase, Flyway, ORM schema migrations | PROGRESS | v2.7           |                 |               |
+| Support WSO2 API Gateway and Identity Manager | PROGRESS | v2.6, v2.7           |                 |               |
+| Support Spark 3 on YCQL | PROGRESS | v2.6, v2.7           |  [Track](https://github.com/yugabyte/yugabyte-db/issues/6488)  |               |
+| Incorporate PostgreSQL 12 features | PLANNING  | v2.7 | [Track](https://github.com/yugabyte/yugabyte-db/issues/3725) |  |
+| Improving day 2 operations of Yugabyte Platform | PROGRESS  |  v2.5 | [Track](https://github.com/yugabyte/yugabyte-db/issues/4420) |  |
+| [Row-level geo-partitioning](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/ysql-row-level-partitioning.md) | PROGRESS  |  v2.7 | [Track](https://github.com/yugabyte/yugabyte-db/issues/1958) | Enhance YSQL language support |
+| Improve TPC-C benchmarking | PROGRESS  | v2.7  | [Track](https://github.com/yugabyte/yugabyte-db/issues/3226) |  |
+| Transparently restart transactions | PROGRESS  | v2.5  | [Track](https://github.com/yugabyte/yugabyte-db/issues/5683) | Decrease the incidence of transaction restart errors seen in various scenarios |
 
 
-## Planned additions to roadmap
+## Planned additions to the roadmap
 
 The following items are being planned as additions to the roadmap
 
 | Feature                                         | Status    | Release Target | Progress        |  Comments     |
 | ----------------------------------------------- | --------- | -------------- | --------------- | ------------- |
-| Improve YSQL query performance | PLANNING  |   | [Track](https://github.com/yugabyte/yugabyte-db/issues/5242) |  |
+| Support `pgloader` to migrate from MySQL | PLANNING  |   | [Track](https://github.com/yugabyte/yugabyte-db/issues/3725) | 
 | Make [`COLOCATED` tables](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/ysql-colocated-tables.md) default for YSQL | PLANNING  |  | [Track](https://github.com/yugabyte/yugabyte-db/issues/5239)  |  |
-| Point in time restores | PLANNING  |   | [Track](https://github.com/yugabyte/yugabyte-db/issues/1820) |  |
-| Support Kafka as source and sink | PLANNING |  |  | Support source and sink for both YSQL and YSQL |
-| Follower reads in YSQL | PLANNING |  |  | Ability to perform follower reads for YSQL and transactional tables in YCQL. Note that this is currently supported for scenarios without distributed transactions.  |
+| Support Kafka as source and sink | PLANNING |  |  | Support source and sink for both YSQL and YCQL |
 | Support for transactions in async [xCluster replication](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/multi-region-2DC-deployment.md) | PLANNING  |    | [Track](https://github.com/yugabyte/yugabyte-db/issues/1808) | Apply transactions atomically on consumer cluster. |
 
 ## Recently released features
 
 | Feature                                         | Status    | Release Target | Docs / Enhancements |  Comments     |
 | ----------------------------------------------- | --------- | -------------- | ------------------- | ------------- |
+| Identity and access management in YSQL | ✅ *DONE*  | v2.5  | [Track](https://github.com/yugabyte/yugabyte-db/issues/2393) | LDAP and Active Directory support |
+| Follower reads in YSQL | ✅ *BETA* | v2.5 | [Issue](https://github.com/yugabyte/yugabyte-db/issues/5232) | Ability to perform follower reads for YSQL and transactional tables in YCQL.  |
+| YSQL cluster administration features - Node-Level statistics | ✅ *DONE*  | v2.5  | [Issue](https://github.com/yugabyte/yugabyte-db/issues/4194) | Per-node view of currently active queries, find which queries are slow, what active connections are doing, etc. |
+| Support loading large data sets into YSQL using `COPY` | ✅ *DONE*  | v2.5  | [Issue](https://github.com/yugabyte/yugabyte-db/issues/5241) | Improving transactions which have a very large number of operations, as well as provide various options to batch load data more efficiently
+| Database runtime activity monitoring | ✅ *DONE*  | v2.5  | [Issue](https://github.com/yugabyte/yugabyte-db/issues/1331) | Activity monitoring, audit logging, inactivity monitoring |
 | [Online rebuild of indexes](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/online-index-backfill.md)  | ✅ *DONE*  | v2.2 |  | Docs coming soon. See [pending enhancements](https://github.com/yugabyte/yugabyte-db/issues/448) |
 | [`DEFERRED` constraints in YSQL](https://github.com/yugabyte/yugabyte-db/issues/4700) | ✅ *DONE* | v2.2 |  | Docs coming soon. See [pending enhancements](https://github.com/yugabyte/yugabyte-db/issues/4700). |
 | [`COLOCATED` tables](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/ysql-colocated-tables.md) GA | ✅ *DONE*  | v2.2  |  | Docs coming soon |
@@ -135,7 +141,7 @@ Review detailed architecture in our [Docs](https://docs.yugabyte.com/latest/arch
 
 # Contribute
 
-As an open source project with a strong focus on the user community, we welcome contributions as GitHub pull requests. See our [Contributor Guides](https://docs.yugabyte.com/latest/contribute/) to get going. Discussions and RFCs for features happen on the design discussions section of [our Forum](https://forum.yugabyte.com).
+As an an open-source project with a strong focus on the user community, we welcome contributions as GitHub pull requests. See our [Contributor Guides](https://docs.yugabyte.com/latest/contribute/) to get going. Discussions and RFCs for features happen on the design discussions section of [our Forum](https://forum.yugabyte.com).
 
 # License
 

@@ -1725,9 +1725,10 @@ index_drop(Oid indexId, bool concurrent)
 
 	/*
 	 * Schedule physical removal of the files (if any)
-	 * If YugaByte is enabled, there aren't any physical files to remove.
+	 * If the relation is a Yugabyte relation, there aren't any physical files to
+	 * remove.
 	 */
-	if (!IsYugaByteEnabled() &&
+	if (!IsYBRelation(userIndexRelation) &&
 		userIndexRelation->rd_rel->relkind != RELKIND_PARTITIONED_INDEX)
 		RelationDropStorage(userIndexRelation);
 
@@ -2239,7 +2240,7 @@ index_update_stats(Relation rel,
 
 	if (reltuples >= 0)
 	{
-		BlockNumber relpages = IsYugaByteEnabled() ? 0 : RelationGetNumberOfBlocks(rel);
+		BlockNumber relpages = IsYBRelation(rel) ? 0 : RelationGetNumberOfBlocks(rel);
 		BlockNumber relallvisible;
 
 		if (rd_rel->relkind != RELKIND_INDEX)
@@ -2677,6 +2678,7 @@ IndexBuildHeapRangeScanInternal(Relation heapRelation,
 	TransactionId OldestXmin;
 	BlockNumber root_blkno = InvalidBlockNumber;
 	OffsetNumber root_offsets[MaxHeapTuplesPerPage];
+	MemoryContext oldcontext = GetCurrentMemoryContext();
 
 	/*
 	 * sanity checks
@@ -2794,6 +2796,9 @@ IndexBuildHeapRangeScanInternal(Relation heapRelation,
 
 	reltuples = 0;
 
+	if (IsYBRelation(indexRelation))
+		MemoryContextSwitchTo(econtext->ecxt_per_tuple_memory);
+
 	/*
 	 * Scan all tuples in the base relation.
 	 */
@@ -2807,7 +2812,7 @@ IndexBuildHeapRangeScanInternal(Relation heapRelation,
 		 * Skip handling of HOT-chained tuples which does not apply to YugaByte-based
 		 * tables.
 		 */
-		if (!IsYugaByteEnabled())
+		if (!IsYBRelation(heapRelation))
 		{
 			/*
 			 * When dealing with a HOT-chain of updated tuples, we want to index
@@ -3084,10 +3089,11 @@ IndexBuildHeapRangeScanInternal(Relation heapRelation,
 			tupleIsAlive = true;
 		}
 
-		MemoryContextReset(econtext->ecxt_per_tuple_memory);
+		if (!IsYBRelation(indexRelation))
+			MemoryContextReset(econtext->ecxt_per_tuple_memory);
 
 		/* Set up for predicate or expression evaluation */
-		ExecStoreTuple(heapTuple, slot, InvalidBuffer, false);
+		ExecStoreHeapTuple(heapTuple, slot, false);
 
 		/*
 		 * In a partial index, discard tuples that don't satisfy the
@@ -3150,7 +3156,13 @@ IndexBuildHeapRangeScanInternal(Relation heapRelation,
 			callback(indexRelation, heapTuple, values, isnull, tupleIsAlive,
 					 callback_state);
 		}
+	
+		if (IsYBRelation(indexRelation))
+			MemoryContextReset(econtext->ecxt_per_tuple_memory);
 	}
+
+	if (IsYBRelation(indexRelation))
+		MemoryContextSwitchTo(oldcontext);
 
 	heap_endscan(scan);
 
@@ -3237,7 +3249,7 @@ IndexCheckExclusion(Relation heapRelation,
 		MemoryContextReset(econtext->ecxt_per_tuple_memory);
 
 		/* Set up for predicate or expression evaluation */
-		ExecStoreTuple(heapTuple, slot, InvalidBuffer, false);
+		ExecStoreHeapTuple(heapTuple, slot, false);
 
 		/*
 		 * In a partial index, ignore tuples that don't satisfy the predicate.
@@ -3559,12 +3571,12 @@ validate_index_heapscan(Relation heapRelation,
 		 * For YugaByte tables, there is no need to find the root tuple. Just
 		 * insert the fetched tuple.
 		 */
-		if (IsYugaByteEnabled())
+		if (IsYBRelation(heapRelation))
 		{
 			MemoryContextReset(econtext->ecxt_per_tuple_memory);
 
 			/* Set up for predicate or expression evaluation */
-			ExecStoreTuple(heapTuple, slot, InvalidBuffer, false);
+			ExecStoreHeapTuple(heapTuple, slot, false);
 
 			/*
 			 * In a partial index, discard tuples that don't satisfy the
@@ -3704,7 +3716,7 @@ validate_index_heapscan(Relation heapRelation,
 			MemoryContextReset(econtext->ecxt_per_tuple_memory);
 
 			/* Set up for predicate or expression evaluation */
-			ExecStoreTuple(heapTuple, slot, InvalidBuffer, false);
+			ExecStoreHeapTuple(heapTuple, slot, false);
 
 			/*
 			 * In a partial index, discard tuples that don't satisfy the

@@ -8,8 +8,7 @@ import { logout, logoutSuccess, logoutFailure } from '../../../actions/customers
 const mapDispatchToProps = (dispatch) => {
   return {
     logoutProfile: () => {
-      dispatch(logout())
-      .then((response) => {
+      dispatch(logout()).then((response) => {
         if (response.payload.status !== 200) {
           dispatch(logoutFailure(response.payload));
         } else {

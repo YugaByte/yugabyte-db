@@ -4,7 +4,7 @@ headerTitle: Build an application using C++
 linkTitle: C++
 description: Use C++ to build a YugabyteDB application that interacts with YEDIS
 aliases:
- - /latest/yedis/develop/client-drivers/cpp
+  - /latest/yedis/develop/client-drivers/cpp
 menu:
   latest:
     identifier: client-drivers-yedis-cpp

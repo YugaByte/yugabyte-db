@@ -1,12 +1,12 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../_style/colors.scss";
-@import "../../_style/mixins.scss";
+@import '../../_style/colors.scss';
+@import '../../_style/mixins.scss';
 
 .modal-content {
   border-radius: 0px;
-  -webkit-box-shadow: 0 15px 45px rgba(0, 0, 0, .3);
-  box-shadow: 0 15px 45px rgba(0, 0, 0, .3);
+  -webkit-box-shadow: 0 15px 45px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.3);
   .modal-header {
     text-align: left;
     button.close {
@@ -45,11 +45,20 @@
   margin-right: 15px;
   font-size: 14px;
   background: #ffffff;
+  flex-basis: 40%;
 
-  img {
-    margin-left: 6px;
+  img, i {
+    margin: 0 6px 0 0;
+  }
+  i {
+    font-size: 16px;
   }
 }
+
+.social-media-btn.icon-end img {
+  margin: 0 0 0 6px;
+}
+
 .social-media-btn:hover {
   background-color: #e5e5e9;
   color: #000;
@@ -69,7 +78,7 @@
     display: inline-block;
     margin-right: 10px;
   }
-}
+  }
 
 .intro-message-container {
   display: flex;
@@ -87,9 +96,14 @@
   label {
     margin-bottom: 0;
 
-    input[type="checkbox"] {
-      vertical-align: middle;
-      margin: 0;
+    input[type='checkbox'] {
+      vertical-align: text-bottom;
+      margin: 0 8px 0 0;
+      border-color: rgb(217, 217, 217);
+
+      &:hover {
+        border-color: $YB_ORANGE;
+      }
     }
   }
 }
@@ -142,7 +156,7 @@
             margin: 20px;
             border-radius: 10px;
             background: rgba(255, 255, 255, 0.95);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
           }
           .button-close-map {
             position: fixed;
@@ -162,7 +176,7 @@
               @include transition(0.125s);
             }
 
-            &:hover{
+            &:hover {
               box-shadow: 0 2px 5px rgba(0, 0, 0, 0);
               @include transition(0.35s);
 

@@ -82,6 +82,12 @@ Result<FilterDecision> DocDBCompactionFilter::DoFilter(
 
   // Remove regular keys which are not related to this RocksDB anymore (due to split of the tablet).
   if (key_bounds_ && !key_bounds_->IsWithinBounds(key)) {
+    // Given the addition of logic in the compaction iterator which looks at DropKeysLessThan()
+    // and DropKeysGreaterOrEqual(), we expect the compaction iterator to never pass this component
+    // a key in that range. If this invariant is violated, we LOG(DFATAL)
+    LOG(DFATAL) << "Unexpectedly filtered out-of-bounds key during compaction: "
+        << SubDocKey::DebugSliceToString(key)
+        << " with bounds: " << key_bounds_->ToString();
     return FilterDecision::kDiscard;
   }
 
@@ -327,6 +333,14 @@ rocksdb::UserFrontierPtr DocDBCompactionFilter::GetLargestUserFrontier() const {
 
 const char* DocDBCompactionFilter::Name() const {
   return "DocDBCompactionFilter";
+}
+
+Slice DocDBCompactionFilter::DropKeysLessThan() const {
+  return key_bounds_ ? key_bounds_->lower.AsSlice() : Slice();
+}
+
+Slice DocDBCompactionFilter::DropKeysGreaterOrEqual() const {
+  return key_bounds_ ? key_bounds_->upper.AsSlice() : Slice();
 }
 
 // ------------------------------------------------------------------------------------------------

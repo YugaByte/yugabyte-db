@@ -7,7 +7,3 @@
   scm: git
   src: https://github.com/YugaByte/ansible-sshd.git
   version: master-yb
-- name: role-install-gcloud
-  scm: git
-  src: https://github.com/yugabyte/role-install-gcloud.git
-  version: master-yb

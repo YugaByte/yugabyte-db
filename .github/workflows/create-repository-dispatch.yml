@@ -2,73 +2,120 @@ name: Create Repository Dispatch
 on:
   release:
     types:
-      published
+      released
 jobs:
   createRepositoryDispatch:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v2
+      - name: "Determine release train"
+        id: yb_train
+        run: |
+          my_ver=$(cat version.txt)
+          git fetch --depth=1 origin master
+          main_ver=$(git show origin/master:managed/src/main/resources/version.txt)
+          if [[ "$main_ver" == "$my_ver" ]]; then
+            train="master"
+          else
+            if [[ $my_ver =~ ^([0-9]+\.[0-9]+)\.* ]]; then
+              train="${BASH_REMATCH[1]}"
+            else
+              echo "Could not find release version from version.txt"
+              exit 1
+            fi
+          fi
+          echo "Release train determined: $train"
+          echo "::set-output name=yb_train::${train}"
+          
       - name: "Trigger Repository Dispatch - yugabyte/terraform-gcp-yugabyte"
         run: |
           curl -XPOST -u "${{ secrets.PAT_USERNAME}}:${{secrets.PAT_TOKEN}}" \
           -H "Accept: application/vnd.github.everest-preview+json" \
           -H "Content-Type: application/json" https://api.github.com/repos/yugabyte/terraform-gcp-yugabyte/dispatches \
-          --data '{"event_type": "build-on-release",  "client_payload": {"prerelease": "${{ github.event.release.prerelease }}", "release": "${{github.event.release.tag_name}}"  }}'
+          --data '{"event_type": "build-on-release", "client_payload":
+                   {"prerelease": "${{ github.event.release.prerelease }}",
+                    "release": "${{github.event.release.tag_name}}",
+                    "yb_release_train": ${{steps.yb_train.outputs.yb_train}} } }'
       
       - name: "Trigger Repository Dispatch - yugabyte/terraform-aws-yugabyte"
         run: |
           curl -XPOST -u "${{ secrets.PAT_USERNAME}}:${{secrets.PAT_TOKEN}}" \
           -H "Accept: application/vnd.github.everest-preview+json" \
           -H "Content-Type: application/json" https://api.github.com/repos/yugabyte/terraform-aws-yugabyte/dispatches \
-          --data '{"event_type": "build-on-release",  "client_payload": {"prerelease": "${{ github.event.release.prerelease }}", "release": "${{github.event.release.tag_name}}"  }}'
+          --data '{"event_type": "build-on-release", "client_payload":
+                   {"prerelease": "${{ github.event.release.prerelease }}",
+                    "release": "${{github.event.release.tag_name}}",
+                    "yb_release_train": ${{steps.yb_train.outputs.yb_train}} } }'
       
       - name: "Trigger Repository Dispatch - yugabyte/terraform-azure-yugabyte"
         run: |
           curl -XPOST -u "${{ secrets.PAT_USERNAME}}:${{secrets.PAT_TOKEN}}" \
           -H "Accept: application/vnd.github.everest-preview+json" \
           -H "Content-Type: application/json" https://api.github.com/repos/yugabyte/terraform-azure-yugabyte/dispatches \
-          --data '{"event_type": "build-on-release",  "client_payload": {"prerelease": "${{ github.event.release.prerelease }}", "release": "${{github.event.release.tag_name}}"  }}'
+          --data '{"event_type": "build-on-release", "client_payload":
+                   {"prerelease": "${{ github.event.release.prerelease }}",
+                    "release": "${{github.event.release.tag_name}}",
+                    "yb_release_train": ${{steps.yb_train.outputs.yb_train}} } }'
             
       - name: "Trigger Repository Dispatch - yugabyte/azure-resource-manager"
         run: |
           curl -XPOST -u "${{ secrets.PAT_USERNAME}}:${{secrets.PAT_TOKEN}}" \
           -H "Accept: application/vnd.github.everest-preview+json" \
           -H "Content-Type: application/json" https://api.github.com/repos/yugabyte/azure-resource-manager/dispatches \
-          --data '{"event_type": "build-on-release",  "client_payload": {"prerelease": "${{ github.event.release.prerelease }}", "release": "${{github.event.release.tag_name}}"  }}'
+          --data '{"event_type": "build-on-release", "client_payload":
+                   {"prerelease": "${{ github.event.release.prerelease }}",
+                    "release": "${{github.event.release.tag_name}}",
+                    "yb_release_train": ${{steps.yb_train.outputs.yb_train}} } }'
       
       - name: "Trigger Repository Dispatch - yugabyte/gcp-deployment-manager"
         run: |
           curl -XPOST -u "${{ secrets.PAT_USERNAME}}:${{secrets.PAT_TOKEN}}" \
           -H "Accept: application/vnd.github.everest-preview+json" \
           -H "Content-Type: application/json" https://api.github.com/repos/yugabyte/gcp-deployment-manager/dispatches \
-          --data '{"event_type": "build-on-release",  "client_payload": {"prerelease": "${{ github.event.release.prerelease }}", "release": "${{github.event.release.tag_name}}"  }}'
+          --data '{"event_type": "build-on-release", "client_payload":
+                   {"prerelease": "${{ github.event.release.prerelease }}",
+                    "release": "${{github.event.release.tag_name}}",
+                    "yb_release_train": ${{steps.yb_train.outputs.yb_train}} } }'
       
       - name: "Trigger Repository Dispatch - yugabyte/aws-cloudformation"
         run: |
           curl -XPOST -u "${{ secrets.PAT_USERNAME}}:${{secrets.PAT_TOKEN}}" \
           -H "Accept: application/vnd.github.everest-preview+json" \
           -H "Content-Type: application/json" https://api.github.com/repos/yugabyte/aws-cloudformation/dispatches \
-          --data '{"event_type": "build-on-release",  "client_payload": {"prerelease": "${{ github.event.release.prerelease }}", "release": "${{github.event.release.tag_name}}"  }}'
+          --data '{"event_type": "build-on-release", "client_payload":
+                   {"prerelease": "${{ github.event.release.prerelease }}",
+                    "release": "${{github.event.release.tag_name}}",
+                    "yb_release_train": ${{steps.yb_train.outputs.yb_train}} } }'
       
       - name: "Trigger Repository Dispatch - yugabyte/homebrew-yugabytedb"
         run: |
           curl -XPOST -u "${{ secrets.PAT_USERNAME}}:${{secrets.PAT_TOKEN}}" \
           -H "Accept: application/vnd.github.everest-preview+json" \
           -H "Content-Type: application/json" https://api.github.com/repos/yugabyte/homebrew-yugabytedb/dispatches \
-          --data '{"event_type": "update-on-release",  "client_payload": {"prerelease": "${{ github.event.release.prerelease }}", "tag": "${{github.event.release.tag_name}}"  }}'
+          --data '{"event_type": "update-on-release", "client_payload":
+                   {"prerelease": "${{ github.event.release.prerelease }}",
+                    "release": "${{github.event.release.tag_name}}",
+                    "yb_release_train": ${{steps.yb_train.outputs.yb_train}} } }'
       
       - name: "Trigger Repository Dispatch - yugabyte/utilities"
         run: |
           curl -XPOST -u "${{ secrets.PAT_USERNAME}}:${{secrets.PAT_TOKEN}}" \
           -H "Accept: application/vnd.github.everest-preview+json" \
           -H "Content-Type: application/json" https://api.github.com/repos/yugabyte/utilities/dispatches \
-          --data '{"event_type": "build-on-release",  "client_payload": {"prerelease": "${{ github.event.release.prerelease }}", "release": "${{github.event.release.tag_name}}"  }}'
+          --data '{"event_type": "build-on-release", "client_payload":
+                   {"prerelease": "${{ github.event.release.prerelease }}",
+                    "release": "${{github.event.release.tag_name}}",
+                    "yb_release_train": ${{steps.yb_train.outputs.yb_train}} } }'
       
       - name: "Trigger Repository Dispatch - yugabyte/charts"
         run: |
           curl -XPOST -u "${{ secrets.PAT_USERNAME}}:${{secrets.PAT_TOKEN}}" \
           -H "Accept: application/vnd.github.everest-preview+json" \
           -H "Content-Type: application/json" https://api.github.com/repos/yugabyte/charts/dispatches \
-          --data '{"event_type": "update-on-release",  "client_payload": {"prerelease": "${{ github.event.release.prerelease }}", "release": "${{github.event.release.tag_name}}"  }}'
+          --data '{"event_type": "update-on-release", "client_payload":
+                   {"prerelease": "${{ github.event.release.prerelease }}",
+                    "release": "${{github.event.release.tag_name}}",
+                    "yb_release_train": ${{steps.yb_train.outputs.yb_train}} } }'
 
       - name: "Trigger Repository Dispatch - yugabyte/yugabyte-db-action"
         run: |
@@ -77,3 +124,9 @@ jobs:
           -H "Content-Type: application/json" https://api.github.com/repos/yugabyte/yugabyte-db-action/dispatches \
           --data '{"event_type": "on-release"}'
 
+      - name: "Trigger Repository Dispatch - yugabyte/yugabyte-operator"
+        run: |
+          curl -XPOST -u "${{ secrets.PAT_USERNAME}}:${{secrets.PAT_TOKEN}}" \
+          -H "Accept: application/vnd.github.everest-preview+json" \
+          -H "Content-Type: application/json" https://api.github.com/repos/yugabyte/yugabyte-operator/dispatches \
+          --data '{"event_type": "update-on-release",  "client_payload": {"prerelease": "${{ github.event.release.prerelease }}", "release": "${{github.event.release.tag_name}}"  }}'

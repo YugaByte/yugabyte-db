@@ -2,6 +2,7 @@
 
 package com.yugabyte.yw.common;
 
+import com.yugabyte.yw.forms.CertificateParams;
 import com.yugabyte.yw.models.CertificateInfo;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
@@ -61,8 +62,8 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
-
 
 /**
  * Helper class for Certificates
@@ -131,8 +132,17 @@ public class CertificateHelper {
         certWriter.flush();
         keyWriter.writeObject(keyPair.getPrivate());
         keyWriter.flush();
-        CertificateInfo cert = CertificateInfo.create(rootCA_UUID, customerUUID, nodePrefix,
-                                                      certStart, certExpiry, keyPath, certPath);
+        CertificateInfo.Type certType = CertificateInfo.Type.SelfSigned;
+        LOG.info(
+          "Generated self signed cert label {} uuid {} of type {} for customer {} at paths {}, {}",
+          nodePrefix, rootCA_UUID, certType, customerUUID,
+          certPath, keyPath
+        );
+
+        CertificateInfo cert = CertificateInfo.create(
+          rootCA_UUID, customerUUID, nodePrefix,
+          certStart, certExpiry, keyPath, certPath, certType
+        );
 
         LOG.info("Created Root CA for {}.", nodePrefix);
         return cert.uuid;
@@ -145,6 +155,8 @@ public class CertificateHelper {
 
   public static JsonNode createClientCertificate(UUID rootCA, String storagePath, String username,
                                                  Date certStart, Date certExpiry) {
+    LOG.info("Creating client certificate signed by root CA {} and user {} at path {}",
+            rootCA, username, storagePath);
     try {
       // Add the security provider in case createRootCA was never called.
       Security.addProvider(new BouncyCastleProvider());
@@ -161,6 +173,10 @@ public class CertificateHelper {
       }
 
       CertificateInfo cert = CertificateInfo.get(rootCA);
+      if (cert.privateKey == null) {
+        throw new RuntimeException("Keyfile cannot be null!");
+      }
+
       FileInputStream is = new FileInputStream(new File(cert.certificate));
       CertificateFactory fact = CertificateFactory.getInstance("X.509");
       X509Certificate cer = (X509Certificate) fact.generateCertificate(is);
@@ -176,7 +192,8 @@ public class CertificateHelper {
         kf = KeyFactory.getInstance("RSA");
         pk = kf.generatePrivate(spec);
       } catch (InvalidKeySpecException e) {
-        LOG.error("Unable to create client CA for username {}: {}", username, e);
+        LOG.error("Unable to create client CA for username {} using root CA {}",
+                  username, rootCA, e);
         throw new RuntimeException("Could not create client cert.");
       }
 
@@ -236,43 +253,62 @@ public class CertificateHelper {
         bodyJson.put(CLIENT_CERT, certWriter.toString());
         bodyJson.put(CLIENT_KEY, keyWriter.toString());
       }
-      LOG.info("Created Client CA for username {}.", username);
+      LOG.info("Created Client CA for username {} signed by root CA {}.", username, rootCA);
       return bodyJson;
 
     } catch (NoSuchAlgorithmException | IOException | OperatorCreationException |
              CertificateException | InvalidKeyException | NoSuchProviderException |
              SignatureException e) {
-      LOG.error("Unable to create client CA for username {}: {}", username, e);
+      LOG.error("Unable to create client CA for username {} using root CA {}", username, rootCA, e);
       throw new RuntimeException("Could not create client cert.");
     }
   }
 
-  public static UUID uploadRootCA(String label, UUID customerUUID, String storagePath,
-                                  String certContent, String keyContent, Date certStart,
-                                  Date certExpiry) throws IOException {
-    if (certContent == null || keyContent == null) {
-      throw new RuntimeException("Keyfile or certfile can't be null");
+  public static UUID uploadRootCA(
+    String label, UUID customerUUID, String storagePath,
+    String certContent, String keyContent, Date certStart,
+    Date certExpiry, CertificateInfo.Type certType,
+    CertificateParams.CustomCertInfo customCertInfo) throws IOException {
+
+    if (certContent == null) {
+      throw new RuntimeException("Certfile can't be null");
     }
     UUID rootCA_UUID = UUID.randomUUID();
-    String keyPath = String.format("%s/certs/%s/%s/ca.key.pem", storagePath,
+    String keyPath = null;
+    if (certType == CertificateInfo.Type.SelfSigned) {
+      keyPath = String.format("%s/certs/%s/%s/ca.key.pem", storagePath,
                                    customerUUID.toString(), rootCA_UUID.toString());
+    }
     String certPath = String.format("%s/certs/%s/%s/ca.%s", storagePath,
                                     customerUUID.toString(), rootCA_UUID.toString(), ROOT_CERT);
-    
-    File certfile = new File(certPath);
-    File keyfile = new File(keyPath);
 
+    File certfile = new File(certPath);
     // Create directory to store the keys.
     certfile.getParentFile().mkdirs();
-
     Files.write(certfile.toPath(), certContent.getBytes());
-    Files.write(keyfile.toPath(), keyContent.getBytes());
-    
-    CertificateInfo cert = CertificateInfo.create(rootCA_UUID, customerUUID, label, certStart,
-        certExpiry, keyPath, certPath);
-    
-    return cert.uuid;
-
+    if (certType == CertificateInfo.Type.SelfSigned) {
+      File keyfile = new File(keyPath);
+      Files.write(keyfile.toPath(), keyContent.getBytes());
+    }
+    LOG.info(
+      "Uploaded cert label {} (uuid {}) of type {} at paths {}, {}",
+      label, rootCA_UUID, certType,
+      certPath, ((keyPath == null) ? "no private key" : keyPath)
+    );
+    CertificateInfo cert;
+    try {
+      if (certType == CertificateInfo.Type.SelfSigned) {
+        cert = CertificateInfo.create(rootCA_UUID, customerUUID, label, certStart,
+          certExpiry, keyPath, certPath, certType);
+      } else {
+        cert = CertificateInfo.create(rootCA_UUID, customerUUID, label, certStart,
+          certExpiry, certPath, customCertInfo);
+      }
+      return cert.uuid;
+    } catch (IOException | NoSuchAlgorithmException e) {
+      LOG.error("Could not generate checksum for cert");
+      throw new RuntimeException("Checksum generation failed.");
+    }
   }
 
   public static String getCertPEMFileContents(UUID rootCA) {
@@ -318,5 +354,40 @@ public class CertificateHelper {
     File certFile = new File(cert.certificate);
     String path = certFile.getParentFile().toString();
     return String.format("%s/%s", path, CLIENT_KEY);
+  }
+
+  public static boolean areCertsDiff(UUID cert1, UUID cert2) {
+    try {
+      CertificateInfo cer1 = CertificateInfo.get(cert1);
+      CertificateInfo cer2 = CertificateInfo.get(cert2);
+      FileInputStream is1 = new FileInputStream(new File(cer1.certificate));
+      FileInputStream is2 = new FileInputStream(new File(cer2.certificate));
+      CertificateFactory fact = CertificateFactory.getInstance("X.509");
+      X509Certificate certObj1 = (X509Certificate) fact.generateCertificate(is1);
+      X509Certificate certObj2 = (X509Certificate) fact.generateCertificate(is2);
+      return !certObj2.equals(certObj1);
+    } catch (IOException | CertificateException e) {
+      LOG.error("Unable to read certs {}: {}", cert1.toString(), cert2.toString());
+      throw new RuntimeException("Could not read certs to compare. " + e);
+    }
+  }
+
+  public static boolean arePathsSame(UUID cert1, UUID cert2) {
+    CertificateInfo cer1 = CertificateInfo.get(cert1);
+    CertificateInfo cer2 = CertificateInfo.get(cert2);
+    return (cer1.getCustomCertInfo().nodeCertPath.equals(cer2.getCustomCertInfo().nodeCertPath) ||
+            cer1.getCustomCertInfo().nodeKeyPath.equals(cer2.getCustomCertInfo().nodeKeyPath));
+  }
+
+  public static void createChecksums() {
+    List<CertificateInfo> certs = CertificateInfo.getAllNoChecksum();
+    for (CertificateInfo cert : certs) {
+      try {
+        cert.setChecksum();
+      } catch (IOException | NoSuchAlgorithmException e) {
+        // Log error, but don't cause it to error out.
+        LOG.error("Could not generate checksum for cert: {}", cert.certificate);
+      }
+    }
   }
 }

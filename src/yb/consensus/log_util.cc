@@ -316,6 +316,7 @@ Status ReadableLogSegment::ReadHeader() {
                                                 header_slice.data(),
                                                 header_size),
                         "Unable to parse protobuf");
+  DCHECK(header.IsInitialized()) << "Log segment header must be initialized";
 
   header_.CopyFrom(header);
   first_entry_offset_ = header_size + kLogSegmentHeaderMagicAndHeaderLength;

@@ -1,5 +1,5 @@
 /* Copyright (c) YugaByte, Inc. */
-@import "../../../_style/colors.scss";
+@import '../../../_style/colors.scss';
 
 .preview-row {
   margin-top: 15px;
@@ -43,7 +43,8 @@
 .form-grid {
   width: 100%;
 
-  th, td {
+  th,
+  td {
     padding: 0 4px 6px 0;
 
     &:first-child {
@@ -55,7 +56,8 @@
     padding-bottom: 0;
   }
 
-  input, select {
+  input,
+  select {
     width: 100%;
   }
 }
@@ -82,7 +84,6 @@
         margin-left: 0;
       }
 
-
       &.volume-info-count {
         width: 60px;
         padding-bottom: 6px;
@@ -101,10 +102,10 @@
       padding: 0;
     }
   }
-  
+
   .volume-info-iops {
     margin-left: 20px;
-    
+
     .volume-info-field {
       width: 80px;
       padding-bottom: 6px;
@@ -187,8 +188,8 @@
 }
 
 .az-table-container {
-  .row {
-    padding-bottom: 6px;
+  .az-selector-label ~ div {
+    margin-bottom: 6px;
   }
 
   h4 {
@@ -198,11 +199,8 @@
   label {
     display: block;
     margin-bottom: 0;
-
-    .yb-input-checkbox {
-      width: 16px;
-      float: right;
-    }
+    height: 100%;
+    align-items: center;
   }
   .form-right-control {
     width: 65px;
@@ -212,6 +210,8 @@
       max-width: fit-content;
       width: fit-content;
       margin: 0 auto;
+      display: flex;
+      align-items: center;
     }
   }
 }
@@ -262,7 +262,7 @@
   .Select-input input {
     width: 5px;
     box-sizing: content-box;
-    padding: 0; 
+    padding: 0;
     line-height: 40px;
   }
   .Select-value-label {
@@ -305,11 +305,12 @@
     margin-bottom: 15px;
     font-size: 14px;
   }
-  b, strong {
+  b,
+  strong {
     font-family: Rubik, sans-serif;
     font-size: 16px;
     font-weight: 500;
-    letter-spacing: -.02em;
+    letter-spacing: -0.02em;
   }
   strong {
     display: block;
@@ -328,10 +329,47 @@
       padding-bottom: 5px;
       line-height: 20px;
 
-
       div {
         margin-left: 15px;
       }
+    }
+  }
+}
+
+.try-new-ui-link {
+  display: none; // temp
+  margin-left: 100px;
+  font-size: 21px;
+  line-height: 46px;
+  color: $YB_ORANGE;
+
+  &:hover {
+    color: $YB_ORANGE_HOVER;
+  }
+}
+
+.gflag-array {
+  &__action-btn {
+    cursor: pointer;
+    margin-left: 4px;
+  }
+
+  &__editor {
+    font-family: 'Courier New', Courier, monospace;
+    background: $YB_LIGHT_BLUE;
+    color: $YB_TEXT_BLACK;
+    border: 1px solid $YB_GRAY_BORDER;
+    padding: 15px;
+    min-height: 100px;
+    overflow-y: auto;
+    max-height: 500px;
+    font-size: 14px;
+    border-radius: 7px;
+    width: 100%;
+    line-height: 1.2
+  
+    p {
+      margin: 0 0 5px 0;
     }
   }
 }

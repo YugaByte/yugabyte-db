@@ -5,11 +5,11 @@
 # This suite includes all tests on numeric datatypes that are enabled for YugaByte.
 ####################################################################################################
 test: yb_oid
-test: yb_int2
+test: yb_pg_int2
 test: yb_pg_int4
 test: yb_pg_int8
 test: yb_float4
-test: yb_float8
+test: yb_pg_float8
 test: yb_numeric
 test: yb_numeric_big
 test: yb_money

@@ -6,7 +6,7 @@ import { connect } from 'react-redux';
 
 const mapDispatchToProps = (dispatch) => {
   return {
-    registerCustomer: (formVals)=> {
+    registerCustomer: (formVals) => {
       dispatch(register(formVals)).then((response) => {
         if (response.payload.status === 200) {
           localStorage.setItem('authToken', response.payload.data.authToken);
@@ -18,12 +18,11 @@ const mapDispatchToProps = (dispatch) => {
   };
 };
 
-
 function mapStateToProps(state) {
   return {
     customer: state.customer,
     validateFields: state.validateFields,
-    initialValues: {'code': 'dev'}
+    initialValues: { code: 'dev' }
   };
 }
 

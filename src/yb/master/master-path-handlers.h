@@ -38,6 +38,7 @@
 
 #include "yb/common/wire_protocol.pb.h"
 #include "yb/gutil/macros.h"
+#include "yb/master/catalog_entity_info.h"
 #include "yb/master/catalog_manager.h"
 #include "yb/server/webserver.h"
 
@@ -124,7 +125,8 @@ class MasterPathHandlers {
   void TServerDisplay(const std::string& current_uuid,
                       std::vector<std::shared_ptr<TSDescriptor>>* descs,
                       TabletCountMap* tmap,
-                      std::stringstream* output);
+                      std::stringstream* output,
+                      const int hide_dead_node_threshold_override);
 
   // Outputs a ZoneTabletCounts::CloudTree as an html table with a heading.
   static void DisplayTabletZonesTable(
@@ -167,11 +169,19 @@ class MasterPathHandlers {
   void HandleCheckIfLeader(const Webserver::WebRequest& req, Webserver::WebResponse* resp);
   void HandleGetMastersStatus(const Webserver::WebRequest& req, Webserver::WebResponse* resp);
   void HandleGetReplicationStatus(const Webserver::WebRequest &req, Webserver::WebResponse *resp);
+  void HandleGetUnderReplicationStatus(const Webserver::WebRequest &req,
+                                        Webserver::WebResponse *resp);
+  void HandleVersionInfoDump(const Webserver::WebRequest &req, Webserver::WebResponse *resp);
 
   // Calcuates number of leaders/followers per table.
   void CalculateTabletMap(TabletCountMap* tablet_map);
 
-  void GetLeaderlessTablets(TabletInfos* leaderless_tablets);
+  std::vector<TabletInfoPtr> GetNonSystemTablets();
+
+  std::vector<TabletInfoPtr> GetLeaderlessTablets();
+
+  Result<std::vector<TabletInfoPtr>> GetUnderReplicatedTablets();
+
   // Calculates the YSQL OID of a tablegroup / colocated database parent table
   string GetParentTableOid(scoped_refptr<TableInfo> parent_table);
 

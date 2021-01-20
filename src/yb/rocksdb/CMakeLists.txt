@@ -132,7 +132,6 @@ set(ROCKSDB_SRCS
     util/histogram.cc
     util/instrumented_mutex.cc
     util/timeout_error.cc
-    utilities/backupable/backupable_db.cc
     utilities/convenience/info_log_finder.cc
     utilities/checkpoint/checkpoint.cc
     utilities/compaction_filters/remove_emptyvalue_compactionfilter.cc
@@ -205,16 +204,11 @@ if (NOT APPLE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DROCKSDB_FALLOCATE_PRESENT")
 endif()
 
-if (${YB_USE_TSAN})
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DROCKSDB_TSAN_RUN")
-endif()
-
-if (${YB_USE_ASAN})
+if ("${YB_BUILD_TYPE}" STREQUAL "asan")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DROCKSDB_MALLOC_USABLE_SIZE")
 endif()
 
 add_library(rocksdb ${ROCKSDB_SRCS})
-cotire(rocksdb)
 target_link_libraries(rocksdb gflags gutil snappy z yb_common yb_util opid_proto)
 
 add_library(rocksdb_tools
@@ -350,7 +344,6 @@ ADD_YB_TEST(tools/reduce_levels_test)
 YB_TEST_TARGET_LINK_LIBRARIES(reduce_levels_test rocksdb_tools)
 ADD_YB_TEST(util/delete_scheduler_test)
 ADD_YB_TEST(util/thread_local_test)
-ADD_YB_TEST(utilities/backupable/backupable_db_test)
 ADD_YB_TEST(utilities/checkpoint/checkpoint_test)
 ADD_YB_TEST(utilities/memory/memory_test)
 ADD_YB_TEST(utilities/transactions/transaction_test)

@@ -173,5 +173,4 @@ extern void ybcIndexCostEstimate(IndexPath *path, Selectivity *selectivity,
  */
 extern HeapTuple YBCFetchTuple(Relation relation, Datum ybctid);
 
-
 #endif							/* YBCAM_H */

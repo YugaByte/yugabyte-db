@@ -20,7 +20,9 @@ public enum NodeActionType {
   // Shown only for ToBeAdded node status.
   DELETE,
   // Release the instance to the IaaS/provider. Shown only for stopped/removed nodes.
-  RELEASE;
+  RELEASE,
+  // Start the Master server on the node.
+  START_MASTER;
 
   public String toString(boolean completed) {
     switch (this) {
@@ -36,6 +38,8 @@ public enum NodeActionType {
         return completed ? "Deleted" : "Deleting";
       case RELEASE:
         return completed ? "Released" : "Releasing";
+      case START_MASTER:
+        return completed ? "Started Master" : "Starting Master";
       default:
         return null;
     }
@@ -55,6 +59,8 @@ public enum NodeActionType {
         return TaskType.DeleteNodeFromUniverse;
       case RELEASE:
         return TaskType.ReleaseInstanceFromUniverse;
+      case START_MASTER:
+        return TaskType.StartMasterOnNode;
       default:
         return null;
     }
@@ -74,6 +80,8 @@ public enum NodeActionType {
         return CustomerTask.TaskType.Delete;
       case RELEASE:
         return CustomerTask.TaskType.Release;
+      case START_MASTER:
+        return CustomerTask.TaskType.StartMaster;
       default:
         return null;
     }

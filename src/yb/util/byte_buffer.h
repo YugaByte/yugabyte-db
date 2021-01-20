@@ -35,7 +35,15 @@ class ByteBuffer {
     Assign(str.c_str(), str.size());
   }
 
+  void operator=(const std::string& str) {
+    Assign(str.c_str(), str.size());
+  }
+
   explicit ByteBuffer(const Slice& slice) {
+    Assign(slice.cdata(), slice.cend());
+  }
+
+  void operator=(const Slice& slice) {
     Assign(slice.cdata(), slice.cend());
   }
 

@@ -817,6 +817,7 @@ static void ybcBindScanKeys(Relation relation,
 					/* Should be ensured during planning. */
 					Assert(IsSearchNull(ybScan->key[i].sk_flags));
 					/* fallthrough  -- treating IS NULL as (DocDB) = (null) */
+					switch_fallthrough();
 				case BTEqualStrategyNumber:
 					if (IsBasicOpSearch(ybScan->key[i].sk_flags) ||
 						IsSearchNull(ybScan->key[i].sk_flags))
@@ -834,6 +835,7 @@ static void ybcBindScanKeys(Relation relation,
 				case BTLessStrategyNumber:
 				case BTLessEqualStrategyNumber:
 					offsets[noffsets++] = i;
+					switch_fallthrough();
 
 				default:
 					break; /* unreachable */
@@ -1118,9 +1120,9 @@ ybcBeginScan(Relation relation, Relation index, bool xs_want_itup, int nkeys, Sc
 	if (!IsSystemRelation(relation))
 	{
 		HandleYBStatusWithOwner(YBCPgSetCatalogCacheVersion(ybScan->handle,
-		                                                        yb_catalog_cache_version),
-		                            ybScan->handle,
-		                            ybScan->stmt_owner);
+		                                                    yb_catalog_cache_version),
+		                        ybScan->handle,
+		                        ybScan->stmt_owner);
 	}
 
 	bms_free(scan_plan.hash_key);
@@ -1684,6 +1686,6 @@ HeapTuple YBCFetchTuple(Relation relation, Datum ybctid)
 	}
 	pfree(values);
 	pfree(nulls);
-
+	YBCPgDeleteStatement(ybc_stmt);
 	return tuple;
 }

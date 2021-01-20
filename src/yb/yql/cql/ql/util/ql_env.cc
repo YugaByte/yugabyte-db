@@ -28,6 +28,7 @@
 #include "yb/yql/cql/ql/util/ql_env.h"
 
 DEFINE_bool(use_cassandra_authentication, false, "If to require authentication on startup.");
+DEFINE_bool(ycql_cache_login_info, false, "Use authentication information cached locally.");
 DEFINE_bool(ycql_require_drop_privs_for_truncate, false,
     "Require DROP TABLE permission in order to truncate table");
 
@@ -261,6 +262,14 @@ Status QLEnv::HasResourcePermission(const string& canonical_name,
   return metadata_cache_->HasResourcePermission(canonical_name, object_type, CurrentRoleName(),
                                                 permission, keyspace, table,
                                                 client::internal::CacheCheckMode::RETRY);
+}
+
+Result<std::string> QLEnv::RoleSaltedHash(const RoleName& role_name) {
+  return metadata_cache_->RoleSaltedHash(role_name);
+}
+
+Result<bool> QLEnv::RoleCanLogin(const RoleName& role_name) {
+  return metadata_cache_->RoleCanLogin(role_name);
 }
 
 Status QLEnv::HasTablePermission(const NamespaceName& keyspace_name,

@@ -350,6 +350,16 @@ class LibraryPackager:
         linuxbrew_dest_dir = os.path.join(self.dest_dir, 'linuxbrew')
         linuxbrew_lib_dest_dir = os.path.join(linuxbrew_dest_dir, 'lib')
 
+        # Add libresolv and libnss_* libs explicitly because they are loaded by glibc at runtime.
+        additional_libs = set()
+        for additional_lib_name_glob in ADDITIONAL_LIB_NAME_GLOBS:
+            additional_libs.update(lib_path for lib_path in
+                                   glob.glob(os.path.join(linuxbrew_home.cellar_glibc_dir,
+                                                          '*',
+                                                          'lib',
+                                                          additional_lib_name_glob))
+                                   if not lib_path.endswith('.a'))
+
         for category, deps_in_category in sorted_grouped_by(all_deps,
                                                             lambda dep: dep.get_category()):
             logging.info("Found {} dependencies in category '{}':".format(
@@ -367,30 +377,26 @@ class LibraryPackager:
             mkdir_p(category_dest_dir)
 
             for dep in deps_in_category:
+                additional_libs.discard(dep.target)
                 self.install_dyn_linked_binary(dep.target, category_dest_dir)
-                if os.path.basename(dep.target) != dep.name:
-                    symlink(os.path.basename(dep.target),
-                            os.path.join(category_dest_dir, dep.name))
+                target_name = os.path.basename(dep.target)
+                if target_name != dep.name:
+                    target_src = os.path.join(os.path.dirname(dep.target), dep.name)
+                    additional_libs.discard(target_src)
+                    symlink(target_name, os.path.join(category_dest_dir, dep.name))
 
-        # Add libresolv and libnss_* libraries explicitly because they are loaded by glibc at
-        # runtime and will not be discovered automatically using ldd.
-        for additional_lib_name_glob in ADDITIONAL_LIB_NAME_GLOBS:
-            for lib_path in glob.glob(os.path.join(linuxbrew_home.cellar_glibc_dir, '*', 'lib',
-                                                   additional_lib_name_glob)):
-                lib_basename = os.path.basename(lib_path)
-                if lib_basename.endswith('.a'):
-                    continue
-                if os.path.isfile(lib_path):
-                    self.install_dyn_linked_binary(lib_path, linuxbrew_lib_dest_dir)
-                    logging.info("Installed additional lib: " + lib_path)
-                elif os.path.islink(lib_path):
-                    link_target_basename = os.path.basename(os.readlink(lib_path))
-                    logging.info("Installed additional symlink: " + lib_path)
-                    symlink(link_target_basename,
-                            os.path.join(linuxbrew_lib_dest_dir, lib_basename))
-                else:
-                    raise RuntimeError(
-                        "Expected '{}' to be a file or a symlink".format(lib_path))
+        for lib_path in additional_libs:
+            if os.path.isfile(lib_path):
+                self.install_dyn_linked_binary(lib_path, linuxbrew_lib_dest_dir)
+                logging.info("Installed additional lib: " + lib_path)
+            elif os.path.islink(lib_path):
+                link_target_basename = os.path.basename(os.readlink(lib_path))
+                logging.info("Installed additional symlink: " + lib_path)
+                symlink(link_target_basename,
+                        os.path.join(linuxbrew_lib_dest_dir, lib_basename))
+            else:
+                raise RuntimeError(
+                    "Expected '{}' to be a file or a symlink".format(lib_path))
 
         for installed_binary in self.installed_dyn_linked_binaries:
             # Sometimes files that we copy from other locations are not even writable by user!

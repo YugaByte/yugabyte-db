@@ -11,8 +11,6 @@ menu:
   latest:
     identifier: admin
     weight: 1400
-aliases:
-  - admin
 ---
 
 {{< note title="Note" >}}

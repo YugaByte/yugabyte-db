@@ -18,6 +18,7 @@
         "editUniverse": "hidden",
         "readReplica": "hidden",
         "manageEncryption": "hidden",
+        "restartUniverse": "hidden",
         "deleteUniverse": "hidden",
         "costs": "hidden"
       }

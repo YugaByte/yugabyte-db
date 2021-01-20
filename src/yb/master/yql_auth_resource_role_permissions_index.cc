@@ -19,9 +19,8 @@ namespace yb {
 namespace master {
 
 YQLAuthResourceRolePermissionsIndexVTable::YQLAuthResourceRolePermissionsIndexVTable(
-    const Master* const master)
-    : YQLVirtualTable(master::kSystemAuthResourceRolePermissionsIndexTableName,
-                      master, CreateSchema()) {
+        const TableName& table_name, const NamespaceName& namespace_name, Master * const master)
+    : YQLVirtualTable(table_name, namespace_name, master, CreateSchema()) {
 }
 
 Result<std::shared_ptr<QLRowBlock>> YQLAuthResourceRolePermissionsIndexVTable::RetrieveData(

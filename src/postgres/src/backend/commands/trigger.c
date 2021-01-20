@@ -754,7 +754,7 @@ CreateTrigger(CreateTrigStmt *stmt, const char *queryString,
 											  NULL,
 											  true, /* islocal */
 											  0,	/* inhcount */
-											  true, /* isnoinherit */
+											  true, /* noinherit */
 											  isInternal);	/* is_internal */
 	}
 
@@ -2357,7 +2357,7 @@ ExecCallTriggerFunc(TriggerData *trigdata,
 					Instrumentation *instr,
 					MemoryContext per_tuple_context)
 {
-	FunctionCallInfoData fcinfo;
+	LOCAL_FCINFO(fcinfo, 0);
 	PgStat_FunctionCallUsage fcusage;
 	Datum		result;
 	MemoryContext oldContext;
@@ -2402,15 +2402,15 @@ ExecCallTriggerFunc(TriggerData *trigdata,
 	/*
 	 * Call the function, passing no arguments but setting a context.
 	 */
-	InitFunctionCallInfoData(fcinfo, finfo, 0,
+	InitFunctionCallInfoData(*fcinfo, finfo, 0,
 							 InvalidOid, (Node *) trigdata, NULL);
 
-	pgstat_init_function_usage(&fcinfo, &fcusage);
+	pgstat_init_function_usage(fcinfo, &fcusage);
 
 	MyTriggerDepth++;
 	PG_TRY();
 	{
-		result = FunctionCallInvoke(&fcinfo);
+		result = FunctionCallInvoke(fcinfo);
 	}
 	PG_CATCH();
 	{
@@ -2428,11 +2428,11 @@ ExecCallTriggerFunc(TriggerData *trigdata,
 	 * Trigger protocol allows function to return a null pointer, but NOT to
 	 * set the isnull result flag.
 	 */
-	if (fcinfo.isnull)
+	if (fcinfo->isnull)
 		ereport(ERROR,
 				(errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
 				 errmsg("trigger function %u returned null value",
-						fcinfo.flinfo->fn_oid)));
+						fcinfo->flinfo->fn_oid)));
 
 	/*
 	 * If doing EXPLAIN ANALYZE, stop charging time to this trigger, and count
@@ -2572,7 +2572,7 @@ ExecBRInsertTriggers(EState *estate, ResultRelInfo *relinfo,
 
 		if (newslot->tts_tupleDescriptor != tupdesc)
 			ExecSetSlotDescriptor(newslot, tupdesc);
-		ExecStoreTuple(newtuple, newslot, InvalidBuffer, false);
+		ExecStoreHeapTuple(newtuple, newslot, false);
 		slot = newslot;
 	}
 	return slot;
@@ -2653,7 +2653,7 @@ ExecIRInsertTriggers(EState *estate, ResultRelInfo *relinfo,
 
 		if (newslot->tts_tupleDescriptor != tupdesc)
 			ExecSetSlotDescriptor(newslot, tupdesc);
-		ExecStoreTuple(newtuple, newslot, InvalidBuffer, false);
+		ExecStoreHeapTuple(newtuple, newslot, false);
 		slot = newslot;
 	}
 	return slot;
@@ -3079,7 +3079,7 @@ ExecBRUpdateTriggers(EState *estate, EPQState *epqstate,
 
 		if (newslot->tts_tupleDescriptor != tupdesc)
 			ExecSetSlotDescriptor(newslot, tupdesc);
-		ExecStoreTuple(newtuple, newslot, InvalidBuffer, false);
+		ExecStoreHeapTuple(newtuple, newslot, false);
 		slot = newslot;
 	}
 	return slot;
@@ -3187,7 +3187,7 @@ ExecIRUpdateTriggers(EState *estate, ResultRelInfo *relinfo,
 
 		if (newslot->tts_tupleDescriptor != tupdesc)
 			ExecSetSlotDescriptor(newslot, tupdesc);
-		ExecStoreTuple(newtuple, newslot, InvalidBuffer, false);
+		ExecStoreHeapTuple(newtuple, newslot, false);
 		slot = newslot;
 	}
 	return slot;
@@ -3521,7 +3521,7 @@ TriggerEnabled(EState *estate, ResultRelInfo *relinfo,
 			oldslot = estate->es_trig_oldtup_slot;
 			if (oldslot->tts_tupleDescriptor != tupdesc)
 				ExecSetSlotDescriptor(oldslot, tupdesc);
-			ExecStoreTuple(oldtup, oldslot, InvalidBuffer, false);
+			ExecStoreHeapTuple(oldtup, oldslot, false);
 		}
 		if (HeapTupleIsValid(newtup))
 		{
@@ -3535,7 +3535,7 @@ TriggerEnabled(EState *estate, ResultRelInfo *relinfo,
 			newslot = estate->es_trig_newtup_slot;
 			if (newslot->tts_tupleDescriptor != tupdesc)
 				ExecSetSlotDescriptor(newslot, tupdesc);
-			ExecStoreTuple(newtup, newslot, InvalidBuffer, false);
+			ExecStoreHeapTuple(newtup, newslot, false);
 		}
 
 		/*
@@ -4296,7 +4296,7 @@ AfterTriggerExecute(AfterTriggerEvent event,
 											 trig_tuple_slot2))
 					elog(ERROR, "failed to fetch tuple2 for AFTER trigger");
 			}
-			/* fall through */
+			switch_fallthrough();
 		case AFTER_TRIGGER_FDW_REUSE:
 
 			/*
@@ -5850,7 +5850,7 @@ AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 
 			if (map != NULL)
 			{
-				HeapTuple	converted = do_convert_tuple(oldtup, map);
+				HeapTuple	converted = execute_attr_map_tuple(oldtup, map);
 
 				tuplestore_puttuple(old_tuplestore, converted);
 				pfree(converted);
@@ -5870,7 +5870,7 @@ AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 				tuplestore_puttuple(new_tuplestore, original_insert_tuple);
 			else if (map != NULL)
 			{
-				HeapTuple	converted = do_convert_tuple(newtup, map);
+				HeapTuple	converted = execute_attr_map_tuple(newtup, map);
 
 				tuplestore_puttuple(new_tuplestore, converted);
 				pfree(converted);
@@ -6110,6 +6110,26 @@ AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 			}
 		}
 
+		if (IsYBBackedRelation(rel) && RI_FKey_trigger_type(trigger->tgfoid) == RI_TRIGGER_FK)
+		{
+			YBCPgYBTupleIdDescriptor *descr = YBBuildFKTupleIdDescriptor(trigger, rel, newtup);
+			if (descr)
+			{
+				/*
+				 * Foreign key with at least one null value of real (non system) column
+				 * will not be checked, no need to add it into the cache.
+				 */
+				bool null_found = false;
+				for (YBCPgAttrValueDescriptor *attr = descr->attrs,
+					*end = descr->attrs + descr->nattrs;
+					attr != end && !null_found; ++attr)
+					null_found = attr->is_null && (attr->attr_num > 0);
+
+				if (!null_found)
+					HandleYBStatus(YBCAddForeignKeyReferenceIntent(descr));
+				pfree(descr);
+			}
+		}
 		afterTriggerAddEvent(
 				&afterTriggers.query_stack[afterTriggers.query_depth].events, &new_event, &new_shared);
 	}

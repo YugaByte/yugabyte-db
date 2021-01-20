@@ -24,6 +24,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yb.BaseYBTest;
 import org.yb.client.TestUtils;
+import org.yb.util.SanitizerUtil;
+import org.yb.util.Timeouts;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -51,12 +53,13 @@ public class BaseMiniClusterTest extends BaseYBTest {
   protected static final int NUM_TABLET_SERVERS = 3;
 
   protected static final int STANDARD_DEVIATION_FACTOR = 2;
-  protected static final int DEFAULT_TIMEOUT_MS = 50000;
+  protected static final int DEFAULT_TIMEOUT_MS =
+          (int) Timeouts.adjustTimeoutSecForBuildType(50000);
 
   /**
    * This is used as the default timeout when calling YB Java client's async API.
    */
-  protected static final int DEFAULT_SLEEP = 50000;
+  protected static final int DEFAULT_SLEEP = (int) Timeouts.adjustTimeoutSecForBuildType(50000);
 
   /**
    * A mini-cluster shared between invocations of multiple test methods.
@@ -71,7 +74,7 @@ public class BaseMiniClusterTest extends BaseYBTest {
 
   protected static Map<String, String> tserverEnvVars = new TreeMap<>();
 
-  protected boolean useIpWithCertificate = MiniYBCluster.DEFAULT_USE_IP_WITH_CERTIFICATE;
+  protected boolean useIpWithCertificate = MiniYBClusterParameters.DEFAULT_USE_IP_WITH_CERTIFICATE;
 
   protected String certFile = null;
 
@@ -93,7 +96,7 @@ public class BaseMiniClusterTest extends BaseYBTest {
 
   // Subclasses can override this to set the number of shards per tablet server.
   protected int overridableNumShardsPerTServer() {
-    return MiniYBCluster.DEFAULT_NUM_SHARDS_PER_TSERVER;
+    return MiniYBClusterParameters.DEFAULT_NUM_SHARDS_PER_TSERVER;
   }
 
   /** This allows subclasses to optionally skip the usage of a mini-cluster in a test. */
@@ -103,6 +106,11 @@ public class BaseMiniClusterTest extends BaseYBTest {
 
   protected void customizeMiniClusterBuilder(MiniYBClusterBuilder builder) {
     Preconditions.checkNotNull(builder);
+    // For sanitizer builds, it is easy to overload the master, leading to quorum changes.
+    // This could end up breaking ever trivial DDLs like creating an initial table in the cluster.
+    if (SanitizerUtil.isSanitizerBuild()) {
+      builder.addMasterArgs("--leader_failure_max_missed_heartbeat_periods=10");
+    }
   }
 
   /**
@@ -148,9 +156,10 @@ public class BaseMiniClusterTest extends BaseYBTest {
     final int replicationFactor = getReplicationFactor();
     createMiniCluster(
         TestUtils.getFirstPositiveNumber(
-            getInitialNumMasters(), replicationFactor, MiniYBCluster.DEFAULT_NUM_MASTERS),
+            getInitialNumMasters(), replicationFactor, MiniYBClusterParameters.DEFAULT_NUM_MASTERS),
         TestUtils.getFirstPositiveNumber(
-            getInitialNumTServers(), replicationFactor, MiniYBCluster.DEFAULT_NUM_TSERVERS)
+            getInitialNumTServers(), replicationFactor,
+            MiniYBClusterParameters.DEFAULT_NUM_TSERVERS)
     );
   }
 
@@ -198,7 +207,7 @@ public class BaseMiniClusterTest extends BaseYBTest {
     masterHostPorts = miniCluster.getMasterHostPorts();
 
     LOG.info("Started cluster with {} masters and {} tservers. " +
-             "Waiting for all tablet servers to hearbeat to masters...",
+             "Waiting for all tablet servers to heartbeat to masters...",
              numMasters, numTservers);
     if (!miniCluster.waitForTabletServers(numTservers)) {
       fail("Couldn't get " + numTservers + " tablet servers running, aborting.");
@@ -209,6 +218,13 @@ public class BaseMiniClusterTest extends BaseYBTest {
 
   public void createMiniCluster(int numMasters, List<String> masterArgs,
                                 List<List<String>> tserverArgs)
+      throws Exception {
+    createMiniCluster(numMasters, masterArgs, tserverArgs, false);
+  }
+
+  public void createMiniCluster(int numMasters, List<String> masterArgs,
+                                List<List<String>> tserverArgs,
+                                boolean enablePgTransactions)
       throws Exception {
     if (!miniClusterEnabled()) {
       return;
@@ -226,12 +242,13 @@ public class BaseMiniClusterTest extends BaseYBTest {
                       .useIpWithCertificate(useIpWithCertificate)
                       .perTServerArgs(tserverArgs)
                       .sslCertFile(certFile)
+                      .enablePgTransactions(enablePgTransactions)
                       .build();
     masterAddresses = miniCluster.getMasterAddresses();
     masterHostPorts = miniCluster.getMasterHostPorts();
 
     LOG.info("Started cluster with {} masters and {} tservers. " +
-             "Waiting for all tablet servers to hearbeat to masters...",
+             "Waiting for all tablet servers to heartbeat to masters...",
              numMasters, numTservers);
     if (!miniCluster.waitForTabletServers(numTservers)) {
       fail("Couldn't get " + numTservers + " tablet servers running, aborting.");
@@ -353,6 +370,7 @@ public class BaseMiniClusterTest extends BaseYBTest {
   public static void tearDownAfterClass() throws Exception {
     LOG.info("BaseMiniClusterTest.tearDownAfterClass is running");
     destroyMiniCluster();
+    LOG.info("BaseMiniClusterTest.tearDownAfterClass completed");
   }
 
 }

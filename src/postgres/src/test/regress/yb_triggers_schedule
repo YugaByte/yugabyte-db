@@ -8,3 +8,5 @@ test: yb_pg_create_function_1
 
 test: yb_pg_triggers
 test: yb_triggers
+test: yb_pg_event_trigger
+test: yb_event_trigger

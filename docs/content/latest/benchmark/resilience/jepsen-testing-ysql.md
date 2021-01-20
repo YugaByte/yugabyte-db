@@ -81,7 +81,7 @@ YSQL does not support transactional DDL statements yet ([GitHub issue #1404](htt
 
 The underlying table was defined as shown below.
 
-```postgresql
+```plpgsql
 CREATE TABLE foo (
   k TIMESTAMP DEFAULT now(),
   v INT

@@ -6,12 +6,19 @@ import { reduxForm } from 'redux-form';
 import { YBModal } from '../../../../components/common/forms/fields';
 
 class AddRegionPopupForm extends Component {
-  render () {
+  render() {
     const { handleSubmit } = this.props;
     return (
-      <YBModal visible={this.props.visible} formName={'addRegionConfig'}
-        onHide={this.props.onHide} submitLabel={this.props.submitLabel} showCancelButton={this.props.showCancelButton} title={this.props.title} onFormSubmit={handleSubmit(this.props.onFormSubmit)}>
-        { this.props.children }
+      <YBModal
+        visible={this.props.visible}
+        formName={'addRegionConfig'}
+        onHide={this.props.onHide}
+        submitLabel={this.props.submitLabel}
+        showCancelButton={this.props.showCancelButton}
+        title={this.props.title}
+        onFormSubmit={handleSubmit(this.props.onFormSubmit)}
+      >
+        {this.props.children}
       </YBModal>
     );
   }
@@ -26,6 +33,11 @@ const mapStateToProps = (state, ownProps) => {
   return {};
 };
 
-export default connect(mapStateToProps, null)(reduxForm({
-  form: 'addRegionConfig',
-})(AddRegionPopupForm));
+export default connect(
+  mapStateToProps,
+  null
+)(
+  reduxForm({
+    form: 'addRegionConfig'
+  })(AddRegionPopupForm)
+);

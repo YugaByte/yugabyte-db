@@ -1,6 +1,5 @@
 .btn, button {
   position: relative;
-  font-family: "Inter", sans-serif;
   font-weight: 400;
   transition: all 0.2s;
   line-height: 40px;
@@ -12,7 +11,6 @@
   padding-bottom: 2px;
   border-radius: 7px; 
   font-size: 15px;
-  letter-spacing: -0.02em;
   &:hover {
     color: #fff; 
   }
@@ -86,10 +84,8 @@
     a.nav-link {
       position: relative;
       top: 1px;
-      font-family: 'Rubik', sans-serif;
-      font-weight: 500;
       font-size: 20px;
-      font-weight: 500 !important;
+      font-weight: 600 !important;
       border-radius: 0 !important;
       padding: 16px 0px 20px !important;
       height: 70px;

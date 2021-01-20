@@ -11,6 +11,9 @@
 // under the License.
 
 
+#include <string>
+
+#include "yb/util/monotime.h"
 #include "yb/util/random_util.h"
 #include "yb/util/scope_exit.h"
 #include "yb/util/size_literals.h"
@@ -41,6 +44,14 @@ Result<PGConn> LibPqTestBase::Connect() {
 
 Result<PGConn> LibPqTestBase::ConnectToDB(const string& db_name) {
   return PGConn::Connect(HostPort(pg_ts->bind_host(), pg_ts->pgsql_rpc_port()), db_name);
+}
+
+Result<PGConn> LibPqTestBase::ConnectToDBAsUser(const string& db_name, const string& user) {
+  return PGConn::Connect(HostPort(pg_ts->bind_host(), pg_ts->pgsql_rpc_port()), db_name, user);
+}
+
+Result<PGConn> LibPqTestBase::ConnectUsingString(const string& conn_str, CoarseTimePoint deadline) {
+  return PGConn::Connect(conn_str, deadline);
 }
 
 bool LibPqTestBase::TransactionalFailure(const Status& status) {

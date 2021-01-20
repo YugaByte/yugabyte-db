@@ -53,30 +53,30 @@ Use the `PREPARE` statement to create a handle to a prepared statement by parsin
 
 Create a sample table.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE sample(k1 int, k2 int, v1 int, v2 text, PRIMARY KEY (k1, k2));
 ```
 
 Prepare a simple insert.
 
-```postgresql
+```plpgsql
 yugabyte=# PREPARE ins (bigint, double precision, int, text) AS 
                INSERT INTO sample(k1, k2, v1, v2) VALUES ($1, $2, $3, $4);
 ```
 
 Execute the insert twice (with different parameters).
 
-```postgresql
+```plpgsql
 yugabyte=# EXECUTE ins(1, 2.0, 3, 'a');
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# EXECUTE ins(2, 3.0, 4, 'b');
 ```
 
 Check the results.
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT * FROM sample ORDER BY k1;
 ```
 

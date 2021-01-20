@@ -234,7 +234,8 @@ TEST(TestMonoTime, ToCoarse) {
 TEST(TestMonoTime, TestOverFlow) {
   EXPECT_EXIT(MonoDelta::FromMilliseconds(std::numeric_limits<int64_t>::max()),
                                           ::testing::KilledBySignal(SIGABRT), "Check failed.*");
-  EXPECT_EXIT(MonoDelta::FromSeconds(std::numeric_limits<int64_t>::max()),
+  // We have to cast kint64max to double to avoid a warning on implicit cast that changes the value.
+  EXPECT_EXIT(MonoDelta::FromSeconds(static_cast<double>(std::numeric_limits<int64_t>::max())),
               ::testing::KilledBySignal(SIGABRT), "Check failed.*");
   EXPECT_EXIT(MonoDelta::FromMicroseconds(std::numeric_limits<int64_t>::max()),
               ::testing::KilledBySignal(SIGABRT), "Check failed.*");

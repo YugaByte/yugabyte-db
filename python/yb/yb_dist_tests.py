@@ -330,6 +330,7 @@ def create_archive_for_workers():
     start_time_sec = time.time()
     try:
         build_root = os.path.abspath(global_conf.build_root)
+        compiler_type = get_compiler_type_from_build_root(build_root)
         yb_src_root = os.path.abspath(global_conf.yb_src_root)
         build_root_parent = os.path.join(yb_src_root, 'build')
         rel_build_root = global_conf.rel_build_root
@@ -352,7 +353,10 @@ def create_archive_for_workers():
                 mvn_local_repo, build_root_parent))
 
         files_that_must_exist_in_build_dir = ['thirdparty_path.txt']
-        if sys.platform == 'linux':
+
+        # This will not include version-specific compiler types like clang11 or gcc9.
+        # We will eventually get rid of Linuxbrew and simplify this.
+        if sys.platform == 'linux' and compiler_type in ['gcc', 'clang']:
             files_that_must_exist_in_build_dir.append('linuxbrew_path.txt')
 
         for rel_file_path in files_that_must_exist_in_build_dir:

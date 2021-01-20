@@ -299,7 +299,7 @@ Deletes the `yb_demo_northwind` northwind database.
 Create a single-node cluster with a given base dir and listen address. Note the need to provide a fully-qualified directory path for the base dir parameter.
 
 ```sh
-bin/yugabyted start --base_dir=/Users/username/yugabyte-2.2.0.0/data1 --listen=127.0.0.1
+bin/yugabyted start --base_dir=/Users/username/yugabyte-2.2.3.0/data1 --listen=127.0.0.1
 ```
 
 ### Create a multi-node cluster 
@@ -307,8 +307,8 @@ bin/yugabyted start --base_dir=/Users/username/yugabyte-2.2.0.0/data1 --listen=1
 Add two more nodes to the cluster using the `join` option.
 
 ```sh
-bin/yugabyted start --base_dir=/Users/username/yugabyte-2.2.0.0/data2 --listen=127.0.0.2 --join=127.0.0.1
-bin/yugabyted start --base_dir=/Users/username/yugabyte-2.2.0.0/data3 --listen=127.0.0.3 --join=127.0.0.1
+bin/yugabyted start --base_dir=/Users/username/yugabyte-2.2.3.0/data2 --listen=127.0.0.2 --join=127.0.0.1
+bin/yugabyted start --base_dir=/Users/username/yugabyte-2.2.3.0/data3 --listen=127.0.0.3 --join=127.0.0.1
 ```
 
 ### Destroy a multi-node cluster
@@ -316,7 +316,7 @@ bin/yugabyted start --base_dir=/Users/username/yugabyte-2.2.0.0/data3 --listen=1
 Destroy the above multi-node cluster.
 
 ```sh
-bin/yugabyted destroy --base_dir=/Users/username/yugabyte-2.2.0.0/data1
-bin/yugabyted destroy --base_dir=/Users/username/yugabyte-2.2.0.0/data2
-bin/yugabyted destroy --base_dir=/Users/username/yugabyte-2.2.0.0/data1
+bin/yugabyted destroy --base_dir=/Users/username/yugabyte-2.2.3.0/data1
+bin/yugabyted destroy --base_dir=/Users/username/yugabyte-2.2.3.0/data2
+bin/yugabyted destroy --base_dir=/Users/username/yugabyte-2.2.3.0/data1
 ```

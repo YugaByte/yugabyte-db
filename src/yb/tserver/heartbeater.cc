@@ -79,6 +79,8 @@ TAG_FLAG(tserver_disable_heartbeat_test_only, unsafe);
 TAG_FLAG(tserver_disable_heartbeat_test_only, hidden);
 TAG_FLAG(tserver_disable_heartbeat_test_only, runtime);
 
+DEFINE_CAPABILITY(TabletReportLimit, 0xb1a2a020);
+
 using google::protobuf::RepeatedPtrField;
 using yb::HostPortPB;
 using yb::consensus::RaftPeerPB;
@@ -163,8 +165,9 @@ class Heartbeater::Thread {
   // The most recent response from a heartbeat.
   master::TSHeartbeatResponsePB last_hb_response_;
 
-  // True once at least one heartbeat has been sent.
-  bool has_heartbeated_ = false;
+  // Full reports can take multiple heartbeats.
+  // Flag to indicate if next heartbeat is part of a full report.
+  bool sending_full_report_ = false;
 
   // The number of heartbeats which have failed in a row.
   // This is tracked so as to back-off heartbeating.
@@ -282,6 +285,9 @@ Status Heartbeater::Thread::ConnectToMaster() {
     return s;
   }
 
+  // Reset report state if we have master failover.
+  sending_full_report_ = false;
+
   // Pings are common for both Master and Tserver.
   auto new_proxy = std::make_unique<server::GenericServiceProxy>(
       &server_->proxy_cache(), leader_master_hostport_);
@@ -324,14 +330,10 @@ int Heartbeater::Thread::GetMinimumHeartbeatMillis() const {
 }
 
 int Heartbeater::Thread::GetMillisUntilNextHeartbeat() const {
-  // When we first start up, heartbeat immediately.
-  if (!has_heartbeated_) {
-    return GetMinimumHeartbeatMillis();
-  }
-
   // If the master needs something from us, we should immediately
   // send another heartbeat with that info, rather than waiting for the interval.
-  if (last_hb_response_.needs_reregister() ||
+  if (sending_full_report_ ||
+      last_hb_response_.needs_reregister() ||
       last_hb_response_.needs_full_tablet_report()) {
     return GetMinimumHeartbeatMillis();
   }
@@ -355,13 +357,18 @@ Status Heartbeater::Thread::TryHeartbeat() {
 
   if (last_hb_response_.needs_full_tablet_report()) {
     LOG_WITH_PREFIX(INFO) << "Sending a full tablet report to master...";
-    server_->tablet_manager()->GenerateFullTabletReport(
-      req.mutable_tablet_report());
+    server_->tablet_manager()->StartFullTabletReport(req.mutable_tablet_report());
+    sending_full_report_ = true;
   } else {
-    VLOG_WITH_PREFIX(2) << "Sending an incremental tablet report to master...";
-    server_->tablet_manager()->GenerateIncrementalTabletReport(
-      req.mutable_tablet_report());
+    if (sending_full_report_) {
+      LOG_WITH_PREFIX(INFO) << "Continuing full tablet report to master...";
+    } else {
+      VLOG_WITH_PREFIX(2) << "Sending an incremental tablet report to master...";
+    }
+    server_->tablet_manager()->GenerateTabletReport(req.mutable_tablet_report(),
+                                                    !sending_full_report_ /* include_bootstrap */);
   }
+  req.mutable_tablet_report()->set_is_incremental(!sending_full_report_);
   req.set_num_live_tablets(server_->tablet_manager()->GetNumLiveTablets());
   req.set_leader_count(server_->tablet_manager()->GetLeaderCount());
 
@@ -436,20 +443,38 @@ Status Heartbeater::Thread::TryHeartbeat() {
     last_hb_response_.Swap(&resp);
   }
 
-  if (last_hb_response_.needs_full_tablet_report()) {
-    return STATUS(TryAgain, "");
-  }
-
   if (last_hb_response_.has_cluster_uuid() && !last_hb_response_.cluster_uuid().empty()) {
     server_->set_cluster_uuid(last_hb_response_.cluster_uuid());
   }
 
-  // TODO: Handle TSHeartbeatResponsePB (e.g. deleted tablets and schema changes)
-  server_->tablet_manager()->MarkTabletReportAcknowledged(req.tablet_report());
+  // The Master responds with the max entries for a single Tablet Report to avoid overwhelming it.
+  if (last_hb_response_.has_tablet_report_limit()) {
+    server_->tablet_manager()->SetReportLimit(last_hb_response_.tablet_report_limit());
+  }
+
+  if (last_hb_response_.needs_full_tablet_report()) {
+    return STATUS(TryAgain, "");
+  }
+
+  // Handle TSHeartbeatResponsePB (e.g. tablets ack'd by master as processed)
+  bool all_processed = req.tablet_report().remaining_tablet_count() == 0 &&
+                       !last_hb_response_.tablet_report().processing_truncated();
+  server_->tablet_manager()->MarkTabletReportAcknowledged(
+      req.tablet_report().sequence_number(), last_hb_response_.tablet_report(), all_processed);
+
+  // Trigger another heartbeat ASAP if we didn't process all tablets on this request.
+  sending_full_report_ = sending_full_report_ && !all_processed;
 
   // Update the master's YSQL catalog version (i.e. if there were schema changes for YSQL objects).
   if (last_hb_response_.has_ysql_catalog_version()) {
-    server_->SetYSQLCatalogVersion(last_hb_response_.ysql_catalog_version());
+    if (last_hb_response_.has_ysql_last_breaking_catalog_version()) {
+      server_->SetYSQLCatalogVersion(last_hb_response_.ysql_catalog_version(),
+                                     last_hb_response_.ysql_last_breaking_catalog_version());
+    } else {
+      /* Assuming all changes are breaking if last breaking version not explicitly set. */
+      server_->SetYSQLCatalogVersion(last_hb_response_.ysql_catalog_version(),
+                                     last_hb_response_.ysql_catalog_version());
+    }
   }
 
   // Update the live tserver list.
@@ -489,12 +514,11 @@ void Heartbeater::Thread::RunThread() {
   CHECK(IsCurrentThread());
   VLOG_WITH_PREFIX(1) << "Heartbeat thread starting";
 
-  // Set up a fake "last heartbeat response" which indicates that we
-  // need to register -- since we've never registered before, we know
-  // this to be true.  This avoids an extra
-  // heartbeat/response/heartbeat cycle.
+  // Config the "last heartbeat response" to indicate that we need to register
+  // -- since we've never registered before, we know this to be true.
   last_hb_response_.set_needs_reregister(true);
-  last_hb_response_.set_needs_full_tablet_report(true);
+  // Have the Master request a full tablet report on 2nd HB, once it knows our capabilities.
+  last_hb_response_.set_needs_full_tablet_report(false);
 
   while (true) {
     MonoTime next_heartbeat = MonoTime::Now();
@@ -532,11 +556,12 @@ void Heartbeater::Thread::RunThread() {
           << ", masters=" << yb::ToString(master_addresses)
           << ", code=" << s.CodeAsString();
       consecutive_failed_heartbeats_++;
+      // If there's multiple masters...
       if (master_addresses->size() > 1 || (*master_addresses)[0].size() > 1) {
-        // If we encountered a network error (e.g., connection
-        // refused) or timed out and there's more than one master available, try
-        // determining the leader master again.
-        if (s.IsNetworkError() || s.IsTimedOut() ||
+        // If we encountered a network error (e.g., connection refused) or reached our failure
+        // threshold.  Try determining the leader master again.  Heartbeats function as a watchdog,
+        // so timeouts should be considered normal failures.
+        if (s.IsNetworkError() ||
             consecutive_failed_heartbeats_ == FLAGS_heartbeat_max_failures_before_backoff) {
           proxy_.reset();
         }
@@ -544,7 +569,6 @@ void Heartbeater::Thread::RunThread() {
       continue;
     }
     consecutive_failed_heartbeats_ = 0;
-    has_heartbeated_ = true;
   }
 }
 

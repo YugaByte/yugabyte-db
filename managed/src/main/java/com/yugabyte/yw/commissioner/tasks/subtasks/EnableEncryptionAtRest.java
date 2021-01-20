@@ -107,12 +107,15 @@ public class EnableEncryptionAtRest extends AbstractTaskBase {
           );
         }
       }
+
       client.enableEncryptionAtRestInMemory(encodedKeyRef);
       Pair<Boolean, String> isEncryptionEnabled = client.isEncryptionEnabled();
       if (!isEncryptionEnabled.getFirst() ||
               !isEncryptionEnabled.getSecond().equals(encodedKeyRef)) {
         throw new RuntimeException("Error occurred enabling encryption at rest");
       }
+
+      universe.incrementVersion();
 
       EncryptionAtRestUtil.activateKeyRef(
               taskParams().universeUUID,

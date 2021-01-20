@@ -46,6 +46,7 @@
 #include "yb/client/client_fwd.h"
 #include "yb/client/schema.h"
 #include "yb/common/common.pb.h"
+#include "yb/common/transaction.h"
 #include "yb/common/wire_protocol.h"
 
 #ifdef YB_HEADERS_NO_STUBS
@@ -100,10 +101,8 @@ class TabletServerServiceProxy;
 
 namespace client {
 namespace internal {
+template <class Req, class Resp>
 class ClientMasterRpc;
-class CreateCDCStreamRpc;
-class DeleteCDCStreamRpc;
-class GetCDCStreamRpc;
 }
 
 // This needs to be called by a client app before performing any operations that could result in
@@ -287,6 +286,9 @@ class YBClient {
   CHECKED_STATUS TruncateTable(const std::string& table_id, bool wait = true);
   CHECKED_STATUS TruncateTables(const std::vector<std::string>& table_ids, bool wait = true);
 
+  // Backfill the specified index table.  This is only supported for YSQL at the moment.
+  CHECKED_STATUS BackfillIndex(const TableId& table_id, bool wait = true);
+
   // Delete the specified table.
   // Set 'wait' to true if the call must wait for the table to be fully deleted before returning.
   CHECKED_STATUS DeleteTable(const YBTableName& table_name, bool wait = true);
@@ -328,6 +330,10 @@ class YBClient {
   CHECKED_STATUS GetTableSchemaById(const TableId& table_id, std::shared_ptr<YBTableInfo> info,
                                     StatusCallback callback);
 
+  CHECKED_STATUS GetColocatedTabletSchemaById(const TableId& parent_colocated_table_id,
+                                              std::shared_ptr<std::vector<YBTableInfo>> info,
+                                              StatusCallback callback);
+
   Result<IndexPermissions> GetIndexPermissions(
       const TableId& table_id,
       const TableId& index_id);
@@ -337,11 +343,25 @@ class YBClient {
   Result<IndexPermissions> WaitUntilIndexPermissionsAtLeast(
       const TableId& table_id,
       const TableId& index_id,
-      const IndexPermissions& target_index_permissions);
+      const IndexPermissions& target_index_permissions,
+      const CoarseTimePoint deadline,
+      const CoarseDuration max_wait = std::chrono::seconds(2));
+  Result<IndexPermissions> WaitUntilIndexPermissionsAtLeast(
+      const TableId& table_id,
+      const TableId& index_id,
+      const IndexPermissions& target_index_permissions,
+      const CoarseDuration max_wait = std::chrono::seconds(2));
   Result<IndexPermissions> WaitUntilIndexPermissionsAtLeast(
       const YBTableName& table_name,
       const YBTableName& index_name,
-      const IndexPermissions& target_index_permissions);
+      const IndexPermissions& target_index_permissions,
+      const CoarseDuration max_wait = std::chrono::seconds(2));
+  Result<IndexPermissions> WaitUntilIndexPermissionsAtLeast(
+      const YBTableName& table_name,
+      const YBTableName& index_name,
+      const IndexPermissions& target_index_permissions,
+      const CoarseTimePoint deadline,
+      const CoarseDuration max_wait = std::chrono::seconds(2));
 
   // Trigger an async index permissions update after new YSQL index permissions are committed.
   Status AsyncUpdateIndexPermissions(const TableId& indexed_table_id);
@@ -357,6 +377,7 @@ class YBClient {
                                  const std::string& namespace_id = "",
                                  const std::string& source_namespace_id = "",
                                  const boost::optional<uint32_t>& next_pg_oid = boost::none,
+                                 const boost::optional<TransactionMetadata>& txn = boost::none,
                                  const bool colocated = false);
 
   // It calls CreateNamespace(), but before it checks that the namespace has NOT been yet
@@ -523,6 +544,8 @@ class YBClient {
                     std::shared_ptr<std::unordered_map<std::string, std::string>> options,
                     StdStatusCallback callback);
 
+  void DeleteTablet(const TabletId& tablet_id, StdStatusCallback callback);
+
   // Find the number of tservers. This function should not be called frequently for reading or
   // writing actual data. Currently, it is called only for SQL DDL statements.
   // If primary_only is set to true, we expect the primary/sync cluster tserver count only.
@@ -672,15 +695,24 @@ class YBClient {
 
   CHECKED_STATUS SetReplicationInfo(const master::ReplicationInfoPB& replication_info);
 
-  void LookupTabletByKey(const YBTable* table,
+  void LookupTabletByKey(const std::shared_ptr<const YBTable>& table,
                          const std::string& partition_key,
-                        CoarseTimePoint deadline,
+                         CoarseTimePoint deadline,
                          LookupTabletCallback callback);
 
   void LookupTabletById(const std::string& tablet_id,
+                        const std::shared_ptr<const YBTable>& table,
                         CoarseTimePoint deadline,
                         LookupTabletCallback callback,
                         UseCache use_cache);
+
+  void LookupAllTablets(const std::shared_ptr<const YBTable>& table,
+                        CoarseTimePoint deadline,
+                        LookupTabletRangeCallback callback);
+
+  std::future<Result<std::vector<internal::RemoteTabletPtr>>> LookupAllTabletsFuture(
+      const std::shared_ptr<const YBTable>& table,
+      CoarseTimePoint deadline);
 
   rpc::Messenger* messenger() const;
 
@@ -699,6 +731,9 @@ class YBClient {
       const TabletId& tablet_id);
   void RequestFinished(const TabletId& tablet_id, RetryableRequestId request_id);
 
+  void MaybeUpdateMinRunningRequestId(
+      const TabletId& tablet_id, RetryableRequestId min_running_request_id);
+
   void Shutdown();
 
  private:
@@ -712,16 +747,15 @@ class YBClient {
   friend class YBTableCreator;
   friend class internal::Batcher;
   friend class internal::GetTableSchemaRpc;
+  friend class internal::GetColocatedTabletSchemaRpc;
   friend class internal::LookupRpc;
   friend class internal::MetaCache;
   friend class internal::RemoteTablet;
   friend class internal::RemoteTabletServer;
   friend class internal::AsyncRpc;
   friend class internal::TabletInvoker;
+  template <class Req, class Resp>
   friend class internal::ClientMasterRpc;
-  friend class internal::CreateCDCStreamRpc;
-  friend class internal::DeleteCDCStreamRpc;
-  friend class internal::GetCDCStreamRpc;
   friend class PlacementInfoTest;
 
   FRIEND_TEST(ClientTest, TestGetTabletServerBlacklist);
@@ -735,7 +769,7 @@ class YBClient {
   FRIEND_TEST(MasterFailoverTestIndexCreation, TestPauseAfterCreateIndexIssued);
 
   friend std::future<Result<internal::RemoteTabletPtr>> LookupFirstTabletFuture(
-      const YBTable* table);
+      const std::shared_ptr<const YBTable>& table);
 
   YBClient();
 

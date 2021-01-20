@@ -54,7 +54,7 @@ Use the `DROP FUNCTION` statement to remove a function from a database.
 
 ## Examples
 
-```postgresql
+```plpgsql
 DROP FUNCTION IF EXISTS inc(i integer), mul(integer, integer) CASCADE;
 ```
 

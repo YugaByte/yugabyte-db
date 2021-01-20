@@ -9,10 +9,19 @@ import 'react-toggle/style.css';
 import './stylesheets/YBToggle.scss';
 
 export default class YBToggle extends Component {
-
   render() {
     const {
-      input, label, onToggle, isReadOnly, meta, insetError, subLabel, infoContent, infoTitle, checkedVal, name,
+      input,
+      label,
+      onToggle,
+      isReadOnly,
+      meta,
+      insetError,
+      subLabel,
+      infoContent,
+      infoTitle,
+      checkedVal,
+      name
     } = this.props;
     const onChange = (event) => {
       if (!this.props.disableOnChange) {
@@ -25,10 +34,21 @@ export default class YBToggle extends Component {
     // currently a Controlled component, but relies on Redux Form in places, thus it accesses the
     // underlying input.value.
     return (
-      <YBLabel label={label} meta={meta} insetError={insetError} infoContent={infoContent} infoTitle={infoTitle}>
+      <YBLabel
+        label={label}
+        meta={meta}
+        insetError={insetError}
+        infoContent={infoContent}
+        infoTitle={infoTitle}
+      >
         <DescriptionItem title={subLabel}>
-          <Toggle checked={!!input.value && checkedVal} name={name} className="yb-toggle" onChange={onChange}
-                  disabled={isReadOnly} />
+          <Toggle
+            checked={!!input.value && checkedVal}
+            name={name}
+            className="yb-toggle"
+            onChange={onChange}
+            disabled={isReadOnly}
+          />
         </DescriptionItem>
       </YBLabel>
     );

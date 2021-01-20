@@ -29,6 +29,7 @@
 #include "yb/util/test_util.h"
 
 DECLARE_bool(cql_server_always_send_events);
+DECLARE_bool(use_cassandra_authentication);
 
 namespace yb {
 namespace cqlserver {
@@ -49,7 +50,7 @@ class TestCQLService : public YBTableTestBase {
  protected:
   void SendRequestAndExpectTimeout(const string& cmd);
 
-  void SendRequestAndExpectResponse(const string& cmd, const string& resp);
+  void SendRequestAndExpectResponse(const string& cmd, const string& expected_resp);
 
   int server_port() { return cql_server_port_; }
  private:
@@ -63,6 +64,7 @@ class TestCQLService : public YBTableTestBase {
   unique_ptr<FileLock> cql_port_lock_;
   unique_ptr<FileLock> cql_webserver_lock_;
   static constexpr size_t kBufLen = 1024;
+  size_t resp_bytes_read_ = 0;
   uint8_t resp_[kBufLen];
 };
 
@@ -112,6 +114,7 @@ void TestCQLService::TearDown() {
 
 Status TestCQLService::SendRequestAndGetResponse(
     const string& cmd, int expected_resp_length, int timeout_in_millis) {
+  LOG(INFO) << "Send CQL: {" << FormatBytesAsStr(cmd) << "}";
   // Send the request.
   int32_t bytes_written = 0;
   EXPECT_OK(client_sock_.Write(util::to_uchar_ptr(cmd.c_str()), cmd.length(), &bytes_written));
@@ -121,15 +124,21 @@ Status TestCQLService::SendRequestAndGetResponse(
   // Receive the response.
   MonoTime deadline = MonoTime::Now();
   deadline.AddDelta(MonoDelta::FromMilliseconds(timeout_in_millis));
-  size_t bytes_read = 0;
-  RETURN_NOT_OK(client_sock_.BlockingRecv(resp_, expected_resp_length, &bytes_read, deadline));
-  if (expected_resp_length != bytes_read) {
-    return STATUS(
-        IOError, Substitute("Received $1 bytes instead of $2", bytes_read, expected_resp_length));
+  resp_bytes_read_ = 0;
+  RETURN_NOT_OK(client_sock_.BlockingRecv(
+      resp_, expected_resp_length, &resp_bytes_read_, deadline));
+  LOG(INFO) << "Received CQL: {" <<
+      FormatBytesAsStr(reinterpret_cast<char*>(resp_), resp_bytes_read_) << "}";
+
+  if (expected_resp_length != resp_bytes_read_) {
+    return STATUS(IOError,
+                  Substitute("Received $1 bytes instead of $2",
+                             resp_bytes_read_,
+                             expected_resp_length));
   }
 
   // Try to read 1 more byte - the read must fail (no more data in the socket).
-  bytes_read = 0;
+  size_t bytes_read = 0;
   deadline = MonoTime::Now();
   deadline.AddDelta(MonoDelta::FromMilliseconds(200));
   Status s = client_sock_.BlockingRecv(&resp_[expected_resp_length], 1, &bytes_read, deadline);
@@ -146,11 +155,17 @@ void TestCQLService::SendRequestAndExpectTimeout(const string& cmd) {
   ASSERT_TRUE(SendRequestAndGetResponse(cmd, 1).IsTimedOut());
 }
 
-void TestCQLService::SendRequestAndExpectResponse(const string& cmd, const string& resp) {
-  CHECK_OK(SendRequestAndGetResponse(cmd, resp.length()));
+void TestCQLService::SendRequestAndExpectResponse(const string& cmd, const string& expected_resp) {
+  CHECK_OK(SendRequestAndGetResponse(cmd, expected_resp.length()));
+  const string resp(reinterpret_cast<char*>(resp_), resp_bytes_read_);
+
+  if (expected_resp != resp) {
+    LOG(ERROR) << "Expected: {" << FormatBytesAsStr(expected_resp) <<
+        "} Got: {" << FormatBytesAsStr(resp) << "}";
+  }
 
   // Verify that the response is as expected.
-  CHECK_EQ(resp, string(reinterpret_cast<char*>(resp_), resp.length()));
+  CHECK_EQ(expected_resp, resp);
 }
 
 // The following test cases test the CQL protocol marshalling/unmarshalling with hand-coded
@@ -394,7 +409,7 @@ void TestCQLService::TestSchemaChangeEvent() {
                                 "\x00\x0c" "schema_meta2"));
 }
 
-TEST_F(TestCQLService, SchemaChangeEvent) {
+TEST_F(TestCQLService, TestSchemaChangeEvent) {
   TestSchemaChangeEvent();
 }
 
@@ -406,8 +421,152 @@ class TestCQLServiceWithGFlag : public TestCQLService {
   }
 };
 
-TEST_F(TestCQLServiceWithGFlag, SchemaChangeEventWithGFlag) {
+TEST_F(TestCQLServiceWithGFlag, TestSchemaChangeEventWithGFlag) {
   TestSchemaChangeEvent();
+}
+
+TEST_F(TestCQLService, TestReadSystemTable) {
+  // Send STARTUP request using version V4.
+  SendRequestAndExpectResponse(
+      BINARY_STRING("\x04\x00\x00\x00\x01" "\x00\x00\x00\x16"
+                    "\x00\x01" "\x00\x0b" "CQL_VERSION"
+                               "\x00\x05" "3.0.0"),
+      BINARY_STRING("\x84\x00\x00\x00\x02" // 0x02 = READY
+                    "\x00\x00\x00\x00"));  // zero body size
+
+  SendRequestAndExpectResponse(
+      BINARY_STRING("\x04\x00\x00\x00\x07" // 0x07 = QUERY
+                    "\x00\x00\x00\x23"     // body size
+                    "\x00\x00\x00\x1c" "SELECT key FROM system.local"
+                    "\x00\x01"             // consistency: 0x0001 = ONE
+                    "\x00"),               // bit flags
+      BINARY_STRING("\x84\x00\x00\x00\x08" // 0x08 = RESULT
+                    "\x00\x00\x00\x2f"     // body size
+                    "\x00\x00\x00\x02"     // 0x00000002 = ROWS
+                    "\x00\x00\x00\x01"     // flags: 0x01 = Global_tables_spec
+                    "\x00\x00\x00\x01"     // column count
+                    "\x00\x06" "system"
+                    "\x00\x05" "local"
+                    "\x00\x03" "key"
+                    "\x00\x0d"             // type id: 0x000D = Varchar
+                    "\x00\x00\x00\x01"     // row count
+                    "\x00\x00\x00\x05" "local"));
+}
+
+class TestCQLServiceWithCassAuth : public TestCQLService {
+ public:
+  void SetUp() override {
+    FLAGS_use_cassandra_authentication = true;
+    TestCQLService::SetUp();
+  }
+};
+
+TEST_F(TestCQLServiceWithCassAuth, TestReadSystemTableNotAuthenticated) {
+  // Send STARTUP request using version V4.
+  SendRequestAndExpectResponse(
+      BINARY_STRING("\x04\x00\x00\x00\x01" "\x00\x00\x00\x16"
+                    "\x00\x01" "\x00\x0b" "CQL_VERSION"
+                               "\x00\x05" "3.0.0"),
+      BINARY_STRING("\x84\x00\x00\x00\x03" // 0x03 = AUTHENTICATE
+                    "\x00\x00\x00\x31"     // body size
+                    "\x00\x2F" "org.apache.cassandra.auth.PasswordAuthenticator"));
+
+  // Try to skip authorization and query the data.
+  SendRequestAndExpectResponse(
+      BINARY_STRING("\x04\x00\x00\x00\x07" // 0x07 = QUERY
+                    "\x00\x00\x00\x23"     // body size
+                    "\x00\x00\x00\x1c" "SELECT key FROM system.local"
+                    "\x00\x01"             // consistency: 0x0001 = ONE
+                    "\x00"),               // bit flags
+      BINARY_STRING("\x84\x00\x00\x00\x00" // 0x00 = ERROR
+                    "\x00\x00\x00\x3b"     // body size
+                    "\x00\x00\x00\x00"     // error code
+                    "\x00\x35" "Could not execute statement by not authenticated user"));
+}
+
+TEST_F(TestCQLServiceWithCassAuth, TestReadSystemTableAuthenticated) {
+  // Send STARTUP request using version V4.
+  SendRequestAndExpectResponse(
+      BINARY_STRING("\x04\x00\x00\x00\x01" "\x00\x00\x00\x16"
+                    "\x00\x01" "\x00\x0b" "CQL_VERSION"
+                               "\x00\x05" "3.0.0"),
+      BINARY_STRING("\x84\x00\x00\x00\x03" // 0x03 = AUTHENTICATE
+                    "\x00\x00\x00\x31"     // body size
+                    "\x00\x2F" "org.apache.cassandra.auth.PasswordAuthenticator"));
+
+  // Invalid authorization: send wrong user name.
+  SendRequestAndExpectResponse(
+      BINARY_STRING("\x04\x00\x00\x00\x0f" // 0x0F = AUTH_RESPONSE
+                    "\x00\x00\x00\x17"     // body size
+                    "\x00\x00\x00\x13" "\x00" "acssandra" "\x00" "password"),
+      BINARY_STRING("\x84\x00\x00\x00\x00" // 0x00 = ERROR
+                    "\x00\x00\x00\x3f"     // body size
+                    "\x00\x00\x01\x00"     // error code
+                    "\x00\x39" "Provided username acssandra and/or password are incorrect"));
+  // Invalid authorization: send wrong password.
+  SendRequestAndExpectResponse(
+      BINARY_STRING("\x04\x00\x00\x00\x0f" // 0x0F = AUTH_RESPONSE
+                    "\x00\x00\x00\x17"     // body size
+                    "\x00\x00\x00\x13" "\x00" "cassandra" "\x00" "password"),
+      BINARY_STRING("\x84\x00\x00\x00\x00" // 0x00 = ERROR
+                    "\x00\x00\x00\x3f"     // body size
+                    "\x00\x00\x01\x00"     // error code
+                    "\x00\x39" "Provided username cassandra and/or password are incorrect"));
+  // Invalid authorization: send null token.
+  SendRequestAndExpectResponse(
+      BINARY_STRING("\x04\x00\x00\x00\x0f" // 0x0F = AUTH_RESPONSE
+                    "\x00\x00\x00\x04"     // body size
+                    "\x00\x00\x00\x00"),
+      BINARY_STRING("\x84\x00\x00\x00\x00" // 0x00 = ERROR
+                    "\x00\x00\x00\x1a"     // body size
+                    "\x00\x00\x00\x0a"     // error code
+                    "\x00\x14" "Invalid empty token!"));
+  // Invalid authorization: send token 'deadbeaf'.
+  SendRequestAndExpectResponse(
+      BINARY_STRING("\x04\x00\x00\x00\x0f" // 0x0F = AUTH_RESPONSE
+                    "\x00\x00\x00\x08"     // body size
+                    "\x00\x00\x00\x04" "\xde\xad\xbe\xaf"),
+      BINARY_STRING("\x84\x00\x00\x00\x00" // 0x00 = ERROR
+                    "\x00\x00\x00\x30"     // body size
+                    "\x00\x00\x00\x0a"     // error code
+                    "\x00\x2a" "Invalid format. Message must begin with \\0"));
+  // Invalid authorization: send token '\x00deadbeaf'.
+  SendRequestAndExpectResponse(
+      BINARY_STRING("\x04\x00\x00\x00\x0f" // 0x0F = AUTH_RESPONSE
+                    "\x00\x00\x00\x09"     // body size
+                    "\x00\x00\x00\x05" "\x00\xde\xad\xbe\xaf"),
+      BINARY_STRING("\x84\x00\x00\x00\x00" // 0x00 = ERROR
+                    "\x00\x00\x00\x3c"     // body size
+                    "\x00\x00\x00\x0a"     // error code
+                    "\x00\x36" "Invalid format. Message must contain \\0 after username"));
+
+  // Correct authorization.
+  SendRequestAndExpectResponse(
+      BINARY_STRING("\x04\x00\x00\x00\x0f" // 0x0F = AUTH_RESPONSE
+                    "\x00\x00\x00\x18"     // body size
+                    "\x00\x00\x00\x14" "\x00" "cassandra" "\x00" "cassandra"),
+      BINARY_STRING("\x84\x00\x00\x00\x10" // 0x10 = AUTH_SUCCESS
+                    "\x00\x00\x00\x04"     // body size
+                    "\x00\x00\x00\x00"));  // empty token
+
+  // Query the data.
+  SendRequestAndExpectResponse(
+      BINARY_STRING("\x04\x00\x00\x00\x07" // 0x07 = QUERY
+                    "\x00\x00\x00\x23"     // body size
+                    "\x00\x00\x00\x1c" "SELECT key FROM system.local"
+                    "\x00\x01"             // consistency: 0x0001 = ONE
+                    "\x00"),               // bit flags
+      BINARY_STRING("\x84\x00\x00\x00\x08" // 0x08 = RESULT
+                    "\x00\x00\x00\x2f"     // body size
+                    "\x00\x00\x00\x02"     // 0x00000002 = ROWS
+                    "\x00\x00\x00\x01"     // flags: 0x01 = Global_tables_spec
+                    "\x00\x00\x00\x01"     // column count
+                    "\x00\x06" "system"
+                    "\x00\x05" "local"
+                    "\x00\x03" "key"
+                    "\x00\x0d"             // type id: 0x000D = Varchar
+                    "\x00\x00\x00\x01"     // row count
+                    "\x00\x00\x00\x05" "local"));
 }
 
 }  // namespace cqlserver

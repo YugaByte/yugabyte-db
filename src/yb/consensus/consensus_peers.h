@@ -200,6 +200,9 @@ class Peer : public std::enable_shared_from_this<Peer> {
     return std::unique_lock<AtomicTryMutex>(performing_mutex_, type);
   }
 
+  // Simple wrapper to cleanup ops from the request_.
+  void CleanRequestOps();
+
   std::string LogPrefix() const;
 
   const std::string& tablet_id() const { return tablet_id_; }

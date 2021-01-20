@@ -22,7 +22,9 @@ namespace master {
 // VTable implementation of system_schema.aggregates.
 class YQLAggregatesVTable : public YQLEmptyVTable {
  public:
-  explicit YQLAggregatesVTable(const Master* const master);
+  explicit YQLAggregatesVTable(const TableName& table_name,
+                               const NamespaceName& namespace_name,
+                               Master * const master);
  protected:
   Schema CreateSchema() const;
 };

@@ -84,7 +84,8 @@ class ConflictResolverContext {
       std::vector<TransactionData>* transactions) = 0;
 
   // Check for conflict against committed transaction.
-  virtual CHECKED_STATUS CheckConflictWithCommitted(
+  // Returns true if transaction could be removed from list of conflicts.
+  virtual Result<bool> CheckConflictWithCommitted(
       const TransactionId& id, HybridTime commit_time) = 0;
 
   virtual HybridTime GetResolutionHt() = 0;
@@ -282,13 +283,17 @@ class ConflictResolver : public std::enable_shared_from_this<ConflictResolver> {
     auto write_iterator = transactions_.begin();
     for (const auto& transaction : transactions_) {
       auto commit_time = status_manager().LocalCommitTime(transaction.id);
-      if (!commit_time.is_valid()) {
+      // In case of failure status, we stop the resolution process, so `transactions_` content
+      // does not content matter in this case.
+      bool allow_erase =
+          commit_time.is_valid() &&
+          VERIFY_RESULT(context_->CheckConflictWithCommitted(transaction.id, commit_time));
+      if (!allow_erase) {
         *write_iterator = transaction;
         ++write_iterator;
         continue;
       }
-      RETURN_NOT_OK(context_->CheckConflictWithCommitted(transaction.id, commit_time));
-      VLOG_WITH_PREFIX(4) << "Locally committed: " << transaction.id;
+      VLOG_WITH_PREFIX(4) << "Locally committed: " << transaction.id << ", time: " << commit_time;
     }
     transactions_.erase(write_iterator, transactions_.end());
 
@@ -303,23 +308,30 @@ class ConflictResolver : public std::enable_shared_from_this<ConflictResolver> {
       RETURN_NOT_OK(transaction.failure);
       auto status = transaction.status;
       if (status == TransactionStatus::COMMITTED) {
-        RETURN_NOT_OK(context_->CheckConflictWithCommitted(
+        bool allow_erase = VERIFY_RESULT(context_->CheckConflictWithCommitted(
             transaction.id, transaction.commit_time));
-        VLOG_WITH_PREFIX(4) << "Committed: " << transaction.id;
-        continue;
+        if (allow_erase) {
+          VLOG_WITH_PREFIX(4)
+              << "Committed: " << transaction.id << ", commit time: " << transaction.commit_time;
+          continue;
+        }
       } else if (status == TransactionStatus::ABORTED) {
         auto commit_time = status_manager().LocalCommitTime(transaction.id);
         if (commit_time.is_valid()) {
-          RETURN_NOT_OK(context_->CheckConflictWithCommitted(transaction.id, commit_time));
-          VLOG_WITH_PREFIX(4) << "Locally committed: " << transaction.id;
+          bool allow_erase = VERIFY_RESULT(context_->CheckConflictWithCommitted(
+              transaction.id, commit_time));
+          if (allow_erase) {
+            VLOG_WITH_PREFIX(4)
+                << "Locally committed: " << transaction.id << "< commit time: " << commit_time;
+            continue;
+          }
         } else {
           VLOG_WITH_PREFIX(4) << "Aborted: " << transaction.id;
+          continue;
         }
-        continue;
-      } else {
-        DCHECK(TransactionStatus::PENDING == status ||
-               TransactionStatus::APPLYING == status)
-            << "Actual status: " << TransactionStatus_Name(status);
+      } else if (status != TransactionStatus::PENDING && status != TransactionStatus::APPLYING) {
+        return STATUS_FORMAT(
+            IllegalState, "Unexpected transaction state: $0", TransactionStatus_Name(status));
       }
       *write_iterator = transaction;
       ++write_iterator;
@@ -412,8 +424,12 @@ class ConflictResolver : public std::enable_shared_from_this<ConflictResolver> {
   std::atomic<int> pending_requests_{0};
 };
 
+struct IntentData {
+  IntentTypeSet types;
+  bool full_doc_key;
+};
 
-using IntentTypesContainer = std::map<KeyBuffer, IntentTypeSet>;
+using IntentTypesContainer = std::map<KeyBuffer, IntentData>;
 
 class IntentProcessor {
  public:
@@ -423,15 +439,43 @@ class IntentProcessor {
         weak_intent_types_(StrongToWeak(strong_intent_types_))
   {}
 
-  void Process(IntentStrength strength, KeyBytes* intent_key) {
+  void Process(IntentStrength strength, FullDocKey full_doc_key, KeyBytes* intent_key) {
     const auto is_strong = strength == IntentStrength::kStrong;
     const auto& intent_type_set = is_strong ? strong_intent_types_ : weak_intent_types_;
     auto i = container_.find(intent_key->data());
     if (i == container_.end()) {
-      container_.emplace(intent_key->data(), intent_type_set);
-    } else {
-      i->second |= intent_type_set;
+      container_.emplace(intent_key->data(), IntentData{intent_type_set, full_doc_key});
+      return;
     }
+
+    i->second.types |= intent_type_set;
+
+    // In a batch of keys, the computed full_doc_key value might vary based on the key that produced
+    // a particular intent. E.g. suppose we have a primary key (h, r) and s is a subkey. If we are
+    // trying to write strong intents on (h) and (h, r, s) in a batch, we end up with the following
+    // intent types:
+    //
+    // (h) -> strong, full_doc_key: true (always true for strong intents)
+    // (h, r) -> weak, full_doc_key: true (we did not omit any final doc key components)
+    // (h, r, s) -> strong, full_doc_key: true
+    //
+    // Note that full_doc_key is always true for strong intents because we process one key at a time
+    // and when taking that key by itself, (h) looks like the full doc key (nothing follows it).
+    // In the above example, the intent (h) is generated both as a strong intent and as a weak
+    // intent based on keys (h, r) and (h, r, s), and we OR the value of full_doc_key and end up
+    // with true.
+    //
+    // If we are trying to write strong intents on (h, r) and (h, r, s), we get:
+    //
+    // (h) -> weak, full_doc_key: false (because we know it is just part of the doc key)
+    // (h, r) -> strong, full_doc_key: true
+    // (h, r, s) -> strong, full_doc_key: true
+    //
+    // So we effectively end up with three types of intents:
+    // - Weak intents with full_doc_key=false
+    // - Weak intents with full_doc_key=true
+    // - Strong intents with full_doc_key=true.
+    i->second.full_doc_key = i->second.full_doc_key || full_doc_key;
   }
 
  private:
@@ -454,7 +498,7 @@ class StrongConflictChecker {
         buffer_(*buffer)
   {}
 
-  CHECKED_STATUS Check(const Slice& intent_key) {
+  CHECKED_STATUS Check(const Slice& intent_key, bool strong) {
     const auto hash = VERIFY_RESULT(DecodeDocKeyHash(intent_key));
     if (PREDICT_FALSE(!value_iter_.Initialized() || hash != value_iter_hash_)) {
       value_iter_ = CreateRocksDBIterator(
@@ -466,23 +510,52 @@ class StrongConflictChecker {
       value_iter_hash_ = hash;
     }
     value_iter_.Seek(intent_key);
-    // Inspect records whose doc keys are children of the intent's doc key.  If the intent's doc
-    // key is empty, it signifies an intent on the whole table.
+    VLOG_WITH_PREFIX(4) << "Seek: " << intent_key.ToDebugString() << ", strong: " << strong;
+    // If we are resolving conflicts for writing a strong intent, look at records in regular RocksDB
+    // with the same key as the intent's key (not including hybrid time) and any child keys. This is
+    // because a strong intent indicates deletion or replacement of the entire subdocument tree and
+    // any element of that tree that has already been committed at a higher hybrid time than the
+    // read timestamp would be in conflict.
+    //
+    // (Note that when writing a strong intent on the entire table, e.g. as part of locking the
+    // table, there is currently a performance issue and we'll need a better approach:
+    // https://github.com/yugabyte/yugabyte-db/issues/6055).
+    //
+    // If we are resolving conflicts for writing a weak intent, only look at records in regular
+    // RocksDB with the same key as the intent (not including hybrid time). This is because a weak
+    // intent indicates that something in the document subtree rooted at that intent's key will
+    // change, so it is only directly in conflict with a committed record that deletes or replaces
+    // that entire document subtree (similar to a strong intent), so it would have the same exact
+    // key as the weak intent (not including hybrid time).
     while (value_iter_.Valid() &&
            (intent_key.starts_with(ValueTypeAsChar::kGroupEnd) ||
             value_iter_.key().starts_with(intent_key))) {
       auto existing_key = value_iter_.key();
       auto doc_ht = VERIFY_RESULT(DocHybridTime::DecodeFromEnd(&existing_key));
-      VLOG(4) << transaction_id_ << ": Check value overwrite "
-              << ", key: " << SubDocKey::DebugSliceToString(intent_key)
-              << ", read time: " << read_time_
-              << ", found key: " << SubDocKey::DebugSliceToString(value_iter_.key());
+      if (existing_key.empty() ||
+          existing_key[existing_key.size() - 1] != ValueTypeAsChar::kHybridTime) {
+        return STATUS_FORMAT(
+            Corruption, "Hybrid time expected at end of key: $0",
+            value_iter_.key().ToDebugString());
+      }
+      if (!strong && existing_key.size() != intent_key.size() + 1) {
+        VLOG_WITH_PREFIX(4)
+            << "Check value overwrite, key: " << intent_key.ToDebugString()
+            << ", out of bound key: " << existing_key.ToDebugString();
+        break;
+      }
+      VLOG_WITH_PREFIX(4)
+          << "Check value overwrite, key: " << SubDocKey::DebugSliceToString(intent_key)
+          << ", read time: " << read_time_
+          << ", doc ht: " << doc_ht.hybrid_time()
+          << ", found key: " << SubDocKey::DebugSliceToString(value_iter_.key())
+          << ", after start: " << (doc_ht.hybrid_time() >= read_time_)
+          << ", value: " << value_iter_.value().ToDebugString();
       if (doc_ht.hybrid_time() >= read_time_) {
         conflicts_metric_.Increment();
-        return (STATUS(TryAgain,
-                       Format("Value write after transaction start: $0 >= $1",
-                              doc_ht.hybrid_time(), read_time_), Slice(),
-                       TransactionError(TransactionErrorCode::kConflict)));
+        return STATUS_EC_FORMAT(TryAgain, TransactionError(TransactionErrorCode::kConflict),
+                                "Value write after transaction start: $0 >= $1",
+                                doc_ht.hybrid_time(), read_time_);
       }
       buffer_.Reset(existing_key);
       // Already have ValueType::kHybridTime at the end
@@ -494,6 +567,10 @@ class StrongConflictChecker {
   }
 
  private:
+  std::string LogPrefix() const {
+    return Format("$0: ", transaction_id_);
+  }
+
   const TransactionId& transaction_id_;
   const HybridTime read_time_;
   ConflictResolver& resolver_;
@@ -617,8 +694,9 @@ class TransactionConflictResolverContext : public ConflictResolverContextBase {
         RETURN_NOT_OK(EnumerateIntents(
             path.as_slice(),
             /* intent_value */ Slice(),
-            [&write_processor](auto strength, auto, auto intent_key, auto) {
-              write_processor.Process(strength, intent_key);
+            [&write_processor](
+                auto strength, FullDocKey full_doc_key, auto, auto intent_key, auto) {
+              write_processor.Process(strength, full_doc_key, intent_key);
               return Status::OK();
             },
             &buffer,
@@ -632,8 +710,8 @@ class TransactionConflictResolverContext : public ConflictResolverContextBase {
           GetStrongIntentTypeSet(metadata_.isolation, docdb::OperationKind::kWrite, row_mark));
       RETURN_NOT_OK(EnumerateIntents(
           pairs,
-          [&read_processor](auto strength, auto, auto intent_key, auto) {
-            read_processor.Process(strength, intent_key);
+          [&read_processor](auto strength, FullDocKey full_doc_key, auto, auto intent_key, auto) {
+            read_processor.Process(strength, full_doc_key, intent_key);
             return Status::OK();
           },
           resolver->partial_range_key_intents()));
@@ -652,11 +730,19 @@ class TransactionConflictResolverContext : public ConflictResolverContextBase {
     resolver->EnsureIntentIteratorCreated();
 
     for(const auto& i : container) {
-      if (read_time_ != HybridTime::kMax && HasStrong(i.second)) {
-        RETURN_NOT_OK(checker.Check(i.first.AsSlice()));
+      if (read_time_ != HybridTime::kMax) {
+        const Slice intent_key = i.first.AsSlice();
+        bool strong = HasStrong(i.second.types);
+        // For strong intents or weak intents at a full document key level (i.e. excluding intents
+        // that omit some final range components of the document key), check for conflicts with
+        // records in regular RocksDB. We need this because the row might have been deleted
+        // concurrently by a single-shard transaction or a committed and applied transaction.
+        if (strong || i.second.full_doc_key) {
+          RETURN_NOT_OK(checker.Check(intent_key, strong));
+        }
       }
       buffer.Reset(i.first.AsSlice());
-      RETURN_NOT_OK(resolver->ReadIntentConflicts(i.second, &buffer));
+      RETURN_NOT_OK(resolver->ReadIntentConflicts(i.second.types, &buffer));
     }
 
     return Status::OK();
@@ -668,9 +754,9 @@ class TransactionConflictResolverContext : public ConflictResolverContextBase {
                                  metadata_.priority);
   }
 
-  CHECKED_STATUS CheckConflictWithCommitted(
+  Result<bool> CheckConflictWithCommitted(
       const TransactionId& id, HybridTime commit_time) override {
-    DSCHECK(commit_time.is_valid(), Corruption, "Invalid transaction commit time");
+    RSTATUS_DCHECK(commit_time.is_valid(), Corruption, "Invalid transaction commit time");
 
     VLOG(4) << ToString() << ", committed: " << id << ", commit_time: " << commit_time
             << ", read_time: " << read_time_;
@@ -690,7 +776,7 @@ class TransactionConflictResolverContext : public ConflictResolverContextBase {
       return MakeConflictStatus(*transaction_id_, id, "committed", GetConflictsMetric());
     }
 
-    return Status::OK();
+    return true;
   }
 
   bool IgnoreConflictsWith(const TransactionId& other) override {
@@ -733,8 +819,9 @@ class OperationConflictResolverContext : public ConflictResolverContextBase {
 
     IntentTypeSet strong_intent_types;
 
-    EnumerateIntentsCallback callback = [&strong_intent_types, resolver]
-        (IntentStrength intent_strength, Slice, KeyBytes* encoded_key_buffer, LastKey) {
+    EnumerateIntentsCallback callback = [&strong_intent_types, resolver](
+        IntentStrength intent_strength, FullDocKey full_doc_key, Slice,
+        KeyBytes* encoded_key_buffer, LastKey) {
       return resolver->ReadIntentConflicts(
           intent_strength == IntentStrength::kStrong ? strong_intent_types
                                                      : StrongToWeak(strong_intent_types),
@@ -776,12 +863,13 @@ class OperationConflictResolverContext : public ConflictResolverContextBase {
     return "Operation Context";
   }
 
-  CHECKED_STATUS CheckConflictWithCommitted(
+  Result<bool> CheckConflictWithCommitted(
       const TransactionId& id, HybridTime commit_time) override {
     if (commit_time != HybridTime::kMax) {
       MakeResolutionAtLeast(commit_time);
+      return true;
     }
-    return Status::OK();
+    return false;
   }
 };
 

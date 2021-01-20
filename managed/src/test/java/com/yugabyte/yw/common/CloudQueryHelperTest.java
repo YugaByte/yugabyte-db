@@ -24,6 +24,7 @@ import static com.yugabyte.yw.common.AssertHelper.assertErrorNodeValue;
 import static com.yugabyte.yw.common.AssertHelper.assertValue;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyMap;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -51,12 +52,10 @@ public class CloudQueryHelperTest extends FakeDBApplication {
     defaultCustomer = ModelFactory.testCustomer();
     defaultProvider = ModelFactory.awsProvider(defaultCustomer);
     defaultRegion = Region.create(defaultProvider, "us-west-2", "US West 2", "yb-image");
-    command = ArgumentCaptor.forClass(ArrayList.class);
-    cloudCredentials = ArgumentCaptor.forClass(HashMap.class);
   }
 
   private JsonNode runCommand(UUID regionUUID, boolean mimicError, CommandType command) {
-    ShellProcessHandler.ShellResponse response = new ShellProcessHandler.ShellResponse();
+    ShellResponse response = new ShellResponse();
     if (mimicError) {
       response.message = "{\"error\": \"Unknown Error\"}";
       response.code = 99;
@@ -64,7 +63,7 @@ public class CloudQueryHelperTest extends FakeDBApplication {
       response.code = 0;
       response.message = "{\"foo\": \"bar\"}";
     }
-    when(shellProcessHandler.run(anyList(), anyMap())).thenReturn(response);
+    when(shellProcessHandler.run(anyList(), anyMap(), anyString())).thenReturn(response);
 
     switch (command) {
       case zones:

@@ -123,6 +123,8 @@ YB_DEFINE_ENUM(StackTraceGroup, (kActive)(kWaiting)(kIdle));
 // Requires external synchronization.
 class StackTrace {
  public:
+  // It is OK that frames_ is uninitialized.
+  //-V:frames_:V730
   StackTrace() : num_frames_(0) {
   }
 

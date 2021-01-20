@@ -17,14 +17,14 @@ isTocNested: true
 <ul class="nav nav-tabs-alt nav-tabs-yb">
 
   <li >
-    <a href="/latest/benchmark/resilience/jepsen-testing-ysql" class="nav-link active">
+    <a href="/stable/benchmark/resilience/jepsen-testing-ysql" class="nav-link active">
       <i class="icon-postgres" aria-hidden="true"></i>
       YSQL
     </a>
   </li>
 
   <li >
-    <a href="/latest/benchmark/resilience/jepsen-testing-ycql" class="nav-link">
+    <a href="/stable/benchmark/resilience/jepsen-testing-ycql" class="nav-link">
       <i class="icon-cassandra" aria-hidden="true"></i>
       YCQL
     </a>
@@ -82,7 +82,7 @@ YSQL does not support transactional DDL statements yet ([GitHub issue #1404](htt
 
 The underlying table was defined as shown below.
 
-```postgresql
+```plpgsql
 CREATE TABLE foo (
   k TIMESTAMP DEFAULT now(),
   v INT

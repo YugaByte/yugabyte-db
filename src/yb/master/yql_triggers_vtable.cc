@@ -17,8 +17,10 @@
 namespace yb {
 namespace master {
 
-YQLTriggersVTable::YQLTriggersVTable(const Master* const master)
-    : YQLEmptyVTable(master::kSystemSchemaTriggersTableName, master, CreateSchema()) {
+YQLTriggersVTable::YQLTriggersVTable(const TableName& table_name,
+                                     const NamespaceName& namespace_name,
+                                     Master * const master)
+    : YQLEmptyVTable(table_name, namespace_name, master, CreateSchema()) {
 }
 
 Schema YQLTriggersVTable::CreateSchema() const {

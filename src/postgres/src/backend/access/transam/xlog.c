@@ -7404,6 +7404,7 @@ StartupXLOG(void)
 						recoveryPausesHere();
 
 						/* drop into promote */
+						switch_fallthrough();
 
 					case RECOVERY_TARGET_ACTION_PROMOTE:
 						break;
@@ -9319,7 +9320,7 @@ CreateRestartPoint(int flags)
 
 	/*
 	 * Update pg_control, using current time.  Check that it still shows
-	 * IN_ARCHIVE_RECOVERY state and an older checkpoint, else do nothing;
+	 * DB_IN_ARCHIVE_RECOVERY state and an older checkpoint, else do nothing;
 	 * this is a quick hack to make sure nothing really bad happens if somehow
 	 * we get here after the end-of-recovery checkpoint.
 	 */

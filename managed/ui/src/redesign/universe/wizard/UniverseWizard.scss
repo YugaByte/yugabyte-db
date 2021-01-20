@@ -1,0 +1,34 @@
+@import '../../uikit/common';
+
+.universe-wizard {
+  padding: 35px 0;
+  width: 100%;
+  font-family: $YB_FONT_FAMILY;
+
+  &__header {
+    margin-left: 50px;
+    position: fixed;
+    top: 0;
+    display: flex;
+    align-items: center;
+    height: 60px; // top navbar height
+    z-index: 1030; // to show above top navbar
+  }
+
+  &__title {
+    font-size: 30px;
+    font-weight: 600;
+    color: $YB_TEXT_1;
+  }
+
+  &__beta {
+    display: inline-block;
+    font-size: 30px;
+    background-color: $YB_CTA;
+    color: $YB_PAGE_BACKGROUND;
+    padding: 2px 10px;
+    border-radius: 5px;
+    margin-left: 15px;
+    line-height: initial;
+  }
+}

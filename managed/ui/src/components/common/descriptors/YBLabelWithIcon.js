@@ -5,15 +5,13 @@ import PropTypes from 'prop-types';
 
 export default class YBLabelWithIcon extends Component {
   static propTypes = {
-    icon: PropTypes.string,
+    icon: PropTypes.string
   };
   render() {
-    const {icon} = this.props;
+    const { icon } = this.props;
     return (
       <span>
-        {icon &&
-          <i className={icon}></i>
-        }
+        {icon && <i className={icon}></i>}
         {this.props.children}
       </span>
     );

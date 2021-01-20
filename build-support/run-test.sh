@@ -60,6 +60,7 @@ cleanup() {
     touch "$YB_COMPLETED_TEST_FLAG_DIR/$YB_TEST_INVOCATION_ID"
   fi
   if [[ $exit_code -eq 0 ]] && "$killed_stuck_processes"; then
+    log "Failing test because we had to kill stuck process."
     exit_code=1
   fi
   rm -rf "$TEST_TMPDIR"

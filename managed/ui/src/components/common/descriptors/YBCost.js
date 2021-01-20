@@ -10,20 +10,24 @@ import './stylesheets/YBCost.css';
 export default class YBCost extends Component {
   static propTypes = {
     multiplier: PropTypes.oneOf(['day', 'month', 'hour']).isRequired
-  }
+  };
 
   render() {
-    const {value, multiplier } = this.props;
+    const { value, multiplier } = this.props;
     let finalCost = value || 0;
-    if (multiplier === "day") {
+    if (multiplier === 'day') {
       finalCost *= 24;
-    }
-    else if(multiplier === "month") {
+    } else if (multiplier === 'month') {
       finalCost = finalCost * 24 * moment().daysInMonth();
     }
     return (
-      <YBFormattedNumber value={finalCost} maximumFractionDigits={2}
-        formattedNumberStyle="currency" currency="USD" multiplier={multiplier}/>
+      <YBFormattedNumber
+        value={finalCost}
+        maximumFractionDigits={2}
+        formattedNumberStyle="currency"
+        currency="USD"
+        multiplier={multiplier}
+      />
     );
   }
 }

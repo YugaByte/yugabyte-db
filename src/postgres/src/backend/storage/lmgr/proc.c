@@ -63,6 +63,10 @@ int			LockTimeout = 0;
 int			IdleInTransactionSessionTimeout = 0;
 bool		log_lock_waits = false;
 
+int			RetryMaxBackoffMsecs;
+int			RetryMinBackoffMsecs;
+double		RetryBackoffMultiplier;
+
 /* Pointer to this process's PGPROC and PGXACT structs, if any */
 PGPROC	   *MyProc = NULL;
 PGXACT	   *MyPgXact = NULL;
@@ -93,7 +97,6 @@ static void RemoveProcFromArray(int code, Datum arg);
 static void ProcKill(int code, Datum arg);
 static void AuxiliaryProcKill(int code, Datum arg);
 static void CheckDeadLock(void);
-
 
 /*
  * Report shared-memory space needed by InitProcGlobal.

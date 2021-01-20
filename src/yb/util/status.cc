@@ -185,6 +185,44 @@ class ErrorCodesRange {
 
 } // anonymous namespace
 
+StringVectorBackedErrorTag::Value StringVectorBackedErrorTag::Decode(const uint8_t* source) {
+  if (!source) {
+    return Value();
+  }
+  Value result;
+  Slice buf(source, DecodeSize(source));
+  buf.remove_prefix(sizeof(SizeType));
+  while (buf.size() > 0) {
+    const auto str_size = Load<SizeType, LittleEndian>(buf.data());
+    buf.remove_prefix(sizeof(SizeType));
+    result.emplace_back(buf.cdata(), str_size);
+    buf.remove_prefix(str_size);
+  }
+  return result;
+}
+
+size_t StringVectorBackedErrorTag::EncodedSize(const StringVectorBackedErrorTag::Value& value) {
+  size_t size = sizeof(SizeType);
+  for (const auto& str : value) {
+    size += sizeof(SizeType) + str.size();
+  }
+  return size;
+}
+
+uint8_t* StringVectorBackedErrorTag::Encode(
+    const StringVectorBackedErrorTag::Value& value, uint8_t* out) {
+  uint8_t* const start = out;
+  out += sizeof(SizeType);
+  for (const auto& str : value) {
+    Store<SizeType, LittleEndian>(out, str.size());
+    out += sizeof(SizeType);
+    memcpy(out, str.data(), str.size());
+    out += str.size();
+  }
+  Store<SizeType, LittleEndian>(start, out - start);
+  return out;
+}
+
 // Error codes are stored after message.
 // For each error code first byte encodes category and a special value of 0 means the end of the
 // list. Error code is encoded after category and concrete encoding depends on the category.
@@ -444,6 +482,12 @@ Status::Code Status::code() const {
 Status Status::CloneAndPrepend(const Slice& msg) const {
   return Status(State::Create(
       code(), state_->file_name, state_->line_number, msg, message(), state_->ErrorCodesSlice(),
+      DupFileName(file_name_duplicated())));
+}
+
+Status Status::CloneAndReplaceCode(Code code) const {
+  return Status(State::Create(
+      code, state_->file_name, state_->line_number, message(), Slice(), state_->ErrorCodesSlice(),
       DupFileName(file_name_duplicated())));
 }
 

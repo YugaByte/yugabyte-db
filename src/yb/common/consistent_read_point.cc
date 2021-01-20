@@ -43,7 +43,7 @@ ReadHybridTime ConsistentReadPoint::GetReadTime(const TabletId& tablet) const {
     // Use the local limit for the tablet but no earlier than the read time we want.
     const auto it = local_limits_.find(tablet);
     if (it != local_limits_.end()) {
-      read_time.local_limit = std::max(it->second, read_time.read);
+      read_time.local_limit = it->second;
     }
   }
   return read_time;

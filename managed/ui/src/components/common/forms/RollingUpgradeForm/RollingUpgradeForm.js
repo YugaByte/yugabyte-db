@@ -1,30 +1,47 @@
 // Copyright (c) YugaByte, Inc.
 
+import _ from 'lodash';
 import React, { Component } from 'react';
 import { Field, FieldArray } from 'redux-form';
 import { Row, Col, Tabs, Tab, Alert } from 'react-bootstrap';
-import { YBModal, YBInputField, YBAddRowButton, YBSelectWithLabel, YBToggle, YBCheckBox,
-         YBRadioButtonBarWithLabel } from '../fields';
-import { isNonEmptyArray, isNonEmptyString } from '../../../../utils/ObjectUtils';
+import {
+  YBModal,
+  YBInputField,
+  YBAddRowButton,
+  YBSelectWithLabel,
+  YBToggle,
+  YBCheckBox,
+  YBRadioButtonBarWithLabel
+} from '../fields';
+import { isNonEmptyArray } from '../../../../utils/ObjectUtils';
 import { getPromiseState } from '../../../../utils/PromiseUtils';
+import { getPrimaryCluster } from '../../../../utils/UniverseUtils';
+import { isDefinedNotNull, isNonEmptyObject } from '../../../../utils/ObjectUtils';
 import './RollingUpgradeForm.scss';
-import _ from 'lodash';
-import { getPrimaryCluster } from "../../../../utils/UniverseUtils";
-import { isDefinedNotNull, isNonEmptyObject } from "../../../../utils/ObjectUtils";
 
 class FlagInput extends Component {
   render() {
-    const {deleteRow, item} = this.props;
+    const { deleteRow, item } = this.props;
     return (
       <Row>
         <Col lg={5}>
-          <Field name={`${item}.name`} component={YBInputField} className="input-sm" placeHolder="Flag Name"/>
+          <Field
+            name={`${item}.name`}
+            component={YBInputField}
+            className="input-sm"
+            placeHolder="Flag Name"
+          />
         </Col>
         <Col lg={5}>
-          <Field name={`${item}.value`} component={YBInputField} className="input-sm" placeHolder="Value"/>
+          <Field
+            name={`${item}.value`}
+            component={YBInputField}
+            className="input-sm"
+            placeHolder="Value"
+          />
         </Col>
         <Col lg={1}>
-          <i className="fa fa-times fa-fw delete-row-btn" onClick={deleteRow}/>
+          <i className="fa fa-times fa-fw delete-row-btn" onClick={deleteRow} />
         </Col>
       </Row>
     );
@@ -39,146 +56,114 @@ class FlagItems extends Component {
   }
   render() {
     const { fields } = this.props;
-    const addFlagItem = function() {
-      fields.push({});
-    };
+    const addFlagItem = () => fields.push({});
     const gFlagsFieldList = fields.map((item, idx) => (
       <FlagInput item={item} key={idx} deleteRow={() => fields.remove(idx)} />
     ));
 
     return (
       <div className="form-field-grid">
-        {
-          gFlagsFieldList
-        }
-        <YBAddRowButton 
-          btnText="Add" 
-          onClick={addFlagItem} />
+        {gFlagsFieldList}
+        <YBAddRowButton btnText="Add" onClick={addFlagItem} />
       </div>
     );
   }
 }
 
-
 export default class RollingUpgradeForm extends Component {
   constructor(props) {
     super(props);
-    this.toggleConfirmValidation = this.toggleConfirmValidation.bind(this);
-    this.softwareVersionChanged = this.softwareVersionChanged.bind(this);
-    this.state = {
-      formConfirmed: false,
-      pickedVersion: null
-    };
-  }
-
-  softwareVersionChanged(value) {
-    const { universe } = this.props;
-    this.setState({
-      pickedVersion: value
-    });
-    if (getPromiseState(universe.rollingUpgrade).isError()) {
-      this.props.resetRollingUpgrade();
-    };
+    this.state = { formConfirmed: false };
   }
 
   toggleConfirmValidation = () => {
+    this.setState({ formConfirmed: !this.state.formConfirmed });
+  };
+
+  componentWillUnmount() {
+    this.resetAndClose();
+  }
+
+  getCurrentVersion = () => {
     const { universe } = this.props;
-    this.setState({
-      formConfirmed: !this.state.formConfirmed
-    });
-    if (getPromiseState(universe.rollingUpgrade).isError()) {
-      this.props.resetRollingUpgrade();
-    };
-  }
-
-  componentDidUpdate(prevProps) {
-    const { universe, universe: { rollingUpgrade, currentUniverse: { data: { universeUUID }}}} = this.props;
-    if (getPromiseState(rollingUpgrade).isSuccess() && getPromiseState(prevProps.universe.rollingUpgrade).isLoading()) {
-      this.props.fetchCurrentUniverse(universeUUID);
-      this.props.fetchUniverseMetadata();
-      this.props.fetchCustomerTasks();
-      this.props.fetchUniverseTasks(universeUUID);
-    }
-
     let currentVersion = null;
-    if(isDefinedNotNull(universe.currentUniverse.data) && isNonEmptyObject(universe.currentUniverse.data)) {
-      const primaryCluster = getPrimaryCluster(universe.currentUniverse.data.universeDetails.clusters);
-      currentVersion = primaryCluster && (primaryCluster.userIntent.ybSoftwareVersion || undefined);
+    if (
+      isDefinedNotNull(universe.currentUniverse.data) &&
+      isNonEmptyObject(universe.currentUniverse.data)
+    ) {
+      const primaryCluster = getPrimaryCluster(
+        universe.currentUniverse.data.universeDetails.clusters
+      );
+      currentVersion = primaryCluster?.userIntent?.ybSoftwareVersion;
     }
-
-    if (getPromiseState(rollingUpgrade).isError()) {
-      this.setState({
-        formConfirmed: false,
-        formValidated: false,
-        pickedVersion: currentVersion
-      });
-    }
+    return currentVersion;
   }
 
-  componentWillUnmount () {
-    const { resetRollingUpgrade } = this.props;
-    resetRollingUpgrade();
-  }
-
-  componentDidMount = () => {
-    const { softwareVersions } = this.props;
-    this.softwareVersionChanged(softwareVersions[0]);
-  }
-
-  setRollingUpgradeProperties = values => {
+  setRollingUpgradeProperties = (values) => {
     const {
-      reset,
-      modal: {
-        visibleModal
-      },
+      modal: { visibleModal },
       universe: {
         currentUniverse: {
           data: {
-            universeDetails: {clusters, nodePrefix},
+            universeDetails: { clusters, nodePrefix },
             universeUUID
           }
         }
       }
     } = this.props;
+
     const payload = {};
-    if (visibleModal === "softwareUpgradesModal") {
-      payload.taskType = "Software";
-    } else if (visibleModal === "gFlagsModal") {
-      payload.taskType = "GFlags";
-    } else {
-      return;
+    switch (visibleModal) {
+      case 'softwareUpgradesModal': {
+        payload.taskType = 'Software';
+        payload.upgradeOption = values.rollingUpgrade ? 'Rolling' : 'Non-Rolling';
+        break;
+      }
+      case 'gFlagsModal': {
+        payload.taskType = 'GFlags';
+        payload.upgradeOption = values.upgradeOption;
+        break;
+      }
+      case 'tlsConfigurationModal': {
+        payload.taskType = 'Certs';
+        payload.upgradeOption = values.rollingUpgrade ? 'Rolling' : 'Non-Rolling';
+        payload.certUUID = values.tlsCertificate;
+        break;
+      }
+      case 'rollingRestart': {
+        payload.taskType = 'Restart';
+        payload.upgradeOption = 'Rolling';
+        break;
+      }
+      default: return;
     }
+
     const primaryCluster = _.cloneDeep(getPrimaryCluster(clusters));
     if (!isDefinedNotNull(primaryCluster)) {
       return;
     }
     payload.ybSoftwareVersion = values.ybSoftwareVersion;
-    if (payload.taskType === "GFlags") {
-      payload.upgradeOption = values.upgradeOption;
-    } else {
-      payload.upgradeOption = values.rollingUpgrade ? "Rolling" : "Non-Rolling";
-    }
     payload.universeUUID = universeUUID;
     payload.nodePrefix = nodePrefix;
     let masterGFlagList = [];
     let tserverGFlagList = [];
     if (isNonEmptyArray(values.masterGFlags)) {
-      masterGFlagList = values.masterGFlags.map(function(masterFlag, masterIdx){
-        if (masterFlag.name && masterFlag.value) {
-          return {name: masterFlag.name, value: masterFlag.value};
-        } else {
-          return null;
-        }
-      }).filter(Boolean);
+      masterGFlagList = values.masterGFlags
+        .map((masterFlag) => {
+          return (masterFlag.name && masterFlag.value)
+            ? { name: masterFlag.name, value: masterFlag.value }
+            : null;
+        })
+        .filter(Boolean);
     }
     if (isNonEmptyArray(values.tserverGFlags)) {
-      tserverGFlagList = values.tserverGFlags.map(function(tserverFlag, tserverIdx){
-        if (tserverFlag.name && tserverFlag.value) {
-          return {name: tserverFlag.name, value: tserverFlag.value};
-        } else {
-          return null;
-        }
-      }).filter(Boolean);
+      tserverGFlagList = values.tserverGFlags
+        .map((tserverFlag) => {
+          return (tserverFlag.name && tserverFlag.value)
+            ? { name: tserverFlag.name, value: tserverFlag.value }
+            : null;
+        })
+        .filter(Boolean);
     }
     primaryCluster.userIntent.ybSoftwareVersion = values.ybSoftwareVersion;
     primaryCluster.userIntent.masterGFlags = masterGFlagList;
@@ -186,111 +171,239 @@ export default class RollingUpgradeForm extends Component {
     payload.clusters = [primaryCluster];
     payload.sleepAfterMasterRestartMillis = values.timeDelay * 1000;
     payload.sleepAfterTServerRestartMillis = values.timeDelay * 1000;
-    this.props.submitRollingUpgradeForm(payload, universeUUID, reset);
+
+    this.props.submitRollingUpgradeForm(payload, universeUUID).then(response => {
+      if (response.payload.status === 200) {
+        this.props.fetchCurrentUniverse(universeUUID);
+        this.props.fetchUniverseMetadata();
+        this.props.fetchCustomerTasks();
+        this.props.fetchUniverseTasks(universeUUID);
+        this.resetAndClose();
+      }
+    });
+  };
+
+  resetAndClose = () => {
+    this.props.onHide();
+    this.props.reset();
+    this.props.resetRollingUpgrade();
+    this.setState({ formConfirmed: false });
   };
 
   render() {
-    const self = this;
-    const {onHide, modalVisible, handleSubmit, universe, modal: { visibleModal }, 
-      universe: { error }, resetRollingUpgrade, softwareVersions, upgradeOption} = this.props;
-    let currentVersion = null;
-    if(isDefinedNotNull(universe.currentUniverse.data) && isNonEmptyObject(universe.currentUniverse.data)) {
-      const primaryCluster = getPrimaryCluster(universe.currentUniverse.data.universeDetails.clusters);
-      currentVersion = primaryCluster && (primaryCluster.userIntent.ybSoftwareVersion || undefined);
-    }
-    let shouldEnableRollingUpgradeDelay = upgradeOption === 'Rolling';
+    const {
+      modalVisible,
+      handleSubmit,
+      universe,
+      certificates,
+      modal: { visibleModal },
+      universe: { error },
+      softwareVersions,
+      formValues
+    } = this.props;
 
-    const submitAction = handleSubmit(self.setRollingUpgradeProperties);
-    let title = "";
-    let formBody = <span/>;
-    const softwareVersionOptions = softwareVersions.map(function(item, idx){
-      return <option key={idx} disabled={ item===currentVersion ? true : false } value={item}>{item}</option>;
-    });
+    const currentVersion = this.getCurrentVersion();
+    const submitAction = handleSubmit(this.setRollingUpgradeProperties);
 
-    const formCloseAction = function() {
-      onHide();
-      self.props.reset();
-      self.props.resetRollingUpgrade();
-      self.setState({
-        formConfirmed: false,
-        formValidated: false,
-      });
-    };
-    if (visibleModal === "softwareUpgradesModal") {
-      title="Upgrade Software";
-      formBody = (
-        <span>
-          <Col lg={12} className="form-section-title">
-            Software Package Version
-          </Col>
-          <div className="form-right-aligned-labels">
-            <Field name="rollingUpgrade" component={YBToggle} label="Rolling Upgrade" />
-            <Field name="timeDelay" component={YBInputField}
-                               label="Upgrade Delay Between Servers (secs)" />
-            <Field name="ybSoftwareVersion" type="select" component={YBSelectWithLabel}
-                   options={softwareVersionOptions} label="Server Version"
-                   onInputChanged={this.softwareVersionChanged}/>
-          </div>
-        </span>
-      );
-    } else {
-      title = "Flags";
-      formBody = (
-        <div>
-          <Tabs defaultActiveKey={1} className="gflag-display-container" id="gflag-container" >
-            <Tab eventKey={1} title="Master" className="gflag-class-1" bsClass="gflag-class-2">
-              <FieldArray name="masterGFlags" component={FlagItems} resetRollingUpgrade={resetRollingUpgrade}/>
-            </Tab>
-            <Tab eventKey={2} title="T-Server">
-              <FieldArray name="tserverGFlags" component={FlagItems} resetRollingUpgrade={resetRollingUpgrade}/>
-            </Tab>
-          </Tabs>
-          <div className="form-right-aligned-labels top-10 time-delay-container">
-            <Field name="upgradeOption" component={YBRadioButtonBarWithLabel}
-                   options={["Rolling", "Non-Rolling", "Non-Restart"]} label="Upgrade Option"
-                   initialValue="Rolling"/>
-            <Field name="timeDelay" component={YBInputField}
-                   label="Rolling Upgrade Delay Between Servers (secs)"
-                   isReadOnly={!shouldEnableRollingUpgradeDelay} />
-          </div>
-        </div>
-      );
-    }
-    return (
-      visibleModal === "softwareUpgradesModal" ?
-        <YBModal
-          className={getPromiseState(universe.rollingUpgrade).isError() ? "modal-shake" : ""}
-          visible={modalVisible}
-          formName={"RollingUpgradeForm"}
-          onHide={formCloseAction}
-          submitLabel={'Upgrade'}
-          showCancelButton={true}
-          title={title}
-          onFormSubmit={submitAction}
-          error={error}
-          footerAccessory={ this.state.pickedVersion !== currentVersion
-            ? <YBCheckBox label={"Confirm software upgrade"} className="footer-accessory" input={{ checked: this.state.formConfirmed, onChange: this.toggleConfirmValidation}} />
-            : <span>{"Latest software is installed"}</span>} asyncValidating={!this.state.formConfirmed}>
-          {formBody}
-          { getPromiseState(universe.rollingUpgrade).isError() &&
-            isNonEmptyString(universe.rollingUpgrade.error) &&
-            <Alert bsStyle={'danger'} variant={'danger'}>
-              Certificate adding has been failed:<br/>
-              {JSON.stringify(universe.rollingUpgrade.error)}
-            </Alert>
-          }
-        </YBModal> :
-        <YBModal visible={modalVisible} formName={"RollingUpgradeForm"}
-                  onHide={formCloseAction} title={title} onFormSubmit={submitAction} error={error}>
-          {formBody}
-          { getPromiseState(universe.rollingUpgrade).isError() &&
-            isNonEmptyString(universe.rollingUpgrade.error) &&
-            <Alert bsStyle={'danger'} variant={'danger'}>
-              Certificate adding has been failed:<br/>
-              {JSON.stringify(universe.rollingUpgrade.error)}
-            </Alert>
-          }
-        </YBModal>
+    const softwareVersionOptions = softwareVersions.map((item, idx) => (
+      <option key={idx} disabled={item === currentVersion} value={item}>
+        {item}
+      </option>
+    ));
+    const tlsCertificateOptions = certificates.map(item => (
+      <option
+        key={item.uuid}
+        disabled={item.uuid === universe.currentUniverse?.data?.universeDetails?.rootCA}
+        value={item.uuid}
+      >
+        {item.label}
+      </option>
+    ));
+
+    const errorAlert = getPromiseState(universe.rollingUpgrade).isError() && (
+      <Alert bsStyle="danger" variant="danger">
+        {universe.rollingUpgrade.error
+          ? JSON.stringify(universe.rollingUpgrade.error)
+          : 'Something went wrong'}
+      </Alert>
     );
+
+    switch (visibleModal) {
+      case 'softwareUpgradesModal': {
+        return (
+          <YBModal
+            className={getPromiseState(universe.rollingUpgrade).isError() ? 'modal-shake' : ''}
+            visible={modalVisible}
+            formName="RollingUpgradeForm"
+            onHide={this.resetAndClose}
+            submitLabel="Upgrade"
+            showCancelButton
+            title="Upgrade Software"
+            onFormSubmit={submitAction}
+            error={error}
+            footerAccessory={
+              formValues.ybSoftwareVersion !== currentVersion
+                ? (
+                  <YBCheckBox
+                    label="Confirm software upgrade"
+                    input={{ checked: this.state.formConfirmed, onChange: this.toggleConfirmValidation }}
+                  />
+                )
+                : <span>Latest software is installed</span>
+            }
+            asyncValidating={!this.state.formConfirmed}
+          >
+            <Col lg={12} className="form-section-title">
+              Software Package Version
+            </Col>
+            <div className="form-right-aligned-labels rolling-upgrade-form">
+              <Field name="rollingUpgrade" component={YBToggle} label="Rolling Upgrade" />
+              <Field
+                name="timeDelay"
+                type="number"
+                component={YBInputField}
+                label="Upgrade Delay Between Servers (secs)"
+              />
+              <Field
+                name="ybSoftwareVersion"
+                type="select"
+                component={YBSelectWithLabel}
+                options={softwareVersionOptions}
+                label="Server Version"
+              />
+            </div>
+            {errorAlert}
+          </YBModal>
+        );
+      }
+      case 'gFlagsModal': {
+        return (
+          <YBModal
+            className={getPromiseState(universe.rollingUpgrade).isError() ? 'modal-shake' : ''}
+            visible={modalVisible}
+            formName="RollingUpgradeForm"
+            onHide={this.resetAndClose}
+            title="Flags"
+            onFormSubmit={submitAction}
+            error={error}
+          >
+            <Tabs defaultActiveKey={1} className="gflag-display-container" id="gflag-container">
+              <Tab eventKey={1} title="Master" className="gflag-class-1" bsClass="gflag-class-2">
+                <FieldArray
+                  name="masterGFlags"
+                  component={FlagItems}
+                />
+              </Tab>
+              <Tab eventKey={2} title="T-Server">
+                <FieldArray
+                  name="tserverGFlags"
+                  component={FlagItems}
+                />
+              </Tab>
+            </Tabs>
+            <div className="form-right-aligned-labels rolling-upgrade-form top-10 time-delay-container">
+              <Field
+                name="upgradeOption"
+                component={YBRadioButtonBarWithLabel}
+                options={['Rolling', 'Non-Rolling', 'Non-Restart']}
+                label="Upgrade Option"
+                initialValue="Rolling"
+              />
+              <Field
+                name="timeDelay"
+                type="number"
+                component={YBInputField}
+                label="Rolling Upgrade Delay Between Servers (secs)"
+                isReadOnly={formValues.upgradeOption !== 'Rolling'}
+              />
+            </div>
+            {errorAlert}
+          </YBModal>
+        );
+      }
+      case 'tlsConfigurationModal': {
+        return (
+          <YBModal
+            className={getPromiseState(universe.rollingUpgrade).isError() ? 'modal-shake' : ''}
+            visible={modalVisible}
+            formName="RollingUpgradeForm"
+            onHide={this.resetAndClose}
+            submitLabel="Upgrade"
+            showCancelButton
+            title="Edit TLS Configuration"
+            onFormSubmit={submitAction}
+            error={error}
+            footerAccessory={
+              formValues.tlsCertificate !== universe.currentUniverse?.data?.universeDetails?.rootCA
+                ? (
+                  <YBCheckBox
+                    label="Confirm TLS Changes"
+                    input={{ checked: this.state.formConfirmed, onChange: this.toggleConfirmValidation }}
+                  />
+                )
+                : <span>Select new CA signed cert from the list</span>
+            }
+            asyncValidating={
+              !this.state.formConfirmed ||
+              formValues.tlsCertificate === universe.currentUniverse?.data?.universeDetails?.rootCA
+            }
+          >
+            <div className="form-right-aligned-labels rolling-upgrade-form">
+              <Field
+                name="tlsCertificate"
+                type="select"
+                component={YBSelectWithLabel}
+                options={tlsCertificateOptions}
+                label="New TLS Certificate"
+              />
+              <Field
+                name="timeDelay"
+                type="number"
+                required
+                component={YBInputField}
+                label="Upgrade Delay Between Servers (secs)"
+              />
+              <Field name="rollingUpgrade" component={YBToggle} label="Rolling Upgrade" />
+            </div>
+            {errorAlert}
+          </YBModal>
+        );
+      }
+      case 'rollingRestart': {
+        return (
+          <YBModal
+            className={getPromiseState(universe.rollingUpgrade).isError() ? 'modal-shake' : ''}
+            visible={modalVisible}
+            formName="RollingUpgradeForm"
+            onHide={this.resetAndClose}
+            submitLabel="Restart"
+            showCancelButton
+            title="Initiate Rolling Restart"
+            onFormSubmit={submitAction}
+            error={error}
+            footerAccessory={
+              <YBCheckBox
+                label="Confirm rolling restart"
+                input={{ checked: this.state.formConfirmed, onChange: this.toggleConfirmValidation }}
+              />
+            }
+            asyncValidating={!this.state.formConfirmed}
+          >
+            <div className="form-right-aligned-labels rolling-upgrade-form">
+              <Field
+                name="timeDelay"
+                type="number"
+                component={YBInputField}
+                label="Rolling Restart Delay Between Servers (secs)"
+              />
+            </div>
+            {errorAlert}
+          </YBModal>
+        );
+      }
+      default: {
+        return null;
+      }
+    }
   }
 }

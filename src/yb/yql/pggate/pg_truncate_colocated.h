@@ -29,14 +29,6 @@ namespace pggate {
 
 class PgTruncateColocated : public PgDmlWrite {
  public:
-  // Public types.
-  typedef scoped_refptr<PgTruncateColocated> ScopedRefPtr;
-  typedef scoped_refptr<const PgTruncateColocated> ScopedRefPtrConst;
-
-  typedef std::unique_ptr<PgTruncateColocated> UniPtr;
-  typedef std::unique_ptr<const PgTruncateColocated> UniPtrConst;
-
-  // Constructors.
   PgTruncateColocated(
       PgSession::ScopedRefPtr pg_session,
       const PgObjectId& table_id,

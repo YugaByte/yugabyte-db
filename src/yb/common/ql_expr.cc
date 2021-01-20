@@ -43,9 +43,13 @@ CHECKED_STATUS QLExprExecutor::EvalExpr(const QLExpressionPB& ql_expr,
       QLExprResult temp;
       const QLJsonColumnOperationsPB& json_ops = ql_expr.json_column();
       RETURN_NOT_OK(table_row.ReadColumn(json_ops.column_id(), temp.Writer()));
-      common::Jsonb jsonb;
-      temp.MoveToJsonb(&jsonb);
-      RETURN_NOT_OK(jsonb.ApplyJsonbOperators(json_ops, &result_writer.NewValue()));
+      if (temp.IsNull()) {
+        result_writer.SetNull();
+      } else {
+        common::Jsonb jsonb;
+        temp.MoveToJsonb(&jsonb);
+        RETURN_NOT_OK(jsonb.ApplyJsonbOperators(json_ops, &result_writer.NewValue()));
+      }
       break;
     }
 
@@ -870,6 +874,14 @@ const QLValuePB& QLExprResult::Value() const {
   }
 
   return value_.value();
+}
+
+bool QLExprResult::IsNull() const {
+  if (existing_value_) {
+    return yb::IsNull(*existing_value_);
+  }
+
+  return value_.IsNull();
 }
 
 void QLExprResult::MoveTo(QLValuePB* out) {

@@ -58,7 +58,8 @@ public class TestOneOrTwoAdmins extends BasePgSQLTest {
     String msg = ex.getMessage();
     return msg.contains("Missing metadata for transaction:") ||
            msg.contains("Conflicts with higher priority transaction:") ||
-           msg.contains("Transaction aborted:");
+           msg.contains("Transaction aborted:") ||
+           msg.contains("Unknown transaction, could be recently aborted:");
   }
 
   private int checkAssertion(String connDescription, Statement statement, boolean useCount)

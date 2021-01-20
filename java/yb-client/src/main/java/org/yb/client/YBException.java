@@ -56,7 +56,7 @@ public abstract class YBException extends RuntimeException {
    * @param msg The message of the exception, potentially including a stack
    * trace.
    */
-  YBException(final String msg) {
+  public YBException(final String msg) {
     super(msg);
   }
 
@@ -66,7 +66,7 @@ public abstract class YBException extends RuntimeException {
    * trace.
    * @param cause The exception that caused this one to be thrown.
    */
-  YBException(final String msg, final Throwable cause) {
+  public YBException(final String msg, final Throwable cause) {
     super(msg, cause);
   }
 

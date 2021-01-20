@@ -13,10 +13,10 @@ class YBTabsWithLinksPanel extends Component {
     defaultTab: PropTypes.string.isRequired,
     children: PropTypes.oneOfType([PropTypes.object, PropTypes.array]),
     className: PropTypes.string,
-    routePrefix: PropTypes.string,
-  }
+    routePrefix: PropTypes.string
+  };
 
-  tabSelect = selectedKey => {
+  tabSelect = (selectedKey) => {
     const currentLocation = this.props.location;
     if (this.props.routePrefix) {
       currentLocation.pathname = this.props.routePrefix + selectedKey;
@@ -33,10 +33,12 @@ class YBTabsWithLinksPanel extends Component {
     if (isDefinedNotNull(locationTabKey)) {
       return children.some((item) => {
         return item.props.eventKey.indexOf(locationTabKey) >= 0 && !item.props.disabled;
-      }) ? locationTabKey : false;
+      })
+        ? locationTabKey
+        : false;
     }
     return false;
-  }
+  };
 
   render() {
     const { activeTab, defaultTab } = this.props;
@@ -46,7 +48,10 @@ class YBTabsWithLinksPanel extends Component {
         key={item.props.eventKey}
         eventKey={item.props.eventKey}
         href={item.props.eventKey}
-        onClick={(e) => {e.preventDefault(); this.tabSelect(item.props.eventKey);}}
+        onClick={(e) => {
+          e.preventDefault();
+          this.tabSelect(item.props.eventKey);
+        }}
       >
         {item.props.tabtitle || item.props.title}
       </NavItem>
@@ -64,9 +69,7 @@ class YBTabsWithLinksPanel extends Component {
           <Nav bsStyle="tabs" className="nav nav-tabs">
             {links}
           </Nav>
-          <Tab.Content animation>
-            {this.props.children}
-          </Tab.Content>
+          <Tab.Content animation>{this.props.children}</Tab.Content>
         </div>
       </Tab.Container>
     );

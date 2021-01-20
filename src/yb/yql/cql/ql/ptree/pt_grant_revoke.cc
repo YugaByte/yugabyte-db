@@ -86,12 +86,12 @@ PTGrantRevokePermission::PTGrantRevokePermission(MemoryContext* memctx,
                                                  const ResourceType& resource_type,
                                                  const PTQualifiedName::SharedPtr& resource_name,
                                                  const PTQualifiedName::SharedPtr& role_name)
-  : TreeNode(memctx, loc),
-  statement_type_(statement_type),
-  permission_name_(permission_name),
-  complete_resource_name_(resource_name),
-  role_name_(role_name),
-  resource_type_(resource_type) {
+    : TreeNode(memctx, loc),
+      statement_type_(statement_type),
+      permission_name_(permission_name),
+      complete_resource_name_(resource_name),
+      role_name_(role_name),
+      resource_type_(resource_type) {
 }
 
 PTGrantRevokePermission::~PTGrantRevokePermission() {

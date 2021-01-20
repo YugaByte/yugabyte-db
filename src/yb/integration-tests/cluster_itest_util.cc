@@ -66,6 +66,7 @@
 #include "yb/tserver/tserver_service.proxy.h"
 
 #include "yb/util/net/net_util.h"
+#include "yb/util/test_util.h"
 
 namespace yb {
 namespace itest {
@@ -195,9 +196,13 @@ vector<TServerDetails*> TServerDetailsVector(const TabletServerMapUnowned& table
   return result;
 }
 
-TabletServerMapUnowned CreateTabletServerMapUnowned(const TabletServerMap& tablet_servers) {
+TabletServerMapUnowned CreateTabletServerMapUnowned(const TabletServerMap& tablet_servers,
+                                                    const std::set<std::string>& exclude) {
   TabletServerMapUnowned result;
   for (auto& pair : tablet_servers) {
+    if (exclude.find(pair.first) != exclude.end()) {
+      continue;
+    }
     result.emplace(pair.first, pair.second.get());
   }
   return result;
@@ -787,7 +792,8 @@ Status RequestVote(const TServerDetails* replica,
                    boost::optional<bool> ignore_live_leader,
                    boost::optional<bool> is_pre_election,
                    const MonoDelta& timeout) {
-  DSCHECK(last_logged_opid.IsInitialized(), Uninitialized, "Last logged op id is uninitialized");
+  RSTATUS_DCHECK(
+      last_logged_opid.IsInitialized(), Uninitialized, "Last logged op id is uninitialized");
   consensus::VoteRequestPB req;
   req.set_dest_uuid(replica->uuid());
   req.set_tablet_id(tablet_id);
@@ -836,7 +842,15 @@ Status LeaderStepDown(
     return StatusFromPB(resp.error().status())
       .CloneAndPrepend(Substitute("Code $0", TabletServerErrorPB::Code_Name(resp.error().code())));
   }
-  return Status::OK();
+  return WaitFor([&]() -> Result<bool> {
+    rpc.Reset();
+    GetConsensusStateRequestPB state_req;
+    state_req.set_dest_uuid(replica->uuid());
+    state_req.set_tablet_id(tablet_id);
+    GetConsensusStateResponsePB state_resp;
+    RETURN_NOT_OK(replica->consensus_proxy->GetConsensusState(state_req, &state_resp, &rpc));
+    return state_resp.cstate().leader_uuid() != replica->uuid();
+  }, timeout, "Leader change");
 }
 
 Status WriteSimpleTestRow(const TServerDetails* replica,

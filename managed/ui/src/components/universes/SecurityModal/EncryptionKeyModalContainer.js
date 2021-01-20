@@ -22,7 +22,7 @@ const mapDispatchToProps = (dispatch) => {
 
 function mapStateToProps(state) {
   return {
-    configList: state.cloud.authConfig,
+    configList: state.cloud.authConfig
   };
 }
 

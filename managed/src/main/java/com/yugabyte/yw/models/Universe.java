@@ -3,6 +3,7 @@
 package com.yugabyte.yw.models;
 
 import com.google.common.net.HostAndPort;
+import com.google.common.base.Joiner;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,8 +28,9 @@ import javax.persistence.UniqueConstraint;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.yugabyte.yw.cloud.UniverseResourceDetails;
 import com.yugabyte.yw.common.NodeActionType;
+import com.yugabyte.yw.common.Util;
 import com.yugabyte.yw.models.helpers.PlacementInfo;
-import com.yugabyte.yw.models.CertificateInfo;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,6 +43,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yugabyte.yw.commissioner.tasks.UniverseDefinitionTaskBase.ServerType;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
+import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.ClusterType;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.UserIntent;
 import com.yugabyte.yw.models.helpers.NodeDetails;
 
@@ -95,6 +98,8 @@ public class Universe extends Model {
 
   public void setConfig(Map<String, String> configMap) {
     Map<String, String> currConfig = this.getConfig();
+    String currConfigStr = Joiner.on(" ").withKeyValueSeparator("=").join(currConfig);
+    LOG.info("Setting config {} on universe {} [ {} ]", currConfigStr, name, universeUUID);
     for (String key : configMap.keySet()) {
       currConfig.put(key, configMap.get(key));
     }
@@ -149,12 +154,16 @@ public class Universe extends Model {
       json.put("dnsName", dnsName);
     }
     UniverseDefinitionTaskParams params = getUniverseDetails();
+    Collection<NodeDetails> nodes = getNodes();
     try {
-      json.set("resources", Json.toJson(UniverseResourceDetails.create(getNodes(), params)));
+      json.set("resources", Json.toJson(UniverseResourceDetails.create(nodes, params)));
     } catch (Exception e) {
       json.set("resources", null);
     }
+
     ObjectNode universeDetailsJson = (ObjectNode) Json.toJson(params);
+    updateNodesDynamicActions(universeDetailsJson, nodes);
+
     ArrayNode clustersArrayJson = Json.newArray();
     for (Cluster cluster : params.clusters) {
       JsonNode clusterJson = cluster.toJson();
@@ -166,6 +175,46 @@ public class Universe extends Model {
     json.set("universeDetails", universeDetailsJson);
     json.set("universeConfig", this.config);
     return json;
+  }
+
+  /**
+   * Modifies lists of allowed for nodes actions depending on the universe state.
+   * Actions are added/removed directly into/from the json representation. Initial
+   * values of allowed actions are set by NodeDetails.getAllowedActions().
+   *
+   * @param universeDetailsJson
+   * @param nodes
+   */
+  void updateNodesDynamicActions(ObjectNode universeDetailsJson,
+      Collection<NodeDetails> nodes) {
+    JsonNode nodeDetailsSet = universeDetailsJson.get("nodeDetailsSet");
+    if (nodeDetailsSet == null || nodeDetailsSet.isNull() || !nodeDetailsSet.isArray()) {
+      return;
+    }
+
+    try {
+      // Preparing a node name -> allowed actions map.
+      Map<String, ArrayNode> nodeActions = new HashMap<>();
+      for (int i = 0; i < nodeDetailsSet.size(); i++) {
+        JsonNode jsonNode = nodeDetailsSet.get(i);
+        JsonNode allowedActions = jsonNode.get("allowedActions");
+        if (allowedActions != null && !allowedActions.isNull() && allowedActions.isArray()) {
+          nodeActions.put(jsonNode.get("nodeName").asText(), (ArrayNode) allowedActions);
+        }
+      }
+
+      for (NodeDetails node : nodes) {
+        if (node.state == NodeDetails.NodeState.Live && !node.isMaster
+            && Util.areMastersUnderReplicated(node, this)) {
+          ArrayNode actions = nodeActions.get(node.nodeName);
+          if (actions != null) {
+            actions.add(NodeActionType.START_MASTER.name());
+          }
+        }
+      }
+    } catch (Exception e) {
+      LOG.info("Unable to update allowed actions: " + e);
+    }
   }
 
   public static final Finder<UUID, Universe> find = new Finder<UUID, Universe>(Universe.class) {
@@ -199,8 +248,9 @@ public class Universe extends Model {
     // Create the default universe details. This should be updated after creation.
     universe.universeDetails = taskParams;
     universe.universeDetailsJson = Json.stringify(Json.toJson(universe.universeDetails));
-    LOG.debug("Created universe {} with details [{}] with name {}.",
-        universe.universeUUID, universe.universeDetailsJson, universe.name);
+    LOG.info("Created db entry for universe {} [{}]", universe.name, universe.universeUUID);
+    LOG.debug("Details for universe {} [{}] : [{}].",
+        universe.name, universe.universeUUID, universe.universeDetailsJson);
     // Save the object.
     universe.save();
     return universe;
@@ -279,13 +329,22 @@ public class Universe extends Model {
   // Helper api to make an atomic read of universe version, and compare and swap the
   // updated version to disk.
   private static synchronized Universe readModifyWrite(UUID universeUUID,
-                                                       UniverseUpdater updater)
-      throws ConcurrentModificationException {
+                                                       UniverseUpdater updater,
+                                                       boolean incrementVersion) {
     Universe universe = Universe.get(universeUUID);
     // Update the universe object which is supplied as a lambda function.
-    updater.run(universe);
-    // Save the universe object by doing a compare and swap.
-    universe.compareAndSwap();
+    boolean updateSucceeded = false;
+    try {
+      updater.run(universe);
+      updateSucceeded = true;
+    } catch(Exception e) {
+      LOG.debug("Error running universe updater", e);
+      throw e;
+    } finally {
+      // Save the universe object by doing a compare and swap.
+      universe.compareAndSwap(updateSucceeded /* updateDetails */ , incrementVersion);
+    }
+
     return universe;
   }
 
@@ -297,13 +356,21 @@ public class Universe extends Model {
    * @return the updated version of the object if successful, or throws an exception.
    */
   public static Universe saveDetails(UUID universeUUID, UniverseUpdater updater) {
+    return Universe.saveDetails(universeUUID, updater, true);
+  }
+
+  public static Universe saveDetails(
+    UUID universeUUID,
+    UniverseUpdater updater,
+    boolean incrementVersion
+  ) {
     int numRetriesLeft = 10;
     long sleepTimeMillis = 100;
     // Try the read and update for a few times till it succeeds.
     Universe universe = null;
     while (numRetriesLeft > 0) {
       try {
-        universe = readModifyWrite(universeUUID, updater);
+        universe = readModifyWrite(universeUUID, updater, incrementVersion);
         break;
       } catch (ConcurrentModificationException e) {
         // Decrement retries.
@@ -318,9 +385,9 @@ public class Universe extends Model {
         } catch (InterruptedException e1) {
           LOG.error("Error while sleeping", e1);
         }
-        continue;
       }
     }
+
     return universe;
   }
 
@@ -444,7 +511,10 @@ public class Universe extends Model {
   public List<NodeDetails> getServers(ServerType type) {
     List<NodeDetails> servers = new ArrayList<NodeDetails>();
     UniverseDefinitionTaskParams details = getUniverseDetails();
-    for (NodeDetails nodeDetails : details.nodeDetailsSet) {
+    Set<NodeDetails> filteredNodeDetails = details.nodeDetailsSet.stream()
+      .filter(n -> n.cloudInfo.private_ip != null)
+      .collect(Collectors.toSet());
+    for (NodeDetails nodeDetails : filteredNodeDetails) {
       switch(type) {
       case YQLSERVER:
         if (nodeDetails.isYqlServer && nodeDetails.isTserver) servers.add(nodeDetails); break;
@@ -586,23 +656,39 @@ public class Universe extends Model {
    *
    * @return the new version number after the update if successful, or throws a RuntimeException.
    */
-  private int compareAndSwap() {
+  /**
+   * Compares the version of this object with the one in the DB, and updates it if the versions
+   * match.
+   *
+   * @param updateDetails whether to update universe details or not
+   * @param incrementVersion whether to increment the version or not
+   * @return the current version of the universe metadata
+   */
+  private int compareAndSwap(boolean updateDetails, boolean incrementVersion) {
     // Update the universe details json.
     universeDetailsJson = Json.stringify(Json.toJson(universeDetails));
 
     // Create the new version number.
-    int newVersion = this.version + 1;
+    int newVersion = incrementVersion ? this.version + 1 : this.version;
 
     // Save the object if the version is the same.
-    String updateQuery = "UPDATE universe " +
+    String updateQuery = updateDetails ? "UPDATE universe " +
       "SET universe_details_json = :universeDetails, version = :newVersion " +
+      "WHERE universe_uuid = :universeUUID AND version = :curVersion"
+      :
+      "UPDATE universe " +
+      "SET version = :newVersion " +
       "WHERE universe_uuid = :universeUUID AND version = :curVersion";
+
     SqlUpdate update = Ebean.createSqlUpdate(updateQuery);
-    update.setParameter("universeDetails", universeDetailsJson);
+    if (updateDetails) {
+      update.setParameter("universeDetails", universeDetailsJson);
+    }
+
     update.setParameter("universeUUID", universeUUID);
     update.setParameter("curVersion", this.version);
     update.setParameter("newVersion", newVersion);
-    LOG.debug("Swapped universe {}:{} details to [{}] with new version = {}.",
+    LOG.trace("Swapped universe {}:{} details to [{}] with new version = {}.",
               universeUUID, this.name, universeDetailsJson, newVersion);
     int modifiedCount = Ebean.execute(update);
 
@@ -671,13 +757,18 @@ public class Universe extends Model {
     NodeDetails node = getNode(nodeName);
     Cluster curCluster = getCluster(node.placementUuid);
 
-    if (node.isMaster && (action == NodeActionType.STOP || action == NodeActionType.REMOVE)) {
+    if (node.isMaster && (action == NodeActionType.STOP || action == NodeActionType.REMOVE)
+        && (curCluster.clusterType == ClusterType.PRIMARY)) {
       long numMasterNodesUp = universeDetails.getNodesInCluster(curCluster.uuid).stream()
-          .filter((n) -> n.isMaster && n.state == NodeDetails.NodeState.Live)
-          .count();
+          .filter((n) -> n.isMaster && n.state == NodeDetails.NodeState.Live).count();
       if (numMasterNodesUp <= (curCluster.userIntent.replicationFactor + 1) / 2) {
         return false;
       }
+    }
+
+    if (action == NodeActionType.START_MASTER) {
+      return (!node.isMaster && (node.state == NodeDetails.NodeState.Live)
+          && Util.areMastersUnderReplicated(node, this));
     }
 
     return node.getAllowedActions().contains(action);
@@ -713,5 +804,23 @@ public class Universe extends Model {
 
   public boolean universeIsLocked() {
     return getUniverseDetails().updateInProgress;
+  }
+
+  public boolean nodeExists(String host, int port) {
+    return getUniverseDetails().nodeDetailsSet.parallelStream().anyMatch(n ->
+      n.cloudInfo.private_ip.equals(host) && (
+        port == n.masterHttpPort ||
+          port == n.tserverHttpPort ||
+          port == n.ysqlServerHttpPort ||
+          port == n.yqlServerHttpPort ||
+          port == n.redisServerHttpPort));
+  }
+
+  public void incrementVersion() {
+    Universe.UniverseUpdater updater = new Universe.UniverseUpdater() {
+      @Override
+      public void run(Universe universe) {}
+    };
+    Universe.saveDetails(universeUUID, updater);
   }
 }

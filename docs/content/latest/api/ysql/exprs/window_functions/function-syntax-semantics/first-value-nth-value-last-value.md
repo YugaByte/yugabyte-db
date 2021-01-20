@@ -12,9 +12,9 @@ isTocNested: true
 showAsideToc: true
 ---
 
-These three window functions fall into the second group, [Window functions that return column(s) of another row within the window](../#window-functions-that-return-column-s-of-another-row-within-the-window) in the section [List of all window functions](../#list-of-all-window-functions). Each of the functions in the second group makes obvious sense when the scope within which the specified row is found is the entire [_window_](../../sql-syntax-semantics/#the-window-definition-rule). Only this use will be described here. When used this way, each of these functions, as their names suggest, return the same result for each row in the current [_window_](../../sql-syntax-semantics/#the-window-definition-rule). See  [Examples that illustrate all three functions](#examples-that-illustrate-all-three-functions) below.
+These three window functions fall into the second group, [Window functions that return column(s) of another row within the window](../#window-functions-that-return-column-s-of-another-row-within-the-window) in the section [List of all window functions](../#list-of-all-window-functions). Each of the functions in the second group makes obvious sense when the scope within which the specified row is found is the entire [_window_](../../invocation-syntax-semantics/#the-window-definition-rule). Only this use will be described here. When used this way, each of these functions, as their names suggest, return the same result for each row in the current [_window_](../../invocation-syntax-semantics/#the-window-definition-rule). See  [Examples that illustrate all three functions](#examples-that-illustrate-all-three-functions) below.
 
-If you have a use case that requires a specifically tailored [_window frame_](../../sql-syntax-semantics/#frame-clause-semantics-for-window-functions), then see the section [The frame_clause](../../sql-syntax-semantics/#the-frame-clause).
+If you have a use case that requires a specifically tailored [_window frame_](../../invocation-syntax-semantics/#frame-clause-semantics-for-window-functions), then see the section [The frame_clause](../../invocation-syntax-semantics/#the-frame-clause).
 
 ## first_value()
 
@@ -25,7 +25,7 @@ input value:       anyelement
 return value:      anyelement
 ```
 
-**Purpose:** Return the specified value from the first row, in the specified sort order, in the current [_window frame_](../../sql-syntax-semantics/#frame-clause-semantics-for-window-functions). If you specify the [`frame_clause`](../../../../syntax_resources/grammar_diagrams/#frame-clause) to start at a fixed offset before the current row, then `first_value()` would produce the same result as would the correspondingly parameterized `lag()`. If this is your aim, then you should use `lag()` for clarity.
+**Purpose:** Return the specified value from the first row, in the specified sort order, in the current [_window frame_](../../invocation-syntax-semantics/#frame-clause-semantics-for-window-functions). If you specify the [`frame_clause`](../../../../syntax_resources/grammar_diagrams/#frame-clause) to start at a fixed offset before the current row, then `first_value()` would produce the same result as would the correspondingly parameterized `lag()`. If this is your aim, then you should use `lag()` for clarity.
 
 ## nth_value()
 
@@ -36,7 +36,7 @@ input value:       anyelement, int
 return value:      anyelement
 ```
 
-**Purpose:** Return the specified value from the "_Nth"_ row, in the specified sort order, in the current [_window frame_](../../sql-syntax-semantics/#frame-clause-semantics-for-window-functions). The second, mandatory, parameter specifies _"N"_ in _"Nth"_.
+**Purpose:** Return the specified value from the "_Nth"_ row, in the specified sort order, in the current [_window frame_](../../invocation-syntax-semantics/#frame-clause-semantics-for-window-functions). The second, mandatory, parameter specifies _"N"_ in _"Nth"_.
 
 ## last_value()
 
@@ -47,7 +47,7 @@ input value:       anyelement
 return value:      anyelement
 ```
 
-**Purpose:** Return the specified value from the last row, in the specified sort order, in the current [_window frame_](../../sql-syntax-semantics/#frame-clause-semantics-for-window-functions).
+**Purpose:** Return the specified value from the last row, in the specified sort order, in the current [_window frame_](../../invocation-syntax-semantics/#frame-clause-semantics-for-window-functions).
 
 ## Examples that illustrate all three functions
 
@@ -114,7 +114,7 @@ Here is the result. To make it easier to see the pattern, a break has been manua
      5 | 25 | (5,21,21) | (5,23,23) | (5,25,)
 ```
 
-Notice that the `::text` typecast of a _"row"_ type value renders `NULL` simply as an absence. This explains why you see, for example, _"(1,5,)"_ for each value produced by `last_value()` in the [_window_](../../sql-syntax-semantics/#the-window-definition-rule) where _"k=1"_. This basic example certainly demonstrates the meaning of _"first"_, _"Nth"_ (for _"N=3"_), and _"last"_. But it isn't very useful because, just as these names suggest, the output is the same for each row in a particular [_window_](../../sql-syntax-semantics/#the-window-definition-rule). The following query adds a conventional `GROUP BY` clause. It also extracts the interesting fields from the _"row"_ type value that each window function produces as individual values.
+Notice that the `::text` typecast of a _"row"_ type value renders `NULL` simply as an absence. This explains why you see, for example, _"(1,5,)"_ for each value produced by `last_value()` in the [_window_](../../invocation-syntax-semantics/#the-window-definition-rule) where _"k=1"_. This basic example certainly demonstrates the meaning of _"first"_, _"Nth"_ (for _"N=3"_), and _"last"_. But it isn't very useful because, just as these names suggest, the output is the same for each row in a particular [_window_](../../invocation-syntax-semantics/#the-window-definition-rule). The following query adds a conventional `GROUP BY` clause. It also extracts the interesting fields from the _"row"_ type value that each window function produces as individual values.
 
 ```plpgsql
 drop type if exists rt cascade;

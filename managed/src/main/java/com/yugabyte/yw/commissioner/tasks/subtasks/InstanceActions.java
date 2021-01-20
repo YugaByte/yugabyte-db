@@ -13,6 +13,7 @@ package com.yugabyte.yw.commissioner.tasks.subtasks;
 import com.yugabyte.yw.commissioner.tasks.params.NodeTaskParams;
 import com.yugabyte.yw.common.NodeManager;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,10 +43,11 @@ public class InstanceActions extends NodeTaskBase {
 
   @Override
   public void run() {
-    LOG.info("Running {}.", getName());
+    LOG.info("Running Instance action {} type {} against node {}",
+            getName(), this.type.toString(), taskParams().nodeName);
 
-    ShellProcessHandler.ShellResponse response = getNodeManager().nodeCommand(
+    ShellResponse response = getNodeManager().nodeCommand(
         type, taskParams());
-    logShellResponse(response);
+    processShellResponse(response);
   }
 }

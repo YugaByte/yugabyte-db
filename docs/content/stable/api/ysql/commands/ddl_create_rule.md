@@ -52,7 +52,7 @@ See the semantics of each option in the [PostgreSQL docs][postgresql-docs-create
 
 Basic example.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE t1(a int4, b int4);
 yugabyte=# CREATE TABLE t2(a int4, b int4);
 yugabyte=# CREATE RULE t1_to_t2 AS ON INSERT TO t1 DO INSTEAD
@@ -67,7 +67,7 @@ yugabyte=# SELECT * FROM t1;
 (0 rows)
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT * FROM t2;
 ```
 

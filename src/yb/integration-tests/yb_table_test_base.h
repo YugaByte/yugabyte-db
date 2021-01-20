@@ -36,6 +36,7 @@
 #include "yb/tablet/maintenance_manager.h"
 #include "yb/tablet/tablet_metrics.h"
 #include "yb/tablet/tablet_peer.h"
+#include "yb/tools/yb-admin_client.h"
 #include "yb/tserver/mini_tablet_server.h"
 #include "yb/tserver/tablet_server.h"
 #include "yb/tserver/ts_tablet_manager.h"
@@ -60,6 +61,7 @@ class YBTableTestBase : public YBTest {
   virtual void BeforeCreateTable();
 
   virtual bool use_external_mini_cluster();
+  virtual bool use_yb_admin_client();
   virtual int session_timeout_ms();
   virtual int num_masters();
   virtual int num_tablet_servers();
@@ -78,9 +80,18 @@ class YBTableTestBase : public YBTest {
   void RestartCluster();
   std::vector<std::pair<std::string, std::string>> GetScanResults(const client::TableRange& range);
   void FetchTSMetricsPage();
+  void WaitForLoadBalanceCompletion(
+      yb::MonoDelta timeout = MonoDelta::FromMilliseconds(kDefaultLoadBalanceTimeoutMs));
+
+  // These utility functions only work with external_mini_cluster_.
+  Result<std::shared_ptr<master::MasterServiceProxy>> GetMasterLeaderProxy();
+  // Calls GetLoadOnTserver to get loads for the provided tservers.
+  Result<std::vector<uint32_t>> GetTserverLoads(const std::vector<int>& ts_idxs);
+  Result<uint32_t> GetLoadOnTserver(ExternalTabletServer* server);
 
   client::TableHandle table_;
   std::unique_ptr<client::YBClient> client_;
+  std::unique_ptr<tools::enterprise::ClusterAdminClient> yb_admin_client_;
   bool table_exists_ = false;
 
   yb::MiniCluster* mini_cluster() {
@@ -115,15 +126,17 @@ class YBTableTestBase : public YBTest {
   static constexpr int kDefaultNumTabletServers = 3;
   static constexpr int kDefaultSessionTimeoutMs = 60000;
   static constexpr int kDefaultClientRpcTimeoutMs = 30000;
+  static constexpr int kDefaultLoadBalanceTimeoutMs = 60000;
   static constexpr bool kDefaultUsingExternalMiniCluster = false;
   static constexpr bool kDefaultEnableYSQL = true;
   static const client::YBTableName kDefaultTableName;
 
   vector<uint16_t> master_rpc_ports();
-  // Calls CreateYBClient and assigns it to local class field
+  // Calls CreateYBClient and assigns it to local class field.
   void CreateClient();
   // Creates a ClientYB client without assigning it to the class field.
   std::unique_ptr<yb::client::YBClient> CreateYBClient();
+  void CreateAdminClient();
 
   std::shared_ptr<yb::client::YBSession> NewSession();
 
@@ -137,6 +150,10 @@ class YBTableTestBase : public YBTest {
   // All the default tables that are pre-created. Used to skip the initial create table step, when
   // the given table has been already pre-created.
   vector<string> default_tables_created_;
+
+  // For tests that use multiple tables, store the tables here.
+  // For tests with a single table, this is equivalent to table_name().
+  vector<client::YBTableName> table_names_;
 };
 
 }  // namespace integration_tests

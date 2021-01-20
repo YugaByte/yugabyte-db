@@ -30,13 +30,6 @@
 # under the License.
 #
 
-include_directories(${YB_BUILD_ROOT}/postgres/include)
-link_directories(${YB_BUILD_ROOT}/postgres/lib)
-
-add_library(pq SHARED IMPORTED)
-set_target_properties(pq PROPERTIES IMPORTED_LOCATION "${PQ_SHARED_LIB}")
-message("Added shared library dependency pq: ${PQ_SHARED_LIB}")
-
 set(TABLET_SRCS
   abstract_tablet.cc
   apply_intents_task.cc
@@ -53,6 +46,7 @@ set(TABLET_SRCS
   tablet_peer_mm_ops.cc
   tablet_peer.cc
   transaction_coordinator.cc
+  transaction_loader.cc
   transaction_participant.cc
   transaction_status_resolver.cc
   operation_order_verifier.cc
@@ -73,8 +67,7 @@ set(TABLET_SRCS
   preparer.cc
   ${TABLET_SRCS_EXTENSIONS})
 
-set(TABLET_DEPS
-  pq)
+set(TABLET_DEPS pq_utils)
 
 PROTOBUF_GENERATE_CPP(
   TABLET_PROTO_SRCS TABLET_PROTO_HDRS TABLET_PROTO_TGTS
@@ -97,7 +90,6 @@ ADD_YB_LIBRARY(
   tablet
   SRCS ${TABLET_SRCS}
   DEPS ${TABLET_DEPS})
-cotire(tablet)
 
 ADD_YB_LIBRARY(
   tablet_error

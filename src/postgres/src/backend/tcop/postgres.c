@@ -40,6 +40,7 @@
 #include "access/printtup.h"
 #include "access/xact.h"
 #include "catalog/pg_type.h"
+#include "catalog/ybc_catalog_version.h"
 #include "commands/async.h"
 #include "commands/portalcmds.h"
 #include "commands/prepare.h"
@@ -2824,7 +2825,7 @@ RecoveryConflictInterrupt(ProcSignalReason reason)
 					return;
 
 				/* Intentional fall through to check wait for pin */
-				/* FALLTHROUGH */
+				switch_fallthrough();
 
 			case PROCSIG_RECOVERY_CONFLICT_BUFFERPIN:
 
@@ -2838,7 +2839,7 @@ RecoveryConflictInterrupt(ProcSignalReason reason)
 				MyProc->recoveryConflictPending = true;
 
 				/* Intentional fall through to error handling */
-				/* FALLTHROUGH */
+				switch_fallthrough();
 
 			case PROCSIG_RECOVERY_CONFLICT_LOCK:
 			case PROCSIG_RECOVERY_CONFLICT_TABLESPACE:
@@ -2883,7 +2884,7 @@ RecoveryConflictInterrupt(ProcSignalReason reason)
 				}
 
 				/* Intentional fall through to session cancel */
-				/* FALLTHROUGH */
+				switch_fallthrough();
 
 			case PROCSIG_RECOVERY_CONFLICT_DATABASE:
 				RecoveryConflictPending = true;
@@ -3701,7 +3702,7 @@ static void YBRefreshCache()
 
 	/* Get the latest syscatalog version from the master */
 	uint64_t catalog_master_version = 0;
-	YBCPgGetCatalogMasterVersion(&catalog_master_version);
+	YBCGetMasterCatalogVersion(&catalog_master_version);
 
 	/* Need to execute some (read) queries internally so start a local txn. */
 	start_xact_command();
@@ -3766,7 +3767,7 @@ static void YBPrepareCacheRefreshIfNeeded(ErrorData *edata,
 	 * to refresh the cache.
 	 */
 	uint64_t catalog_master_version = 0;
-	YBCPgGetCatalogMasterVersion(&catalog_master_version);
+	YBCGetMasterCatalogVersion(&catalog_master_version);
 	need_global_cache_refresh =
 		yb_catalog_cache_version != catalog_master_version;
 	if (!(need_global_cache_refresh || need_table_cache_refresh))
@@ -3843,7 +3844,8 @@ static void YBPrepareCacheRefreshIfNeeded(ErrorData *edata,
 				ereport(ERROR,
 						(errcode(ERRCODE_INTERNAL_ERROR),
 						 errmsg("Catalog Version Mismatch: A DDL occurred "
-								"while processing this query. Try Again.")));
+								"while processing this query. Try again."),
+						 errdetail("Internal error: %s", edata->message)));
 			else
 			{
 				Assert(need_table_cache_refresh);
@@ -3934,7 +3936,7 @@ static void YBCheckSharedCatalogCacheVersion() {
 	 * We cannot refresh the cache if we are already inside a transaction, so don't
 	 * bother checking shared memory.
 	 */
-	if (xact_started)
+	if (IsTransactionOrTransactionBlock())
 		return;
 
 	/*
@@ -3947,19 +3949,10 @@ static void YBCheckSharedCatalogCacheVersion() {
 	uint64_t shared_catalog_version;
 	HandleYBStatus(YBCGetSharedCatalogVersion(&shared_catalog_version));
 
-	if (yb_catalog_cache_version < shared_catalog_version) {
+	if (yb_catalog_cache_version < shared_catalog_version)
+	{
 		YBRefreshCache();
 	}
-}
-
-/* Whether an error we've got is a "restart read" error. */
-static bool
-yb_is_read_restart_nedeed(const ErrorData* edata)
-{
-	if (!IsYugaByteEnabled())
-		return false;
-
-	return YBCIsRestartReadError(edata->yb_txn_errcode);
 }
 
 /*
@@ -3975,45 +3968,111 @@ typedef struct YBQueryRestartData
 	const char*	command_tag;
 } YBQueryRestartData;
 
-/* Whether we are allowed to restart current query/txn in case of "read restart" error. */
 static bool
-yb_is_read_restart_possible(int attempt, const YBQueryRestartData* restart_data)
+YBIsDmlCommandTag(const char *command_tag)
+{
+	return strncmp(command_tag, "UPDATE", 6) == 0 ||
+	       strncmp(command_tag, "INSERT", 6) == 0 ||
+	       strncmp(command_tag, "DELETE", 6) == 0;
+}
+
+/* Whether we are allowed to restart current query/txn. */
+static bool
+yb_is_restart_possible(const ErrorData* edata,
+					   int attempt,
+					   const YBQueryRestartData* restart_data)
 {
 	if (!IsYugaByteEnabled())
+	{
+		if (yb_debug_log_internal_restarts)
+			elog(LOG, "Restart isn't possible, YB is not enabled");
 		return false;
+	}
+
+	bool is_read_restart_error = YBCIsRestartReadError(edata->yb_txn_errcode);
+	bool is_conflict_error     = YBCIsTxnConflictError(edata->yb_txn_errcode);
+	if (!is_read_restart_error && !is_conflict_error)
+	{
+		if (yb_debug_log_internal_restarts)
+			elog(LOG, "Restart isn't possible, code %d isn't a restart/conflict error",
+			          edata->yb_txn_errcode);
+		return false;
+	}
+
+	if (is_conflict_error && attempt >= YBCGetMaxWriteRestartAttempts())
+	{
+		if (yb_debug_log_internal_restarts)
+			elog(LOG, "Restart isn't possible, we're out of write restart attempts (%d)",
+			          attempt);
+		return false;
+	}
+
+	if (is_read_restart_error && attempt >= YBCGetMaxReadRestartAttempts())
+	{
+		if (yb_debug_log_internal_restarts)
+			elog(LOG, "Restart isn't possible, we're out of read restart attempts (%d)",
+			          attempt);
+		return false;
+	}
 
 	if (YBIsDataSent())
+	{
+		if (yb_debug_log_internal_restarts)
+			elog(LOG, "Restart isn't possible, data was already sent");
 		return false;
-
-	if (attempt >= YBCGetMaxReadRestartAttempts())
-		return false;
+	}
 
 	if (!restart_data)
+	{
+		if (yb_debug_log_internal_restarts)
+			elog(LOG, "Restart isn't possible, restart data is missing");
 		return false;
+	}
 
 	/* can only restart SELECT queries */
 	if (!restart_data->query_string)
+	{
+		if (yb_debug_log_internal_restarts)
+			elog(LOG, "Restart isn't possible, query string is missing");
 		return false;
+	}
 
 	const char* command_tag = restart_data->command_tag;
 
 	/*
-	 * If we're executing a prepared statement, we're interested in the command tag of the
-	 * underlying statment.
+	 * If we're executing a prepared statement, we're interested in the command
+	 * tag of the underlying statment.
 	 */
 	if (strncmp(command_tag, "EXECUTE", 7) == 0)
 	{
-		List* parsetree_list = yb_parse_query_silently(restart_data->query_string);
+		List* parsetree_list =
+			yb_parse_query_silently(restart_data->query_string);
 		if (list_length(parsetree_list) == 0)
 			return false;
-		ExecuteStmt* execute_stmt = (ExecuteStmt*) linitial_node(RawStmt, parsetree_list)->stmt;
-		PreparedStatement* prepared_stmt = FetchPreparedStatement(execute_stmt->name, false);
+		ExecuteStmt* execute_stmt =
+			(ExecuteStmt*) linitial_node(RawStmt, parsetree_list)->stmt;
+		PreparedStatement* prepared_stmt =
+			FetchPreparedStatement(execute_stmt->name, false /* throwError */);
 		if (prepared_stmt == NULL)
 			return false;
 		command_tag = prepared_stmt->plansource->commandTag;
 	}
 
-	return strncmp(command_tag, "SELECT", 6) == 0;
+	bool is_read = strncmp(command_tag, "SELECT", 6) == 0;
+	bool is_dml  = YBIsDmlCommandTag(command_tag);
+
+	if (!(is_read_restart_error && is_read) && !(is_conflict_error && is_dml))
+	{
+		if (yb_debug_log_internal_restarts)
+			elog(LOG, "Restart isn't possible, is read?: %d, is dml? %d, "
+			          "is read restart error? %d, is conflict error? %d",
+			          is_read, is_dml, is_read_restart_error, is_conflict_error);
+		return false;
+	}
+
+	if (yb_debug_log_internal_restarts)
+		elog(LOG, "Restart is possible");
+	return true;
 }
 
 /*
@@ -4164,7 +4223,7 @@ yb_restart_portal(const char* portal_name)
 		MemoryContextDelete(portal->holdContext);
 
 
-	/* ---------------------------------------------------------------------------------------------
+	/* -------------------------------------------------------------------------
 	 * YB NOTE:
 	 *
 	 * The following code is a selective copy-paste from CreatePortal routine.
@@ -4186,34 +4245,62 @@ yb_restart_portal(const char* portal_name)
 	portal->visible = true;
 	portal->creation_time = GetCurrentStatementStartTimestamp();
 
-	/* ---------------------------------------------------------------------------------------------
+	/* -------------------------------------------------------------------------
 	 * YB NOTE:
 	 *
 	 * Now that our portal looks like a fresh one, time to prepare and start it.
 	 */
 
-	/* no need for GetCachedPlan + PortalDefineQuery routine, everything is in place already */
+	/*
+	 * No need for GetCachedPlan + PortalDefineQuery routine, everything is in
+	 * place already.
+	 */
 	portal->status = PORTAL_DEFINED;
 	PortalStart(portal, portal->portalParams, 0 /* eflags */, InvalidSnapshot);
 
 	/* no need to call PortalSetResultFormat either - formats array is already set */
 }
 
+static long
+yb_get_sleep_usecs_on_txn_conflict(int attempt) {
+	/* Use exponential backoff to calculate the sleep duration. */
+	if (!YBCShouldSleepBeforeRetryOnTxnConflict())
+		return 0;
+
+	/*
+	 * While the guc variables are being changed, RetryMaxBackoffMsecs can be
+	 * smaller than RetryMinBackoffMsecs. Return RetryMaxBackoffMsecs in this
+	 * case.
+	 */
+	if (RetryMaxBackoffMsecs <= RetryMinBackoffMsecs)
+		return RetryMaxBackoffMsecs;
+
+	if (RetryMaxBackoffMsecs == 0 || RetryMinBackoffMsecs == 0)
+		return 0;
+
+	return (long) (PowerWithUpperLimit(RetryBackoffMultiplier, attempt,
+				1.0 * RetryMaxBackoffMsecs / RetryMinBackoffMsecs) *
+			RetryMinBackoffMsecs * 1000);
+}
+
 /*
- * Process an error that happened during execution with expected read restart errors.
- * Prepares the re-execution if an error is restartable, otherwise - rethrows an error.
+ * Process an error that happened during execution with expected read restart
+ * errors. Prepares the re-execution if an error is restartable, otherwise -
+ * rethrows the error.
  */
 static void
 yb_attempt_to_restart_on_error(int attempt,
                                YBQueryRestartData* restart_data,
                                MemoryContext exec_context)
 {
-	/* switch the context back to the original one when server started processing user request */
+	/*
+	 * Switch the context back to the original one when server started
+	 * processing user request.
+	 */
 	MemoryContext error_context = MemoryContextSwitchTo(exec_context);
 	ErrorData*    edata         = CopyErrorData();
 
-	if (yb_is_read_restart_nedeed(edata) &&
-	    yb_is_read_restart_possible(attempt, restart_data)) {
+	if (yb_is_restart_possible(edata, attempt, restart_data)) {
 		if (yb_debug_log_internal_restarts)
 		{
 			ereport(LOG,
@@ -4223,14 +4310,26 @@ yb_attempt_to_restart_on_error(int attempt,
 			                edata->message,
 			                attempt)));
 		}
-		/* cleanup the error, restart portal, restart txn and let the control flow continue */
+		/*
+		 * Cleanup the error, restart portal, restart txn and let the control
+		 * flow continue
+		 */
 		FlushErrorState();
-		PopActiveSnapshot(); /* restart read error occurrs after portal snapshot is pushed */
+		/* restart read error occurrs after portal snapshot is pushed */
+		PopActiveSnapshot();
 		if (restart_data->portal_name) {
 			yb_restart_portal(restart_data->portal_name);
 		}
 		YBRestoreOutputBufferPosition();
-		YBCRestartTransaction();
+		if (YBCIsRestartReadError(edata->yb_txn_errcode))
+		{
+			YBCRestartTransaction(false /* force_restart */);
+		}
+		else
+		{
+			YBCRestartWriteTransaction();
+			pg_usleep(yb_get_sleep_usecs_on_txn_conflict(attempt));
+		}
 	} else {
 		/* if we shouldn't restart - propagate the error */
 		MemoryContextSwitchTo(error_context);
@@ -4239,12 +4338,11 @@ yb_attempt_to_restart_on_error(int attempt,
 }
 
 /*
- * Wraps exec_simple_query, attempting to transparently do read restarts when possible.
- * Accepts execution memory context to revert to in case of an error.
+ * Wraps exec_simple_query, attempting to transparently do read restarts when
+ * possible. Accepts execution memory context to revert to in case of an error.
  */
 static void
-yb_exec_simple_query_attempting_to_restart_read(const char* query_string,
-                                                MemoryContext exec_context)
+yb_exec_simple_query(const char* query_string, MemoryContext exec_context)
 {
 	YBQueryRestartData restart_data  = {
 	    .portal_name  = NULL,
@@ -4254,32 +4352,34 @@ yb_exec_simple_query_attempting_to_restart_read(const char* query_string,
 	for (int attempt = 0;; ++attempt) {
 		PG_TRY();
 		{
-			YBSaveOutputBufferPosition(!yb_is_begin_transaction(restart_data.command_tag));
+			YBSaveOutputBufferPosition(
+				!yb_is_begin_transaction(restart_data.command_tag));
 			exec_simple_query(query_string);
 			return;
 		}
 		PG_CATCH();
 		{
-			yb_attempt_to_restart_on_error(attempt, &restart_data, exec_context);
+			yb_attempt_to_restart_on_error(attempt,
+										   &restart_data, exec_context);
 		}
 		PG_END_TRY();
 	}
 }
 
 /*
- * Wraps exec_execute_message, attempting to transparently do read restarts when possible.
- * Accepts execution memory context to revert to in case of an error.
+ * Wraps exec_execute_message, attempting to transparently do read restarts when
+ * possible. Accepts execution memory context to revert to in case of an error.
  */
 static void
-yb_exec_execute_message_attempting_to_restart_read(const char* portal_name,
-                                                   long max_rows,
-                                                   YBQueryRestartData* restart_data,
-                                                   MemoryContext exec_context)
+yb_exec_execute_message(const char* portal_name, long max_rows,
+						YBQueryRestartData* restart_data,
+						MemoryContext exec_context)
 {
 	for (int attempt = 0;; ++attempt) {
 		PG_TRY();
 		{
-			YBSaveOutputBufferPosition(!yb_is_begin_transaction(restart_data->command_tag));
+			YBSaveOutputBufferPosition(
+				!yb_is_begin_transaction(restart_data->command_tag));
 			exec_execute_message(portal_name, max_rows);
 			return;
 		}
@@ -4865,7 +4965,7 @@ PostgresMain(int argc, char *argv[],
 				PG_TRY();
 				{
 					if (!am_walsender || !exec_replication_command(query_string))
-                      yb_exec_simple_query_attempting_to_restart_read(query_string, oldcontext);
+                      yb_exec_simple_query(query_string, oldcontext);
 				}
 				PG_CATCH();
 				{
@@ -4892,7 +4992,7 @@ PostgresMain(int argc, char *argv[],
 							 * the memory context will get reset after anyway.
 							 */
 							FreeErrorData(edata);
-							yb_exec_simple_query_attempting_to_restart_read(query_string, oldcontext);
+							yb_exec_simple_query(query_string, oldcontext);
 						}
 					}
 					else
@@ -4994,14 +5094,15 @@ PostgresMain(int argc, char *argv[],
 					pq_getmsgend(&input_message);
 
 					MemoryContext oldcontext = GetCurrentMemoryContext();
-					YBQueryRestartData* restart_data = yb_collect_portal_restart_data(portal_name);
+					YBQueryRestartData* restart_data =
+						yb_collect_portal_restart_data(portal_name);
 
 					PG_TRY();
 					{
-						yb_exec_execute_message_attempting_to_restart_read(portal_name,
-						                                                   max_rows,
-						                                                   restart_data,
-						                                                   oldcontext);
+						yb_exec_execute_message(portal_name,
+												max_rows,
+												restart_data,
+												oldcontext);
 					}
 					PG_CATCH();
 					{
@@ -5093,6 +5194,7 @@ PostgresMain(int argc, char *argv[],
 								stmt_name = pstrdup(portal_name);
 							else
 								stmt_name = NULL;
+							query_string = pstrdup(query_string);
 
 							/* TODO params are none for now (see above) */
 							ParamListInfo params = NULL;
@@ -5117,10 +5219,10 @@ PostgresMain(int argc, char *argv[],
 							PortalSetResultFormat(portal, nformats, formats);
 
 							/* Now ready to retry the execute step. */
-							yb_exec_execute_message_attempting_to_restart_read(portal_name,
-							                                                   max_rows,
-							                                                   restart_data,
-							                                                   GetCurrentMemoryContext());
+							yb_exec_execute_message(portal_name,
+													max_rows,
+													restart_data,
+													GetCurrentMemoryContext());
 						}
 						else
 						{

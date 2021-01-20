@@ -59,7 +59,7 @@ class LocalTabletWriter : public WriteOperationContext {
 
  private:
   void Submit(std::unique_ptr<Operation> operation, int64_t term) override;
-  HybridTime ReportReadRestart() override;
+  Result<HybridTime> ReportReadRestart() override;
 
   Tablet* const tablet_;
 

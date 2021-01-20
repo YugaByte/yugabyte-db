@@ -7,14 +7,14 @@ import { isDefinedNotNull } from '../../../../utils/ObjectUtils';
 import Select from 'react-select';
 
 export default class YBFormSelect extends Component {
-  handleChange = option => {
+  handleChange = (option) => {
     const { form, field, onChange } = this.props;
-    if (isDefinedNotNull(onChange) && typeof(onChange) === "function") {
+    if (isDefinedNotNull(onChange) && typeof onChange === 'function') {
       onChange(this.props, option);
     } else if (isDefinedNotNull(option)) {
       form.setFieldValue(field.name, option);
     } else {
-      form.setFieldValue(field.name, "");
+      form.setFieldValue(field.name, '');
     }
   };
 
@@ -30,25 +30,25 @@ export default class YBFormSelect extends Component {
         ...provided,
         padding: 10,
         backgroundColor: state.isFocused || state.isSelected ? '#e5e5e9' : 'white',
-        color: "#333"
+        color: '#333'
       }),
       control: (provided) => ({
         // none of react-select's styles are passed to <Control />
 
         ...provided,
-        width: "auto",
-        borderColor: "#dedee0",
+        width: 'auto',
+        borderColor: '#dedee0',
         borderRadius: 7,
-        boxShadow: "inset 0 1px 1px rgba(0, 0, 0, .075)",
-        fontSize: "14px",
+        boxShadow: 'inset 0 1px 1px rgba(0, 0, 0, .075)',
+        fontSize: '14px',
         minHeight: 42
       }),
       placeholder: (provided) => ({
         ...provided,
-        color: "#999999"
+        color: '#999999'
       }),
       container: (provided) => ({
-        ...provided,
+        ...provided
       }),
       menuPortal: (provided) => ({
         ...provided,
@@ -56,11 +56,11 @@ export default class YBFormSelect extends Component {
       }),
       dropdownIndicator: (provided) => ({
         ...provided,
-        cursor: "pointer"
+        cursor: 'pointer'
       }),
       clearIndicator: (provided) => ({
         ...provided,
-        cursor: "pointer",
+        cursor: 'pointer'
       }),
       singleValue: (provided, state) => {
         const opacity = state.isDisabled ? 0.5 : 1;
@@ -70,15 +70,15 @@ export default class YBFormSelect extends Component {
       },
       multiValueRemove: (provided) => ({
         ...provided,
-        borderRadius: "0 3px 3px 0"
+        borderRadius: '0 3px 3px 0'
       }),
       input: (provided) => ({
         ...provided,
-        margin: "0"
-      }),
+        margin: '0'
+      })
     };
     return (
-      <YBLabel {...this.props} >
+      <YBLabel {...this.props}>
         <Select
           className="Select"
           styles={customStyles}

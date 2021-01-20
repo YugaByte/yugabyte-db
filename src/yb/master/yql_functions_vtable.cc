@@ -17,8 +17,10 @@
 namespace yb {
 namespace master {
 
-YQLFunctionsVTable::YQLFunctionsVTable(const Master* const master)
-    : YQLEmptyVTable(master::kSystemSchemaFunctionsTableName, master, CreateSchema()) {
+YQLFunctionsVTable::YQLFunctionsVTable(const TableName& table_name,
+                                       const NamespaceName& namespace_name,
+                                       Master * const master)
+    : YQLEmptyVTable(table_name, namespace_name, master, CreateSchema()) {
 }
 
 Schema YQLFunctionsVTable::CreateSchema() const {

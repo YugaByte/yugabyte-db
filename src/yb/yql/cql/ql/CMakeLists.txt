@@ -14,6 +14,7 @@
 add_subdirectory(util)
 add_subdirectory(ptree)
 add_subdirectory(parser)
+add_subdirectory(audit)
 add_subdirectory(sem)
 add_subdirectory(exec)
 add_subdirectory(test)
@@ -21,6 +22,7 @@ add_subdirectory(test)
 add_library(ql_api statement.cc ql_processor.cc)
 target_link_libraries(ql_api
                       ql_parser
+                      ql_audit
                       ql_sem
                       ql_exec
                       ql_util)

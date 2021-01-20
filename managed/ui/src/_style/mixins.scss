@@ -1,26 +1,26 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@mixin transition ($duration) {
-  -webkit-transition: $duration cubic-bezier(0.375, 0.885, 0.60, 1) all;
-     -moz-transition: $duration cubic-bezier(0.375, 0.885, 0.60, 1) all;
-       -o-transition: $duration cubic-bezier(0.375, 0.885, 0.60, 1) all;
-          transition: $duration cubic-bezier(0.375, 0.885, 0.60, 1) all;
+@mixin transition($duration) {
+  -webkit-transition: $duration cubic-bezier(0.375, 0.885, 0.6, 1) all;
+  -moz-transition: $duration cubic-bezier(0.375, 0.885, 0.6, 1) all;
+  -o-transition: $duration cubic-bezier(0.375, 0.885, 0.6, 1) all;
+  transition: $duration cubic-bezier(0.375, 0.885, 0.6, 1) all;
 }
 
-@mixin transition-property ($duration, $property, $delay) {
-  -webkit-transition: $property $duration cubic-bezier(0.375, 0.885, 0.60, 1) $delay;
-     -moz-transition: $property $duration cubic-bezier(0.375, 0.885, 0.60, 1) $delay;
-       -o-transition: $property $duration cubic-bezier(0.375, 0.885, 0.60, 1) $delay;
-          transition: $property $duration cubic-bezier(0.375, 0.885, 0.60, 1) $delay;
+@mixin transition-property($duration, $property, $delay) {
+  -webkit-transition: $property $duration cubic-bezier(0.375, 0.885, 0.6, 1) $delay;
+  -moz-transition: $property $duration cubic-bezier(0.375, 0.885, 0.6, 1) $delay;
+  -o-transition: $property $duration cubic-bezier(0.375, 0.885, 0.6, 1) $delay;
+  transition: $property $duration cubic-bezier(0.375, 0.885, 0.6, 1) $delay;
 }
 
-@mixin spinner-transform ($rotate) {
+@mixin spinner-transform($rotate) {
   -webkit-transform: rotate($rotate);
-     -moz-transform: rotate($rotate);
-       -o-transform: rotate($rotate);
-          transform: rotate($rotate);
+  -moz-transform: rotate($rotate);
+  -o-transform: rotate($rotate);
+  transform: rotate($rotate);
 }
-@mixin spinner-animation-delay ($delay) {
+@mixin spinner-animation-delay($delay) {
   -webkit-animation-delay: $delay;
-          animation-delay: $delay; 
+  animation-delay: $delay;
 }

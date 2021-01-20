@@ -27,8 +27,14 @@ static constexpr int kUuidVersion = 3; // Repurpose old name-based UUID v3 to em
 const uint32_t kTemplate1Oid = 1;  // Hardcoded for template1. (in initdb.c)
 const uint32_t kPgProcTableOid = 1255;  // Hardcoded for pg_proc. (in pg_proc.h)
 
+// This should match the value for pg_yb_catalog_version hardcoded in pg_yb_catalog_version.h.
+const uint32_t kPgYbCatalogVersionTableOid = 8010;
+
 // Static initialization is OK because this won't be used in another static initialization.
 const TableId kPgProcTableId = GetPgsqlTableId(kTemplate1Oid, kPgProcTableOid);
+const TableId kPgYbCatalogVersionTableId =
+    GetPgsqlTableId(kTemplate1Oid, kPgYbCatalogVersionTableOid);
+
 
 //-------------------------------------------------------------------------------------------------
 

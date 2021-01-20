@@ -21,6 +21,8 @@
 #include "yb/common/schema.h"
 #include "yb/common/ql_rowwise_iterator_interface.h"
 
+#include "yb/docdb/docdb_fwd.h"
+
 namespace yb {
 namespace common {
 
@@ -81,16 +83,16 @@ class YQLStorageIf {
 
   // Create iterator for querying by partition and range key.
   virtual CHECKED_STATUS GetIterator(const PgsqlReadRequestPB& request,
-                                     int64_t batch_arg_index,
                                      const Schema& projection,
                                      const Schema& schema,
                                      const TransactionOperationContextOpt& txn_op_context,
                                      CoarseTimePoint deadline,
                                      const ReadHybridTime& read_time,
+                                     const docdb::DocKey& start_doc_key,
                                      YQLRowwiseIteratorIf::UniPtr* iter) const = 0;
 
   // Create iterator for querying by ybctid.
-  virtual CHECKED_STATUS GetIterator(const PgsqlReadRequestPB& request,
+  virtual CHECKED_STATUS GetIterator(uint64 stmt_id,
                                      const Schema& projection,
                                      const Schema& schema,
                                      const TransactionOperationContextOpt& txn_op_context,

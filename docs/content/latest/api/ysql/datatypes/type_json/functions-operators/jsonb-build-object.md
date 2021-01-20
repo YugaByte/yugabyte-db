@@ -67,7 +67,6 @@ The following `ysqlsh` script shows a feasible general workaround for this use c
 
 ```plpgsql
 create function f(variadic_array_elements in text) returns jsonb
-  immutable
   language plpgsql
 as $body$
 declare

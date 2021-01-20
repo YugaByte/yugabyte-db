@@ -3,8 +3,9 @@
 package com.yugabyte.yw.forms;
 
 import play.data.validation.Constraints;
-
 import java.util.Date;
+
+import com.yugabyte.yw.models.CertificateInfo;
 
 /**
  * This class will be used by the API and UI Form Elements to validate constraints for
@@ -23,7 +24,17 @@ public class CertificateParams {
   @Constraints.Required()
   public String certContent;
 
-  @Constraints.Required()
   public String keyContent;
 
+  public CertificateInfo.Type certType = CertificateInfo.Type.SelfSigned;
+
+  static public class CustomCertInfo {
+    public String nodeCertPath;
+    public String nodeKeyPath;
+    public String rootCertPath;
+    public String clientCertPath;
+    public String clientKeyPath;
+  }
+
+  public CustomCertInfo customCertInfo;
 }

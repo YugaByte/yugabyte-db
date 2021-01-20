@@ -505,7 +505,18 @@ CREATE TABLE test_include (c1 int, c2 int, c3 int);
 INSERT INTO test_include VALUES (1, 1, 1), (1, 2, 2), (2, 2, 2), (3, 3, 3);
 -- Expect duplicate key error
 CREATE UNIQUE INDEX ON test_include (c1) include (c2);
-ERROR:  duplicate key value violates unique constraint "test_include_c1_c2_idx"
+ERROR:  Aborted: ERROR:  duplicate key value violates unique constraint "test_include_c1_c2_idx"
+\d test_include
+            Table "public.test_include"
+ Column |  Type   | Collation | Nullable | Default
+--------+---------+-----------+----------+---------
+ c1     | integer |           |          |
+ c2     | integer |           |          |
+ c3     | integer |           |          |
+Indexes:
+    "test_include_c1_c2_idx" UNIQUE, lsm (c1 HASH) INCLUDE (c2) INVALID
+
+DROP INDEX test_include_c1_c2_idx;
 DELETE FROM test_include WHERE c1 = 1 AND c2 = 2;
 CREATE UNIQUE INDEX ON test_include (c1) include (c2);
 EXPLAIN (COSTS OFF) SELECT c1, c2 FROM test_include WHERE c1 = 1;
@@ -1031,3 +1042,76 @@ SELECT v FROM tbl WHERE v >= 10 and v < 40 ORDER BY v DESC;
  15
  10
 (9 rows)
+
+-- Test creating indexes with (table_oid = x)
+CREATE TABLE test_index_with_oids (v1 INT, v2 INT, v3 INT);
+INSERT INTO test_index_with_oids VALUES (1, 11, 21), (2, 12, 22), (3, 13, 23), (4, 14, 24), (5, 15, 25);
+-- Test with variable = false
+CREATE INDEX index_with_table_oid ON test_index_with_oids (v1) with (table_oid = 1111111);
+ERROR:  Create index with oid is not allowed.
+HINT:  Try enabling the session variable yb_enable_create_with_table_oid.
+-- Turn on variable and test
+set yb_enable_create_with_table_oid=1;
+CREATE INDEX index_with_invalid_oid ON test_index_with_oids (v1) with (table_oid = 0);
+ERROR:  User tables must have an OID >= 16384.
+CREATE INDEX index_with_invalid_oid ON test_index_with_oids (v1) with (table_oid = -1);
+ERROR:  value -1 out of bounds for option "table_oid"
+DETAIL:  Valid values are between "16384" and "2147483647".
+CREATE INDEX index_with_invalid_oid ON test_index_with_oids (v1) with (table_oid = 123);
+ERROR:  User tables must have an OID >= 16384.
+CREATE INDEX index_with_invalid_oid ON test_index_with_oids (v1) with (table_oid = 'test');
+ERROR:  User tables must have an OID >= 16384.
+CREATE INDEX index_with_table_oid ON test_index_with_oids (v1) with (table_oid = 1111111);
+select relname, oid from pg_class where relname = 'index_with_table_oid';
+       relname        |   oid
+----------------------+---------
+ index_with_table_oid | 1111111
+(1 row)
+
+SELECT * FROM test_index_with_oids ORDER BY v1;
+ v1 | v2 | v3
+----+----+----
+  1 | 11 | 21
+  2 | 12 | 22
+  3 | 13 | 23
+  4 | 14 | 24
+  5 | 15 | 25
+(5 rows)
+
+CREATE INDEX index_with_duplicate_table_oid ON test_index_with_oids (v1) with (table_oid = 1111111);
+ERROR:  Oid 1111111 is in use.
+set yb_enable_create_with_table_oid=0;
+-- Test creating index nonconcurrently (i.e. without index backfill, without
+-- online schema migration)
+CREATE TABLE test_index_nonconcurrently (i INT, t TEXT);
+INSERT INTO test_index_nonconcurrently VALUES (generate_series(1, 10), 'a');
+CREATE INDEX NONCONCURRENTLY ON test_index_nonconcurrently (i);
+EXPLAIN (COSTS OFF) SELECT i FROM test_index_nonconcurrently WHERE i = 1;
+                                      QUERY PLAN
+--------------------------------------------------------------------------------------
+ Index Only Scan using test_index_nonconcurrently_i_idx on test_index_nonconcurrently
+   Index Cond: (i = 1)
+(2 rows)
+
+SELECT * FROM test_index_nonconcurrently WHERE i = 1;
+ i | t
+---+---
+ 1 | a
+(1 row)
+
+DROP INDEX test_index_nonconcurrently_i_idx;
+CREATE UNIQUE INDEX NONCONCURRENTLY ON test_index_nonconcurrently (i);
+EXPLAIN (COSTS OFF) SELECT i FROM test_index_nonconcurrently WHERE i = 1;
+                                      QUERY PLAN
+--------------------------------------------------------------------------------------
+ Index Only Scan using test_index_nonconcurrently_i_idx on test_index_nonconcurrently
+   Index Cond: (i = 1)
+(2 rows)
+
+INSERT INTO test_index_nonconcurrently VALUES (1, 'b');
+ERROR:  duplicate key value violates unique constraint "test_index_nonconcurrently_i_idx"
+DROP INDEX test_index_nonconcurrently_i_idx;
+INSERT INTO test_index_nonconcurrently VALUES (1, 'b');
+CREATE UNIQUE INDEX NONCONCURRENTLY ON test_index_nonconcurrently (i);
+ERROR:  duplicate key value violates unique constraint "test_index_nonconcurrently_i_idx"
+DROP TABLE test_index_nonconcurrently;

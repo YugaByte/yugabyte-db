@@ -153,7 +153,7 @@ class YBSession : public std::enable_shared_from_this<YBSession> {
   // Flush any pending writes.
   //
   // Returns a bad status if there are any pending errors after the rows have
-  // been flushed. Callers should then use GetPendingErrors to determine which
+  // been flushed. Callers should then use GetAndClearPendingErrors to determine which
   // specific operations failed.
   //
   // In AUTO_FLUSH_SYNC mode, this has no effect, since every Apply() call flushes
@@ -190,6 +190,10 @@ class YBSession : public std::enable_shared_from_this<YBSession> {
   // Abort the unflushed or in-flight operations in the session.
   void Abort();
 
+  // Resets the session by aborting it and cleaning any operations/errors, so it can be reused.
+  // Note: this doesn't reset transaction used by session.
+  void Reset();
+
   // Close the session.
   // Returns Status::IllegalState() if 'force' is false and there are still pending
   // operations. If 'force' is true batcher_ is aborted even if there are pending
@@ -222,7 +226,8 @@ class YBSession : public std::enable_shared_from_this<YBSession> {
   // than could be held in the session's error storage, then sets *overflowed to true.
   //
   // Caller takes ownership of the returned errors.
-  CollectedErrors GetPendingErrors();
+  // Note: this doesn't include error returned by Apply calls.
+  CollectedErrors GetAndClearPendingErrors();
 
   // Allow local calls to run in the current thread.
   void set_allow_local_calls_in_curr_thread(bool flag);
@@ -254,6 +259,7 @@ class YBSession : public std::enable_shared_from_this<YBSession> {
   friend class internal::Batcher;
 
   internal::Batcher& Batcher();
+  CHECKED_STATUS CheckIfFailed();
 
   // The client that this session is associated with.
   client::YBClient* const client_;
@@ -265,6 +271,8 @@ class YBSession : public std::enable_shared_from_this<YBSession> {
 
   // Lock protecting flushed_batchers_.
   mutable simple_spinlock lock_;
+
+  std::atomic<bool> is_failed_{false};
 
   // Buffer for errors.
   scoped_refptr<internal::ErrorCollector> error_collector_;

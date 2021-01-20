@@ -10,9 +10,14 @@ import { YBButton } from '../../common/forms/fields';
 import { getPromiseState } from '../../../utils/PromiseUtils';
 import { AlertSnoozeModal } from '../../universes';
 
-import { setAlertsConfig, setAlertsConfigResponse,
-         updateBackupState, updateBackupStateResponse,
-         fetchUniverseInfo, fetchUniverseInfoResponse} from '../../../actions/universe';
+import {
+  setAlertsConfig,
+  setAlertsConfigResponse,
+  updateBackupState,
+  updateBackupStateResponse,
+  fetchUniverseInfo,
+  fetchUniverseInfoResponse
+} from '../../../actions/universe';
 
 class UniverseAction extends Component {
   constructor(props) {
@@ -27,17 +32,19 @@ class UniverseAction extends Component {
         showModal: true
       };
     });
-  }
+  };
   closeModal = () => {
     this.setState((prevState, props) => {
       return {
         showModal: false
       };
     });
-  }
+  };
   UNSAFE_componentWillReceiveProps(nextProps) {
-    if (getPromiseState(nextProps.backupState).isSuccess() ||
-        getPromiseState(nextProps.alertsConfig).isSuccess()) {
+    if (
+      getPromiseState(nextProps.backupState).isSuccess() ||
+      getPromiseState(nextProps.alertsConfig).isSuccess()
+    ) {
       this.closeModal();
       this.props.fetchCurrentUniverse(nextProps.universe.universeUUID);
     }
@@ -46,54 +53,62 @@ class UniverseAction extends Component {
   performAction = (values) => {
     const { universe, actionType, updateBackupState, setAlertsConfig } = this.props;
     switch (actionType) {
-      case "toggle-backup":
-        const takeBackups = universe.universeConfig &&
-          universe.universeConfig.takeBackups === "true";
+      case 'toggle-backup':
+        const takeBackups =
+          universe.universeConfig && universe.universeConfig.takeBackups === 'true';
         updateBackupState(universe.universeUUID, !takeBackups);
         break;
-      case "alert-config":
+      case 'alert-config':
         setAlertsConfig(universe.universeUUID, values);
         break;
       default:
         break;
     }
-  }
+  };
 
   render() {
-    const { btnClass, disabled, actionType, universe: { universeConfig } } = this.props;
+    const {
+      btnClass,
+      disabled,
+      actionType,
+      universe: { universeConfig }
+    } = this.props;
     let btnLabel = null;
     let btnIcon = null;
     let modalTitle = null;
     let modalForm = null;
-    switch(actionType) {
-      case "toggle-backup":
-        const takeBackups = universeConfig && universeConfig.takeBackups === "true";
-        btnLabel =  takeBackups ? "Disable Backup" : "Enable Backup";
-        btnIcon = takeBackups ? "fa fa-pause" : "fa fa-play";
-        modalTitle =`${btnLabel} for: ${this.props.universe.name}?`;
+    switch (actionType) {
+      case 'toggle-backup':
+        const takeBackups = universeConfig && universeConfig.takeBackups === 'true';
+        btnLabel = takeBackups ? 'Disable Backup' : 'Enable Backup';
+        btnIcon = takeBackups ? 'fa fa-pause' : 'fa fa-play';
+        modalTitle = `${btnLabel} for: ${this.props.universe.name}?`;
         modalForm = (
-          <YBModalForm title={modalTitle}
-                   visible={this.state.showModal} onHide={this.closeModal}
-                   showCancelButton={true}
-                   cancelLabel={"Cancel"}
-                   submitLabel={"Yes"}
-                   className="universe-action-modal"
-                   onFormSubmit={this.performAction}>
+          <YBModalForm
+            title={modalTitle}
+            visible={this.state.showModal}
+            onHide={this.closeModal}
+            showCancelButton={true}
+            cancelLabel={'Cancel'}
+            submitLabel={'Yes'}
+            className="universe-action-modal"
+            onFormSubmit={this.performAction}
+          >
             <Row>
-              <Col lg={12}>
-              Are you sure you want to perform this action?
-              </Col>
+              <Col lg={12}>Are you sure you want to perform this action?</Col>
             </Row>
           </YBModalForm>
         );
         break;
-      case "alert-config":
+      case 'alert-config':
         let disablePeriodSecs = null;
         let alertsSnoozed = false;
         if (universeConfig) {
           // If the disableAlertsUntilSecs is null or it is 0, it means the alerts is not snoozed.
-          if (!universeConfig.disableAlertsUntilSecs ||
-              universeConfig.disableAlertsUntilSecs === "0") {
+          if (
+            !universeConfig.disableAlertsUntilSecs ||
+            universeConfig.disableAlertsUntilSecs === '0'
+          ) {
             disablePeriodSecs = 0;
           } else {
             // If it has a value, we need to check if the snooze until time has elasped
@@ -109,15 +124,17 @@ class UniverseAction extends Component {
             }
           }
         }
-        btnLabel = alertsSnoozed ? "Enable Alerts" : "Snooze Alerts";
-        btnIcon = alertsSnoozed ? "fa fa-play" : "fa fa-pause";
+        btnLabel = alertsSnoozed ? 'Enable Alerts' : 'Snooze Alerts';
+        btnIcon = alertsSnoozed ? 'fa fa-play' : 'fa fa-pause';
         modalForm = (
-          <AlertSnoozeModal {...this.props}
+          <AlertSnoozeModal
+            {...this.props}
             visible={this.state.showModal}
             onHide={this.closeModal}
             alertsSnoozed={alertsSnoozed}
             disablePeriodSecs={disablePeriodSecs}
-            onFormSubmit={this.performAction}/>
+            onFormSubmit={this.performAction}
+          />
         );
         break;
       default:
@@ -125,9 +142,13 @@ class UniverseAction extends Component {
     }
     return (
       <div>
-        <YBButton btnText={btnLabel} btnIcon={btnIcon}
-                btnClass={`btn ${btnClass}`} disabled={disabled}
-                onClick={disabled ? null: this.openModal} />
+        <YBButton
+          btnText={btnLabel}
+          btnIcon={btnIcon}
+          btnClass={`btn ${btnClass}`}
+          disabled={disabled}
+          onClick={disabled ? null : this.openModal}
+        />
         {modalForm}
       </div>
     );
@@ -137,16 +158,14 @@ class UniverseAction extends Component {
 const mapDispatchToProps = (dispatch) => {
   return {
     setAlertsConfig: (uuid, payload) => {
-      dispatch(setAlertsConfig(uuid, payload))
-        .then((response) => {
-          dispatch(setAlertsConfigResponse(response.payload));
-        });
+      dispatch(setAlertsConfig(uuid, payload)).then((response) => {
+        dispatch(setAlertsConfigResponse(response.payload));
+      });
     },
     updateBackupState: (uuid, flag) => {
-      dispatch(updateBackupState(uuid, flag))
-        .then((response) => {
-          dispatch(updateBackupStateResponse(response.payload));
-        });
+      dispatch(updateBackupState(uuid, flag)).then((response) => {
+        dispatch(updateBackupStateResponse(response.payload));
+      });
     },
 
     fetchCurrentUniverse: (universeUUID) => {

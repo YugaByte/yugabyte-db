@@ -1,7 +1,7 @@
 // Copyright (c) YugaByte, Inc.
 
 import React, { Component } from 'react';
-import {isValidObject} from '../../../utils/ObjectUtils';
+import { isValidObject } from '../../../utils/ObjectUtils';
 
 const Plotly = require('plotly.js/lib/core');
 
@@ -11,24 +11,29 @@ export default class UniverseReadWriteMetrics extends Component {
     const data = this.preparePlotlyData([
       {
         data: readData,
-        color: '#4477dd',
-      }, {
+        color: '#4477dd'
+      },
+      {
         data: writeData,
-        color: '#cd6500',
+        color: '#cd6500'
       }
     ]);
     if (data.length) {
       let max = 0.01;
-      data.forEach(function(series) {
+      data.forEach(function (series) {
         series.y.forEach(function (value) {
           if (parseFloat(value) > max) max = value;
         });
       });
       max = Math.round(max * 10) / 10;
       const layout = {
-        margin: {l: 42, r: 0, t: 5, b: 8, pad: 0, autoexpand: false},
+        margin: { l: 42, r: 0, t: 5, b: 8, pad: 0, autoexpand: false },
         xaxis: {
-          showline: false, showgrid: false, zeroline: false, title: "Last 1 Hour", titlefont: {
+          showline: false,
+          showgrid: false,
+          zeroline: false,
+          title: 'Last 1 Hour',
+          titlefont: {
             size: 8,
             color: '#7f7f7f'
           }
@@ -43,7 +48,7 @@ export default class UniverseReadWriteMetrics extends Component {
             family: 'Inter, sans-serif',
             size: 9,
             color: '#777573'
-          },
+          }
         },
         showlegend: false,
         autosize: false,
@@ -52,14 +57,14 @@ export default class UniverseReadWriteMetrics extends Component {
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)'
       };
-      Plotly.newPlot(`lineGraph${graphIndex}`, data, layout, {displayModeBar: false});
+      Plotly.newPlot(`lineGraph${graphIndex}`, data, layout, { displayModeBar: false });
     }
   }
 
   preparePlotlyData(lines) {
     const data = [];
     lines.forEach(function (line, index) {
-      const plotName = index === 0 ? "Read" : "Write";
+      const plotName = index === 0 ? 'Read' : 'Write';
       if (isValidObject(line.data)) {
         data.push({
           x: line.data.x,
@@ -67,7 +72,7 @@ export default class UniverseReadWriteMetrics extends Component {
           mode: 'lines',
           line: {
             color: line.color,
-            width: 2,
+            width: 2
           },
           name: plotName
         });
@@ -77,9 +82,7 @@ export default class UniverseReadWriteMetrics extends Component {
   }
 
   render() {
-    const {graphIndex} = this.props;
-    return (
-      <div id={`lineGraph${graphIndex}`}/>
-    );
+    const { graphIndex } = this.props;
+    return <div id={`lineGraph${graphIndex}`} />;
   }
 }

@@ -72,8 +72,15 @@ DEFINE_int32(ysql_output_buffer_size, 262144,
              "While fetched data resides within this buffer and hasn't been flushed to client yet, "
              "we're free to transparently restart operation in case of restart read error.");
 
+DEFINE_bool(ysql_enable_update_batching, true,
+            "Whether to enable batching of updates where possible. Currently update batching is "
+            "only supported for PGSQL procedures.");
+
 DEFINE_bool(ysql_suppress_unsupported_error, false,
             "Suppress ERROR on use of unsupported SQL statement and use WARNING instead");
+
+DEFINE_int32(ysql_sequence_cache_minval, 100,
+             "Set how many sequence numbers to be preallocated in cache.");
 
 // Top-level flag to enable all YSQL beta features.
 DEFINE_bool(ysql_beta_features, false,
@@ -101,3 +108,19 @@ DEFINE_bool(ysql_serializable_isolation_for_ddl_txn, false,
 DEFINE_int32(ysql_select_parallelism, -1,
             "Number of read requests to issue in parallel to tablets of a table "
             "for SELECT.");
+
+DEFINE_int32(ysql_max_write_restart_attempts, 20,
+             "Max number of restart attempts made for writes on transaction conflicts.");
+
+DEFINE_bool(ysql_sleep_before_retry_on_txn_conflict, true,
+            "Whether to sleep before retrying the write on transaction conflicts.");
+
+// Default to a 1s delay because commits currently aren't guaranteed to be visible across tservers.
+// Commits cause master to update catalog version, but that version is _pulled_ from tservers using
+// heartbeats.  In the common case, tservers will be behind by at most one heartbeat.  However, it
+// is possible that some network delays may cause it to not successfully heartbeat for times, so use
+// 1s as a decently safe wait time without causing user frustration waiting on CREATE INDEX.
+// TODO(jason): change to 0 once commits are reliably propagated to tservers.
+DEFINE_test_flag(int32, ysql_index_state_flags_update_delay_ms, 1000,
+                 "Time to delay after changing the pg_index state flags.  Currently default 1s "
+                 "because pg_index commits need time to propagate to all tservers");

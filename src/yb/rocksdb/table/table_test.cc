@@ -2170,7 +2170,7 @@ TEST_F(GeneralTableTest, ApproximateOffsetOfCompressed) {
 }
 
 TEST_F(HarnessTest, Randomized) {
-#if defined(ROCKSDB_TSAN_RUN) || defined(THREAD_SANITIZER)
+#if defined(THREAD_SANITIZER)
   static constexpr int kMaxNumEntries = 200;
 #else
   static constexpr int kMaxNumEntries = 2000;

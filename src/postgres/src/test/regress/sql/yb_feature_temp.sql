@@ -296,4 +296,9 @@ DELETE FROM temptest WHERE k = 4;
 
 SELECT * FROM temptest WHERE k IN (1, 4) ORDER BY k;
 
+-- test temp table primary key duplicate error.
+INSERT INTO temptest VALUES (100, 200, 300);
+INSERT INTO temptest VALUES (100, 200, 300);
+INSERT INTO temptest VALUES (101, 201, 301), (101, 201, 301);
+
 DROP TABLE temptest;

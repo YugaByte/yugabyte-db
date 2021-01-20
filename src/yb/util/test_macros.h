@@ -303,22 +303,30 @@ std::string TEST_SetDifferenceStr(const std::set<T>& expected, const std::set<T>
 #define CURRENT_TEST_CASE_AND_TEST_NAME_STR() \
   (std::string(CURRENT_TEST_CASE_NAME()) + '.' + CURRENT_TEST_NAME())
 
+#define YB_DISABLE_TEST(test_name) BOOST_PP_CAT(DISABLED_, test_name)
+
 #ifdef __APPLE__
-#define YB_DISABLE_TEST_ON_MACOS(test_name) BOOST_PP_CAT(DISABLED_, test_name)
+#define YB_DISABLE_TEST_ON_MACOS(test_name) YB_DISABLE_TEST(test_name)
 #else
 #define YB_DISABLE_TEST_ON_MACOS(test_name) test_name
 #endif
 
 #ifdef THREAD_SANITIZER
-#define YB_DISABLE_TEST_IN_TSAN(test_name) BOOST_PP_CAT(DISABLED_, test_name)
+#define YB_DISABLE_TEST_IN_TSAN(test_name) YB_DISABLE_TEST(test_name)
 #else
 #define YB_DISABLE_TEST_IN_TSAN(test_name) test_name
 #endif
 
 #if defined(THREAD_SANITIZER) || defined(ADDRESS_SANITIZER)
-#define YB_DISABLE_TEST_IN_SANITIZERS(test_name) BOOST_PP_CAT(DISABLED_, test_name)
+#define YB_DISABLE_TEST_IN_SANITIZERS(test_name) YB_DISABLE_TEST(test_name)
 #else
 #define YB_DISABLE_TEST_IN_SANITIZERS(test_name) test_name
+#endif
+
+#if defined(__APPLE__) || defined(THREAD_SANITIZER) || defined(ADDRESS_SANITIZER)
+#define YB_DISABLE_TEST_IN_SANITIZERS_OR_MAC(test_name) YB_DISABLE_TEST(test_name)
+#else
+#define YB_DISABLE_TEST_IN_SANITIZERS_OR_MAC(test_name) test_name
 #endif
 
 #endif  // YB_UTIL_TEST_MACROS_H

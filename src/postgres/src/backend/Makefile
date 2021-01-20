@@ -199,7 +199,6 @@ $(top_builddir)/src/include/storage/lwlocknames.h: storage/lmgr/lwlocknames.h
 	  cd '$(dir $@)' && rm -f $(notdir $@) && \
 	  $(LN_S) "$$prereqdir/$(notdir $<)" .
 
-
 utils/probes.o: utils/probes.d $(SUBDIROBJS)
 	$(DTRACE) $(DTRACEFLAGS) -C -G -s $(call expand_subsys,$^) -o $@
 
@@ -214,6 +213,7 @@ distprep:
 	$(MAKE) -C replication	repl_gram.c repl_scanner.c syncrep_gram.c syncrep_scanner.c
 	$(MAKE) -C storage/lmgr	lwlocknames.h lwlocknames.c
 	$(MAKE) -C utils	distprep
+	$(MAKE) -C utils/adt	jsonpath_gram.c jsonpath_scan.c
 	$(MAKE) -C utils/misc	guc-file.c
 	$(MAKE) -C utils/sort	qsort_tuple.c
 
@@ -337,6 +337,8 @@ maintainer-clean: distclean
 	      replication/syncrep_scanner.c \
 	      storage/lmgr/lwlocknames.c \
 	      storage/lmgr/lwlocknames.h \
+	      utils/adt/jsonpath_gram.c \
+	      utils/adt/jsonpath_scan.c \
 	      utils/misc/guc-file.c \
 	      utils/sort/qsort_tuple.c
 

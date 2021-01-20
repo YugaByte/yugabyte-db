@@ -2,27 +2,27 @@
 
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import { TaskProgressBar, TaskProgressStepBar  } from '..';
+import { TaskProgressBar, TaskProgressStepBar } from '..';
 import { isValidObject } from '../../../utils/ObjectUtils';
 import { YBLoading } from '../../common/indicators';
-import {TASK_SHORT_TIMEOUT} from '../constants';
+import { TASK_SHORT_TIMEOUT } from '../constants';
 import { getPromiseState } from '../../../utils/PromiseUtils';
 
 export default class TaskProgress extends Component {
   static contextTypes = {
     router: PropTypes.object
-  }
+  };
 
   static propTypes = {
     taskUUIDs: PropTypes.array,
     type: PropTypes.oneOf(['Bar', 'StepBar']),
     timeoutInterval: PropTypes.number
-  }
+  };
 
   static defaultProps = {
     type: 'Widget',
     timeoutInterval: TASK_SHORT_TIMEOUT
-  }
+  };
 
   componentDidMount() {
     const { taskUUIDs } = this.props;
@@ -38,14 +38,20 @@ export default class TaskProgress extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    if (this.props.taskProgressData !== prevProps.taskProgressData && !getPromiseState(this.props.taskProgressData).isLoading()) {
+    if (
+      this.props.taskProgressData !== prevProps.taskProgressData &&
+      !getPromiseState(this.props.taskProgressData).isLoading()
+    ) {
       clearTimeout(this.timeout);
-      const { taskProgressData: { data }, onTaskSuccess} = this.props;
-      if (data.status === "Success" && onTaskSuccess) {
+      const {
+        taskProgressData: { data },
+        onTaskSuccess
+      } = this.props;
+      if (data.status === 'Success' && onTaskSuccess) {
         this.props.onTaskSuccess();
       }
-        // Check to make sure if the current state is running
-      if (isValidObject(data) && (data.status === "Running" || data.status === "Initializing")) {
+      // Check to make sure if the current state is running
+      if (isValidObject(data) && (data.status === 'Running' || data.status === 'Initializing')) {
         this.scheduleFetch();
       }
     }
@@ -64,10 +70,10 @@ export default class TaskProgress extends Component {
     } else if (taskProgressPromise.isLoading() || taskProgressPromise.isInit()) {
       return <YBLoading />;
     }
-    if (type === "StepBar") {
+    if (type === 'StepBar') {
       return (
         <div className="provider-task-progress-container">
-          <TaskProgressStepBar progressData={taskProgressData.data}/>
+          <TaskProgressStepBar progressData={taskProgressData.data} />
         </div>
       );
     } else {

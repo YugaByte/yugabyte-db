@@ -1,6 +1,6 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../_style/colors.scss";
+@import '../../../_style/colors.scss';
 
 .yb-map-legend,
 .yb-region-map-legend {
@@ -36,11 +36,15 @@
           background-color: transparent;
         }
 
-        &, &:hover, &:focus, &:active {
+        &,
+        &:hover,
+        &:focus,
+        &:active {
           border: none;
         }
 
-        &:hover, &:active {
+        &:hover,
+        &:active {
           background-color: #fff;
         }
 
@@ -85,7 +89,7 @@
   }
 
   small {
-    color: #CD6500;
+    color: #cd6500;
   }
 
   .list-group {
@@ -102,8 +106,7 @@
   padding: 2px;
 }
 
-.provider-map-container .yb-map-legend
-{
+.provider-map-container .yb-map-legend {
   bottom: 2px;
   padding-bottom: 2px;
 }

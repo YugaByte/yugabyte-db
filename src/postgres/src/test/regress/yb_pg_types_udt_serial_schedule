@@ -1,4 +1,4 @@
-# src/test/regress/yb_pg_type_udt_serial_schedule
+# src/test/regress/yb_pg_types_udt_serial_schedule
 #
 ####################################################################################################
 # Postgres Testsuites: Porting from PostgreSQL original tests.

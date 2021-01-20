@@ -19,7 +19,8 @@ public class YamlWrapper {
   /**
    * Load a com.yugabyte.yw.common.Yaml file from the classpath.
    */
-  public Object load(String resourceName) {
+  public <T> T load(String resourceName) {
+
     return load(
       environment.resourceAsStream(resourceName),
       environment.classLoader()
@@ -31,7 +32,7 @@ public class YamlWrapper {
    *
    * @param classloader The classloader to use to instantiate Java objects.
    */
-  public Object load(InputStream is, ClassLoader classloader) {
+  public <T> T load(InputStream is, ClassLoader classloader) {
     Yaml yaml = new Yaml(new CustomClassLoaderConstructor(classloader));
     return yaml.load(is);
   }

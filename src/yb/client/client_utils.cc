@@ -27,9 +27,13 @@ DECLARE_bool(TEST_running_test);
 namespace yb {
 namespace client {
 
-std::future<Result<internal::RemoteTabletPtr>> LookupFirstTabletFuture(const YBTable* table) {
+constexpr int32_t kClientTimeoutSecs = 60;
+
+std::future<Result<internal::RemoteTabletPtr>> LookupFirstTabletFuture(
+    const std::shared_ptr<const YBTable>& table) {
   return table->client()->data_->meta_cache_->LookupTabletByKeyFuture(
-      table, "" /* partition_key */, CoarseMonoClock::now() + std::chrono::seconds(60));
+      table, "" /* partition_key */,
+      CoarseMonoClock::now() + std::chrono::seconds(kClientTimeoutSecs));
 }
 
 Result<std::unique_ptr<rpc::Messenger>> CreateClientMessenger(
@@ -50,6 +54,28 @@ Result<std::unique_ptr<rpc::Messenger>> CreateClientMessenger(
     messenger->TEST_SetOutboundIpBase(VERIFY_RESULT(HostToAddress("127.0.0.1")));
   }
   return messenger;
+}
+
+Result<std::vector<internal::RemoteTabletPtr>> FilterTabletsByHashPartitionKeyRange(
+    const std::vector<internal::RemoteTabletPtr>& all_tablets,
+    const std::string& partition_key_start,
+    const std::string& partition_key_end) {
+  RETURN_NOT_OK(PartitionSchema::IsValidHashPartitionRange(partition_key_start,
+                                                           partition_key_end));
+  std::vector<internal::RemoteTabletPtr> filtered_results;
+  for (const auto& remote_tablet : all_tablets) {
+    auto tablet_partition_start = remote_tablet->partition().partition_key_start();
+    auto tablet_partition_end = remote_tablet->partition().partition_key_end();
+    // Is this tablet at the start
+    bool start_condition = partition_key_start.empty() || tablet_partition_end.empty() ||
+                           tablet_partition_end > partition_key_start;
+    bool end_condition = partition_key_end.empty() || tablet_partition_start < partition_key_end;
+
+    if (start_condition && end_condition) {
+      filtered_results.push_back(remote_tablet);
+    }
+  }
+  return filtered_results;
 }
 
 

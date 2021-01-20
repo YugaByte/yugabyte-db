@@ -97,7 +97,7 @@ class StatementParameters {
   }
 
   // Limit of the number of rows to return set as page size.
-  uint64_t page_size_;
+  uint64_t page_size_ = 0;
 
   // Paging State.
   std::unique_ptr<QLPagingStatePB> paging_state_;
@@ -106,7 +106,7 @@ class StatementParameters {
   YBConsistencyLevel yb_consistency_level_;
 
   // Unique identifier of call that initiated this request.
-  uint64_t request_id_;
+  uint64_t request_id_ = 0;
 };
 
 } // namespace ql

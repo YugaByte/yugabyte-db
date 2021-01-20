@@ -1,7 +1,7 @@
 ---
-title: Password authentication
-headerTitle: Password authentication
-linkTitle: Password authentication
+title: Password Authentication
+headerTitle: Password Authentication
+linkTitle: Password Authentication
 description: Use SCRAM-SHA-256 password authentication to strengthen your YugyabyteDB security.
 menu:
   latest:
@@ -11,6 +11,15 @@ menu:
 isTocNested: true
 showAsideToc: true
 ---
+
+<ul class="nav nav-tabs-alt nav-tabs-yb">
+  <li >
+    <a href="/latest/secure/authentication/ysql-authentication" class="nav-link active">
+      <i class="icon-postgres" aria-hidden="true"></i>
+      YSQL
+    </a>
+  </li>
+</ul>
 
 By default, password authentication is disabled, allowing users and clients to connect to and interact with YugabyteDB with minimal effort. For production clusters, password authentication is important for maximizing the security. The password authentication methods work similarly, but differ in how user passwords are stored on the server and how the password provided by the client is sent across the connection.
 
@@ -46,7 +55,7 @@ YugabyteDB database passwords are separate from operating system passwords. The 
 
 Database passwords can be managed using the following:
 
-- YSQL API: [CREATE ROLE](../../../api/ysql/commands/dcl_create_role) and [ALTER ROLE](../../../api/ysql/commands/dcl_alter_role)
+- YSQL API: [CREATE ROLE](../../../api/ysql/the-sql-language/statements/dcl_create_role) and [ALTER ROLE](../../../api/ysql/the-sql-language/statements/dcl_alter_role)
 - `ysqlsh` metacommand: [`\password`](../../../admin/ysqlsh/#password-username)
 
 ## Enable SCRAM-SHA-256 authentication
@@ -110,7 +119,7 @@ $ ./ysqlsh -U yugabyte -W
 When prompted for the password, enter the `yugabyte` password (default is `yugabyte`). You should be able to log in and see a response like this:
 
 ```
-ysqlsh (11.2-YB-2.3.0.0-b0)
+ysqlsh (11.2-YB-2.3.3.0-b0)
 Type "help" for help.
 
 yugabyte=#

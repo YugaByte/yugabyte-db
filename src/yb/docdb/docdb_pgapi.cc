@@ -83,37 +83,56 @@ const YBCPgTypeEntity* DocPgGetTypeEntity(YbgTypeDesc pg_type) {
 }
 
 Status DocPgEvalExpr(const std::string& expr_str,
-                     int32_t col_attrno,
-                     int32_t ret_typeid,
-                     int32_t ret_typemod,
+                     std::vector<DocPgParamDesc> params,
                      const QLTableRow& table_row,
                      const Schema *schema,
                      QLValue* result) {
   PG_RETURN_NOT_OK(YbgPrepareMemoryContext());
 
   char *expr_cstring = const_cast<char *>(expr_str.c_str());
-  YbgTypeDesc pg_type = {ret_typeid, ret_typemod};
-  const YBCPgTypeEntity *ret_type = DocPgGetTypeEntity(pg_type);
-  YBCPgTypeAttrs type_attrs = { pg_type.type_mod };
 
   // Create the context expression evaluation.
   // Since we currently only allow referencing the target col just set min/max attr to col_attno.
   // TODO Eventually this context should be created once per row and contain all (referenced)
   //      column values. Then the context can be reused for all expressions.
   YbgExprContext expr_ctx;
-  PG_RETURN_NOT_OK(YbgExprContextCreate(col_attrno, col_attrno, &expr_ctx));
+  int32_t min_attno = params[0].attno;
+  int32_t max_attno = params[0].attno;
+
+  for (int i = 1; i < params.size(); i++) {
+    min_attno = std::min(min_attno, params[i].attno);
+    max_attno = std::max(max_attno, params[i].attno);
+  }
+
+  PG_RETURN_NOT_OK(YbgExprContextCreate(min_attno, max_attno, &expr_ctx));
 
   // Set the column values (used to resolve scan variables in the expression).
   for (const ColumnId& col_id : schema->column_ids()) {
     auto column = schema->column_by_id(col_id);
     SCHECK(column.ok(), InternalError, "Invalid Schema");
 
-    if (column->order() == col_attrno) {
-      const QLValuePB* val = table_row.GetColumn(col_id.rep());
-      bool is_null = false;
-      uint64_t datum = 0;
-      RETURN_NOT_OK(PgValueFromPB(ret_type, type_attrs, *val, &datum, &is_null));
-      PG_RETURN_NOT_OK(YbgExprContextAddColValue(expr_ctx, column->order(), datum, is_null));
+    // Loop here is ok as params.size() will always be 1 for user tables,
+    // and 2 for some internal queries (catalog version increment).
+    // TODO Rethink this if we ever allow more params here.
+    DCHECK_LT(params.size(), 3);
+    for (int i = 0; i < params.size(); i++) {
+      if (column->order() == params[i].attno) {
+        const QLValuePB* val = table_row.GetColumn(col_id.rep());
+        bool is_null = false;
+        uint64_t datum = 0;
+        YbgTypeDesc pg_arg_type = {params[i].typid, params[i].typmod};
+        const YBCPgTypeEntity *arg_type = DocPgGetTypeEntity(pg_arg_type);
+        YBCPgTypeAttrs arg_type_attrs = { pg_arg_type.type_mod };
+
+        Status s = PgValueFromPB(arg_type, arg_type_attrs, *val, &datum, &is_null);
+        if (!s.ok()) {
+          PG_RETURN_NOT_OK(YbgResetMemoryContext());
+          return s;
+        }
+
+        PG_RETURN_NOT_OK(YbgExprContextAddColValue(expr_ctx, column->order(), datum, is_null));
+        break;
+      }
     }
   }
 
@@ -122,11 +141,14 @@ Status DocPgEvalExpr(const std::string& expr_str,
   uint64_t datum;
   PG_RETURN_NOT_OK(YbgEvalExpr(expr_cstring, expr_ctx, &datum, &is_null));
 
-  RETURN_NOT_OK(PgValueToPB(ret_type, datum, is_null, result));
+  // Assuming first arg is the target column, so using it for the return type.
+  // YSQL layer should guarantee this when producing the params.
+  YbgTypeDesc pg_type = {params[0].typid, params[0].typmod};
+  const YBCPgTypeEntity *ret_type = DocPgGetTypeEntity(pg_type);
 
+  Status s = PgValueToPB(ret_type, datum, is_null, result);
   PG_RETURN_NOT_OK(YbgResetMemoryContext());
-
-  return Status::OK();
+  return s;
 }
 
 

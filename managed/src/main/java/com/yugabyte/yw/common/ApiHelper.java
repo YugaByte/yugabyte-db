@@ -13,10 +13,9 @@ import play.libs.ws.WSResponse;
 
 import java.net.URL;
 import java.net.HttpURLConnection;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 
@@ -116,5 +115,32 @@ public class ApiHelper {
       }
     }
     return request;
+  }
+
+  public String buildUrl(String baseUrl, Map<String, String[]> queryParams) {
+    if (queryParams.size() > 0) {
+      baseUrl += "?";
+      StringBuilder requestUrlBuilder = new StringBuilder(baseUrl);
+      for (Map.Entry<String, String[]> entry : queryParams.entrySet()) {
+        requestUrlBuilder
+          .append(entry.getKey()).append("=")
+          .append(entry.getValue()[0])
+          .append("&");
+      }
+
+      baseUrl = requestUrlBuilder.toString();
+      baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+    }
+
+    return baseUrl;
+  }
+
+  public String replaceProxyLinks(String responseBody, UUID universeUUID, String proxyAddr) {
+    String prefix = String.format("/universes/%s/proxy/%s/", universeUUID.toString(), proxyAddr);
+    return responseBody.replaceAll("src='/", String.format("src='%s", prefix))
+      .replaceAll("src=\"/", String.format("src=\"%s", prefix))
+      .replaceAll("href=\"/", String.format("href=\"%s", prefix))
+      .replaceAll("href='/", String.format("href='%s", prefix))
+      .replaceAll("http://", String.format("/universes/%s/proxy/", universeUUID.toString()));
   }
 }

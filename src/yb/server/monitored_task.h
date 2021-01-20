@@ -81,6 +81,7 @@ class MonitoredTask : public std::enable_shared_from_this<MonitoredTask> {
     ASYNC_BACKFILL_DONE,
     BACKFILL_TABLE,
     ASYNC_SPLIT_TABLET,
+    START_ELECTION,
   };
 
   virtual Type type() const = 0;

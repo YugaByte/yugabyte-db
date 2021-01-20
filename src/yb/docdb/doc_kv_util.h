@@ -152,6 +152,8 @@ inline std::string ToShortDebugStr(const std::string& raw_str) {
   return ToShortDebugStr(rocksdb::Slice(raw_str));
 }
 
+Result<DocHybridTime> DecodeInvertedDocHt(Slice key_slice);
+
 }  // namespace docdb
 }  // namespace yb
 

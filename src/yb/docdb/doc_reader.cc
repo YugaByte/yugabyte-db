@@ -40,17 +40,6 @@ using yb::HybridTime;
 namespace yb {
 namespace docdb {
 
-const SliceKeyBound& SliceKeyBound::Invalid() {
-  static SliceKeyBound result;
-  return result;
-}
-
-const IndexBound& IndexBound::Empty() {
-  static IndexBound result;
-  return result;
-}
-
-
 // ------------------------------------------------------------------------------------------------
 // Standalone functions
 // ------------------------------------------------------------------------------------------------

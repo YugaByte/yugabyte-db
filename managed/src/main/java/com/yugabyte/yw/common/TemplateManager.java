@@ -39,7 +39,14 @@ public class TemplateManager extends DevopsBase {
     throw new RuntimeException("Unable to create provision file path " + provisionFilePath.getAbsolutePath());
   }
 
-  public void createProvisionTemplate(AccessKey accessKey, boolean airGapInstall, boolean passwordlessSudoAccess) {
+  public void createProvisionTemplate(
+    AccessKey accessKey,
+    boolean airGapInstall,
+    boolean passwordlessSudoAccess,
+    boolean installNodeExporter,
+    Integer nodeExporterPort,
+    String nodeExporterUser
+  ) {
     AccessKey.KeyInfo keyInfo = accessKey.getKeyInfo();
     String path = getOrCreateProvisionFilePath(accessKey.getProviderUUID());
 
@@ -61,11 +68,21 @@ public class TemplateManager extends DevopsBase {
     commandArgs.add(appConfig.getString("yb.thirdparty.packagePath"));
     commandArgs.add("--custom_ssh_port");
     commandArgs.add(keyInfo.sshPort.toString());
+
     if (airGapInstall) {
       commandArgs.add("--air_gap");
     }
+
     if (passwordlessSudoAccess) {
       commandArgs.add("--passwordless_sudo");
+    }
+
+    if (installNodeExporter) {
+      commandArgs.add("--install_node_exporter");
+      commandArgs.add("--node_exporter_port");
+      commandArgs.add(nodeExporterPort.toString());
+      commandArgs.add("--node_exporter_user");
+      commandArgs.add(nodeExporterUser);
     }
 
     JsonNode result = execAndParseCommandCloud(accessKey.getProviderUUID(), "template", commandArgs);
@@ -74,6 +91,9 @@ public class TemplateManager extends DevopsBase {
       keyInfo.passwordlessSudoAccess = passwordlessSudoAccess;
       keyInfo.provisionInstanceScript = path + "/" + PROVISION_SCRIPT;
       keyInfo.airGapInstall = airGapInstall;
+      keyInfo.installNodeExporter = installNodeExporter;
+      keyInfo.nodeExporterPort = nodeExporterPort;
+      keyInfo.nodeExporterUser = nodeExporterUser;
       accessKey.setKeyInfo(keyInfo);
       accessKey.save();
     } else {

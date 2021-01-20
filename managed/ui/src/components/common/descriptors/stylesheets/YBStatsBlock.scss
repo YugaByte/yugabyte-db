@@ -1,6 +1,6 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../../_style/colors.scss";
+@import '../../../../_style/colors.scss';
 
 .tile_stats_count {
   text-align: left;
@@ -13,7 +13,8 @@
 .tile_stats_count:first-child {
   border-left: none;
 }
-.tile_stats_count .count, .tile_stats_count .count span {
+.tile_stats_count .count,
+.tile_stats_count .count span {
   font-size: 28px;
   line-height: 30px;
   font-weight: 500;
@@ -27,12 +28,12 @@
   width: 12px;
 }
 
-@media (min-width:768px) {
+@media (min-width: 768px) {
   .tile_stats_count span {
     font-size: 12px;
   }
 }
-@media (min-width:992px) {
+@media (min-width: 992px) {
   .tile_stats_count:first-child:before {
     border-left: 0;
   }

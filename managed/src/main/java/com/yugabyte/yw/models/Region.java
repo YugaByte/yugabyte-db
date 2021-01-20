@@ -253,4 +253,15 @@ public class Region extends Model {
       endTransaction();
     }
   }
+
+  public String toString() {
+    return Json.newObject()
+      .put("code", code)
+      .put("provider", provider.uuid.toString())
+      .put("name", name)
+      .put("ybImage", ybImage)
+      .put("latitude", latitude)
+      .put("longitude", longitude)
+      .toString();
+  }
 }

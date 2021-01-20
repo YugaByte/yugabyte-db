@@ -167,7 +167,7 @@ class Decimal {
 
   std::vector<uint8_t> digits_;
   VarInt exponent_;
-  bool is_positive_;
+  bool is_positive_ = false;
 };
 
 Decimal DecimalFromComparable(const Slice& slice);

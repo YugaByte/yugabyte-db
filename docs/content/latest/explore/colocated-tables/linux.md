@@ -55,7 +55,7 @@ $ ./bin/ysqlsh -h 127.0.0.1
 
 Create database with `colocated = true` option.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE DATABASE northwind WITH colocated = true;
 ```
 
@@ -66,7 +66,7 @@ This will create a database `northwind` whose tables will be stored on a single 
 Connect to `northwind` database and create tables using standard `CREATE TABLE` command.
 The tables will be colocated on a single tablet since the database was created with `colocated = true` option.
 
-```postgresql
+```plpgsql
 yugabyte=# \c northwind
 yugabyte=# CREATE TABLE customers (
                customer_id bpchar,
@@ -111,7 +111,7 @@ If you go to tables view in [master UI](http://localhost:7000/tables), you'll se
 
 YugabyteDB has the flexibility to opt a table out of colocation. In this case, the table will use its own set of tablets instead of using the same tablet as the colocated database. This is useful for scaling out tables that are likely to be large. You can do this by using `colocated = false` option while creating table.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE orders (
     order_id smallint NOT NULL PRIMARY KEY,
     customer_id bpchar,

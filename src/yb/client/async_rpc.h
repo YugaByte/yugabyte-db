@@ -44,6 +44,8 @@ struct AsyncRpcMetrics {
   scoped_refptr<Histogram> local_write_rpc_time;
   scoped_refptr<Histogram> local_read_rpc_time;
   scoped_refptr<Histogram> time_to_send;
+  scoped_refptr<Counter> consistent_prefix_successful_reads;
+  scoped_refptr<Counter> consistent_prefix_failed_reads;
 };
 
 struct AsyncRpcData {
@@ -53,6 +55,7 @@ struct AsyncRpcData {
   bool need_consistent_read = false;
   HybridTime write_time_for_backfill_ = HybridTime::kInvalid;
   InFlightOps ops;
+  bool need_metadata = false;
 };
 
 struct FlushExtraResult {
@@ -80,7 +83,7 @@ class AsyncRpc : public rpc::Rpc, public TabletRpc {
   void SendRpc() override;
   string ToString() const override;
 
-  const YBTable* table() const;
+  std::shared_ptr<const YBTable> table() const;
   const RemoteTablet& tablet() const { return *tablet_invoker_.tablet(); }
   const InFlightOps& ops() const { return ops_; }
 
@@ -110,11 +113,11 @@ class AsyncRpc : public rpc::Rpc, public TabletRpc {
   // The trace buffer.
   scoped_refptr<Trace> trace_;
 
-  TabletInvoker tablet_invoker_;
-
   // Operations which were batched into this RPC.
   // These operations are in kRequestSent state.
   InFlightOps ops_;
+
+  TabletInvoker tablet_invoker_;
 
   MonoTime start_;
   std::shared_ptr<AsyncRpcMetrics> async_rpc_metrics_;
@@ -159,6 +162,7 @@ class WriteRpc : public AsyncRpcBase<tserver::WriteRequestPB, tserver::WriteResp
   void SwapRequestsAndResponses(bool skip_responses);
   void CallRemoteMethod() override;
   void ProcessResponseFromTserver(const Status& status) override;
+  bool ShouldRetryExpiredRequest() override;
 };
 
 class ReadRpc : public AsyncRpcBase<tserver::ReadRequestPB, tserver::ReadResponsePB> {

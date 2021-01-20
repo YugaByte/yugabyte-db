@@ -38,5 +38,3 @@ set(TOOLS_EXTENSIONS_TESTS
   yb-admin-test_ent
   yb-backup-test_ent
   PARENT_SCOPE)
-
-link_directories(${YB_BUILD_ROOT}/postgres/lib)

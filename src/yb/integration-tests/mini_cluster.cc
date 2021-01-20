@@ -57,6 +57,7 @@
 #include "yb/tserver/tablet_server.h"
 #include "yb/tserver/ts_tablet_manager.h"
 
+#include "yb/util/debug/long_operation_tracker.h"
 #include "yb/util/path_util.h"
 #include "yb/util/random_util.h"
 #include "yb/util/scope_exit.h"
@@ -265,9 +266,15 @@ Status MiniCluster::RestartSync() {
   }
   LOG(INFO) << "Restart master server(s)...";
   for (auto& master_server : mini_masters_) {
+    LOG(INFO) << "Restarting master " << master_server->permanent_uuid();
+    LongOperationTracker long_operation_tracker("Master restart", 5s);
     CHECK_OK(master_server->Restart());
+    LOG(INFO) << "Waiting for catalog manager at " << master_server->permanent_uuid();
     CHECK_OK(master_server->WaitForCatalogManagerInit());
   }
+  LOG(INFO) << string(80, '-');
+  LOG(INFO) << __FUNCTION__ << " done";
+  LOG(INFO) << string(80, '-');
 
   RETURN_NOT_OK_PREPEND(WaitForAllTabletServers(),
                         "Waiting for tablet servers to start");
@@ -445,6 +452,7 @@ Status MiniCluster::WaitForReplicaCount(const string& tablet_id,
   Stopwatch sw;
   sw.start();
   while (sw.elapsed().wall_seconds() < kTabletReportWaitTimeSeconds) {
+    locations->Clear();
     Status s =
         leader_mini_master()->master()->catalog_manager()->GetTabletLocations(tablet_id, locations);
     if (s.ok() && ((locations->stale() && expected_count == 0) ||
@@ -497,6 +505,8 @@ Status MiniCluster::WaitForTabletServerCount(int count,
           return Status::OK();
         }
       }
+
+      YB_LOG_EVERY_N_SECS(INFO, 5) << "Registered: " << AsString(*descs);
     }
 
     SleepFor(MonoDelta::FromMilliseconds(1));
@@ -637,6 +647,48 @@ std::vector<tablet::TabletPeerPtr> ListTabletPeers(
   return result;
 }
 
+std::vector<tablet::TabletPeerPtr> ListTableTabletLeadersPeers(
+    MiniCluster* cluster, const TableId& table_id) {
+  return ListTabletPeers(cluster, [&table_id](const auto& peer) {
+    return peer->tablet_metadata() &&
+           peer->tablet_metadata()->table_id() == table_id &&
+           peer->tablet_metadata()->tablet_data_state() !=
+               tablet::TabletDataState::TABLET_DATA_SPLIT_COMPLETED &&
+           peer->consensus()->GetLeaderStatus() != consensus::LeaderStatus::NOT_LEADER;
+  });
+}
+
+std::vector<tablet::TabletPeerPtr> ListTableTabletPeers(
+      MiniCluster* cluster, const TableId& table_id) {
+  return ListTabletPeers(cluster, [table_id](const std::shared_ptr<tablet::TabletPeer>& peer) {
+    return peer->tablet_metadata()->table_id() == table_id;
+  });
+}
+
+std::vector<tablet::TabletPeerPtr> ListTableActiveTabletPeers(
+      MiniCluster* cluster, const TableId& table_id) {
+  std::vector<tablet::TabletPeerPtr> result;
+  for (auto peer : ListTableTabletPeers(cluster, table_id)) {
+    if (peer->tablet()->metadata()->tablet_data_state() !=
+        tablet::TabletDataState::TABLET_DATA_SPLIT_COMPLETED) {
+      result.push_back(peer);
+    }
+  }
+  return result;
+}
+
+std::vector<tablet::TabletPeerPtr> ListTableInactiveSplitTabletPeers(
+    MiniCluster* cluster, const TableId& table_id) {
+  std::vector<tablet::TabletPeerPtr> result;
+  for (auto peer : ListTableTabletPeers(cluster, table_id)) {
+    if (peer->tablet()->metadata()->tablet_data_state() ==
+        tablet::TabletDataState::TABLET_DATA_SPLIT_COMPLETED) {
+      result.push_back(peer);
+    }
+  }
+  return result;
+}
+
 Status WaitUntilTabletHasLeader(
     MiniCluster* cluster, const string& tablet_id, MonoTime deadline) {
   return Wait([cluster, &tablet_id] {
@@ -774,11 +826,11 @@ Status WaitForInitDb(MiniCluster* cluster) {
       LOG(INFO) << "IsInitDbDone failure: " << status;
       continue;
     }
-    if (resp.done()) {
-      return Status::OK();
-    }
     if (resp.has_initdb_error()) {
       return STATUS_FORMAT(RuntimeError, "Init DB failed: $0", resp.initdb_error());
+    }
+    if (resp.done()) {
+      return Status::OK();
     }
     std::this_thread::sleep_for(500ms);
   }

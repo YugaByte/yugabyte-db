@@ -38,5 +38,7 @@ extern void assign_session_authorization(const char *newval, void *extra);
 extern bool check_role(char **newval, void **extra, GucSource source);
 extern void assign_role(const char *newval, void *extra);
 extern const char *show_role(void);
+extern bool check_follower_reads(bool *newval, void **extra, GucSource source);
+extern bool check_default_XactIsoLevel(int *newval, void **extra, GucSource source);
 
 #endif							/* VARIABLE_H */

@@ -265,7 +265,8 @@ typedef struct StdRdOptions
 	bool		user_catalog_table; /* use as an additional catalog relation */
 	int			parallel_workers;	/* max number of parallel workers */
 	bool		colocated;
-	int 	  tablegroup;
+	int 	  	tablegroup;
+	int 	  	table_oid;
 } StdRdOptions;
 
 #define HEAP_MIN_FILLFACTOR			10
@@ -329,6 +330,15 @@ typedef struct StdRdOptions
 #define RelationGetTablegroup(relation) \
 	((relation)->rd_options ? \
 	 ((StdRdOptions *) (relation)->rd_options)->tablegroup : 0)
+
+/*
+ * RelationGetTableOid
+ *		Returns the relation's table_oid reloption setting.
+ *		Note multiple eval of argument!
+ */
+#define RelationGetTableOid(relation) \
+	((relation)->rd_options ? \
+	 ((StdRdOptions *) (relation)->rd_options)->table_oid : 0)
 
 
 /*

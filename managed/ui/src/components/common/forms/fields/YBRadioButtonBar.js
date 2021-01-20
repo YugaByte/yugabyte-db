@@ -9,19 +9,19 @@ import _ from 'lodash';
 export default class YBRadioButtonBar extends Component {
   constructor(props) {
     super(props);
-    this.state = {fieldValue: 0};
+    this.state = { fieldValue: 0 };
   }
   componentDidMount() {
-    this.setState({fieldValue: this.props.initialValue});
+    this.setState({ fieldValue: this.props.initialValue });
   }
 
-  radioButtonChecked = event => {
-    const {onSelect, isReadOnly, input} = this.props;
+  radioButtonChecked = (event) => {
+    const { onSelect, isReadOnly, input } = this.props;
     if (!isReadOnly) {
       if (onSelect) {
         onSelect(event.target.value);
       }
-      this.setState({fieldValue: event.target.value});
+      this.setState({ fieldValue: event.target.value });
       input.onChange(event.target.value);
     }
   };
@@ -45,9 +45,16 @@ export default class YBRadioButtonBar extends Component {
       }
 
       return (
-        <YBRadioButton key={value} {...input} isReadOnly={isReadOnly} fieldValue={value} checkState={isChecked}
-          label={display} labelClass={getLabelClass()} onClick={self.radioButtonChecked}>
-        </YBRadioButton>
+        <YBRadioButton
+          key={value}
+          {...input}
+          isReadOnly={isReadOnly}
+          fieldValue={value}
+          checkState={isChecked}
+          label={display}
+          labelClass={getLabelClass()}
+          onClick={self.radioButtonChecked}
+        ></YBRadioButton>
       );
     }
     return (
@@ -61,16 +68,16 @@ export default class YBRadioButtonBar extends Component {
 export class YBRadioButtonBarDefault extends Component {
   constructor(props) {
     super(props);
-    this.state = {fieldValue: 0};
+    this.state = { fieldValue: 0 };
   }
   componentDidMount() {
-    this.setState({fieldValue: this.props.initialValue});
+    this.setState({ fieldValue: this.props.initialValue });
   }
 
-  radioButtonChecked = event => {
-    const {onSelect, isReadOnly} = this.props;
+  radioButtonChecked = (event) => {
+    const { onSelect, isReadOnly } = this.props;
     if (!isReadOnly && onSelect) {
-      this.setState({fieldValue: event.target.value});
+      this.setState({ fieldValue: event.target.value });
       onSelect(event.target.value);
     }
   };
@@ -91,9 +98,16 @@ export class YBRadioButtonBarDefault extends Component {
       const isChecked = _.isEqual(self.state.fieldValue.toString(), value.toString());
 
       return (
-        <YBRadioButton key={value} {...input} isReadOnly={isReadOnly} fieldValue={value} checkState={isChecked}
-          label={display} onClick={self.radioButtonChecked} {...otherProps} >
-        </YBRadioButton>
+        <YBRadioButton
+          key={value}
+          {...input}
+          isReadOnly={isReadOnly}
+          fieldValue={value}
+          checkState={isChecked}
+          label={display}
+          onClick={self.radioButtonChecked}
+          {...otherProps}
+        ></YBRadioButton>
       );
     }
     return (
@@ -106,7 +120,7 @@ export class YBRadioButtonBarDefault extends Component {
 
 export class YBRadioButtonBarWithLabel extends Component {
   render() {
-    const { label, meta, ...otherProps} = this.props;
+    const { label, meta, ...otherProps } = this.props;
     return (
       <YBLabel label={label} meta={meta}>
         <YBRadioButtonBar {...otherProps} />
@@ -117,7 +131,7 @@ export class YBRadioButtonBarWithLabel extends Component {
 
 export class YBRadioButtonBarDefaultWithLabel extends Component {
   render() {
-    const { label, meta, ...otherProps} = this.props;
+    const { label, meta, ...otherProps } = this.props;
     return (
       <YBLabel label={label} meta={meta}>
         <YBRadioButtonBarDefault {...otherProps} />

@@ -6,10 +6,10 @@ import './stylesheets/RegionMapLegend.scss';
 import SelectList from 'react-widgets/lib/SelectList';
 import _ from 'lodash';
 
-export default class RegionMapLegend extends Component{
+export default class RegionMapLegend extends Component {
   constructor(props) {
     super(props);
-    this.state = {selectedProviderList: props.providers};
+    this.state = { selectedProviderList: props.providers };
   }
 
   componentDidUpdate(prevProps, prevState) {
@@ -26,17 +26,31 @@ export default class RegionMapLegend extends Component{
       <div className="yb-region-map-legend">
         <h4>Cloud Providers</h4>
         <div>
-          <span>Select
+          <span>
+            Select
             <small>
-              <span className="map-menu-selector" onClick={value => self.setState({selectedProviderList: self.props.providers})}>
+              <span
+                className="map-menu-selector"
+                onClick={(value) => self.setState({ selectedProviderList: self.props.providers })}
+              >
                 All
               </span>
-              <span className="map-menu-selector" onClick={value => self.setState({selectedProviderList: []})}>None</span>
+              <span
+                className="map-menu-selector"
+                onClick={(value) => self.setState({ selectedProviderList: [] })}
+              >
+                None
+              </span>
             </small>
           </span>
-          <SelectList data={self.props.providers} valueField={"code"} textField={"label"}
-                      value={self.state.selectedProviderList} multiple={true}
-                      onChange={value => self.setState({selectedProviderList: value})} />
+          <SelectList
+            data={self.props.providers}
+            valueField={'code'}
+            textField={'label'}
+            value={self.state.selectedProviderList}
+            multiple={true}
+            onChange={(value) => self.setState({ selectedProviderList: value })}
+          />
         </div>
       </div>
     );

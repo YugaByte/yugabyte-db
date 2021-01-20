@@ -2,20 +2,20 @@
 
 import { connect } from 'react-redux';
 import { reduxForm } from 'redux-form';
-import {OnPremRegionsAndZones} from '../../../config';
-import {setOnPremConfigData} from '../../../../actions/cloud';
+import { OnPremRegionsAndZones } from '../../../config';
+import { setOnPremConfigData } from '../../../../actions/cloud';
 import _ from 'lodash';
-import {isDefinedNotNull, isNonEmptyArray} from '../../../../utils/ObjectUtils';
+import { isDefinedNotNull, isNonEmptyArray } from '../../../../utils/ObjectUtils';
 
 const mapDispatchToProps = (dispatch, ownProps) => {
   return {
     setOnPremRegionsAndZones: (formData) => {
       const payloadData = _.clone(ownProps.onPremJsonFormData);
       payloadData.regions = formData.regionsZonesList.map((regionItem) => {
-        const regionLocation = regionItem.location.split(",");
+        const regionLocation = regionItem.location.split(',');
         return {
           code: regionItem.code,
-          zones: regionItem.zones.split(",").map(zoneItem => zoneItem.trim()),
+          zones: regionItem.zones.split(',').map((zoneItem) => zoneItem.trim()),
           latitude: regionLocation[0],
           longitude: regionLocation[1],
           isBeingEdited: regionItem.isBeingEdited
@@ -37,18 +37,18 @@ const mapStateToProps = (state) => {
   };
 };
 
-const validate = values => {
-  const errors = {regionsZonesList: []};
+const validate = (values) => {
+  const errors = { regionsZonesList: [] };
   if (values.regionsZonesList && isNonEmptyArray(values.regionsZonesList)) {
-    values.regionsZonesList.forEach(function(regionZoneItem, rowIdx){
+    values.regionsZonesList.forEach(function (regionZoneItem, rowIdx) {
       if (!isDefinedNotNull(regionZoneItem.code)) {
-        errors.regionsZonesList[rowIdx] = {'code': 'Required'};
+        errors.regionsZonesList[rowIdx] = { code: 'Required' };
       }
       if (!isDefinedNotNull(regionZoneItem.location)) {
-        errors.regionsZonesList[rowIdx] = {'location': 'Required'};
+        errors.regionsZonesList[rowIdx] = { location: 'Required' };
       }
       if (!isDefinedNotNull(regionZoneItem.zones)) {
-        errors.regionsZonesList[rowIdx] = {'zones': 'Required'};
+        errors.regionsZonesList[rowIdx] = { zones: 'Required' };
       }
     });
   }
@@ -61,5 +61,7 @@ const onPremRegionsAndZonesForm = reduxForm({
   destroyOnUnmount: false
 });
 
-
-export default connect(mapStateToProps, mapDispatchToProps)(onPremRegionsAndZonesForm(OnPremRegionsAndZones));
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(onPremRegionsAndZonesForm(OnPremRegionsAndZones));

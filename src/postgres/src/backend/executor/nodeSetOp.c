@@ -268,10 +268,9 @@ setop_retrieve_direct(SetOpState *setopstate)
 		 * for it.  The tuple will be deleted when it is cleared from the
 		 * slot.
 		 */
-		ExecStoreTuple(setopstate->grp_firstTuple,
-					   resultTupleSlot,
-					   InvalidBuffer,
-					   true);
+		ExecStoreHeapTuple(setopstate->grp_firstTuple,
+						   resultTupleSlot,
+						   true);
 		setopstate->grp_firstTuple = NULL;	/* don't keep two pointers */
 
 		/* Initialize working state for a new input tuple group */
@@ -534,7 +533,7 @@ ExecInitSetOp(SetOp *node, EState *estate, int eflags)
 	 * Initialize result slot and type. Setop nodes do no projections, so
 	 * initialize projection info for this node appropriately.
 	 */
-	ExecInitResultTupleSlotTL(estate, &setopstate->ps);
+	ExecInitResultTupleSlotTL(&setopstate->ps);
 	setopstate->ps.ps_ProjInfo = NULL;
 
 	/*

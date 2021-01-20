@@ -4,18 +4,11 @@
 # Postgres Testsuites: Porting from PostgreSQL original tests.
 # This suite includes all tests on datatypes that are enabled for YugaByte.
 ####################################################################################################
-# Chain of dependencies for `yb_pg_jsonb`
-test: yb_pg_create_function_1
-test: yb_pg_create_type
-test: yb_pg_create_table
-test: yb_pg_copy
 
 test: yb_bit
 test: yb_char
-test: yb_text
+test: yb_pg_text
 test: yb_bytea
-test: yb_pg_json
-test: yb_pg_jsonb
 test: yb_tstypes
 test: yb_uuid
 

@@ -1,0 +1,36 @@
+@import '../../../../uikit/common';
+
+.communication-ports-editor {
+  @include wizard-form-text-label();
+
+  display: flex;
+  flex-wrap: wrap;
+  width: 800px;
+
+  &__item {
+    display: flex;
+    align-items: center;
+
+    &:nth-child(even) {
+      margin-left: 40px;
+    }
+
+    & + & {
+      margin-top: 6px;
+      margin-bottom: 6px;
+    }
+  }
+
+  &__label {
+    width: 160px;
+  }
+
+  &__overridden-value {
+    font-weight: 700 !important;
+  }
+
+  &__input {
+    width: 120px;
+    margin-left: 20px;
+  }
+}

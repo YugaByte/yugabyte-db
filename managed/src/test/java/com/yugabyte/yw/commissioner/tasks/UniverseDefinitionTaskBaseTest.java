@@ -7,12 +7,15 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import static com.yugabyte.yw.commissioner.tasks.UniverseDefinitionTaskBase.getNodeName;
 import static com.yugabyte.yw.commissioner.tasks.UniverseDefinitionTaskBase.checkTagPattern;
 
 import com.yugabyte.yw.common.ApiUtils;
+import com.yugabyte.yw.forms.ITaskParams;
+import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.ClusterType;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.UserIntent;
@@ -21,7 +24,13 @@ import com.yugabyte.yw.models.helpers.NodeDetails.NodeState;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
+
+@RunWith(JUnitParamsRunner.class)
 public class UniverseDefinitionTaskBaseTest {
   private Cluster myCluster;
   private NodeDetails myNode;
@@ -175,6 +184,42 @@ public class UniverseDefinitionTaskBaseTest {
     } catch (RuntimeException e) {
       assertThat(e.getMessage(),
                  allOf(notNullValue(), containsString("Duplicate universe")));
+    }
+  }
+
+  @Test
+  @Parameters({ "false, false", "true, true", "true, false", "false, true" })
+  @TestCaseName("{method}(YSQL:{0}, YEDIS:{1})")
+  public void doTestAddDefaultGFlags(boolean enableYSQL, boolean enableYEDIS) {
+    UniverseDefinitionTaskBaseFake instance = new UniverseDefinitionTaskBaseFake();
+    instance.taskParams = new UniverseDefinitionTaskParams();
+    ((UniverseDefinitionTaskParams) instance.taskParams).clusters.add(myCluster);
+    myCluster.userIntent.enableYEDIS = enableYEDIS;
+    myCluster.userIntent.enableYSQL = enableYSQL;
+
+    assertEquals(0, userIntent.tserverGFlags.size());
+    instance.addDefaultGFlags(userIntent);
+    assertEquals(userIntent, instance.taskParams().getPrimaryCluster().userIntent);
+    assertTrue(userIntent.tserverGFlags.containsKey("cql_proxy_webserver_port"));
+    assertEquals(enableYSQL, userIntent.tserverGFlags.containsKey("pgsql_proxy_webserver_port"));
+    assertEquals(enableYEDIS, userIntent.tserverGFlags.containsKey("redis_proxy_webserver_port"));
+    assertEquals(!enableYEDIS, userIntent.tserverGFlags.containsKey("start_redis_proxy"));
+    if (!enableYEDIS) {
+      assertEquals("false", userIntent.tserverGFlags.get("start_redis_proxy"));
+    }
+  }
+
+  private static class UniverseDefinitionTaskBaseFake extends UniverseDefinitionTaskBase {
+    // The params for this task. Overrides visibility
+    public ITaskParams taskParams;
+
+    @Override
+    public void run() {
+    }
+
+    @Override
+    protected UniverseDefinitionTaskParams taskParams() {
+      return (UniverseDefinitionTaskParams) taskParams;
     }
   }
 }

@@ -953,6 +953,10 @@ class MasterSnapshotCoordinator::Impl {
     auto callback = MakeDoneCallback(
         &mutex_, snapshots_, operation.snapshot_id, operation.tablet_id,
         SnapshotUpdater(&context_));
+    if (!tablet_info) {
+      callback(STATUS_FORMAT(NotFound, "Tablet info not found for $0", operation.tablet_id));
+      return;
+    }
     auto snapshot_id_str = operation.snapshot_id.AsSlice().ToBuffer();
 
     if (operation.state == SysSnapshotEntryPB::DELETING) {

@@ -6,57 +6,86 @@ import { Modal } from 'react-bootstrap';
 import YBButton from './YBButton';
 import './stylesheets/YBModal.scss';
 
-export default class YBModal extends Component {
+const ENTER_KEY_CODE = 13;
+const ESC_KEY_CODE = 27;
 
-  escFunction = (event) => {
-    const { onHide } = this.props;
-    if (event.keyCode === 27) {
+export default class YBModal extends Component {
+  handleKeyPressFunction = (event) => {
+    const { onHide, submitOnCarriage, onFormSubmit } = this.props;
+    if (event.keyCode === ESC_KEY_CODE) {
       onHide(event);
+    } else if (event.keyCode === ENTER_KEY_CODE && submitOnCarriage) {
+      onFormSubmit();
     }
-  }
+  };
 
   componentDidMount() {
-    document.addEventListener("keydown", this.escFunction, false);
+    document.addEventListener('keydown', this.handleKeyPressFunction, false);
   }
   componentWillUnmount() {
-    document.removeEventListener("keydown", this.escFunction, false);
+    document.removeEventListener('keydown', this.handleKeyPressFunction, false);
   }
 
   render() {
-    const {visible, onHide, size, formName, onFormSubmit, title, submitLabel,
-      cancelLabel,  error, submitting, asyncValidating, footerAccessory,
-      showCancelButton, className, normalizeFooter, disableSubmit } = this.props;
+    const {
+      visible,
+      onHide,
+      size,
+      formName,
+      onFormSubmit,
+      title,
+      submitLabel,
+      cancelLabel,
+      error,
+      submitting,
+      asyncValidating,
+      footerAccessory,
+      showCancelButton,
+      className,
+      normalizeFooter,
+      disableSubmit
+    } = this.props;
     let btnDisabled = false;
     if (submitting || asyncValidating || disableSubmit) {
       btnDisabled = true;
     }
-    let footerButtonClass = "";
+    let footerButtonClass = '';
     if (normalizeFooter) {
-      footerButtonClass = "modal-action-buttons";
+      footerButtonClass = 'modal-action-buttons';
     }
     return (
       <Modal show={visible} onHide={onHide} bsSize={size} className={className}>
         <form name={formName} onSubmit={onFormSubmit}>
           <Modal.Header closeButton>
             <Modal.Title>{title}</Modal.Title>
-            <div className={`yb-alert-item
-                ${error ? '': 'hide'}`}>
+            <div
+              className={`yb-alert-item
+                ${error ? '' : 'hide'}`}
+            >
               {error}
             </div>
           </Modal.Header>
-          <Modal.Body>
-            {this.props.children}
-          </Modal.Body>
-          {(footerAccessory || showCancelButton || onFormSubmit) &&
+          <Modal.Body>{this.props.children}</Modal.Body>
+          {(footerAccessory || showCancelButton || onFormSubmit) && (
             <Modal.Footer>
               <div className={footerButtonClass}>
-                {onFormSubmit && <YBButton btnClass="btn btn-orange pull-right" disabled={btnDisabled}
-                  btnText={submitLabel} onClick={onFormSubmit} />}
-                {showCancelButton && <YBButton btnClass="btn" btnText={cancelLabel} onClick={onHide} />}
-                {footerAccessory && <div className="pull-left modal-accessory">{footerAccessory}</div>}
+                {onFormSubmit && (
+                  <YBButton
+                    btnClass="btn btn-orange pull-right"
+                    disabled={btnDisabled}
+                    btnText={submitLabel}
+                    onClick={onFormSubmit}
+                  />
+                )}
+                {showCancelButton && (
+                  <YBButton btnClass="btn" btnText={cancelLabel} onClick={onHide} />
+                )}
+                {footerAccessory && (
+                  <div className="pull-left modal-accessory">{footerAccessory}</div>
+                )}
               </div>
             </Modal.Footer>
-          }
+          )}
         </form>
       </Modal>
     );
@@ -64,7 +93,10 @@ export default class YBModal extends Component {
 }
 
 YBModal.propTypes = {
-  title: PropTypes.string.isRequired,
+  title: PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.object
+  ]).isRequired,
   visible: PropTypes.bool,
   size: PropTypes.oneOf(['large', 'small', 'xsmall']),
   formName: PropTypes.string,

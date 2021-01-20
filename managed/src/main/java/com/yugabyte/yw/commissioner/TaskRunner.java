@@ -46,13 +46,13 @@ public class TaskRunner implements Runnable {
       try {
         taskClass = Class.forName(className).asSubclass(ITask.class);
         typeMap.put(taskType, taskClass);
-        LOG.info("Found task: " + className);
+        LOG.debug("Found task: " + className);
       } catch (ClassNotFoundException e) {
         LOG.error("Could not find task for task type " + taskType, e);
       }
     }
     taskTypeToTaskClassMap = Collections.unmodifiableMap(typeMap);
-    LOG.info("Done loading tasks.");
+    LOG.debug("Done loading tasks.");
   }
 
   /**
@@ -75,6 +75,7 @@ public class TaskRunner implements Runnable {
     // Persist the task in the queue.
     taskRunner.save();
     LOG.info("Created task, details: " + taskRunner.toString());
+    LOG.debug("Created task, details: " + taskRunner.toDebugString());
 
     return taskRunner;
   }
@@ -135,7 +136,7 @@ public class TaskRunner implements Runnable {
 
   @Override
   public void run() {
-    LOG.info("Running task");
+    LOG.debug("Running task {}", getTaskUUID());
     task.setUserTaskUUID(getTaskUUID());
     updateTaskState(TaskInfo.State.Running);
     try {
@@ -147,7 +148,7 @@ public class TaskRunner implements Runnable {
 
     } catch (Throwable t) {
       LOG.error("Error running task", t);
-
+      if (task.shouldSendNotification()) task.sendNotification();
       // Update the task state to failure and checkpoint it.
       updateTaskState(TaskInfo.State.Failure);
 
@@ -182,6 +183,14 @@ public class TaskRunner implements Runnable {
 
   @Override
   public String toString() {
+    StringBuilder sb = new StringBuilder();
+    sb.append("task-info {" + taskInfo.toString() + "}");
+    sb.append(", ");
+    sb.append("task {" + task.getName() + "}");
+    return sb.toString();
+  }
+
+  public String toDebugString() {
     StringBuilder sb = new StringBuilder();
     sb.append("task-info {" + taskInfo.toString() + "}");
     sb.append(", ");

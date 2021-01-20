@@ -36,8 +36,61 @@ namespace yb {
 namespace client {
 
 const client::YBTableName kTableName(YQL_DATABASE_CQL, "my_keyspace", "ql_client_test_table");
-const std::string KeyValueTableTest::kKeyColumn = "key";
-const std::string KeyValueTableTest::kValueColumn = "value";
+
+template<class MiniClusterType>
+const std::string KeyValueTableTest<MiniClusterType>::kKeyColumn = kv_table_test::kKeyColumn;
+
+template<class MiniClusterType>
+const std::string KeyValueTableTest<MiniClusterType>::kValueColumn = kv_table_test::kValueColumn;
+
+template <>
+QLDmlTestBase<MiniCluster>::QLDmlTestBase() : mini_cluster_opt_(1, 3) {}
+
+template <>
+void QLDmlTestBase<MiniCluster>::SetFlags() {
+  SetAtomicFlag(false, &FLAGS_enable_ysql);
+}
+
+template <>
+void QLDmlTestBase<MiniCluster>::StartCluster() {
+  cluster_.reset(new MiniCluster(env_.get(), mini_cluster_opt_));
+  ASSERT_OK(cluster_->Start());
+}
+
+template<class MiniClusterType>
+void QLDmlTestBase<MiniClusterType>::SetUp() {
+  SetFlags();
+  HybridTime::TEST_SetPrettyToString(true);
+
+  YBMiniClusterTestBase<MiniClusterType>::SetUp();
+
+  // Start minicluster and wait for tablet servers to connect to master.
+  StartCluster();
+
+  ASSERT_OK(this->CreateClient());
+
+  // Create test namespace.
+  ASSERT_OK(client_->CreateNamespaceIfNotExists(kTableName.namespace_name(),
+                                                kTableName.namespace_type()));
+}
+
+template <class MiniClusterType>
+void QLDmlTestBase<MiniClusterType>::DoTearDown() {
+  // If we enable this, it will break FLAGS_mini_cluster_reuse_data
+  //
+  // This DeleteTable clean up seems to cause a crash because the delete may not succeed
+  // immediately and is retried after the master is restarted (see ENG-663). So disable it for
+  // now.
+  //
+  // if (table_) {
+  //   ASSERT_OK(client_->DeleteTable(kTableName));
+  // }
+  MiniClusterTestWithClient<MiniClusterType>::DoTearDown();
+}
+
+template class QLDmlTestBase<MiniCluster>;
+
+namespace kv_table_test {
 
 namespace {
 
@@ -55,48 +108,7 @@ QLWriteRequestPB::QLStmtType GetQlStatementType(const WriteOpType op_type) {
 
 } // namespace
 
-void QLDmlTestBase::SetUp() {
-  SetAtomicFlag(false, &FLAGS_enable_ysql);
-  HybridTime::TEST_SetPrettyToString(true);
-
-  YBMiniClusterTestBase::SetUp();
-
-  // Start minicluster and wait for tablet servers to connect to master.
-  cluster_.reset(new MiniCluster(env_.get(), mini_cluster_opt_));
-  ASSERT_OK(cluster_->Start());
-
-  ASSERT_OK(CreateClient());
-
-  // Create test namespace.
-  ASSERT_OK(client_->CreateNamespaceIfNotExists(kTableName.namespace_name(),
-                                                kTableName.namespace_type()));
-}
-
-void QLDmlTestBase::DoTearDown() {
-  // If we enable this, it will break FLAGS_mini_cluster_reuse_data
-  //
-  // This DeleteTable clean up seems to cause a crash because the delete may not succeed
-  // immediately and is retried after the master is restarted (see ENG-663). So disable it for
-  // now.
-  //
-  // if (table_) {
-  //   ASSERT_OK(client_->DeleteTable(kTableName));
-  // }
-  MiniClusterTestWithClient::DoTearDown();
-}
-
-void KeyValueTableTest::CreateTable(Transactional transactional) {
-  CreateTable(transactional, NumTablets(), client_.get(), &table_);
-}
-
-void KeyValueTableTest::CreateIndex(Transactional transactional,
-                                    int indexed_column_index,
-                                    bool use_mangled_names) {
-  CreateIndex(
-      transactional, indexed_column_index, use_mangled_names, table_, client_.get(), &index_);
-}
-
-Result<YBqlWriteOpPtr> KeyValueTableTest::Increment(
+Result<YBqlWriteOpPtr> Increment(
     TableHandle* table, const YBSessionPtr& session, int32_t key, int32_t delta) {
   auto op = table->NewWriteOp(QLWriteRequestPB::QL_STMT_UPDATE);
   auto value_column_id = table->ColumnId(kValueColumn);
@@ -121,7 +133,7 @@ Result<YBqlWriteOpPtr> KeyValueTableTest::Increment(
   return op;
 }
 
-void KeyValueTableTest::CreateTable(
+void CreateTable(
     Transactional transactional, int num_tablets, YBClient* client, TableHandle* table) {
   ASSERT_OK(client->CreateNamespaceIfNotExists(kTableName.namespace_name(),
                                                kTableName.namespace_type()));
@@ -138,12 +150,13 @@ void KeyValueTableTest::CreateTable(
   ASSERT_OK(table->Create(kTableName, num_tablets, client, &builder));
 }
 
-void KeyValueTableTest::CreateIndex(Transactional transactional,
-                                    int indexed_column_index,
-                                    bool use_mangled_names,
-                                    const TableHandle& table,
-                                    YBClient* client,
-                                    TableHandle* index) {
+void CreateIndex(
+    Transactional transactional,
+    int indexed_column_index,
+    bool use_mangled_names,
+    const TableHandle& table,
+    YBClient* client,
+    TableHandle* index) {
   const YBSchema& schema = table.schema();
   DCHECK_LT(indexed_column_index, schema.num_columns());
 
@@ -203,11 +216,7 @@ void KeyValueTableTest::CreateIndex(Transactional transactional,
       client, &builder, &index_info));
 }
 
-int KeyValueTableTest::NumTablets() {
-  return num_tablets_;
-}
-
-Result<YBqlWriteOpPtr> KeyValueTableTest::WriteRow(
+Result<YBqlWriteOpPtr> WriteRow(
     TableHandle* table, const YBSessionPtr& session, int32_t key, int32_t value,
     const WriteOpType op_type, Flush flush) {
   VLOG(4) << "Calling WriteRow key=" << key << " value=" << value << " op_type="
@@ -227,17 +236,17 @@ Result<YBqlWriteOpPtr> KeyValueTableTest::WriteRow(
   return op;
 }
 
-Result<YBqlWriteOpPtr> KeyValueTableTest::DeleteRow(
+Result<YBqlWriteOpPtr> DeleteRow(
     TableHandle* table, const YBSessionPtr& session, int32_t key) {
-  return WriteRow(table, session, key, 0 /* value */, WriteOpType::DELETE);
+  return kv_table_test::WriteRow(table, session, key, 0 /* value */, WriteOpType::DELETE);
 }
 
-Result<YBqlWriteOpPtr> KeyValueTableTest::UpdateRow(
+Result<YBqlWriteOpPtr> UpdateRow(
     TableHandle* table, const YBSessionPtr& session, int32_t key, int32_t value) {
-  return WriteRow(table, session, key, value, WriteOpType::UPDATE);
+  return kv_table_test::WriteRow(table, session, key, value, WriteOpType::UPDATE);
 }
 
-Result<int32_t> KeyValueTableTest::SelectRow(
+Result<int32_t> SelectRow(
     TableHandle* table, const YBSessionPtr& session, int32_t key, const std::string& column) {
   const YBqlReadOpPtr op = table->NewReadOp();
   auto* const req = op->mutable_request();
@@ -245,7 +254,7 @@ Result<int32_t> KeyValueTableTest::SelectRow(
   table->AddColumns({column}, req);
   auto status = session->ApplyAndFlush(op);
   if (status.IsIOError()) {
-    for (const auto& error : session->GetPendingErrors()) {
+    for (const auto& error : session->GetAndClearPendingErrors()) {
       LOG(WARNING) << "Error: " << error->status() << ", op: " << error->failed_op().ToString();
     }
   }
@@ -258,10 +267,10 @@ Result<int32_t> KeyValueTableTest::SelectRow(
   return rowblock->row(0).column(0).int32_value();
 }
 
-Result<std::map<int32_t, int32_t>> KeyValueTableTest::SelectAllRows(
+Result<std::map<int32_t, int32_t>> SelectAllRows(
     TableHandle* table, const YBSessionPtr& session) {
   std::vector<YBqlReadOpPtr> ops;
-  auto partitions = table->table()->GetPartitions();
+  auto partitions = table->table()->GetPartitionsCopy();
   partitions.push_back(std::string()); // Upper bound for last partition.
 
   uint16_t prev_code = 0;
@@ -300,8 +309,28 @@ Result<std::map<int32_t, int32_t>> KeyValueTableTest::SelectAllRows(
   return result;
 }
 
-YBSessionPtr KeyValueTableTest::CreateSession(const YBTransactionPtr& transaction,
-                                              const server::ClockPtr& clock) {
+} // namespace kv_table_test
+
+template <class MiniClusterType>
+void KeyValueTableTest<MiniClusterType>::CreateTable(Transactional transactional) {
+  kv_table_test::CreateTable(transactional, NumTablets(), client_.get(), &table_);
+}
+
+template <class MiniClusterType>
+void KeyValueTableTest<MiniClusterType>::CreateIndex(
+    Transactional transactional, int indexed_column_index, bool use_mangled_names) {
+  kv_table_test::CreateIndex(
+      transactional, indexed_column_index, use_mangled_names, table_, client_.get(), &index_);
+}
+
+template <class MiniClusterType>
+int KeyValueTableTest<MiniClusterType>::NumTablets() {
+  return num_tablets_;
+}
+
+template <class MiniClusterType>
+YBSessionPtr KeyValueTableTest<MiniClusterType>::CreateSession(
+    const YBTransactionPtr& transaction, const server::ClockPtr& clock) {
   auto session = std::make_shared<YBSession>(client_.get(), clock);
   if (transaction) {
     session->SetTransaction(transaction);
@@ -309,6 +338,8 @@ YBSessionPtr KeyValueTableTest::CreateSession(const YBTransactionPtr& transactio
   session->SetTimeout(RegularBuildVsSanitizers(15s, 60s));
   return session;
 }
+
+template class KeyValueTableTest<MiniCluster>;
 
 Status CheckOp(YBqlOp* op) {
   if (!op->succeeded()) {

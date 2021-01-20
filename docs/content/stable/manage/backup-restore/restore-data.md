@@ -51,7 +51,7 @@ yugabyte=#
 
 2. At the `ysqlsh` shell prompt, run the following `\i` command.
 
-```postgresql
+```plpgsql
 yugabyte=# \i <db-sql-script>
 ```
 

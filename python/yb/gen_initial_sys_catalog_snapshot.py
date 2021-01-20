@@ -59,15 +59,20 @@ def main():
     )
     os.environ['YB_CTEST_VERBOSE'] = '1'
     with WorkDirContext(build_root):
-        run_program(
+        initdb_result = run_program(
             [
                 os.path.join(YB_SRC_ROOT, 'build-support', 'run-test.sh'),
                 tool_path,
             ],
             stdout_stderr_prefix=tool_name,
-            shell=True
+            shell=True,
+            error_ok=True
         )
-    elapsed_time_sec = time.time() - start_time_sec
+        elapsed_time_sec = time.time() - start_time_sec
+        if initdb_result.failure():
+            initdb_result.print_output_to_stdout()
+            raise RuntimeError("initdb failed in %.1f sec" % elapsed_time_sec)
+
     logging.info(
         "Initial system catalog snapshot data creation took %1.f sec. Wrote data to: %s",
         elapsed_time_sec, snapshot_dest_path)

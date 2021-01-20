@@ -158,10 +158,10 @@ IndexNext(IndexScanState *node)
 		 * Note: we pass 'false' because tuples returned by amgetnext are
 		 * pointers onto disk pages and must not be pfree()'d.
 		 */
-		ExecStoreTuple(tuple,	/* tuple to store */
-					   slot,	/* slot to store in */
-					   scandesc->xs_cbuf,	/* buffer containing tuple */
-					   false);	/* don't pfree */
+		ExecStoreBufferHeapTuple(tuple,	/* tuple to store */
+								 slot,	/* slot to store in */
+								 scandesc->xs_cbuf);	/* buffer containing
+														 * tuple */
 
 		/*
 		 * If the index was lossy, we have to recheck the index quals using
@@ -275,7 +275,7 @@ IndexNextWithReorder(IndexScanState *node)
 				tuple = reorderqueue_pop(node);
 
 				/* Pass 'true', as the tuple in the queue is a palloc'd copy */
-				ExecStoreTuple(tuple, slot, InvalidBuffer, true);
+				ExecStoreHeapTuple(tuple, slot, true);
 				return slot;
 			}
 		}
@@ -302,13 +302,11 @@ next_indextuple:
 
 		/*
 		 * Store the scanned tuple in the scan tuple slot of the scan state.
-		 * Note: we pass 'false' because tuples returned by amgetnext are
-		 * pointers onto disk pages and must not be pfree()'d.
 		 */
-		ExecStoreTuple(tuple,	/* tuple to store */
-					   slot,	/* slot to store in */
-					   scandesc->xs_cbuf,	/* buffer containing tuple */
-					   false);	/* don't pfree */
+		ExecStoreBufferHeapTuple(tuple,	/* tuple to store */
+								 slot,	/* slot to store in */
+								 scandesc->xs_cbuf);	/* buffer containing
+														 * tuple */
 
 		/*
 		 * If the index was lossy, we have to recheck the index quals and
@@ -844,7 +842,8 @@ ExecEndIndexScan(IndexScanState *node)
 	/*
 	 * clear out tuple table slots
 	 */
-	ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
+	if (node->ss.ps.ps_ResultTupleSlot)
+		ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
 	ExecClearTuple(node->ss.ss_ScanTupleSlot);
 
 	/*
@@ -974,9 +973,9 @@ ExecInitIndexScan(IndexScan *node, EState *estate, int eflags)
 						  RelationGetDescr(currentRelation));
 
 	/*
-	 * Initialize result slot, type and projection.
+	 * Initialize result type and projection.
 	 */
-	ExecInitResultTupleSlotTL(estate, &indexstate->ss.ps);
+	ExecInitResultTypeTL(&indexstate->ss.ps);
 	ExecAssignScanProjectionInfo(&indexstate->ss);
 
 	/*

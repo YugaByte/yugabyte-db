@@ -124,7 +124,7 @@ Status QLRocksDBStorage::InitIterator(common::YQLRowwiseIteratorIf* iter,
   return Status::OK();
 }
 
-Status QLRocksDBStorage::GetIterator(const PgsqlReadRequestPB& request,
+Status QLRocksDBStorage::GetIterator(uint64 stmt_id,
                                      const Schema& projection,
                                      const Schema& schema,
                                      const TransactionOperationContextOpt& txn_op_context,
@@ -132,105 +132,62 @@ Status QLRocksDBStorage::GetIterator(const PgsqlReadRequestPB& request,
                                      const ReadHybridTime& read_time,
                                      const QLValuePB& ybctid,
                                      common::YQLRowwiseIteratorIf::UniPtr* iter) const {
-  std::unique_ptr<DocRowwiseIterator> doc_iter;
-
-  // Populate dockey from ybctid.
   DocKey range_doc_key(schema);
   RETURN_NOT_OK(range_doc_key.DecodeFrom(ybctid.binary_value()));
-  doc_iter = std::make_unique<DocRowwiseIterator>(
+  auto doc_iter = std::make_unique<DocRowwiseIterator>(
       projection, schema, txn_op_context, doc_db_, deadline, read_time);
-  RETURN_NOT_OK(doc_iter->Init(DocPgsqlScanSpec(schema, request.stmt_id(), range_doc_key)));
-
+  RETURN_NOT_OK(doc_iter->Init(DocPgsqlScanSpec(schema, stmt_id, range_doc_key)));
   *iter = std::move(doc_iter);
   return Status::OK();
 }
 
 Status QLRocksDBStorage::GetIterator(const PgsqlReadRequestPB& request,
-                                     int64_t batch_arg_index,
                                      const Schema& projection,
                                      const Schema& schema,
                                      const TransactionOperationContextOpt& txn_op_context,
                                      CoarseTimePoint deadline,
                                      const ReadHybridTime& read_time,
+                                     const DocKey& start_doc_key,
                                      common::YQLRowwiseIteratorIf::UniPtr* iter) const {
-  std::unique_ptr<DocRowwiseIterator> doc_iter;
-
-  // TODO(neil) Remove the following IF block when it is completely obsolete.
-  // The following IF block has not been used since 2.1 release.
-  // We keep it here only for rolling upgrade purpose.
-  if (batch_arg_index < 0 && request.has_ybctid_column_value()) {
-    CHECK(!request.has_paging_state()) << "ASSERT(!ybctid || !paging_state). Each ybctid value "
-      "identifies one row in the table while paging state is only used for multi-row queries.";
-    DocKey range_doc_key(schema);
-    RETURN_NOT_OK(range_doc_key.DecodeFrom(request.ybctid_column_value().value().binary_value()));
-    doc_iter = std::make_unique<DocRowwiseIterator>(
-        projection, schema, txn_op_context, doc_db_, deadline, read_time);
-    RETURN_NOT_OK(doc_iter->Init(DocPgsqlScanSpec(schema,
-                                                  request.stmt_id(),
-                                                  range_doc_key)));
-    *iter = std::move(doc_iter);
-    return Status::OK();
-  }
-
   // Populate dockey from QL key columns.
-  vector<PrimitiveValue> hashed_components;
-  RETURN_NOT_OK(InitKeyColumnPrimitiveValues(DocPartitionValues(request, batch_arg_index),
-                                             schema,
-                                             0,
-                                             &hashed_components));
+  auto hashed_components = VERIFY_RESULT(InitKeyColumnPrimitiveValues(
+      request.partition_column_values(), schema, 0 /* start_idx */));
 
-  SubDocKey start_sub_doc_key;
-  ReadHybridTime req_read_time = read_time;
-  // Decode the start SubDocKey from the paging state and set scan start key and hybrid time.
-  if (request.has_paging_state() &&
-      request.paging_state().has_next_row_key() &&
-      !request.paging_state().next_row_key().empty()) {
-    KeyBytes start_key_bytes(request.paging_state().next_row_key());
-    RETURN_NOT_OK(start_sub_doc_key.FullyDecodeFrom(start_key_bytes.AsSlice()));
-    req_read_time.read = start_sub_doc_key.hybrid_time();
-  }
+  auto doc_iter = std::make_unique<DocRowwiseIterator>(
+      projection, schema, txn_op_context, doc_db_, deadline, read_time);
 
-  doc_iter = std::make_unique<DocRowwiseIterator>(
-      projection, schema, txn_op_context, doc_db_, deadline, req_read_time);
-
-  if (DocHasRangeValues(request, batch_arg_index)) {
+  if (!request.range_column_values().empty()) {
     // Construct the scan spec basing on the RANGE condition.
-    uint32_t hash_code = batch_arg_index < 0 ? request.hash_code()
-        : request.batch_arguments(batch_arg_index).hash_code();
-    vector<PrimitiveValue> range_components;
-    RETURN_NOT_OK(InitKeyColumnPrimitiveValues(DocRangeValues(request, batch_arg_index),
-                                               schema,
-                                               schema.num_hash_key_columns(),
-                                               &range_components));
-    RETURN_NOT_OK(doc_iter->Init(DocPgsqlScanSpec(schema,
-                                                  request.stmt_id(),
-                                                  hashed_components.empty()
-                                                    ? DocKey(schema, range_components)
-                                                    : DocKey(schema,
-                                                             hash_code,
-                                                             hashed_components,
-                                                             range_components),
-                                                  start_sub_doc_key.doc_key(),
-                                                  request.is_forward_scan())));
+    auto range_components = VERIFY_RESULT(InitKeyColumnPrimitiveValues(
+        request.range_column_values(), schema, schema.num_hash_key_columns()));
+    RETURN_NOT_OK(doc_iter->Init(DocPgsqlScanSpec(
+        schema,
+        request.stmt_id(),
+        hashed_components.empty()
+          ? DocKey(schema, std::move(range_components))
+          : DocKey(schema,
+                   request.hash_code(),
+                   std::move(hashed_components),
+                   std::move(range_components)),
+        start_doc_key,
+        request.is_forward_scan())));
   } else {
-    // Construct the scan spec basing on the WHERE condition.
-    auto hash_code = DocHashCode(request, batch_arg_index);
-    auto max_hash_code = DocMaxHashCode(request, batch_arg_index);
+    // Construct the scan spec basing on the HASH condition.
 
-    CHECK(!request.has_where_expr()) << "WHERE clause is not yet supported in docdb::pgsql";
-    RETURN_NOT_OK(doc_iter->Init(DocPgsqlScanSpec(schema,
-                                                  request.stmt_id(),
-                                                  hashed_components,
-                                                  request.has_condition_expr()
-                                                    ? &request.condition_expr().condition()
-                                                    : nullptr,
-                                                  hash_code,
-                                                  max_hash_code,
-                                                  request.has_where_expr()
-                                                    ? &request.where_expr()
-                                                    : nullptr,
-                                                  start_sub_doc_key.doc_key(),
-                                                  request.is_forward_scan())));
+    SCHECK(!request.has_where_expr(),
+           InternalError,
+           "WHERE clause is not yet supported in docdb::pgsql");
+    RETURN_NOT_OK(doc_iter->Init(DocPgsqlScanSpec(
+        schema,
+        request.stmt_id(),
+        hashed_components,
+        request.has_condition_expr() ? &request.condition_expr().condition() : nullptr,
+        request.hash_code(),
+        request.has_max_hash_code() ? boost::make_optional<int32_t>(request.max_hash_code())
+                                    : boost::none,
+        nullptr /* where_expr */,
+        start_doc_key,
+        request.is_forward_scan())));
   }
 
   *iter = std::move(doc_iter);

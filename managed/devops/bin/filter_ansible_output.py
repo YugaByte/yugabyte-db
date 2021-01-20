@@ -17,6 +17,7 @@ import re
 import json
 import sys
 
+
 FATAL_JSON_RE = re.compile(r'^(.*(?:: FAILED!|changed: \[.*\]) .*=> )({.*})([^}]+)$')
 
 

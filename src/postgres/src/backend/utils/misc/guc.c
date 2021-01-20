@@ -36,6 +36,7 @@
 #include "catalog/namespace.h"
 #include "catalog/pg_authid.h"
 #include "commands/async.h"
+#include "commands/copy.h"
 #include "commands/prepare.h"
 #include "commands/user.h"
 #include "commands/vacuum.h"
@@ -205,6 +206,10 @@ static bool check_transaction_priority_lower_bound(double *newval, void **extra,
 extern void YBCAssignTransactionPriorityLowerBound(double newval, void* extra);
 static bool check_transaction_priority_upper_bound(double *newval, void **extra, GucSource source);
 extern void YBCAssignTransactionPriorityUpperBound(double newval, void* extra);
+
+static bool check_max_backoff(int *max_backoff_msecs, void **extra, GucSource source);
+static bool check_min_backoff(int *min_backoff_msecs, void **extra, GucSource source);
+static bool check_backoff_multiplier(double *multiplier, void **extra, GucSource source);
 
 /* Private functions in guc-file.l that need to be called from guc.c */
 static ConfigVariable *ProcessConfigFileInternal(GucContext context,
@@ -1880,12 +1885,34 @@ static struct config_bool ConfigureNamesBool[] =
 	},
 
 	{
+		{"yb_enable_create_with_table_oid", PGC_USERSET, CUSTOM_OPTIONS,
+			gettext_noop("Enables the ability to set table oids when creating tables or indexes."),
+			NULL,
+			GUC_NOT_IN_SAMPLE
+		},
+		&yb_enable_create_with_table_oid,
+		false,
+		NULL, NULL, NULL
+	},
+
+	{
 		{"data_sync_retry", PGC_POSTMASTER, ERROR_HANDLING_OPTIONS,
 			gettext_noop("Whether to continue running after a failure to sync data files."),
 		},
 		&data_sync_retry,
 		false,
 		NULL, NULL, NULL
+	},
+
+	{
+		{"yb_read_from_followers", PGC_USERSET, CLIENT_CONN_STATEMENT,
+			gettext_noop("Allow any statement that generates a read request to go to any node."),
+			NULL,
+			GUC_NOT_IN_SAMPLE
+		},
+		&yb_read_from_followers,
+		false,
+		check_follower_reads, NULL, NULL
 	},
 
 	/* End-of-list marker */
@@ -2324,6 +2351,29 @@ static struct config_int ConfigureNamesInt[] =
 		&StatementTimeout,
 		0, 0, INT_MAX,
 		NULL, YBCSetTimeout, NULL
+	},
+
+
+	{
+		{"retry_min_backoff", PGC_USERSET, CLIENT_CONN_STATEMENT,
+			gettext_noop("Sets the minimum backoff in milliseconds between retries."),
+			NULL,
+			GUC_UNIT_MS
+		},
+		&RetryMinBackoffMsecs,
+		100, 0, INT_MAX,
+		check_min_backoff, NULL, NULL
+	},
+
+	{
+		{"retry_max_backoff", PGC_USERSET, CLIENT_CONN_STATEMENT,
+			gettext_noop("Sets the maximum backoff in milliseconds between retries."),
+			NULL,
+			GUC_UNIT_MS
+		},
+		&RetryMaxBackoffMsecs,
+		1000, 0, INT_MAX,
+		check_max_backoff, NULL, NULL
 	},
 
 	{
@@ -3121,6 +3171,17 @@ static struct config_int ConfigureNamesInt[] =
 		NULL, NULL, NULL
 	},
 
+	{
+		{"yb_default_copy_from_rows_per_transaction", PGC_USERSET, CLIENT_CONN_STATEMENT,
+			gettext_noop("Sets the batch number of rows to copy from the source to table."),
+			NULL,
+			0
+		},
+		&yb_default_copy_from_rows_per_transaction,
+		DEFAULT_BATCH_ROWS_PER_TRANSACTION, 0, INT_MAX,
+		NULL, NULL, NULL
+	},
+
 	/* End-of-list marker */
 	{
 		{NULL, 0, 0, NULL, NULL}, NULL, 0, 0, 0, NULL, NULL, NULL
@@ -3338,6 +3399,17 @@ static struct config_real ConfigureNamesReal[] =
 		&yb_transaction_priority_upper_bound,
 		1.0, 0.0, 1.0,
 		check_transaction_priority_upper_bound, YBCAssignTransactionPriorityUpperBound, NULL
+	},
+
+	{
+		{"retry_backoff_multiplier", PGC_USERSET, CLIENT_CONN_STATEMENT,
+			gettext_noop("Sets the multiplier used to calculate the retry backoff."),
+			NULL,
+			GUC_UNIT_MS
+		},
+		&RetryBackoffMultiplier,
+		2.0, 1.0, 1e10,
+		check_backoff_multiplier, NULL, NULL
 	},
 
 	/* End-of-list marker */
@@ -4023,7 +4095,7 @@ static struct config_enum ConfigureNamesEnum[] =
 		},
 		&DefaultXactIsoLevel,
 		XACT_READ_COMMITTED, isolation_level_options,
-		NULL, NULL, NULL
+		check_default_XactIsoLevel, NULL, NULL
 	},
 
 	{
@@ -6352,7 +6424,7 @@ set_config_option(const char *name, const char *value,
 				return 0;
 			}
 			/* fall through to process the same as PGC_BACKEND */
-			/* FALLTHROUGH */
+			switch_fallthrough();
 		case PGC_BACKEND:
 			if (context == PGC_SIGHUP)
 			{
@@ -7733,7 +7805,7 @@ ExecSetVariableStmt(VariableSetStmt *stmt, bool isTopLevel)
 		case VAR_SET_DEFAULT:
 			if (stmt->is_local)
 				WarnNoTransactionBlock(isTopLevel, "SET LOCAL");
-			/* fall through */
+			switch_fallthrough();
 		case VAR_RESET:
 			if (strcmp(stmt->name, "transaction_isolation") == 0)
 				WarnNoTransactionBlock(isTopLevel, "RESET TRANSACTION");
@@ -10912,5 +10984,39 @@ check_transaction_priority_upper_bound(double *newval, void **extra, GucSource s
 	return true;
 }
 
+static bool
+check_max_backoff(int *max_backoff_msecs, void **extra, GucSource source)
+{
+	if (*max_backoff_msecs < 0)
+	{
+		GUC_check_errdetail("must be greater than or equal to 0");
+		return false;
+	}
+
+	return true;
+}
+
+static bool
+check_min_backoff(int *min_backoff_msecs, void **extra, GucSource source)
+{
+	if (*min_backoff_msecs < 0)
+	{
+		GUC_check_errdetail("must be greater than or equal to 0");
+		return false;
+	}
+
+	return true;
+}
+
+static bool
+check_backoff_multiplier(double *multiplier, void **extra, GucSource source)
+{
+	if (*multiplier < 1)
+	{
+		GUC_check_errdetail("must be greater than or equal to 1");
+		return false;
+	}
+	return true;
+}
 
 #include "guc-file.c"

@@ -51,6 +51,9 @@ string FpToString(Fprint fp);
 // Formats a uint128 as a 32-digit hex string.
 string Uint128ToHexString(uint128 ui128);
 
+// Formats a uint16 as a 4-digit hex string.
+string Uint16ToHexString(uint16_t ui16);
+
 // Convert strings to numeric values, with strict error checking.
 // Leading and trailing spaces are allowed.
 // Negative inputs are not allowed for unsigned ints (unlike strtoul).

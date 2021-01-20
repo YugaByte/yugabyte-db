@@ -18,7 +18,7 @@ This section explains how explicit locking works in YugabyteDB. The transactions
 
 [Concurrency control](https://en.wikipedia.org/wiki/Concurrency_control) in databases ensures that multiple transactions can execute concurrently while preserving data integrity. Concurrency control is essential for correctness in environments where two or more transactions can access the same data at the same time.
 
-The two primary mechanisms to achieve concurrency control are *optimistic* and *pessimistic*. Concurrency control in YugabyteDB can accomodate both of these depending on the scenario.
+The two primary mechanisms to achieve concurrency control are *optimistic* and *pessimistic*. Concurrency control in YugabyteDB can accommodate both of these depending on the scenario.
 
 
 DocDB exposes the ability to write [provisional records]() which is exercised by the query layer. Provisional records are used to order persist locks on rows in order to detect conflicts. Provisional records have a *priority* assosciated with them, which is a number. When two transactions conflict, the transaction with the lower priority is aborted.
@@ -37,22 +37,18 @@ YugabyteDB opts for optimistic concurrency in the case of simple transactions. T
 
 [Pessimistic locking](https://en.wikipedia.org/wiki/Record_locking) blocks a transaction if any of its operations would violate relational integrity if it executed. This means that as long as the first transaction that locked a row has not completed (either `COMMIT` or `ABORT`), no other transaction would be able to lock that row.
 
+{{< note title="Note" >}}
+YugabyteDB currently supports optimistic concurrency control, with pessimistic concurrency control being worked on actively.
+{{</note >}}
+
 Pessimistic locking is good when there are longer running operations that would increase the probability of transaction conflicts. For example, if there are multiple concurrent transactions that update many rows in the database and conflict with one another, these transactions could continuously get aborted because they conflict with one another. Pessimistic locking allows these transaction to make progress and complete by avoiding these conflicts. 
 
-YugabyteDB opts for pessimistic locks in case of *explicit row-locks* which is discussed in a section below. This is done by the query layer assigning a very high value for the priority of the transaction that is being run under pessimistic concurrency control. This has the effect of causing all other transactions that conflict with the current transaction to fail, because they have a lower value for the transaction priority.
-
-{{< note title="Note" >}}
-
-Here is another way to understand *optimistic* versus *pessimistic* concurrency control.
-
-Optimistic concurrency control incurs an overhead only if there are conflicts. Most OLTP applications typically have short-lived transactions that would not conflict. Pessimistic concurrency control decreases the overhead incurred when conflicts occur.
-
-{{</note >}}
+Here is another way to understand *optimistic* versus *pessimistic* concurrency control. Optimistic concurrency control incurs an overhead only if there are conflicts. Most OLTP applications typically have short-lived transactions that would not conflict. Pessimistic concurrency control decreases the overhead incurred when conflicts occur.
 
 
 ### Deadlock detection
 
-When using perrimistic locks, there could be a possiblity of introducing [deadlocks](https://en.wikipedia.org/wiki/Record_locking) into the execution of the system.
+When using pessimistic locks, there could be a possibility of introducing [deadlocks](https://en.wikipedia.org/wiki/Record_locking) into the execution of the system.
 
 > The introduction of granular (subset) locks creates the possibility for a situation called deadlock. Deadlock is possible when incremental locking (locking one entity, then locking one or more additional entities) is used. To illustrate, if two bank customers asked two clerks to obtain their account information so they could transfer some money into other accounts, the two accounts would essentially be locked. Then, if the customers told their clerks that the money was to be transferred into each other's accounts, the clerks would search for the other accounts but find them to be "in use" and wait for them to be returned. Unknowingly, the two clerks are waiting for each other, and neither of them can complete their transaction until the other gives up and returns the account. 
 
@@ -61,7 +57,12 @@ YugabyteDB currently avoids deadlocks because of its transaction conflict handli
 
 ## Row-level locks
 
-YugabyteDB supports the following row-level locks, similar to PostgreSQL. Explicit row-locks use pessimistic concurrency control, therefore two transactions can never hold conflicting locks on the same row. A list of lock modes supported is shown below. Row-level locks do not affect querying data. They only block performing writes and obtaining locks to the locked row.
+YugabyteDB supports most row-level locks, similar to PostgreSQL. However, one difference is that YugabyteDB uses optimistic concurrency control and does not block / wait for currently held locks, instead opting to abort the conflicting transaction with a lower priority. Note that pessimistic concurrency control is under works.
+
+Explicit row-locks use transaction priorities to ensure that two transactions can never hold conflicting locks on the same row. This is done by the query layer assigning a very high value for the priority of the transaction that is being run under pessimistic concurrency control. This has the effect of causing all other transactions that conflict with the current transaction to fail, because they have a lower value for the transaction priority.
+
+
+A list of lock modes supported is shown below. Row-level locks do not affect querying data. They only block performing writes and obtaining locks to the locked row.
 
 There is no limit on the number of rows that can be locked at a time. Row locks are not stored in memory, they result in writes to the disk.
 

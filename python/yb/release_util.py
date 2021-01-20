@@ -182,15 +182,22 @@ class ReleaseUtil(object):
         tmp_distribution_dir = os.path.join(tmp_parent_dir, yugabyte_folder_prefix)
         shutil.move(self.distribution_path, tmp_distribution_dir)
 
+        def change_permissions(mode):
+            logging.info(
+                "Changing permissions recursively on directory '%s': %s", tmp_distribution_dir,
+                mode)
+            cmd_line = ['chmod', '-R', mode, tmp_distribution_dir]
+            run_program(cmd_line, cwd=tmp_parent_dir, log_command=True)
+
         try:
             release_file = self.get_release_file()
-            logging.info(
-                    "Changing permissions recursively on directory '%s' to make it user-writable",
-                    tmp_distribution_dir)
-            run_program(['chmod', '-R', 'u+w', tmp_distribution_dir],
-                        cwd=tmp_parent_dir)
-            logging.info("Creating a package '{}' from directory {}".format(
-                release_file, tmp_distribution_dir))
+            change_permissions('u+w')
+            change_permissions('a+r')
+            # From chmod manpage, "+X" means: set the execute/search bits if the file is a directory
+            # or any of the execute/search bits are set in the original (unmodified) mode.
+            change_permissions('a+X')
+            logging.info("Creating a package '%s' from directory %s",
+                         release_file, tmp_distribution_dir)
             run_program(['gtar', 'cvzf', release_file, yugabyte_folder_prefix],
                         cwd=tmp_parent_dir)
             return release_file

@@ -2433,11 +2433,19 @@ SELECT rec FROM jsonb_populate_record(
 
 -- anonymous record type
 SELECT jsonb_populate_record(null::record, '{"x": 0, "y": 1}');
-ERROR:  record type has not been registered
+ERROR:  could not determine row type for result of jsonb_populate_record
+HINT:  Provide a non-null record argument, or call the function in the FROM clause using a column definition list.
 SELECT jsonb_populate_record(row(1,2), '{"f1": 0, "f2": 1}');
  jsonb_populate_record 
 -----------------------
  (0,1)
+(1 row)
+
+SELECT * FROM
+  jsonb_populate_record(null::record, '{"x": 776}') AS (x int, y int);
+  x  | y 
+-----+---
+ 776 |  
 (1 row)
 
 -- composite domain
@@ -2516,7 +2524,8 @@ SELECT * FROM jsonb_populate_recordset(row('def',99,NULL)::jbpop,'[{"a":[100,200
 
 -- anonymous record type
 SELECT jsonb_populate_recordset(null::record, '[{"x": 0, "y": 1}]');
-ERROR:  record type has not been registered
+ERROR:  could not determine row type for result of jsonb_populate_recordset
+HINT:  Provide a non-null record argument, or call the function in the FROM clause using a column definition list.
 SELECT jsonb_populate_recordset(row(1,2), '[{"f1": 0, "f2": 1}]');
  jsonb_populate_recordset 
 --------------------------
@@ -2533,9 +2542,17 @@ FROM (VALUES (1),(2)) v(i);
  2 | (2,43)
 (4 rows)
 
+SELECT * FROM
+  jsonb_populate_recordset(null::record, '[{"x": 776}]') AS (x int, y int);
+  x  | y 
+-----+---
+ 776 |  
+(1 row)
+
 -- empty array is a corner case
 SELECT jsonb_populate_recordset(null::record, '[]');
-ERROR:  record type has not been registered
+ERROR:  could not determine row type for result of jsonb_populate_recordset
+HINT:  Provide a non-null record argument, or call the function in the FROM clause using a column definition list.
 SELECT jsonb_populate_recordset(row(1,2), '[]');
  jsonb_populate_recordset 
 --------------------------
@@ -2544,6 +2561,12 @@ SELECT jsonb_populate_recordset(row(1,2), '[]');
 SELECT * FROM jsonb_populate_recordset(NULL::jbpop,'[]') q;
  a | b | c 
 ---+---+---
+(0 rows)
+
+SELECT * FROM
+  jsonb_populate_recordset(null::record, '[]') AS (x int, y int);
+ x | y 
+---+---
 (0 rows)
 
 -- composite domain
@@ -2652,6 +2675,42 @@ select * from jsonb_to_record('{"ia2": [[[1], [2], [3]]]}') as x(ia2 int4[][]);
  {{{1},{2},{3}}}
 (1 row)
 
+select * from jsonb_to_record('{"out": {"key": 1}}') as x(out json);
+    out     
+------------
+ {"key": 1}
+(1 row)
+
+select * from jsonb_to_record('{"out": [{"key": 1}]}') as x(out json);
+     out      
+--------------
+ [{"key": 1}]
+(1 row)
+
+select * from jsonb_to_record('{"out": "{\"key\": 1}"}') as x(out json);
+      out       
+----------------
+ "{\"key\": 1}"
+(1 row)
+
+select * from jsonb_to_record('{"out": {"key": 1}}') as x(out jsonb);
+    out     
+------------
+ {"key": 1}
+(1 row)
+
+select * from jsonb_to_record('{"out": [{"key": 1}]}') as x(out jsonb);
+     out      
+--------------
+ [{"key": 1}]
+(1 row)
+
+select * from jsonb_to_record('{"out": "{\"key\": 1}"}') as x(out jsonb);
+      out       
+----------------
+ "{\"key\": 1}"
+(1 row)
+
 -- test type info caching in jsonb_populate_record()
 CREATE TEMP TABLE jsbpoptest (js jsonb);
 INSERT INTO jsbpoptest
@@ -2731,6 +2790,114 @@ SELECT count(*) FROM testjsonb WHERE j ?& ARRAY['public','disabled'];
     42
 (1 row)
 
+SELECT count(*) FROM testjsonb WHERE j @@ '$.wait == null';
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '"CC" == $.wait';
+ count 
+-------
+    15
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.wait == "CC" && true == $.public';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.age == 25';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.age == 25.0';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($)';
+ count 
+-------
+  1012
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($.public)';
+ count 
+-------
+   194
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($.bar)';
+ count 
+-------
+     0
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($.public) || exists($.disabled)';
+ count 
+-------
+   337
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($.public) && exists($.disabled)';
+ count 
+-------
+    42
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.wait ? (@ == null)';
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.wait ? ("CC" == @)';
+ count 
+-------
+    15
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$ ? (@.wait == "CC" && true == @.public)';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.age ? (@ == 25)';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$ ? (@.age == 25.0)';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$';
+ count 
+-------
+  1012
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.public';
+ count 
+-------
+   194
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.bar';
+ count 
+-------
+     0
+(1 row)
+
 CREATE INDEX jidx ON testjsonb USING gin (j);
 SET enable_seqscan = off;
 SELECT count(*) FROM testjsonb WHERE j @> '{"wait":null}';
@@ -2804,6 +2971,196 @@ SELECT count(*) FROM testjsonb WHERE j ?& ARRAY['public','disabled'];
  count 
 -------
     42
+(1 row)
+
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM testjsonb WHERE j @@ '$.wait == null';
+                           QUERY PLAN                            
+-----------------------------------------------------------------
+ Aggregate
+   ->  Bitmap Heap Scan on testjsonb
+         Recheck Cond: (j @@ '($."wait" == null)'::jsonpath)
+         ->  Bitmap Index Scan on jidx
+               Index Cond: (j @@ '($."wait" == null)'::jsonpath)
+(5 rows)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.wait == null';
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($ ? (@.wait == null))';
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($.wait ? (@ == null))';
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '"CC" == $.wait';
+ count 
+-------
+    15
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.wait == "CC" && true == $.public';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.age == 25';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.age == 25.0';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.array[*] == "foo"';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.array[*] == "bar"';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($ ? (@.array[*] == "bar"))';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($.array ? (@[*] == "bar"))';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($.array[*] ? (@ == "bar"))';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($)';
+ count 
+-------
+  1012
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($.public)';
+ count 
+-------
+   194
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($.bar)';
+ count 
+-------
+     0
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($.public) || exists($.disabled)';
+ count 
+-------
+   337
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($.public) && exists($.disabled)';
+ count 
+-------
+    42
+(1 row)
+
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM testjsonb WHERE j @? '$.wait ? (@ == null)';
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Aggregate
+   ->  Bitmap Heap Scan on testjsonb
+         Recheck Cond: (j @? '$."wait"?(@ == null)'::jsonpath)
+         ->  Bitmap Index Scan on jidx
+               Index Cond: (j @? '$."wait"?(@ == null)'::jsonpath)
+(5 rows)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.wait ? (@ == null)';
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.wait ? ("CC" == @)';
+ count 
+-------
+    15
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$ ? (@.wait == "CC" && true == @.public)';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.age ? (@ == 25)';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$ ? (@.age == 25.0)';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$ ? (@.array[*] == "bar")';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.array ? (@[*] == "bar")';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.array[*] ? (@ == "bar")';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$';
+ count 
+-------
+  1012
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.public';
+ count 
+-------
+   194
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.bar';
+ count 
+-------
+     0
 (1 row)
 
 -- array exists - array elements should behave as keys (for GIN index scans too)
@@ -2954,6 +3311,161 @@ SELECT count(*) FROM testjsonb WHERE j @> '{}';
  count 
 -------
   1012
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.wait == null';
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($ ? (@.wait == null))';
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($.wait ? (@ == null))';
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '"CC" == $.wait';
+ count 
+-------
+    15
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.wait == "CC" && true == $.public';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.age == 25';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.age == 25.0';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.array[*] == "foo"';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ '$.array[*] == "bar"';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($ ? (@.array[*] == "bar"))';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($.array ? (@[*] == "bar"))';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($.array[*] ? (@ == "bar"))';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @@ 'exists($)';
+ count 
+-------
+  1012
+(1 row)
+
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM testjsonb WHERE j @? '$.wait ? (@ == null)';
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Aggregate
+   ->  Bitmap Heap Scan on testjsonb
+         Recheck Cond: (j @? '$."wait"?(@ == null)'::jsonpath)
+         ->  Bitmap Index Scan on jidx
+               Index Cond: (j @? '$."wait"?(@ == null)'::jsonpath)
+(5 rows)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.wait ? (@ == null)';
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.wait ? ("CC" == @)';
+ count 
+-------
+    15
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$ ? (@.wait == "CC" && true == @.public)';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.age ? (@ == 25)';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$ ? (@.age == 25.0)';
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$ ? (@.array[*] == "bar")';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.array ? (@[*] == "bar")';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.array[*] ? (@ == "bar")';
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$';
+ count 
+-------
+  1012
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.public';
+ count 
+-------
+   194
+(1 row)
+
+SELECT count(*) FROM testjsonb WHERE j @? '$.bar';
+ count 
+-------
+     0
 (1 row)
 
 RESET enable_seqscan;
@@ -3995,6 +4507,63 @@ select jsonb_set('{"a": {"b": [1, 2, 3]}}', '{a, b, non_integer}', '"new_value"'
 ERROR:  path element at position 3 is not an integer: "non_integer"
 select jsonb_set('{"a": {"b": [1, 2, 3]}}', '{a, b, NULL}', '"new_value"');
 ERROR:  path element at position 3 is null
+-- jsonb_set_lax
+\pset null NULL
+-- pass though non nulls to jsonb_set
+select jsonb_set_lax('{"a":1,"b":2}','{b}','5') ;
+  jsonb_set_lax   
+------------------
+ {"a": 1, "b": 5}
+(1 row)
+
+select jsonb_set_lax('{"a":1,"b":2}','{d}','6', true) ;
+      jsonb_set_lax       
+--------------------------
+ {"a": 1, "b": 2, "d": 6}
+(1 row)
+
+-- using the default treatment
+select jsonb_set_lax('{"a":1,"b":2}','{b}',null);
+    jsonb_set_lax    
+---------------------
+ {"a": 1, "b": null}
+(1 row)
+
+select jsonb_set_lax('{"a":1,"b":2}','{d}',null,true);
+        jsonb_set_lax        
+-----------------------------
+ {"a": 1, "b": 2, "d": null}
+(1 row)
+
+-- errors
+select jsonb_set_lax('{"a":1,"b":2}', '{b}', null, true, null);
+ERROR:  null_value_treatment must be "delete_key", "return_target", "use_json_null", or "raise_exception"
+select jsonb_set_lax('{"a":1,"b":2}', '{b}', null, true, 'no_such_treatment');
+ERROR:  null_value_treatment must be "delete_key", "return_target", "use_json_null", or "raise_exception"
+-- explicit treatments
+select jsonb_set_lax('{"a":1,"b":2}', '{b}', null, null_value_treatment => 'raise_exception') as raise_exception;
+ERROR:  JSON value must not be null
+DETAIL:  Exception was raised because null_value_treatment is "raise_exception".
+HINT:  To avoid, either change the null_value_treatment argument or ensure that an SQL NULL is not passed.
+select jsonb_set_lax('{"a":1,"b":2}', '{b}', null, null_value_treatment => 'return_target') as return_target;
+  return_target   
+------------------
+ {"a": 1, "b": 2}
+(1 row)
+
+select jsonb_set_lax('{"a":1,"b":2}', '{b}', null, null_value_treatment => 'delete_key') as delete_key;
+ delete_key 
+------------
+ {"a": 1}
+(1 row)
+
+select jsonb_set_lax('{"a":1,"b":2}', '{b}', null, null_value_treatment => 'use_json_null') as use_json_null;
+    use_json_null    
+---------------------
+ {"a": 1, "b": null}
+(1 row)
+
+\pset null
 -- jsonb_insert
 select jsonb_insert('{"a": [0,1,2]}', '{a, 1}', '"new_value"');
          jsonb_insert          

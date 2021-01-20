@@ -282,7 +282,7 @@ class OperationDriver : public RefCountedThreadSafe<OperationDriver>,
 
   // The system monotonic time when the operation was prepared.
   // This is used for debugging only, not any actual operation ordering.
-  MicrosecondsInt64 prepare_physical_hybrid_time_;
+  MicrosecondsInt64 prepare_physical_hybrid_time_ = 0;
 
   TableType table_type_;
 

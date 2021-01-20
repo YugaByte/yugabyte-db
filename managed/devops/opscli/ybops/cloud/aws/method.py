@@ -11,7 +11,7 @@
 from ybops.cloud.common.method import ListInstancesMethod, CreateInstancesMethod, \
     ProvisionInstancesMethod, DestroyInstancesMethod, AbstractMethod, \
     AbstractAccessMethod, AbstractNetworkMethod, AbstractInstancesMethod
-from ybops.common.exceptions import YBOpsRuntimeError
+from ybops.common.exceptions import YBOpsRuntimeError, get_exception_message
 from ybops.cloud.aws.utils import get_yb_sg_name, create_dns_record_set, edit_dns_record_set, \
     delete_dns_record_set, list_dns_record_set
 
@@ -123,14 +123,15 @@ class AwsDestroyInstancesMethod(DestroyInstancesMethod):
         super(AwsDestroyInstancesMethod, self).__init__(base_command)
 
     def callback(self, args):
-        host_info = self.cloud.get_host_info(args)
+        host_info = self.cloud.get_host_info(args, private_ip=args.node_ip)
         if not host_info:
             logging.error("Host {} does not exists.".format(args.search_pattern))
             return
 
         self.extra_vars.update({
             "cloud_subnet": host_info["subnet"],
-            "cloud_region": host_info["region"]
+            "cloud_region": host_info["region"],
+            "private_ip": host_info['private_ip']
         })
 
         super(AwsDestroyInstancesMethod, self).callback(args)
@@ -241,7 +242,7 @@ class AwsQueryCurrentHostMethod(AbstractMethod):
         try:
             print(json.dumps(self.cloud.get_current_host_info(args)))
         except YBOpsRuntimeError as ye:
-            print(json.dumps({"error": ye.message}))
+            print(json.dumps({"error": get_exception_message(ye)}))
 
 
 class AwsQueryPricingMethod(AbstractMethod):
@@ -267,7 +268,7 @@ class AwsQuerySpotPricingMethod(AbstractMethod):
                 raise YBOpsRuntimeError("Must specify a region & zone to query spot price")
             print(json.dumps({'SpotPrice': self.cloud.get_spot_pricing(args)}))
         except YBOpsRuntimeError as ye:
-            print(json.dumps({"error": ye.message}))
+            print(json.dumps({"error": get_exception_message(ye)}))
 
 
 class AwsNetworkBootstrapMethod(AbstractNetworkMethod):
@@ -284,7 +285,7 @@ class AwsNetworkBootstrapMethod(AbstractNetworkMethod):
         try:
             print(json.dumps(self.cloud.network_bootstrap(args)))
         except YBOpsRuntimeError as ye:
-            print(json.dumps({"error": ye.message}))
+            print(json.dumps({"error": get_exception_message(ye)}))
 
 
 class AwsNetworkQueryMethod(AbstractNetworkMethod):
@@ -295,7 +296,7 @@ class AwsNetworkQueryMethod(AbstractNetworkMethod):
         try:
             print(json.dumps(self.cloud.query_vpc(args)))
         except YBOpsRuntimeError as ye:
-            print(json.dumps({"error": ye.message}))
+            print(json.dumps({"error": get_exception_message(ye)}))
 
 
 class AwsNetworkCleanupMethod(AbstractNetworkMethod):
@@ -312,7 +313,7 @@ class AwsNetworkCleanupMethod(AbstractNetworkMethod):
         try:
             print(json.dumps(self.cloud.network_cleanup(args)))
         except YBOpsRuntimeError as ye:
-            print(json.dumps({"error": ye.message}))
+            print(json.dumps({"error": get_exception_message(ye)}))
 
 
 class AbstractDnsMethod(AbstractMethod):

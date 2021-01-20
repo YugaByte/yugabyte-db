@@ -65,19 +65,19 @@ yugabyte=#
 
 To create the `chinook` database, run the following command.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE DATABASE chinook;
 ```
 
 Confirm that you have the `chinook` database by using the `\l` command to list the databases on your cluster.
 
-```postgresql
+```plpgsql
 yugabyte=# \l
 ```
 
 Connect to the `chinook` database.
 
-```postgresql
+```plpgsql
 yugabyte=# \c chinook
 ```
 
@@ -90,13 +90,13 @@ chinook=#
 
 To build the tables and database objects, run the following `\i` command.
 
-```postgresql
+```plpgsql
 chinook=# \i share/chinook_ddl.sql
 ```
 
 You can verify that all 11 tables have been created by running the `\d` command.
 
-```postgresql
+```plpgsql
 chinook=# \d
 ```
 
@@ -106,19 +106,19 @@ To load the `chinook` database with sample data, you need to run the SQL scripts
 
 First, run the SQL script to load the genres, artists, and albums.
 
-```postgresql
+```plpgsql
 chinook=# \i share/chinook_genres_artists_albums.sql
 ```
 
 Next, run the SQL script to load the songs.
 
-```postgresql
+```plpgsql
 chinook=# \i share/chinook_songs.sql
 ```
 
 Now verify that you have data by running a simple `SELECT` statement to pull some data from the `Track` table.
 
-```postgresql
+```plpgsql
 chinook=# SELECT "Name", "Composer" FROM "Track" LIMIT 10;
 ```
 

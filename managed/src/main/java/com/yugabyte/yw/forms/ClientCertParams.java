@@ -14,9 +14,6 @@ public class ClientCertParams {
   @Constraints.Required()
   public String username;
 
-  @Constraints.Required()
-  public long certStart;
-
-  @Constraints.Required()
-  public long certExpiry;
+  public long certStart = 0L;
+  public long certExpiry = 0L;
 }

@@ -36,12 +36,12 @@ Result<bool> ClusterLoadBalancer::HandleLeaderMoves(TabletId* out_tablet_id,
   return super::HandleLeaderMoves(out_tablet_id, out_from_ts, out_to_ts);
 }
 
-Status ClusterLoadBalancer::AnalyzeTabletsUnlocked(const TableId& table_uuid) {
+void ClusterLoadBalancer::InitializeTSDescriptors() {
   PerTableLoadState* ent_state = GetEntState();
   if (ent_state->use_preferred_zones_) {
     GetAllAffinitizedZones(&ent_state->affinitized_zones_);
   }
-  return super::AnalyzeTabletsUnlocked(table_uuid);
+  super::InitializeTSDescriptors();
 }
 
 void ClusterLoadBalancer::GetAllAffinitizedZones(AffinitizedZonesSet* affinitized_zones) const {

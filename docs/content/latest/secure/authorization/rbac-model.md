@@ -1,8 +1,8 @@
 ---
 title: Role-based access control (RBAC) model in YSQL
-linkTitle: RBAC model
-headerTitle: Role-based access control (RBAC) model
-description: The role-based access control (RBAC) model in YSQL is a collection of privileges on resources given to roles.
+linkTitle: Overview
+headerTitle: Role-based access overview
+description: Overview of the role-based access control (RBAC) model in YSQL.
 headcontent: How role-based access control works
 image: /images/section_icons/secure/rbac-model.png
 menu:
@@ -80,4 +80,4 @@ The `ALTER TABLE` privilege on the base table is required in order to CREATE or 
 
 {{< /note >}}
 
-Read more about [YSQL privileges](../../../api/ysql/commands/dcl_grant/).
+Read more about [YSQL privileges](../../../api/ysql/the-sql-language/statements/dcl_grant/).

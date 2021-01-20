@@ -3,23 +3,14 @@
 package com.yugabyte.yw.models;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.yugabyte.yw.common.ApiUtils;
 import com.yugabyte.yw.common.ModelFactory;
-import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Before;
 import org.junit.Test;
-import org.mindrot.jbcrypt.BCrypt;
 import play.libs.Json;
 
 import com.yugabyte.yw.common.FakeDBApplication;
 
 import javax.persistence.PersistenceException;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 
 import static com.yugabyte.yw.models.Users.Role;
 import static org.junit.Assert.*;
@@ -136,4 +127,13 @@ public class UsersTest extends FakeDBApplication {
     assertEquals(fetchUser.getRole(), Role.ReadOnly);
   }
 
+  @Test
+  public void testNoSensitiveDataInJson() {
+    Users u = Users.create("foo@foo.com", "password", Role.Admin, customer.uuid);
+    assertNotNull(u.uuid);
+
+    JsonNode json = Json.toJson(u);
+    assertEquals(false, json.has("passwordHash"));
+    assertEquals(false, json.has("apiToken"));
+  }
 }

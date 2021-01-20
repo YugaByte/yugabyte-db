@@ -94,6 +94,8 @@ DECLARE_int32(retryable_request_timeout_secs);
 
 DEFINE_uint64(transaction_status_tablet_log_segment_size_bytes, 4_MB,
               "The segment size for transaction status tablet log roll-overs, in bytes.");
+DEFINE_test_flag(int32, tablet_bootstrap_delay_ms, 0,
+                 "Time (in ms) to delay tablet bootstrap by.");
 
 namespace yb {
 namespace tablet {
@@ -122,6 +124,7 @@ using consensus::MinimumOpId;
 using consensus::OpIdEquals;
 using consensus::OpIdToString;
 using consensus::ReplicateMsg;
+using consensus::MakeOpIdPB;
 using strings::Substitute;
 using tserver::ChangeMetadataRequestPB;
 using tserver::TruncateRequestPB;
@@ -163,21 +166,19 @@ typedef std::map<int64_t, Entry> OpIndexToEntryMap;
 // State kept during replay.
 struct ReplayState {
   ReplayState(
-      const OpIdPB& regular_op_id,
-      const OpIdPB& intents_op_id,
+      const DocDbOpIds& op_ids_,
       const std::string& log_prefix_)
-      : regular_stored_op_id(regular_op_id),
-        intents_stored_op_id(intents_op_id),
+      : stored_op_ids(op_ids_),
         log_prefix(log_prefix_) {
   }
 
   // Return true if 'b' is allowed to immediately follow 'a' in the log.
-  static bool IsValidSequence(const OpIdPB& a, const OpIdPB& b);
+  static bool IsValidSequence(const OpId& a, const OpId& b);
 
   // Return a Corruption status if 'id' seems to be out-of-sequence in the log.
   Status CheckSequentialReplicateId(const consensus::ReplicateMsg& msg);
 
-  void UpdateCommittedOpId(const OpIdPB& id);
+  void UpdateCommittedOpId(const OpId& id);
 
   // Updates split_op_id. Expects msg to be SPLIT_OP.
   // tablet_id is ID of the tablet being bootstrapped.
@@ -197,16 +198,24 @@ struct ReplayState {
 
   void UpdateCommittedFromStored();
 
+  // Determines the lowest possible OpId we have to replay. This is based on OpIds of operations
+  // flushed to regular and intents RocksDBs. Also logs some diagnostics.
+  OpId GetLowestOpIdToReplay(bool has_intents_db, const char* extra_log_prefix) const;
+
+  // ----------------------------------------------------------------------------------------------
+  // ReplayState member fields
+  // ----------------------------------------------------------------------------------------------
+
   // The last replicate message's ID.
-  OpIdPB prev_op_id = consensus::MinimumOpId();
+  OpId prev_op_id;
 
   // The last operation known to be committed. All other operations with lower IDs are also
   // committed.
-  OpIdPB committed_op_id = consensus::MinimumOpId();
+  OpId committed_op_id;
 
-  // The id of the split operation designated for this tablet added to Raft log.
-  // See comments for ReplicateState::split_op_id_.
-  OpIdPB split_op_id;
+  // Parameters of the split operation added to Raft log and designated for this tablet .
+  // See comments for ReplicateState::split_op_info_.
+  consensus::SplitOpInfo split_op_info;
 
   // All REPLICATE entries that have not been applied to RocksDB yet. We decide what entries are
   // safe to apply and delete from this map based on the commit index included into each REPLICATE
@@ -216,10 +225,9 @@ struct ReplayState {
   OpIndexToEntryMap pending_replicates;
 
   // ----------------------------------------------------------------------------------------------
-  // State specific to RocksDB-backed tables
+  // State specific to RocksDB-backed tables (not transaction status table)
 
-  const OpIdPB regular_stored_op_id;
-  const OpIdPB intents_stored_op_id;
+  const DocDbOpIds stored_op_ids;
 
   // Total number of log entries applied to RocksDB.
   int64_t num_entries_applied_to_rocksdb = 0;
@@ -234,26 +242,25 @@ struct ReplayState {
 };
 
 void ReplayState::UpdateCommittedFromStored() {
-  if (consensus::OpIdBiggerThan(regular_stored_op_id, committed_op_id)) {
-    committed_op_id = regular_stored_op_id;
+  if (stored_op_ids.regular > committed_op_id) {
+    committed_op_id = stored_op_ids.regular;
   }
 
-  if (consensus::OpIdBiggerThan(intents_stored_op_id, committed_op_id)) {
-    committed_op_id = intents_stored_op_id;
+  if (stored_op_ids.intents > committed_op_id) {
+    committed_op_id = stored_op_ids.intents;
   }
 }
 
 // Return true if 'b' is allowed to immediately follow 'a' in the log.
-bool ReplayState::IsValidSequence(const OpIdPB& a, const OpIdPB& b) {
-  if (a.term() == 0 && a.index() == 0) {
+bool ReplayState::IsValidSequence(const OpId& a, const OpId& b) {
+  if (a.term == 0 && a.index == 0) {
     // Not initialized - can start with any opid.
     return true;
   }
 
   // Within the same term, we should never skip entries.
   // We can, however go backwards (see KUDU-783 for an example)
-  if (b.term() == a.term() &&
-      b.index() > a.index() + 1) {
+  if (b.term == a.term && b.index > a.index + 1) {
     return false;
   }
 
@@ -266,22 +273,21 @@ bool ReplayState::IsValidSequence(const OpIdPB& a, const OpIdPB& b) {
 // Return a Corruption status if 'id' seems to be out-of-sequence in the log.
 Status ReplayState::CheckSequentialReplicateId(const ReplicateMsg& msg) {
   SCHECK(msg.has_id(), Corruption, "A REPLICATE message must have an id");
-  if (PREDICT_FALSE(!IsValidSequence(prev_op_id, msg.id()))) {
-    string op_desc = Substitute("$0 REPLICATE (Type: $1)",
-                                OpIdToString(msg.id()),
-                                OperationType_Name(msg.op_type()));
+  const auto msg_op_id = OpId::FromPB(msg.id());
+  if (PREDICT_FALSE(!IsValidSequence(prev_op_id, msg_op_id))) {
+    string op_desc = Format(
+        "$0 REPLICATE (Type: $1)", msg_op_id, OperationType_Name(msg.op_type()));
     return STATUS_FORMAT(Corruption,
-                         "Unexpected opid following opid $0. Operation: $1",
-                         OpIdToString(prev_op_id),
-                         op_desc);
+                         "Unexpected op id following op id $0. Operation: $1",
+                         prev_op_id, op_desc);
   }
 
-  prev_op_id = msg.id();
+  prev_op_id = msg_op_id;
   return Status::OK();
 }
 
-void ReplayState::UpdateCommittedOpId(const OpIdPB& id) {
-  if (consensus::OpIdLessThan(committed_op_id, id)) {
+void ReplayState::UpdateCommittedOpId(const OpId& id) {
+  if (committed_op_id < id) {
     VLOG_WITH_PREFIX(1) << "Updating committed op id to " << id;
     committed_op_id = id;
   }
@@ -293,26 +299,30 @@ Status ReplayState::UpdateSplitOpId(const ReplicateMsg& msg, const TabletId& tab
       Format("Unexpected operation $0 instead of SPLIT_OP", msg));
   const auto tablet_id_to_split = msg.split_request().tablet_id();
 
-  if (split_op_id.IsInitialized()) {
+  if (!split_op_info.op_id.empty()) {
     if (tablet_id_to_split == tablet_id) {
       return STATUS_FORMAT(
           IllegalState,
           "There should be at most one SPLIT_OP designated for tablet $0 but we got two: "
           "$1, $2",
-          tablet_id, split_op_id, msg.id());
+          tablet_id, split_op_info.op_id, msg.id());
     }
 
     return STATUS_FORMAT(
         IllegalState,
         "Unexpected SPLIT_OP $0 designated for another tablet $1 after we've already "
         "replayed SPLIT_OP $2 for this tablet $3",
-        msg.id(), tablet_id_to_split, split_op_id, tablet_id);
+        msg.id(), tablet_id_to_split, split_op_info.op_id, tablet_id);
   }
 
   if (tablet_id_to_split == tablet_id) {
     // We might be asked to replay SPLIT_OP designated for a different (ancestor) tablet, will
     // just ignore it in this case.
-    split_op_id = msg.id();
+    const auto& split_request = msg.split_request();
+    split_op_info = {
+      .op_id = OpId::FromPB(msg.id()),
+      .child_tablet_ids = { split_request.new_tablet1_id(), split_request.new_tablet2_id() }
+    };
   }
   return Status::OK();
 }
@@ -344,18 +354,18 @@ void ReplayState::AddEntriesToStrings(const OpIndexToEntryMap& entries,
 void ReplayState::DumpReplayStateToStrings(
     std::vector<std::string>* strings,
     int half_limit) const {
-  strings->push_back(Substitute(
+  strings->push_back(Format(
       "ReplayState: "
       "Previous OpId: $0, "
       "Committed OpId: $1, "
       "Pending Replicates: $2, "
       "Flushed Regular: $3, "
       "Flushed Intents: $4",
-      OpIdToString(prev_op_id),
-      OpIdToString(committed_op_id),
+      prev_op_id,
+      committed_op_id,
       pending_replicates.size(),
-      OpIdToString(regular_stored_op_id),
-      OpIdToString(intents_stored_op_id)));
+      stored_op_ids.regular,
+      stored_op_ids.intents));
   if (num_entries_applied_to_rocksdb > 0) {
     strings->push_back(Substitute("Log entries applied to RocksDB: $0",
                                   num_entries_applied_to_rocksdb));
@@ -367,7 +377,20 @@ void ReplayState::DumpReplayStateToStrings(
 }
 
 bool ReplayState::CanApply(LogEntryPB* entry) {
-  return consensus::OpIdCompare(entry->replicate().id(), committed_op_id) <= 0;
+  return OpId::FromPB(entry->replicate().id()) <= committed_op_id;
+}
+
+OpId ReplayState::GetLowestOpIdToReplay(bool has_intents_db, const char* extra_log_prefix) const {
+  const auto op_id_replay_lowest =
+      has_intents_db ? std::min(stored_op_ids.regular, stored_op_ids.intents)
+                     : stored_op_ids.regular;
+  LOG_WITH_PREFIX(INFO)
+      << extra_log_prefix
+      << "op_id_replay_lowest=" << op_id_replay_lowest
+      << " (regular_op_id=" << stored_op_ids.regular
+      << ", intents_op_id=" << stored_op_ids.intents
+      << ", has_intents_db=" << has_intents_db << ")";
+  return op_id_replay_lowest;
 }
 
 // ================================================================================================
@@ -416,6 +439,26 @@ ReplayDecision ShouldReplayOperation(
   }
 
   return {index > regular_flushed_index};
+}
+
+bool WriteOpHasTransaction(const ReplicateMsg& replicate) {
+  if (!replicate.has_write_request()) {
+    return false;
+  }
+  const auto& write_request = replicate.write_request();
+  if (!write_request.has_write_batch()) {
+    return false;
+  }
+  const auto& write_batch = write_request.write_batch();
+  if (write_batch.has_transaction()) {
+    return true;
+  }
+  for (const auto& pair : write_batch.write_pairs()) {
+    if (!pair.key().empty() && pair.key()[0] == docdb::ValueTypeAsChar::kExternalTransactionId) {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // anonymous namespace
@@ -495,6 +538,11 @@ class TabletBootstrap {
       consensus_info->last_id = MinimumOpId();
       consensus_info->last_committed_id = MinimumOpId();
       return Status::OK();
+    }
+
+    // Only sleep if this isn't a new tablet, since we only want to delay on restart when testing.
+    if (PREDICT_FALSE(FLAGS_TEST_tablet_bootstrap_delay_ms > 0)) {
+      SleepFor(MonoDelta::FromMilliseconds(FLAGS_TEST_tablet_bootstrap_delay_ms));
     }
 
     // If there were blocks, there must be segments to replay. This is required by Raft, since we
@@ -787,13 +835,13 @@ class TabletBootstrap {
     // This sets the monotonic counter to at least replicate.monotonic_counter() atomically.
     tablet_->UpdateMonotonicCounter(replicate.monotonic_counter());
 
-    const OpIdPB& op_id = replicate_entry.replicate().id();
+    const auto op_id = OpId::FromPB(replicate_entry.replicate().id());
 
     // Append the replicate message to the log as is if we are not skipping wal rewrite. If we are
     // skipping, set consensus_state_only to true.
     RETURN_NOT_OK(log_->Append(replicate_entry_ptr->get(), entry_metadata, skip_wal_rewrite_));
 
-    auto iter = replay_state_->pending_replicates.lower_bound(op_id.index());
+    auto iter = replay_state_->pending_replicates.lower_bound(op_id.index);
 
     // If there was an entry with the same or higher index as the entry we're adding, then we need
     // to delete that entry and all entries with higher indexes.
@@ -824,7 +872,7 @@ class TabletBootstrap {
         << "Entry metadata must have a restart-safe time. OpId: " << OpId::FromPB(replicate.id());
 
     CHECK(replay_state_->pending_replicates.emplace(
-        op_id.index(), Entry{std::move(*replicate_entry_ptr), entry_metadata.entry_time}).second);
+        op_id.index, Entry{std::move(*replicate_entry_ptr), entry_metadata.entry_time}).second);
 
     CHECK(replicate.has_committed_op_id())
         << "Replicate message has no committed_op_id for table type "
@@ -834,7 +882,7 @@ class TabletBootstrap {
     // We include the commit index as of the time a REPLICATE entry was added to the leader's log
     // into that entry. This allows us to decide when we can replay a REPLICATE entry during
     // bootstrap.
-    replay_state_->UpdateCommittedOpId(replicate.committed_op_id());
+    replay_state_->UpdateCommittedOpId(OpId::FromPB(replicate.committed_op_id()));
 
     return ApplyCommittedPendingReplicates();
   }
@@ -848,7 +896,7 @@ class TabletBootstrap {
     }
     switch (op_type) {
       case consensus::WRITE_OP:
-        return PlayWriteRequest(replicate);
+        return PlayWriteRequest(replicate, already_applied_to_regular_db);
 
       case consensus::CHANGE_METADATA_OP:
         return PlayChangeMetadataRequest(replicate);
@@ -954,16 +1002,14 @@ class TabletBootstrap {
     const auto decision = ShouldReplayOperation(
         op_type,
         replicate->id().index(),
-        replay_state_->regular_stored_op_id.index(),
-        replay_state_->intents_stored_op_id.index(),
+        replay_state_->stored_op_ids.regular.index,
+        replay_state_->stored_op_ids.intents.index,
         // txn_status
         replicate->has_transaction_state()
             ? replicate->transaction_state().status()
             : TransactionStatus::ABORTED,  // should not be used
         // write_op_has_transaction
-        replicate->has_write_request() &&
-            replicate->write_request().has_write_batch() &&
-            replicate->write_request().write_batch().has_transaction());
+        WriteOpHasTransaction(*replicate));
 
     HandleRetryableRequest(*replicate, entry_time);
 
@@ -1055,21 +1101,10 @@ class TabletBootstrap {
 
     // Lower bound on op IDs that need to be replayed. This is the "flushed OpId" that this
     // function's comment mentions.
-    const auto op_id_replay_lowest = [this]() -> OpId {
-      const yb::OpId regular_op_id = yb::OpId::FromPB(replay_state_->regular_stored_op_id);
-      const yb::OpId intents_op_id = yb::OpId::FromPB(replay_state_->intents_stored_op_id);
-      const bool has_intents_db =
-          tablet_->doc_db().intents || (test_hooks_ && test_hooks_->HasIntentsDB());
-      const auto op_id_replay_lowest =
-          has_intents_db ? std::min(regular_op_id, intents_op_id) : regular_op_id;
-      LOG_WITH_PREFIX(INFO)
-          << kBootstrapOptimizerLogPrefix
-          << "op_id_replay_lowest=" << op_id_replay_lowest
-          << " (regular_op_id=" << regular_op_id
-          << ", intents_op_id=" << intents_op_id
-          << ", has_intents_db=" << has_intents_db << ")";
-      return op_id_replay_lowest;
-    }();
+    const auto op_id_replay_lowest = replay_state_->GetLowestOpIdToReplay(
+        // Determine whether we have an intents DB.
+        tablet_->doc_db().intents || (test_hooks_ && test_hooks_->HasIntentsDB()),
+        kBootstrapOptimizerLogPrefix);
 
     SegmentSequence& segments = *segments_ptr;
 
@@ -1170,13 +1205,7 @@ class TabletBootstrap {
       RETURN_NOT_OK(tablet_->snapshot_coordinator()->Load(tablet_.get()));
     }
 
-    OpIdPB regular_op_id;
-    regular_op_id.set_term(flushed_op_ids.regular.term);
-    regular_op_id.set_index(flushed_op_ids.regular.index);
-    OpIdPB intents_op_id;
-    intents_op_id.set_term(flushed_op_ids.intents.term);
-    intents_op_id.set_index(flushed_op_ids.intents.index);
-    replay_state_ = std::make_unique<ReplayState>(regular_op_id, intents_op_id, LogPrefix());
+    replay_state_ = std::make_unique<ReplayState>(flushed_op_ids, LogPrefix());
     replay_state_->max_committed_hybrid_time = VERIFY_RESULT(tablet_->MaxPersistentHybridTime());
 
     if (FLAGS_force_recover_flushed_frontier) {
@@ -1188,9 +1217,9 @@ class TabletBootstrap {
     } else {
       LOG_WITH_PREFIX(INFO) << "Max persistent index in RocksDB's SSTables before bootstrap: "
                             << "regular RocksDB: "
-                            << replay_state_->regular_stored_op_id.ShortDebugString() << "; "
+                            << replay_state_->stored_op_ids.regular << "; "
                             << "intents RocksDB: "
-                            << replay_state_->intents_stored_op_id.ShortDebugString();
+                            << replay_state_->stored_op_ids.intents;
     }
 
     // Open the log.
@@ -1269,13 +1298,13 @@ class TabletBootstrap {
     replay_state_->UpdateCommittedFromStored();
     RETURN_NOT_OK(ApplyCommittedPendingReplicates());
 
-    if (last_committed_op_id.index > replay_state_->committed_op_id.index()) {
+    if (last_committed_op_id.index > replay_state_->committed_op_id.index) {
       auto it = replay_state_->pending_replicates.find(last_committed_op_id.index);
       if (it != replay_state_->pending_replicates.end()) {
         // That should be guaranteed by RAFT protocol. If record is committed, it cannot
         // be overriden by a new leader.
         if (last_committed_op_id.term == it->second.entry->replicate().id().term()) {
-          replay_state_->UpdateCommittedOpId(last_committed_op_id.ToPB<OpIdPB>());
+          replay_state_->UpdateCommittedOpId(last_committed_op_id);
           RETURN_NOT_OK(ApplyCommittedPendingReplicates());
         } else {
           DumpReplayStateToLog();
@@ -1308,14 +1337,19 @@ class TabletBootstrap {
         << ", last id: " << replay_state_->prev_op_id
         << ", committed id: " << replay_state_->committed_op_id;
 
-    SCHECK(replay_state_->prev_op_id.term() >= replay_state_->committed_op_id.term() &&
-           replay_state_->prev_op_id.index() >= replay_state_->committed_op_id.index(),
-           IllegalState, "WAL files missing, or committed op id is incorrect");
+    SCHECK_FORMAT(
+        replay_state_->prev_op_id.term >= replay_state_->committed_op_id.term &&
+            replay_state_->prev_op_id.index >= replay_state_->committed_op_id.index,
+        IllegalState,
+        "WAL files missing, or committed op id is incorrect. Expected both term and index "
+            "of prev_op_id to be greater than or equal to the corresponding components of "
+            "committed_op_id. prev_op_id=$0, committed_op_id=$1",
+        replay_state_->prev_op_id, replay_state_->committed_op_id);
 
-  tablet_->mvcc_manager()->SetLastReplicated(replay_state_->max_committed_hybrid_time);
-  consensus_info->last_id = replay_state_->prev_op_id;
-  consensus_info->last_committed_id = replay_state_->committed_op_id;
-  consensus_info->split_op_id = replay_state_->split_op_id;
+    tablet_->mvcc_manager()->SetLastReplicated(replay_state_->max_committed_hybrid_time);
+    consensus_info->last_id = MakeOpIdPB(replay_state_->prev_op_id);
+    consensus_info->last_committed_id = MakeOpIdPB(replay_state_->committed_op_id);
+    consensus_info->split_op_info = replay_state_->split_op_info;
 
     if (data_.retryable_requests) {
       data_.retryable_requests->Clock().Adjust(last_entry_time);
@@ -1324,7 +1358,8 @@ class TabletBootstrap {
     return Status::OK();
   }
 
-  CHECKED_STATUS PlayWriteRequest(ReplicateMsg* replicate_msg) {
+  CHECKED_STATUS PlayWriteRequest(
+      ReplicateMsg* replicate_msg, AlreadyAppliedToRegularDB already_applied_to_regular_db) {
     SCHECK(replicate_msg->has_hybrid_time(), IllegalState,
            "A write operation with no hybrid time");
 
@@ -1354,7 +1389,8 @@ class TabletBootstrap {
       return Status::OK();
     }
 
-    auto apply_status = tablet_->ApplyRowOperations(&operation_state);
+    auto apply_status = tablet_->ApplyRowOperations(
+        &operation_state, already_applied_to_regular_db);
     // Failure is regular case, since could happen because transaction was aborted, while
     // replicating its intents.
     LOG_IF(INFO, !apply_status.ok()) << "Apply operation failed: " << apply_status;

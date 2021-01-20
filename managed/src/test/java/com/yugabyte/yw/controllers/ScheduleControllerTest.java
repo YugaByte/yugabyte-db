@@ -83,7 +83,8 @@ public class ScheduleControllerTest extends FakeDBApplication {
     assertOk(r);
     JsonNode resultJson = Json.parse(contentAsString(r));
     assertEquals(1, resultJson.size());
-    assertValues(resultJson, "scheduleUUID", ImmutableList.of(defaultSchedule.scheduleUUID.toString()));
+    assertEquals(resultJson.get(0).get("scheduleUUID").asText(),
+                 defaultSchedule.scheduleUUID.toString());
     assertAuditEntry(0, defaultCustomer.uuid);
   }
 

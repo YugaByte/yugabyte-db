@@ -41,11 +41,6 @@
 #endif
 
 
-static int	tm2time(struct pg_tm *tm, fsec_t fsec, TimeADT *result);
-static int	tm2timetz(struct pg_tm *tm, fsec_t fsec, int tz, TimeTzADT *result);
-static void AdjustTimeForTypmod(TimeADT *time, int32 typmod);
-
-
 /* common code for timetypmodin and timetztypmodin */
 static int32
 anytime_typmodin(bool istz, ArrayType *ta)
@@ -563,13 +558,16 @@ date_mii(PG_FUNCTION_ARGS)
 	PG_RETURN_DATEADT(result);
 }
 
-/*
- * Internal routines for promoting date to timestamp and timestamp with
- * time zone
- */
 
-static Timestamp
-date2timestamp(DateADT dateVal)
+/*
+ * Promote date to timestamp.
+ *
+ * On overflow error is thrown if 'overflow' is NULL.  Otherwise, '*overflow'
+ * is set to -1 (+1) when result value exceed lower (upper) boundary and zero
+ * returned.
+ */
+Timestamp
+date2timestamp_opt_overflow(DateADT dateVal, int *overflow)
 {
 	Timestamp	result;
 
@@ -585,9 +583,19 @@ date2timestamp(DateADT dateVal)
 		 * boundary need be checked for overflow.
 		 */
 		if (dateVal >= (TIMESTAMP_END_JULIAN - POSTGRES_EPOCH_JDATE))
-			ereport(ERROR,
-					(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
-					 errmsg("date out of range for timestamp")));
+		{
+			if (overflow)
+			{
+				*overflow = 1;
+				return (Timestamp) 0;
+			}
+			else
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
+						 errmsg("date out of range for timestamp")));
+			}
+		}
 
 		/* date is days since 2000, timestamp is microseconds since same... */
 		result = dateVal * USECS_PER_DAY;
@@ -596,8 +604,24 @@ date2timestamp(DateADT dateVal)
 	return result;
 }
 
+/*
+ * Single-argument version of date2timestamp_opt_overflow().
+ */
 static TimestampTz
-date2timestamptz(DateADT dateVal)
+date2timestamp(DateADT dateVal)
+{
+	return date2timestamp_opt_overflow(dateVal, NULL);
+}
+
+/*
+ * Promote date to timestamp with time zone.
+ *
+ * On overflow error is thrown if 'overflow' is NULL.  Otherwise, '*overflow'
+ * is set to -1 (+1) when result value exceed lower (upper) boundary and zero
+ * returned.
+ */
+TimestampTz
+date2timestamptz_opt_overflow(DateADT dateVal, int *overflow)
 {
 	TimestampTz result;
 	struct pg_tm tt,
@@ -616,9 +640,19 @@ date2timestamptz(DateADT dateVal)
 		 * boundary need be checked for overflow.
 		 */
 		if (dateVal >= (TIMESTAMP_END_JULIAN - POSTGRES_EPOCH_JDATE))
-			ereport(ERROR,
-					(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
-					 errmsg("date out of range for timestamp")));
+		{
+			if (overflow)
+			{
+				*overflow = 1;
+				return (TimestampTz) 0;
+			}
+			else
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
+						 errmsg("date out of range for timestamp")));
+			}
+		}
 
 		j2date(dateVal + POSTGRES_EPOCH_JDATE,
 			   &(tm->tm_year), &(tm->tm_mon), &(tm->tm_mday));
@@ -634,12 +668,37 @@ date2timestamptz(DateADT dateVal)
 		 * of time zone, check for allowed timestamp range after adding tz.
 		 */
 		if (!IS_VALID_TIMESTAMP(result))
-			ereport(ERROR,
-					(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
-					 errmsg("date out of range for timestamp")));
+		{
+			if (overflow)
+			{
+				if (result < MIN_TIMESTAMP)
+					*overflow = -1;
+				else
+				{
+					Assert(result >= END_TIMESTAMP);
+					*overflow = 1;
+				}
+				return (TimestampTz) 0;
+			}
+			else
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
+						 errmsg("date out of range for timestamp")));
+			}
+		}
 	}
 
 	return result;
+}
+
+/*
+ * Single-argument version of date2timestamptz_opt_overflow().
+ */
+static TimestampTz
+date2timestamptz(DateADT dateVal)
+{
+	return date2timestamptz_opt_overflow(dateVal, NULL);
 }
 
 /*
@@ -1260,7 +1319,7 @@ time_in(PG_FUNCTION_ARGS)
 /* tm2time()
  * Convert a tm structure to a time data type.
  */
-static int
+int
 tm2time(struct pg_tm *tm, fsec_t fsec, TimeADT *result)
 {
 	*result = ((((tm->tm_hour * MINS_PER_HOUR + tm->tm_min) * SECS_PER_MINUTE) + tm->tm_sec)
@@ -1426,7 +1485,7 @@ time_scale(PG_FUNCTION_ARGS)
  * have a fundamental tie together but rather a coincidence of
  * implementation. - thomas
  */
-static void
+void
 AdjustTimeForTypmod(TimeADT *time, int32 typmod)
 {
 	static const int64 TimeScales[MAX_TIME_PRECISION + 1] = {
@@ -2004,7 +2063,7 @@ time_part(PG_FUNCTION_ARGS)
 /* tm2timetz()
  * Convert a tm structure to a time data type.
  */
-static int
+int
 tm2timetz(struct pg_tm *tm, fsec_t fsec, int tz, TimeTzADT *result)
 {
 	result->time = ((((tm->tm_hour * MINS_PER_HOUR + tm->tm_min) * SECS_PER_MINUTE) + tm->tm_sec) *

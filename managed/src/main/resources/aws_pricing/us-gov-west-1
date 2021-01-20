@@ -5,7 +5,7 @@
                 "75NWVM53GZG8929W.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "75NWVM53GZG8929W",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "75NWVM53GZG8929W.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "75NWVM53GZG8929W.JRTCKXETXF.6YS6EN2CT7",
@@ -26,7 +26,7 @@
                 "UA5K5M2ZRKNT4XB6.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "UA5K5M2ZRKNT4XB6",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "UA5K5M2ZRKNT4XB6.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "UA5K5M2ZRKNT4XB6.JRTCKXETXF.6YS6EN2CT7",
@@ -47,7 +47,7 @@
                 "G5EJMZPCEDNVSU7Y.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "G5EJMZPCEDNVSU7Y",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "G5EJMZPCEDNVSU7Y.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "G5EJMZPCEDNVSU7Y.JRTCKXETXF.6YS6EN2CT7",
@@ -68,7 +68,7 @@
                 "VSVRV3MD8SS4KE9Y.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "VSVRV3MD8SS4KE9Y",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "VSVRV3MD8SS4KE9Y.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "VSVRV3MD8SS4KE9Y.JRTCKXETXF.6YS6EN2CT7",
@@ -89,7 +89,7 @@
                 "92R5WZC9BQEAMS7Z.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "92R5WZC9BQEAMS7Z",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "92R5WZC9BQEAMS7Z.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "92R5WZC9BQEAMS7Z.JRTCKXETXF.6YS6EN2CT7",
@@ -110,7 +110,7 @@
                 "M66KVQD9KPDT2VKK.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "M66KVQD9KPDT2VKK",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "M66KVQD9KPDT2VKK.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "M66KVQD9KPDT2VKK.JRTCKXETXF.6YS6EN2CT7",
@@ -127,11 +127,32 @@
                     "termAttributes": {}
                 }
             },
+            "2CFGQTFV4ZU7UGTX": {
+                "2CFGQTFV4ZU7UGTX.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "2CFGQTFV4ZU7UGTX",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "2CFGQTFV4ZU7UGTX.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "2CFGQTFV4ZU7UGTX.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CM33T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "275MD396T7JRAXPA": {
                 "275MD396T7JRAXPA.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "275MD396T7JRAXPA",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "275MD396T7JRAXPA.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "275MD396T7JRAXPA.JRTCKXETXF.6YS6EN2CT7",
@@ -152,7 +173,7 @@
                 "Y6C39XZ2CSC777AZ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "Y6C39XZ2CSC777AZ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "Y6C39XZ2CSC777AZ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "Y6C39XZ2CSC777AZ.JRTCKXETXF.6YS6EN2CT7",
@@ -173,7 +194,7 @@
                 "2D5V34K9DBY7XNQT.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "2D5V34K9DBY7XNQT",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "2D5V34K9DBY7XNQT.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "2D5V34K9DBY7XNQT.JRTCKXETXF.6YS6EN2CT7",
@@ -194,7 +215,7 @@
                 "YB9RNHVJ3SH6GCTM.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "YB9RNHVJ3SH6GCTM",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "YB9RNHVJ3SH6GCTM.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "YB9RNHVJ3SH6GCTM.JRTCKXETXF.6YS6EN2CT7",
@@ -215,7 +236,7 @@
                 "X2X74R852VUEDPSU.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "X2X74R852VUEDPSU",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "X2X74R852VUEDPSU.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "X2X74R852VUEDPSU.JRTCKXETXF.6YS6EN2CT7",
@@ -236,7 +257,7 @@
                 "A8T9ZEZUXAAN37CX.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "A8T9ZEZUXAAN37CX",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "A8T9ZEZUXAAN37CX.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "A8T9ZEZUXAAN37CX.JRTCKXETXF.6YS6EN2CT7",
@@ -257,7 +278,7 @@
                 "SCDKK5V8GVRWWJY5.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "SCDKK5V8GVRWWJY5",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "SCDKK5V8GVRWWJY5.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "SCDKK5V8GVRWWJY5.JRTCKXETXF.6YS6EN2CT7",
@@ -278,7 +299,7 @@
                 "W4S868B5ERDTD5W4.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "W4S868B5ERDTD5W4",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "W4S868B5ERDTD5W4.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "W4S868B5ERDTD5W4.JRTCKXETXF.6YS6EN2CT7",
@@ -299,7 +320,7 @@
                 "STEW4J9S2FH23Q6Q.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "STEW4J9S2FH23Q6Q",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "STEW4J9S2FH23Q6Q.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "STEW4J9S2FH23Q6Q.JRTCKXETXF.6YS6EN2CT7",
@@ -320,7 +341,7 @@
                 "QE6P9CH2HD5G229M.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "QE6P9CH2HD5G229M",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "QE6P9CH2HD5G229M.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "QE6P9CH2HD5G229M.JRTCKXETXF.6YS6EN2CT7",
@@ -341,7 +362,7 @@
                 "C4SCPB7PVAYJRDBS.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "C4SCPB7PVAYJRDBS",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "C4SCPB7PVAYJRDBS.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "C4SCPB7PVAYJRDBS.JRTCKXETXF.6YS6EN2CT7",
@@ -362,7 +383,7 @@
                 "4VHEWWB6U7AKJNMG.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "4VHEWWB6U7AKJNMG",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "4VHEWWB6U7AKJNMG.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "4VHEWWB6U7AKJNMG.JRTCKXETXF.6YS6EN2CT7",
@@ -379,11 +400,32 @@
                     "termAttributes": {}
                 }
             },
+            "RCWA27ANHF8WUSMA": {
+                "RCWA27ANHF8WUSMA.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "RCWA27ANHF8WUSMA",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "RCWA27ANHF8WUSMA.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "RCWA27ANHF8WUSMA.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CMR33T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "AZ9M9M7PJ2FDUCV8": {
                 "AZ9M9M7PJ2FDUCV8.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "AZ9M9M7PJ2FDUCV8",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "AZ9M9M7PJ2FDUCV8.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "AZ9M9M7PJ2FDUCV8.JRTCKXETXF.6YS6EN2CT7",
@@ -404,7 +446,7 @@
                 "CG889ZF8AV4H8SSW.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "CG889ZF8AV4H8SSW",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "CG889ZF8AV4H8SSW.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "CG889ZF8AV4H8SSW.JRTCKXETXF.6YS6EN2CT7",
@@ -425,7 +467,7 @@
                 "KT5XYNZBAZ6PAHHJ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "KT5XYNZBAZ6PAHHJ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "KT5XYNZBAZ6PAHHJ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "KT5XYNZBAZ6PAHHJ.JRTCKXETXF.6YS6EN2CT7",
@@ -446,7 +488,7 @@
                 "66MAAY9PFSG3WBQ6.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "66MAAY9PFSG3WBQ6",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "66MAAY9PFSG3WBQ6.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "66MAAY9PFSG3WBQ6.JRTCKXETXF.6YS6EN2CT7",
@@ -467,7 +509,7 @@
                 "ASERJG6Z24BJRZCG.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "ASERJG6Z24BJRZCG",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "ASERJG6Z24BJRZCG.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "ASERJG6Z24BJRZCG.JRTCKXETXF.6YS6EN2CT7",
@@ -488,7 +530,7 @@
                 "DFK38FUZ3F7TP46D.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "DFK38FUZ3F7TP46D",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "DFK38FUZ3F7TP46D.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "DFK38FUZ3F7TP46D.JRTCKXETXF.6YS6EN2CT7",
@@ -509,7 +551,7 @@
                 "KVYJDKEXKN4TVZ73.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "KVYJDKEXKN4TVZ73",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "KVYJDKEXKN4TVZ73.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "KVYJDKEXKN4TVZ73.JRTCKXETXF.6YS6EN2CT7",
@@ -530,7 +572,7 @@
                 "HM73WGG9STHHHXQR.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "HM73WGG9STHHHXQR",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "HM73WGG9STHHHXQR.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "HM73WGG9STHHHXQR.JRTCKXETXF.6YS6EN2CT7",
@@ -547,11 +589,32 @@
                     "termAttributes": {}
                 }
             },
+            "MG39FPNMJTNHASDT": {
+                "MG39FPNMJTNHASDT.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "MG39FPNMJTNHASDT",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "MG39FPNMJTNHASDT.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "MG39FPNMJTNHASDT.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CMR33T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "N968C4AQ7EW5KNBE": {
                 "N968C4AQ7EW5KNBE.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "N968C4AQ7EW5KNBE",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "N968C4AQ7EW5KNBE.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "N968C4AQ7EW5KNBE.JRTCKXETXF.6YS6EN2CT7",
@@ -572,7 +635,7 @@
                 "45ZXWTDT243S2DWK.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "45ZXWTDT243S2DWK",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "45ZXWTDT243S2DWK.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "45ZXWTDT243S2DWK.JRTCKXETXF.6YS6EN2CT7",
@@ -589,11 +652,32 @@
                     "termAttributes": {}
                 }
             },
+            "CZB5GT7NQV26A7JD": {
+                "CZB5GT7NQV26A7JD.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "CZB5GT7NQV26A7JD",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "CZB5GT7NQV26A7JD.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "CZB5GT7NQV26A7JD.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CMR42T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "AXR8YASEDBNVF6FV": {
                 "AXR8YASEDBNVF6FV.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "AXR8YASEDBNVF6FV",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "AXR8YASEDBNVF6FV.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "AXR8YASEDBNVF6FV.JRTCKXETXF.6YS6EN2CT7",
@@ -614,7 +698,7 @@
                 "5FR2446ZVKVMX5JH.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "5FR2446ZVKVMX5JH",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "5FR2446ZVKVMX5JH.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "5FR2446ZVKVMX5JH.JRTCKXETXF.6YS6EN2CT7",
@@ -635,7 +719,7 @@
                 "A5WNPRNXJ76K2HYP.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "A5WNPRNXJ76K2HYP",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "A5WNPRNXJ76K2HYP.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "A5WNPRNXJ76K2HYP.JRTCKXETXF.6YS6EN2CT7",
@@ -656,7 +740,7 @@
                 "R2KHSWBFHPGA37DP.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "R2KHSWBFHPGA37DP",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "R2KHSWBFHPGA37DP.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "R2KHSWBFHPGA37DP.JRTCKXETXF.6YS6EN2CT7",
@@ -677,7 +761,7 @@
                 "A5EN5X5DCNGRXPV6.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "A5EN5X5DCNGRXPV6",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "A5EN5X5DCNGRXPV6.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "A5EN5X5DCNGRXPV6.JRTCKXETXF.6YS6EN2CT7",
@@ -698,7 +782,7 @@
                 "SVHBNVPBZ2R7REPT.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "SVHBNVPBZ2R7REPT",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "SVHBNVPBZ2R7REPT.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "SVHBNVPBZ2R7REPT.JRTCKXETXF.6YS6EN2CT7",
@@ -719,7 +803,7 @@
                 "UTEMUF8XVZZR99HH.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "UTEMUF8XVZZR99HH",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "UTEMUF8XVZZR99HH.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "UTEMUF8XVZZR99HH.JRTCKXETXF.6YS6EN2CT7",
@@ -740,7 +824,7 @@
                 "F55VHAW8JF54N3ZT.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "F55VHAW8JF54N3ZT",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "F55VHAW8JF54N3ZT.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "F55VHAW8JF54N3ZT.JRTCKXETXF.6YS6EN2CT7",
@@ -761,7 +845,7 @@
                 "R56Y6G8UFGYAQ4SJ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "R56Y6G8UFGYAQ4SJ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "R56Y6G8UFGYAQ4SJ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "R56Y6G8UFGYAQ4SJ.JRTCKXETXF.6YS6EN2CT7",
@@ -782,7 +866,7 @@
                 "663Z8A4VB2UCQRKZ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "663Z8A4VB2UCQRKZ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "663Z8A4VB2UCQRKZ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "663Z8A4VB2UCQRKZ.JRTCKXETXF.6YS6EN2CT7",
@@ -803,7 +887,7 @@
                 "DGDPRSKTVFHHHFD6.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "DGDPRSKTVFHHHFD6",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "DGDPRSKTVFHHHFD6.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "DGDPRSKTVFHHHFD6.JRTCKXETXF.6YS6EN2CT7",
@@ -824,7 +908,7 @@
                 "C6FSKPJYMJ2DKGT6.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "C6FSKPJYMJ2DKGT6",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "C6FSKPJYMJ2DKGT6.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "C6FSKPJYMJ2DKGT6.JRTCKXETXF.6YS6EN2CT7",
@@ -845,7 +929,7 @@
                 "TPYNWJRM2BR7JWV7.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "TPYNWJRM2BR7JWV7",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "TPYNWJRM2BR7JWV7.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "TPYNWJRM2BR7JWV7.JRTCKXETXF.6YS6EN2CT7",
@@ -866,7 +950,7 @@
                 "2A8NT32HJ62JE54P.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "2A8NT32HJ62JE54P",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "2A8NT32HJ62JE54P.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "2A8NT32HJ62JE54P.JRTCKXETXF.6YS6EN2CT7",
@@ -887,7 +971,7 @@
                 "YKNFX6ZDMHZKR8WM.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "YKNFX6ZDMHZKR8WM",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "YKNFX6ZDMHZKR8WM.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "YKNFX6ZDMHZKR8WM.JRTCKXETXF.6YS6EN2CT7",
@@ -908,7 +992,7 @@
                 "C7SAVNZF8ECSGUX5.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "C7SAVNZF8ECSGUX5",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "C7SAVNZF8ECSGUX5.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "C7SAVNZF8ECSGUX5.JRTCKXETXF.6YS6EN2CT7",
@@ -929,7 +1013,7 @@
                 "52VDEB7HG755EUT9.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "52VDEB7HG755EUT9",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "52VDEB7HG755EUT9.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "52VDEB7HG755EUT9.JRTCKXETXF.6YS6EN2CT7",
@@ -950,7 +1034,7 @@
                 "ATT6A5AWQHJSNJ8C.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "ATT6A5AWQHJSNJ8C",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "ATT6A5AWQHJSNJ8C.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "ATT6A5AWQHJSNJ8C.JRTCKXETXF.6YS6EN2CT7",
@@ -971,7 +1055,7 @@
                 "UWFFKW5626RMK5DA.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "UWFFKW5626RMK5DA",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "UWFFKW5626RMK5DA.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "UWFFKW5626RMK5DA.JRTCKXETXF.6YS6EN2CT7",
@@ -992,7 +1076,7 @@
                 "57MYXGWZFC98DV7C.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "57MYXGWZFC98DV7C",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "57MYXGWZFC98DV7C.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "57MYXGWZFC98DV7C.JRTCKXETXF.6YS6EN2CT7",
@@ -1013,7 +1097,7 @@
                 "6R6V4F6BTSJKCC7Q.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "6R6V4F6BTSJKCC7Q",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "6R6V4F6BTSJKCC7Q.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "6R6V4F6BTSJKCC7Q.JRTCKXETXF.6YS6EN2CT7",
@@ -1030,11 +1114,32 @@
                     "termAttributes": {}
                 }
             },
+            "CSCFD9S36ZUKRJWT": {
+                "CSCFD9S36ZUKRJWT.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "CSCFD9S36ZUKRJWT",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "CSCFD9S36ZUKRJWT.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "CSCFD9S36ZUKRJWT.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CMR33T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "UUGUS5NUZYFJB9X9": {
                 "UUGUS5NUZYFJB9X9.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "UUGUS5NUZYFJB9X9",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "UUGUS5NUZYFJB9X9.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "UUGUS5NUZYFJB9X9.JRTCKXETXF.6YS6EN2CT7",
@@ -1055,7 +1160,7 @@
                 "KRD824PPPAA3FSQF.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "KRD824PPPAA3FSQF",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "KRD824PPPAA3FSQF.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "KRD824PPPAA3FSQF.JRTCKXETXF.6YS6EN2CT7",
@@ -1076,7 +1181,7 @@
                 "6U6EZXUHGPZ68BDE.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "6U6EZXUHGPZ68BDE",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "6U6EZXUHGPZ68BDE.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "6U6EZXUHGPZ68BDE.JRTCKXETXF.6YS6EN2CT7",
@@ -1097,7 +1202,7 @@
                 "WWPC79RM2U965ETP.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "WWPC79RM2U965ETP",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "WWPC79RM2U965ETP.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "WWPC79RM2U965ETP.JRTCKXETXF.6YS6EN2CT7",
@@ -1118,7 +1223,7 @@
                 "P98E5YPSYQERNYZJ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "P98E5YPSYQERNYZJ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "P98E5YPSYQERNYZJ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "P98E5YPSYQERNYZJ.JRTCKXETXF.6YS6EN2CT7",
@@ -1139,7 +1244,7 @@
                 "WD67G75FU9U7M2FW.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "WD67G75FU9U7M2FW",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "WD67G75FU9U7M2FW.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "WD67G75FU9U7M2FW.JRTCKXETXF.6YS6EN2CT7",
@@ -1160,7 +1265,7 @@
                 "2ATVHPKQHY4HWEFA.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "2ATVHPKQHY4HWEFA",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "2ATVHPKQHY4HWEFA.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "2ATVHPKQHY4HWEFA.JRTCKXETXF.6YS6EN2CT7",
@@ -1181,7 +1286,7 @@
                 "NNK35JBYN3HVHXZ4.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "NNK35JBYN3HVHXZ4",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "NNK35JBYN3HVHXZ4.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "NNK35JBYN3HVHXZ4.JRTCKXETXF.6YS6EN2CT7",
@@ -1202,7 +1307,7 @@
                 "N2MHR79528RS5MNP.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "N2MHR79528RS5MNP",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "N2MHR79528RS5MNP.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "N2MHR79528RS5MNP.JRTCKXETXF.6YS6EN2CT7",
@@ -1223,7 +1328,7 @@
                 "W8UA7448VEKPDHJX.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "W8UA7448VEKPDHJX",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "W8UA7448VEKPDHJX.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "W8UA7448VEKPDHJX.JRTCKXETXF.6YS6EN2CT7",
@@ -1240,11 +1345,32 @@
                     "termAttributes": {}
                 }
             },
+            "S422SHW8PQKBF9GF": {
+                "S422SHW8PQKBF9GF.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "S422SHW8PQKBF9GF",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "S422SHW8PQKBF9GF.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "S422SHW8PQKBF9GF.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CM42T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "P32GVX25KT2SXXFY": {
                 "P32GVX25KT2SXXFY.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "P32GVX25KT2SXXFY",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "P32GVX25KT2SXXFY.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "P32GVX25KT2SXXFY.JRTCKXETXF.6YS6EN2CT7",
@@ -1265,7 +1391,7 @@
                 "G6KRD9SJX75SU6ZD.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "G6KRD9SJX75SU6ZD",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "G6KRD9SJX75SU6ZD.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "G6KRD9SJX75SU6ZD.JRTCKXETXF.6YS6EN2CT7",
@@ -1286,7 +1412,7 @@
                 "642M6BH4PECRER2W.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "642M6BH4PECRER2W",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "642M6BH4PECRER2W.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "642M6BH4PECRER2W.JRTCKXETXF.6YS6EN2CT7",
@@ -1303,11 +1429,32 @@
                     "termAttributes": {}
                 }
             },
+            "H9E747PSVSGDUCHU": {
+                "H9E747PSVSGDUCHU.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "H9E747PSVSGDUCHU",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "H9E747PSVSGDUCHU.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "H9E747PSVSGDUCHU.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CM33T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "YN5S2Q9BCQSEX4Q9": {
                 "YN5S2Q9BCQSEX4Q9.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "YN5S2Q9BCQSEX4Q9",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "YN5S2Q9BCQSEX4Q9.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "YN5S2Q9BCQSEX4Q9.JRTCKXETXF.6YS6EN2CT7",
@@ -1328,7 +1475,7 @@
                 "RBNRGSMDK4K8E3FT.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "RBNRGSMDK4K8E3FT",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "RBNRGSMDK4K8E3FT.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "RBNRGSMDK4K8E3FT.JRTCKXETXF.6YS6EN2CT7",
@@ -1349,7 +1496,7 @@
                 "7TS6ETNXPVX4X28M.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "7TS6ETNXPVX4X28M",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "7TS6ETNXPVX4X28M.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "7TS6ETNXPVX4X28M.JRTCKXETXF.6YS6EN2CT7",
@@ -1370,7 +1517,7 @@
                 "K6R3T7RARCUH6ZTB.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "K6R3T7RARCUH6ZTB",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "K6R3T7RARCUH6ZTB.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "K6R3T7RARCUH6ZTB.JRTCKXETXF.6YS6EN2CT7",
@@ -1391,7 +1538,7 @@
                 "4CW2CPAYX3Q4NCDT.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "4CW2CPAYX3Q4NCDT",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "4CW2CPAYX3Q4NCDT.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "4CW2CPAYX3Q4NCDT.JRTCKXETXF.6YS6EN2CT7",
@@ -1412,7 +1559,7 @@
                 "MQKKBS6XNNY6FBK5.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "MQKKBS6XNNY6FBK5",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "MQKKBS6XNNY6FBK5.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "MQKKBS6XNNY6FBK5.JRTCKXETXF.6YS6EN2CT7",
@@ -1433,7 +1580,7 @@
                 "G69BRBAJ7MJKG9HM.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "G69BRBAJ7MJKG9HM",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "G69BRBAJ7MJKG9HM.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "G69BRBAJ7MJKG9HM.JRTCKXETXF.6YS6EN2CT7",
@@ -1454,7 +1601,7 @@
                 "J5M5E74JV43MWDQC.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "J5M5E74JV43MWDQC",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "J5M5E74JV43MWDQC.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "J5M5E74JV43MWDQC.JRTCKXETXF.6YS6EN2CT7",
@@ -1475,7 +1622,7 @@
                 "WWQPN2TFGTMS2U3D.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "WWQPN2TFGTMS2U3D",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "WWQPN2TFGTMS2U3D.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "WWQPN2TFGTMS2U3D.JRTCKXETXF.6YS6EN2CT7",
@@ -1496,7 +1643,7 @@
                 "NEENRTS8KQVH3ZBA.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "NEENRTS8KQVH3ZBA",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "NEENRTS8KQVH3ZBA.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "NEENRTS8KQVH3ZBA.JRTCKXETXF.6YS6EN2CT7",
@@ -1517,7 +1664,7 @@
                 "SPRUU7ZFC4BKFMNZ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "SPRUU7ZFC4BKFMNZ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "SPRUU7ZFC4BKFMNZ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "SPRUU7ZFC4BKFMNZ.JRTCKXETXF.6YS6EN2CT7",
@@ -1538,7 +1685,7 @@
                 "6JPBWADFZ259M4BE.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "6JPBWADFZ259M4BE",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "6JPBWADFZ259M4BE.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "6JPBWADFZ259M4BE.JRTCKXETXF.6YS6EN2CT7",
@@ -1559,7 +1706,7 @@
                 "42Y9WKH6TZEUWV9N.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "42Y9WKH6TZEUWV9N",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "42Y9WKH6TZEUWV9N.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "42Y9WKH6TZEUWV9N.JRTCKXETXF.6YS6EN2CT7",
@@ -1580,7 +1727,7 @@
                 "QG4YUM59ZPHHDF39.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "QG4YUM59ZPHHDF39",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "QG4YUM59ZPHHDF39.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "QG4YUM59ZPHHDF39.JRTCKXETXF.6YS6EN2CT7",
@@ -1601,7 +1748,7 @@
                 "QFVQE44FY9YSYTTR.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "QFVQE44FY9YSYTTR",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "QFVQE44FY9YSYTTR.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "QFVQE44FY9YSYTTR.JRTCKXETXF.6YS6EN2CT7",
@@ -1622,7 +1769,7 @@
                 "85M6SD36VCRCB7GC.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "85M6SD36VCRCB7GC",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "85M6SD36VCRCB7GC.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "85M6SD36VCRCB7GC.JRTCKXETXF.6YS6EN2CT7",
@@ -1643,7 +1790,7 @@
                 "A24K488CBFUGH8ET.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "A24K488CBFUGH8ET",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "A24K488CBFUGH8ET.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "A24K488CBFUGH8ET.JRTCKXETXF.6YS6EN2CT7",
@@ -1660,11 +1807,32 @@
                     "termAttributes": {}
                 }
             },
+            "KS6J9C37BCUX6Y5T": {
+                "KS6J9C37BCUX6Y5T.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "KS6J9C37BCUX6Y5T",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "KS6J9C37BCUX6Y5T.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "KS6J9C37BCUX6Y5T.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CMR42T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "GQEA3VZCSAUDZBT8": {
                 "GQEA3VZCSAUDZBT8.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "GQEA3VZCSAUDZBT8",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "GQEA3VZCSAUDZBT8.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "GQEA3VZCSAUDZBT8.JRTCKXETXF.6YS6EN2CT7",
@@ -1685,7 +1853,7 @@
                 "7RZ9WATYJCMR5JDX.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "7RZ9WATYJCMR5JDX",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "7RZ9WATYJCMR5JDX.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "7RZ9WATYJCMR5JDX.JRTCKXETXF.6YS6EN2CT7",
@@ -1702,11 +1870,53 @@
                     "termAttributes": {}
                 }
             },
+            "6AN8A89C9S69PW2F": {
+                "6AN8A89C9S69PW2F.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "6AN8A89C9S69PW2F",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "6AN8A89C9S69PW2F.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "6AN8A89C9S69PW2F.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CMR42T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
+            "8Z2RBD892Z95ZNKZ": {
+                "8Z2RBD892Z95ZNKZ.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "8Z2RBD892Z95ZNKZ",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "8Z2RBD892Z95ZNKZ.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "8Z2RBD892Z95ZNKZ.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CM42T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "4DEHAY4H2NFHBJM8": {
                 "4DEHAY4H2NFHBJM8.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "4DEHAY4H2NFHBJM8",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "4DEHAY4H2NFHBJM8.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "4DEHAY4H2NFHBJM8.JRTCKXETXF.6YS6EN2CT7",
@@ -1727,7 +1937,7 @@
                 "7CR8X59ZQS4NPZAM.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "7CR8X59ZQS4NPZAM",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "7CR8X59ZQS4NPZAM.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "7CR8X59ZQS4NPZAM.JRTCKXETXF.6YS6EN2CT7",
@@ -1748,7 +1958,7 @@
                 "HNFW2FDBDVXW4BND.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "HNFW2FDBDVXW4BND",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "HNFW2FDBDVXW4BND.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "HNFW2FDBDVXW4BND.JRTCKXETXF.6YS6EN2CT7",
@@ -1769,7 +1979,7 @@
                 "AAGFGUCJ29HY36FK.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "AAGFGUCJ29HY36FK",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "AAGFGUCJ29HY36FK.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "AAGFGUCJ29HY36FK.JRTCKXETXF.6YS6EN2CT7",
@@ -1790,7 +2000,7 @@
                 "Y7XRKXFJZYJ8QT78.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "Y7XRKXFJZYJ8QT78",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "Y7XRKXFJZYJ8QT78.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "Y7XRKXFJZYJ8QT78.JRTCKXETXF.6YS6EN2CT7",
@@ -1811,7 +2021,7 @@
                 "XYAF9UA2YWC7DNZT.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "XYAF9UA2YWC7DNZT",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "XYAF9UA2YWC7DNZT.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "XYAF9UA2YWC7DNZT.JRTCKXETXF.6YS6EN2CT7",
@@ -1832,7 +2042,7 @@
                 "Q8Y4APAWHTA3F7C8.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "Q8Y4APAWHTA3F7C8",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "Q8Y4APAWHTA3F7C8.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "Q8Y4APAWHTA3F7C8.JRTCKXETXF.6YS6EN2CT7",
@@ -1853,7 +2063,7 @@
                 "96PKEVBACMGNVD3N.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "96PKEVBACMGNVD3N",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "96PKEVBACMGNVD3N.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "96PKEVBACMGNVD3N.JRTCKXETXF.6YS6EN2CT7",
@@ -1874,7 +2084,7 @@
                 "DSSMZC3KY85AEU9W.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "DSSMZC3KY85AEU9W",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "DSSMZC3KY85AEU9W.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "DSSMZC3KY85AEU9W.JRTCKXETXF.6YS6EN2CT7",
@@ -1895,7 +2105,7 @@
                 "3KW8DVHJ3QR97N7Z.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "3KW8DVHJ3QR97N7Z",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "3KW8DVHJ3QR97N7Z.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "3KW8DVHJ3QR97N7Z.JRTCKXETXF.6YS6EN2CT7",
@@ -1912,11 +2122,32 @@
                     "termAttributes": {}
                 }
             },
+            "EXNQKCSJAWY4X9KQ": {
+                "EXNQKCSJAWY4X9KQ.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "EXNQKCSJAWY4X9KQ",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "EXNQKCSJAWY4X9KQ.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "EXNQKCSJAWY4X9KQ.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CM33T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "NBV3C9XXZCYK7RM7": {
                 "NBV3C9XXZCYK7RM7.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "NBV3C9XXZCYK7RM7",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "NBV3C9XXZCYK7RM7.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "NBV3C9XXZCYK7RM7.JRTCKXETXF.6YS6EN2CT7",
@@ -1937,7 +2168,7 @@
                 "KQ7FHMP785NQPDAA.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "KQ7FHMP785NQPDAA",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "KQ7FHMP785NQPDAA.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "KQ7FHMP785NQPDAA.JRTCKXETXF.6YS6EN2CT7",
@@ -1958,7 +2189,7 @@
                 "QPV2ZYVKMZ2QVPXV.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "QPV2ZYVKMZ2QVPXV",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "QPV2ZYVKMZ2QVPXV.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "QPV2ZYVKMZ2QVPXV.JRTCKXETXF.6YS6EN2CT7",
@@ -1979,7 +2210,7 @@
                 "YKQWCBYMJSQB3NGQ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "YKQWCBYMJSQB3NGQ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "YKQWCBYMJSQB3NGQ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "YKQWCBYMJSQB3NGQ.JRTCKXETXF.6YS6EN2CT7",
@@ -2000,7 +2231,7 @@
                 "FG9S3RYFEWRH932J.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "FG9S3RYFEWRH932J",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "FG9S3RYFEWRH932J.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "FG9S3RYFEWRH932J.JRTCKXETXF.6YS6EN2CT7",
@@ -2021,7 +2252,7 @@
                 "3QH4F25P46VTAP7C.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "3QH4F25P46VTAP7C",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "3QH4F25P46VTAP7C.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "3QH4F25P46VTAP7C.JRTCKXETXF.6YS6EN2CT7",
@@ -2042,7 +2273,7 @@
                 "WRWE3YWXB2TNDNM5.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "WRWE3YWXB2TNDNM5",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "WRWE3YWXB2TNDNM5.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "WRWE3YWXB2TNDNM5.JRTCKXETXF.6YS6EN2CT7",
@@ -2063,7 +2294,7 @@
                 "XCSJY2EWRP5VDX62.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "XCSJY2EWRP5VDX62",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "XCSJY2EWRP5VDX62.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "XCSJY2EWRP5VDX62.JRTCKXETXF.6YS6EN2CT7",
@@ -2084,7 +2315,7 @@
                 "ABDDR5B4BX3JDVR8.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "ABDDR5B4BX3JDVR8",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "ABDDR5B4BX3JDVR8.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "ABDDR5B4BX3JDVR8.JRTCKXETXF.6YS6EN2CT7",
@@ -2101,11 +2332,32 @@
                     "termAttributes": {}
                 }
             },
+            "FF6BESS4QFSA7ABH": {
+                "FF6BESS4QFSA7ABH.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "FF6BESS4QFSA7ABH",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "FF6BESS4QFSA7ABH.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "FF6BESS4QFSA7ABH.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CM42T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "QEYG7XF8Q2CA6XYU": {
                 "QEYG7XF8Q2CA6XYU.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "QEYG7XF8Q2CA6XYU",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "QEYG7XF8Q2CA6XYU.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "QEYG7XF8Q2CA6XYU.JRTCKXETXF.6YS6EN2CT7",
@@ -2126,7 +2378,7 @@
                 "MQGRSW85X5QCN4H3.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "MQGRSW85X5QCN4H3",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "MQGRSW85X5QCN4H3.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "MQGRSW85X5QCN4H3.JRTCKXETXF.6YS6EN2CT7",
@@ -2147,7 +2399,7 @@
                 "QVS8RZTXRRUZDNR3.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "QVS8RZTXRRUZDNR3",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "QVS8RZTXRRUZDNR3.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "QVS8RZTXRRUZDNR3.JRTCKXETXF.6YS6EN2CT7",
@@ -2168,7 +2420,7 @@
                 "3NJK7EWRPT52D5WU.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "3NJK7EWRPT52D5WU",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "3NJK7EWRPT52D5WU.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "3NJK7EWRPT52D5WU.JRTCKXETXF.6YS6EN2CT7",
@@ -2189,7 +2441,7 @@
                 "P58F73ECX8T3W59K.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "P58F73ECX8T3W59K",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "P58F73ECX8T3W59K.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "P58F73ECX8T3W59K.JRTCKXETXF.6YS6EN2CT7",
@@ -2210,7 +2462,7 @@
                 "H6JQMY8PXDUUREGF.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "H6JQMY8PXDUUREGF",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "H6JQMY8PXDUUREGF.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "H6JQMY8PXDUUREGF.JRTCKXETXF.6YS6EN2CT7",
@@ -2227,11 +2479,32 @@
                     "termAttributes": {}
                 }
             },
+            "KA6GXQXJRRM8NVHR": {
+                "KA6GXQXJRRM8NVHR.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "KA6GXQXJRRM8NVHR",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "KA6GXQXJRRM8NVHR.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "KA6GXQXJRRM8NVHR.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CMR42T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "NPTKRW999AKPBK44": {
                 "NPTKRW999AKPBK44.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "NPTKRW999AKPBK44",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "NPTKRW999AKPBK44.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "NPTKRW999AKPBK44.JRTCKXETXF.6YS6EN2CT7",
@@ -2248,11 +2521,32 @@
                     "termAttributes": {}
                 }
             },
+            "XZKCRJ6JRMS4E866": {
+                "XZKCRJ6JRMS4E866.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "XZKCRJ6JRMS4E866",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "XZKCRJ6JRMS4E866.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "XZKCRJ6JRMS4E866.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CM33T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "6G2XTUZQ4UGD7W5U": {
                 "6G2XTUZQ4UGD7W5U.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "6G2XTUZQ4UGD7W5U",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "6G2XTUZQ4UGD7W5U.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "6G2XTUZQ4UGD7W5U.JRTCKXETXF.6YS6EN2CT7",
@@ -2273,7 +2567,7 @@
                 "DFVUGDYU3XE6B8PB.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "DFVUGDYU3XE6B8PB",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "DFVUGDYU3XE6B8PB.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "DFVUGDYU3XE6B8PB.JRTCKXETXF.6YS6EN2CT7",
@@ -2294,7 +2588,7 @@
                 "QNEGKFPU4WVSSC5G.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "QNEGKFPU4WVSSC5G",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "QNEGKFPU4WVSSC5G.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "QNEGKFPU4WVSSC5G.JRTCKXETXF.6YS6EN2CT7",
@@ -2315,7 +2609,7 @@
                 "RNY3FGQWF598SGHH.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "RNY3FGQWF598SGHH",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "RNY3FGQWF598SGHH.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "RNY3FGQWF598SGHH.JRTCKXETXF.6YS6EN2CT7",
@@ -2336,7 +2630,7 @@
                 "JZ3BESEY5FKMV4XY.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "JZ3BESEY5FKMV4XY",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "JZ3BESEY5FKMV4XY.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "JZ3BESEY5FKMV4XY.JRTCKXETXF.6YS6EN2CT7",
@@ -2357,7 +2651,7 @@
                 "GSR2MAB5HD9PEDZ5.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "GSR2MAB5HD9PEDZ5",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "GSR2MAB5HD9PEDZ5.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "GSR2MAB5HD9PEDZ5.JRTCKXETXF.6YS6EN2CT7",
@@ -2378,7 +2672,7 @@
                 "EBWQE95U9M8CXCYD.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "EBWQE95U9M8CXCYD",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "EBWQE95U9M8CXCYD.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "EBWQE95U9M8CXCYD.JRTCKXETXF.6YS6EN2CT7",
@@ -2399,7 +2693,7 @@
                 "M2ER376TTVEGF8VR.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "M2ER376TTVEGF8VR",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "M2ER376TTVEGF8VR.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "M2ER376TTVEGF8VR.JRTCKXETXF.6YS6EN2CT7",
@@ -2420,7 +2714,7 @@
                 "Z7ARU4YYC5X5BV6X.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "Z7ARU4YYC5X5BV6X",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "Z7ARU4YYC5X5BV6X.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "Z7ARU4YYC5X5BV6X.JRTCKXETXF.6YS6EN2CT7",
@@ -2441,7 +2735,7 @@
                 "RK75VYNUPDW7X23X.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "RK75VYNUPDW7X23X",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "RK75VYNUPDW7X23X.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "RK75VYNUPDW7X23X.JRTCKXETXF.6YS6EN2CT7",
@@ -2462,7 +2756,7 @@
                 "HAP783GYUYEGEVBG.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "HAP783GYUYEGEVBG",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "HAP783GYUYEGEVBG.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "HAP783GYUYEGEVBG.JRTCKXETXF.6YS6EN2CT7",
@@ -2479,11 +2773,32 @@
                     "termAttributes": {}
                 }
             },
+            "WR6ZWR363WRWSEFN": {
+                "WR6ZWR363WRWSEFN.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "WR6ZWR363WRWSEFN",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "WR6ZWR363WRWSEFN.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "WR6ZWR363WRWSEFN.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CM33T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "HKTZ8NKFDE5B6HSF": {
                 "HKTZ8NKFDE5B6HSF.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "HKTZ8NKFDE5B6HSF",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "HKTZ8NKFDE5B6HSF.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "HKTZ8NKFDE5B6HSF.JRTCKXETXF.6YS6EN2CT7",
@@ -2504,7 +2819,7 @@
                 "4NMAJWDC8Q2EUZC4.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "4NMAJWDC8Q2EUZC4",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "4NMAJWDC8Q2EUZC4.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "4NMAJWDC8Q2EUZC4.JRTCKXETXF.6YS6EN2CT7",
@@ -2525,7 +2840,7 @@
                 "28V74ZFFAB29KHVV.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "28V74ZFFAB29KHVV",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "28V74ZFFAB29KHVV.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "28V74ZFFAB29KHVV.JRTCKXETXF.6YS6EN2CT7",
@@ -2546,7 +2861,7 @@
                 "S9ZQNB63BECG7RYK.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "S9ZQNB63BECG7RYK",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "S9ZQNB63BECG7RYK.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "S9ZQNB63BECG7RYK.JRTCKXETXF.6YS6EN2CT7",
@@ -2567,7 +2882,7 @@
                 "EUPUUXQC5DHKRXMJ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "EUPUUXQC5DHKRXMJ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "EUPUUXQC5DHKRXMJ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "EUPUUXQC5DHKRXMJ.JRTCKXETXF.6YS6EN2CT7",
@@ -2588,7 +2903,7 @@
                 "WE2BFS3PMB48XSSV.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "WE2BFS3PMB48XSSV",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "WE2BFS3PMB48XSSV.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "WE2BFS3PMB48XSSV.JRTCKXETXF.6YS6EN2CT7",
@@ -2605,11 +2920,32 @@
                     "termAttributes": {}
                 }
             },
+            "4B3BX86DDCRGE9RP": {
+                "4B3BX86DDCRGE9RP.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "4B3BX86DDCRGE9RP",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "4B3BX86DDCRGE9RP.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "4B3BX86DDCRGE9RP.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CMR33T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "JG2FE8MWANQ723FP": {
                 "JG2FE8MWANQ723FP.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "JG2FE8MWANQ723FP",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "JG2FE8MWANQ723FP.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "JG2FE8MWANQ723FP.JRTCKXETXF.6YS6EN2CT7",
@@ -2630,7 +2966,7 @@
                 "2ESP2TCD39QJKDWK.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "2ESP2TCD39QJKDWK",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "2ESP2TCD39QJKDWK.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "2ESP2TCD39QJKDWK.JRTCKXETXF.6YS6EN2CT7",
@@ -2651,7 +2987,7 @@
                 "Y5DM6AMTSPFAR8DH.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "Y5DM6AMTSPFAR8DH",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "Y5DM6AMTSPFAR8DH.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "Y5DM6AMTSPFAR8DH.JRTCKXETXF.6YS6EN2CT7",
@@ -2672,7 +3008,7 @@
                 "HU5HGDCMJZV6KFQG.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "HU5HGDCMJZV6KFQG",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "HU5HGDCMJZV6KFQG.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "HU5HGDCMJZV6KFQG.JRTCKXETXF.6YS6EN2CT7",
@@ -2693,7 +3029,7 @@
                 "Q864N6CVS6UKQ3WZ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "Q864N6CVS6UKQ3WZ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "Q864N6CVS6UKQ3WZ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "Q864N6CVS6UKQ3WZ.JRTCKXETXF.6YS6EN2CT7",
@@ -2714,7 +3050,7 @@
                 "964EBDRNQ9PNCGC9.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "964EBDRNQ9PNCGC9",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "964EBDRNQ9PNCGC9.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "964EBDRNQ9PNCGC9.JRTCKXETXF.6YS6EN2CT7",
@@ -2731,11 +3067,32 @@
                     "termAttributes": {}
                 }
             },
+            "WNUN93CTHUE3KV28": {
+                "WNUN93CTHUE3KV28.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "WNUN93CTHUE3KV28",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "WNUN93CTHUE3KV28.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "WNUN93CTHUE3KV28.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CM42T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "EXPVWKGGASGW4CEJ": {
                 "EXPVWKGGASGW4CEJ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "EXPVWKGGASGW4CEJ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "EXPVWKGGASGW4CEJ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "EXPVWKGGASGW4CEJ.JRTCKXETXF.6YS6EN2CT7",
@@ -2756,7 +3113,7 @@
                 "9RJGJ5X4EXXUHEYY.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "9RJGJ5X4EXXUHEYY",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "9RJGJ5X4EXXUHEYY.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "9RJGJ5X4EXXUHEYY.JRTCKXETXF.6YS6EN2CT7",
@@ -2777,7 +3134,7 @@
                 "8S4CQRV5GGTQZFKS.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "8S4CQRV5GGTQZFKS",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "8S4CQRV5GGTQZFKS.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "8S4CQRV5GGTQZFKS.JRTCKXETXF.6YS6EN2CT7",
@@ -2798,7 +3155,7 @@
                 "QRAX5KVV6V4U6VNW.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "QRAX5KVV6V4U6VNW",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "QRAX5KVV6V4U6VNW.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "QRAX5KVV6V4U6VNW.JRTCKXETXF.6YS6EN2CT7",
@@ -2819,7 +3176,7 @@
                 "3U48UYG486RAB3EA.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "3U48UYG486RAB3EA",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "3U48UYG486RAB3EA.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "3U48UYG486RAB3EA.JRTCKXETXF.6YS6EN2CT7",
@@ -2840,7 +3197,7 @@
                 "PZV4BPZHPPD4GUFP.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "PZV4BPZHPPD4GUFP",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "PZV4BPZHPPD4GUFP.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "PZV4BPZHPPD4GUFP.JRTCKXETXF.6YS6EN2CT7",
@@ -2861,7 +3218,7 @@
                 "R9VHKDR9KVHB5ZQA.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "R9VHKDR9KVHB5ZQA",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "R9VHKDR9KVHB5ZQA.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "R9VHKDR9KVHB5ZQA.JRTCKXETXF.6YS6EN2CT7",
@@ -2882,7 +3239,7 @@
                 "9EQ2K5DBJ5KVU89U.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "9EQ2K5DBJ5KVU89U",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "9EQ2K5DBJ5KVU89U.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "9EQ2K5DBJ5KVU89U.JRTCKXETXF.6YS6EN2CT7",
@@ -2903,7 +3260,7 @@
                 "YERQU55TNFZKYJZA.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "YERQU55TNFZKYJZA",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "YERQU55TNFZKYJZA.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "YERQU55TNFZKYJZA.JRTCKXETXF.6YS6EN2CT7",
@@ -2924,7 +3281,7 @@
                 "5PDW56HK5AXKG2DR.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "5PDW56HK5AXKG2DR",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "5PDW56HK5AXKG2DR.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "5PDW56HK5AXKG2DR.JRTCKXETXF.6YS6EN2CT7",
@@ -2945,7 +3302,7 @@
                 "ZDV34FKVMTS2VF9A.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "ZDV34FKVMTS2VF9A",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "ZDV34FKVMTS2VF9A.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "ZDV34FKVMTS2VF9A.JRTCKXETXF.6YS6EN2CT7",
@@ -2966,7 +3323,7 @@
                 "2K725845PKPNPEWY.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "2K725845PKPNPEWY",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "2K725845PKPNPEWY.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "2K725845PKPNPEWY.JRTCKXETXF.6YS6EN2CT7",
@@ -2987,7 +3344,7 @@
                 "S7DK4EDH5EES96HN.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "S7DK4EDH5EES96HN",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "S7DK4EDH5EES96HN.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "S7DK4EDH5EES96HN.JRTCKXETXF.6YS6EN2CT7",
@@ -3008,7 +3365,7 @@
                 "79Y6X3Z68ARPX663.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "79Y6X3Z68ARPX663",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "79Y6X3Z68ARPX663.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "79Y6X3Z68ARPX663.JRTCKXETXF.6YS6EN2CT7",
@@ -3029,7 +3386,7 @@
                 "UD9N8MZURVBNNXM4.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "UD9N8MZURVBNNXM4",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "UD9N8MZURVBNNXM4.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "UD9N8MZURVBNNXM4.JRTCKXETXF.6YS6EN2CT7",
@@ -3050,7 +3407,7 @@
                 "9ZDJD42NCMFZZ9Y4.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "9ZDJD42NCMFZZ9Y4",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "9ZDJD42NCMFZZ9Y4.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "9ZDJD42NCMFZZ9Y4.JRTCKXETXF.6YS6EN2CT7",
@@ -3071,7 +3428,7 @@
                 "M3APQN6DS643XR4K.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "M3APQN6DS643XR4K",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "M3APQN6DS643XR4K.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "M3APQN6DS643XR4K.JRTCKXETXF.6YS6EN2CT7",
@@ -3092,7 +3449,7 @@
                 "BA9AYKK3BRCNERC3.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "BA9AYKK3BRCNERC3",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "BA9AYKK3BRCNERC3.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "BA9AYKK3BRCNERC3.JRTCKXETXF.6YS6EN2CT7",
@@ -3113,7 +3470,7 @@
                 "32NJ4GZUMFJR6SSC.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "32NJ4GZUMFJR6SSC",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "32NJ4GZUMFJR6SSC.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "32NJ4GZUMFJR6SSC.JRTCKXETXF.6YS6EN2CT7",
@@ -3134,7 +3491,7 @@
                 "GMFGDG364YV2QUTZ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "GMFGDG364YV2QUTZ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "GMFGDG364YV2QUTZ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "GMFGDG364YV2QUTZ.JRTCKXETXF.6YS6EN2CT7",
@@ -3155,7 +3512,7 @@
                 "H2JDFG4KAR24BKSQ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "H2JDFG4KAR24BKSQ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "H2JDFG4KAR24BKSQ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "H2JDFG4KAR24BKSQ.JRTCKXETXF.6YS6EN2CT7",
@@ -3176,7 +3533,7 @@
                 "BNE8MBZ462MV7NXQ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "BNE8MBZ462MV7NXQ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "BNE8MBZ462MV7NXQ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "BNE8MBZ462MV7NXQ.JRTCKXETXF.6YS6EN2CT7",
@@ -3197,7 +3554,7 @@
                 "8PY2RSWDJT6CGQQJ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "8PY2RSWDJT6CGQQJ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "8PY2RSWDJT6CGQQJ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "8PY2RSWDJT6CGQQJ.JRTCKXETXF.6YS6EN2CT7",
@@ -3218,7 +3575,7 @@
                 "PSWJYE4RG79TYSJ5.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "PSWJYE4RG79TYSJ5",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "PSWJYE4RG79TYSJ5.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "PSWJYE4RG79TYSJ5.JRTCKXETXF.6YS6EN2CT7",
@@ -3239,7 +3596,7 @@
                 "7VGH9VYFJ9Y25R53.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "7VGH9VYFJ9Y25R53",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "7VGH9VYFJ9Y25R53.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "7VGH9VYFJ9Y25R53.JRTCKXETXF.6YS6EN2CT7",
@@ -3260,7 +3617,7 @@
                 "ENKRU8YPUNBH7D6Q.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "ENKRU8YPUNBH7D6Q",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "ENKRU8YPUNBH7D6Q.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "ENKRU8YPUNBH7D6Q.JRTCKXETXF.6YS6EN2CT7",
@@ -3281,7 +3638,7 @@
                 "HZ6TDDF5WZRP9C7J.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "HZ6TDDF5WZRP9C7J",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "HZ6TDDF5WZRP9C7J.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "HZ6TDDF5WZRP9C7J.JRTCKXETXF.6YS6EN2CT7",
@@ -3298,11 +3655,32 @@
                     "termAttributes": {}
                 }
             },
+            "VR2336U22TVFSPG2": {
+                "VR2336U22TVFSPG2.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "VR2336U22TVFSPG2",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "VR2336U22TVFSPG2.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "VR2336U22TVFSPG2.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CMR42T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "9WCDJRPQ4G2FCY6N": {
                 "9WCDJRPQ4G2FCY6N.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "9WCDJRPQ4G2FCY6N",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "9WCDJRPQ4G2FCY6N.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "9WCDJRPQ4G2FCY6N.JRTCKXETXF.6YS6EN2CT7",
@@ -3323,7 +3701,7 @@
                 "SY5CFG2ZYRZFUS75.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "SY5CFG2ZYRZFUS75",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "SY5CFG2ZYRZFUS75.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "SY5CFG2ZYRZFUS75.JRTCKXETXF.6YS6EN2CT7",
@@ -3344,7 +3722,7 @@
                 "5HRZGQWZ5GYFZKYP.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "5HRZGQWZ5GYFZKYP",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "5HRZGQWZ5GYFZKYP.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "5HRZGQWZ5GYFZKYP.JRTCKXETXF.6YS6EN2CT7",
@@ -3365,7 +3743,7 @@
                 "YR93JJ8RN4EN4QQF.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "YR93JJ8RN4EN4QQF",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "YR93JJ8RN4EN4QQF.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "YR93JJ8RN4EN4QQF.JRTCKXETXF.6YS6EN2CT7",
@@ -3386,7 +3764,7 @@
                 "SM9SJ6GCJFR74U2T.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "SM9SJ6GCJFR74U2T",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "SM9SJ6GCJFR74U2T.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "SM9SJ6GCJFR74U2T.JRTCKXETXF.6YS6EN2CT7",
@@ -3407,7 +3785,7 @@
                 "4ETREWR4TC5HX2QW.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "4ETREWR4TC5HX2QW",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "4ETREWR4TC5HX2QW.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "4ETREWR4TC5HX2QW.JRTCKXETXF.6YS6EN2CT7",
@@ -3424,11 +3802,32 @@
                     "termAttributes": {}
                 }
             },
+            "6VZ6945WTUTHQ7WW": {
+                "6VZ6945WTUTHQ7WW.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "6VZ6945WTUTHQ7WW",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "6VZ6945WTUTHQ7WW.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "6VZ6945WTUTHQ7WW.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CM42T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "YRSA2UNE9DEE7558": {
                 "YRSA2UNE9DEE7558.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "YRSA2UNE9DEE7558",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "YRSA2UNE9DEE7558.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "YRSA2UNE9DEE7558.JRTCKXETXF.6YS6EN2CT7",
@@ -3449,7 +3848,7 @@
                 "FSJZ5RRVP2BZPRRD.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "FSJZ5RRVP2BZPRRD",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "FSJZ5RRVP2BZPRRD.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "FSJZ5RRVP2BZPRRD.JRTCKXETXF.6YS6EN2CT7",
@@ -3470,7 +3869,7 @@
                 "VAESKW54ESHVBNPA.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "VAESKW54ESHVBNPA",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "VAESKW54ESHVBNPA.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "VAESKW54ESHVBNPA.JRTCKXETXF.6YS6EN2CT7",
@@ -3491,7 +3890,7 @@
                 "J76MHDT2UUNCJRQE.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "J76MHDT2UUNCJRQE",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "J76MHDT2UUNCJRQE.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "J76MHDT2UUNCJRQE.JRTCKXETXF.6YS6EN2CT7",
@@ -3512,7 +3911,7 @@
                 "BWUKEUAEW5JSHRSA.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "BWUKEUAEW5JSHRSA",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "BWUKEUAEW5JSHRSA.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "BWUKEUAEW5JSHRSA.JRTCKXETXF.6YS6EN2CT7",
@@ -3533,7 +3932,7 @@
                 "AH5CUM2DUCNP336E.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "AH5CUM2DUCNP336E",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "AH5CUM2DUCNP336E.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "AH5CUM2DUCNP336E.JRTCKXETXF.6YS6EN2CT7",
@@ -3554,7 +3953,7 @@
                 "95YSHQHKX3T438R3.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "95YSHQHKX3T438R3",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "95YSHQHKX3T438R3.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "95YSHQHKX3T438R3.JRTCKXETXF.6YS6EN2CT7",
@@ -3575,7 +3974,7 @@
                 "MAE7DQAWJXBHQ3GQ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "MAE7DQAWJXBHQ3GQ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "MAE7DQAWJXBHQ3GQ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "MAE7DQAWJXBHQ3GQ.JRTCKXETXF.6YS6EN2CT7",
@@ -3596,7 +3995,7 @@
                 "XDGGAWMV8QAGHGAQ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "XDGGAWMV8QAGHGAQ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "XDGGAWMV8QAGHGAQ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "XDGGAWMV8QAGHGAQ.JRTCKXETXF.6YS6EN2CT7",
@@ -3613,11 +4012,32 @@
                     "termAttributes": {}
                 }
             },
+            "TFMPCBHFH6894KCD": {
+                "TFMPCBHFH6894KCD.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "TFMPCBHFH6894KCD",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "TFMPCBHFH6894KCD.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "TFMPCBHFH6894KCD.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CMR33T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "Q2ZRZNXK2QT5UJR8": {
                 "Q2ZRZNXK2QT5UJR8.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "Q2ZRZNXK2QT5UJR8",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "Q2ZRZNXK2QT5UJR8.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "Q2ZRZNXK2QT5UJR8.JRTCKXETXF.6YS6EN2CT7",
@@ -3634,11 +4054,32 @@
                     "termAttributes": {}
                 }
             },
+            "RCM8DGUMVSBNSJ5V": {
+                "RCM8DGUMVSBNSJ5V.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "RCM8DGUMVSBNSJ5V",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "RCM8DGUMVSBNSJ5V.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "RCM8DGUMVSBNSJ5V.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CM33T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "4WZUKM6ZY6PZBP2S": {
                 "4WZUKM6ZY6PZBP2S.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "4WZUKM6ZY6PZBP2S",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "4WZUKM6ZY6PZBP2S.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "4WZUKM6ZY6PZBP2S.JRTCKXETXF.6YS6EN2CT7",
@@ -3659,7 +4100,7 @@
                 "DMR25HBKGC92TRTV.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "DMR25HBKGC92TRTV",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "DMR25HBKGC92TRTV.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "DMR25HBKGC92TRTV.JRTCKXETXF.6YS6EN2CT7",
@@ -3680,7 +4121,7 @@
                 "R953CF75MQKMDJZ8.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "R953CF75MQKMDJZ8",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "R953CF75MQKMDJZ8.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "R953CF75MQKMDJZ8.JRTCKXETXF.6YS6EN2CT7",
@@ -3701,7 +4142,7 @@
                 "4YUHUH5W9W736CFZ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "4YUHUH5W9W736CFZ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "4YUHUH5W9W736CFZ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "4YUHUH5W9W736CFZ.JRTCKXETXF.6YS6EN2CT7",
@@ -3722,7 +4163,7 @@
                 "YG4A7FR9BD9R7CZU.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "YG4A7FR9BD9R7CZU",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "YG4A7FR9BD9R7CZU.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "YG4A7FR9BD9R7CZU.JRTCKXETXF.6YS6EN2CT7",
@@ -3743,7 +4184,7 @@
                 "UEVPGUGZ9A3Y9B8E.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "UEVPGUGZ9A3Y9B8E",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "UEVPGUGZ9A3Y9B8E.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "UEVPGUGZ9A3Y9B8E.JRTCKXETXF.6YS6EN2CT7",
@@ -3764,7 +4205,7 @@
                 "QFSQ2RT6X7JBXNYA.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "QFSQ2RT6X7JBXNYA",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "QFSQ2RT6X7JBXNYA.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "QFSQ2RT6X7JBXNYA.JRTCKXETXF.6YS6EN2CT7",
@@ -3785,7 +4226,7 @@
                 "2EBBUR5ZQN6EWV86.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "2EBBUR5ZQN6EWV86",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "2EBBUR5ZQN6EWV86.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "2EBBUR5ZQN6EWV86.JRTCKXETXF.6YS6EN2CT7",
@@ -3806,7 +4247,7 @@
                 "RT78WWXG68669S8A.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "RT78WWXG68669S8A",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "RT78WWXG68669S8A.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "RT78WWXG68669S8A.JRTCKXETXF.6YS6EN2CT7",
@@ -3827,7 +4268,7 @@
                 "FWCK5XQ5U8HAT477.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "FWCK5XQ5U8HAT477",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "FWCK5XQ5U8HAT477.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "FWCK5XQ5U8HAT477.JRTCKXETXF.6YS6EN2CT7",
@@ -3848,7 +4289,7 @@
                 "9E549K7SN6FCNYNY.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "9E549K7SN6FCNYNY",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "9E549K7SN6FCNYNY.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "9E549K7SN6FCNYNY.JRTCKXETXF.6YS6EN2CT7",
@@ -3869,7 +4310,7 @@
                 "A836DCG4UNE8ARM4.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "A836DCG4UNE8ARM4",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "A836DCG4UNE8ARM4.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "A836DCG4UNE8ARM4.JRTCKXETXF.6YS6EN2CT7",
@@ -3890,7 +4331,7 @@
                 "H73RH2HTS5Y8VUJW.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "H73RH2HTS5Y8VUJW",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "H73RH2HTS5Y8VUJW.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "H73RH2HTS5Y8VUJW.JRTCKXETXF.6YS6EN2CT7",
@@ -3911,7 +4352,7 @@
                 "VJJNRF9CC7XM5Z3V.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "VJJNRF9CC7XM5Z3V",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "VJJNRF9CC7XM5Z3V.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "VJJNRF9CC7XM5Z3V.JRTCKXETXF.6YS6EN2CT7",
@@ -3932,7 +4373,7 @@
                 "6BEDDAAJZPCRVFC3.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "6BEDDAAJZPCRVFC3",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "6BEDDAAJZPCRVFC3.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "6BEDDAAJZPCRVFC3.JRTCKXETXF.6YS6EN2CT7",
@@ -3953,7 +4394,7 @@
                 "8EGTMUXWUDRZRFS6.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "8EGTMUXWUDRZRFS6",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "8EGTMUXWUDRZRFS6.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "8EGTMUXWUDRZRFS6.JRTCKXETXF.6YS6EN2CT7",
@@ -3974,7 +4415,7 @@
                 "9G5GUXK572D6QA93.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "9G5GUXK572D6QA93",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "9G5GUXK572D6QA93.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "9G5GUXK572D6QA93.JRTCKXETXF.6YS6EN2CT7",
@@ -3991,11 +4432,32 @@
                     "termAttributes": {}
                 }
             },
+            "5YT4X7FVAMPAVBPG": {
+                "5YT4X7FVAMPAVBPG.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "5YT4X7FVAMPAVBPG",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "5YT4X7FVAMPAVBPG.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "5YT4X7FVAMPAVBPG.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CM42T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "KCK8YUNCQW4A9BJ3": {
                 "KCK8YUNCQW4A9BJ3.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "KCK8YUNCQW4A9BJ3",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "KCK8YUNCQW4A9BJ3.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "KCK8YUNCQW4A9BJ3.JRTCKXETXF.6YS6EN2CT7",
@@ -4016,7 +4478,7 @@
                 "S83GQFAPYNRKME9U.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "S83GQFAPYNRKME9U",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "S83GQFAPYNRKME9U.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "S83GQFAPYNRKME9U.JRTCKXETXF.6YS6EN2CT7",
@@ -4037,7 +4499,7 @@
                 "7R28ZAN599SCMJNE.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "7R28ZAN599SCMJNE",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "7R28ZAN599SCMJNE.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "7R28ZAN599SCMJNE.JRTCKXETXF.6YS6EN2CT7",
@@ -4058,7 +4520,7 @@
                 "UZKTTJNW6T65GY9S.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "UZKTTJNW6T65GY9S",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "UZKTTJNW6T65GY9S.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "UZKTTJNW6T65GY9S.JRTCKXETXF.6YS6EN2CT7",
@@ -4079,7 +4541,7 @@
                 "UA5URWVXR2WD5HA8.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "UA5URWVXR2WD5HA8",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "UA5URWVXR2WD5HA8.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "UA5URWVXR2WD5HA8.JRTCKXETXF.6YS6EN2CT7",
@@ -4100,7 +4562,7 @@
                 "3GCCV4BFBUGPG9KP.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "3GCCV4BFBUGPG9KP",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "3GCCV4BFBUGPG9KP.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "3GCCV4BFBUGPG9KP.JRTCKXETXF.6YS6EN2CT7",
@@ -4121,7 +4583,7 @@
                 "J494NXUUWN5FKQDX.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "J494NXUUWN5FKQDX",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "J494NXUUWN5FKQDX.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "J494NXUUWN5FKQDX.JRTCKXETXF.6YS6EN2CT7",
@@ -4142,7 +4604,7 @@
                 "K5MNUXSSWWZNWANU.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "K5MNUXSSWWZNWANU",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "K5MNUXSSWWZNWANU.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "K5MNUXSSWWZNWANU.JRTCKXETXF.6YS6EN2CT7",
@@ -4163,7 +4625,7 @@
                 "A7585SXMGSEV7AMM.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "A7585SXMGSEV7AMM",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "A7585SXMGSEV7AMM.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "A7585SXMGSEV7AMM.JRTCKXETXF.6YS6EN2CT7",
@@ -4184,7 +4646,7 @@
                 "DQVCQH3YZASGHWPZ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "DQVCQH3YZASGHWPZ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "DQVCQH3YZASGHWPZ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "DQVCQH3YZASGHWPZ.JRTCKXETXF.6YS6EN2CT7",
@@ -4201,11 +4663,32 @@
                     "termAttributes": {}
                 }
             },
+            "2VPQUT64KJ5HX5C9": {
+                "2VPQUT64KJ5HX5C9.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "2VPQUT64KJ5HX5C9",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "2VPQUT64KJ5HX5C9.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "2VPQUT64KJ5HX5C9.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CMR33T3-1",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "MT4K7W9KTWWCVEXY": {
                 "MT4K7W9KTWWCVEXY.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "MT4K7W9KTWWCVEXY",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "MT4K7W9KTWWCVEXY.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "MT4K7W9KTWWCVEXY.JRTCKXETXF.6YS6EN2CT7",
@@ -4226,7 +4709,7 @@
                 "74J7RJ8BWX7SR24R.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "74J7RJ8BWX7SR24R",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "74J7RJ8BWX7SR24R.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "74J7RJ8BWX7SR24R.JRTCKXETXF.6YS6EN2CT7",
@@ -4247,7 +4730,7 @@
                 "8GD2BJ727C7SD5MN.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "8GD2BJ727C7SD5MN",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "8GD2BJ727C7SD5MN.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "8GD2BJ727C7SD5MN.JRTCKXETXF.6YS6EN2CT7",
@@ -4268,11 +4751,32 @@
                 "J6TUDAPFJZWDBE6R.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "J6TUDAPFJZWDBE6R",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "J6TUDAPFJZWDBE6R.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "J6TUDAPFJZWDBE6R.JRTCKXETXF.6YS6EN2CT7",
                             "description": "$0 per hour for running flexible fleet C42-2",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "0.0000000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
+            "H3MY7XD6FHNRRXB7": {
+                "H3MY7XD6FHNRRXB7.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "H3MY7XD6FHNRRXB7",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "H3MY7XD6FHNRRXB7.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "H3MY7XD6FHNRRXB7.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$0 per hour for running flexible fleet CMR42T3-1",
                             "beginRange": "0",
                             "endRange": "Inf",
                             "unit": "Hrs",
@@ -4495,6 +4999,41 @@
                 "normalizationSizeFactor": "32",
                 "preInstalledSw": "NA",
                 "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
+        "2CFGQTFV4ZU7UGTX": {
+            "sku": "2CFGQTFV4ZU7UGTX",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c4.large",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "2",
+                "physicalProcessor": "Intel Xeon E5-2666 v3 (Haswell)",
+                "clockSpeed": "2.9 GHz",
+                "memory": "3.75 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Moderate",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c4.large",
+                "operation": "RunInstances:FFP-CM33T3-1",
+                "capacitystatus": "UsedFFP-CM33T3-1",
+                "dedicatedEbsThroughput": "500 Mbps",
+                "ecu": "8",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "4",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
@@ -4918,6 +5457,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "RCWA27ANHF8WUSMA": {
+            "sku": "RCWA27ANHF8WUSMA",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c4.xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "4",
+                "physicalProcessor": "Intel Xeon E5-2666 v3 (Haswell)",
+                "clockSpeed": "2.9 GHz",
+                "memory": "7.5 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "High",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c4.xlarge",
+                "operation": "RunInstances:FFP-CMR33T3-1",
+                "capacitystatus": "UsedFFP-CMR33T3-1",
+                "dedicatedEbsThroughput": "750 Mbps",
+                "ecu": "16",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "8",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "AZ9M9M7PJ2FDUCV8": {
             "sku": "AZ9M9M7PJ2FDUCV8",
             "productFamily": "Compute Instance",
@@ -5198,6 +5772,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "MG39FPNMJTNHASDT": {
+            "sku": "MG39FPNMJTNHASDT",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c4.2xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "8",
+                "physicalProcessor": "Intel Xeon E5-2666 v3 (Haswell)",
+                "clockSpeed": "2.9 GHz",
+                "memory": "15 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "High",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c4.2xlarge",
+                "operation": "RunInstances:FFP-CMR33T3-1",
+                "capacitystatus": "UsedFFP-CMR33T3-1",
+                "dedicatedEbsThroughput": "1000 Mbps",
+                "ecu": "31",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "16",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "N968C4AQ7EW5KNBE": {
             "sku": "N968C4AQ7EW5KNBE",
             "productFamily": "Compute Instance",
@@ -5263,6 +5872,41 @@
                 "intelAvx2Available": "Yes",
                 "intelTurboAvailable": "Yes",
                 "normalizationSizeFactor": "4",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
+        "CZB5GT7NQV26A7JD": {
+            "sku": "CZB5GT7NQV26A7JD",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c5.2xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "8",
+                "physicalProcessor": "Intel Xeon Platinum 8124M",
+                "clockSpeed": "3 GHz",
+                "memory": "16 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Up to 10 Gigabit",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c5.2xlarge",
+                "operation": "RunInstances:FFP-CMR42T3-1",
+                "capacitystatus": "UsedFFP-CMR42T3-1",
+                "dedicatedEbsThroughput": "Up to 2250 Mbps",
+                "ecu": "39",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "16",
                 "preInstalledSw": "NA",
                 "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
                 "servicename": "Amazon Elastic Compute Cloud"
@@ -6003,6 +6647,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "CSCFD9S36ZUKRJWT": {
+            "sku": "CSCFD9S36ZUKRJWT",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c5.2xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "8",
+                "physicalProcessor": "Intel Xeon Platinum 8124M",
+                "clockSpeed": "3 GHz",
+                "memory": "16 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Up to 10 Gigabit",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c5.2xlarge",
+                "operation": "RunInstances:FFP-CMR33T3-1",
+                "capacitystatus": "UsedFFP-CMR33T3-1",
+                "dedicatedEbsThroughput": "Up to 2250 Mbps",
+                "ecu": "39",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "16",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "UUGUS5NUZYFJB9X9": {
             "sku": "UUGUS5NUZYFJB9X9",
             "productFamily": "Compute Instance",
@@ -6353,6 +7032,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "S422SHW8PQKBF9GF": {
+            "sku": "S422SHW8PQKBF9GF",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c5.xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "4",
+                "physicalProcessor": "Intel Xeon Platinum 8124M",
+                "clockSpeed": "3 GHz",
+                "memory": "8 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Up to 10 Gigabit",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c5.xlarge",
+                "operation": "RunInstances:FFP-CM42T3-1",
+                "capacitystatus": "UsedFFP-CM42T3-1",
+                "dedicatedEbsThroughput": "Up to 2250 Mbps",
+                "ecu": "20",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "8",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "P32GVX25KT2SXXFY": {
             "sku": "P32GVX25KT2SXXFY",
             "productFamily": "Compute Instance",
@@ -6453,6 +7167,41 @@
                 "intelAvx2Available": "Yes",
                 "intelTurboAvailable": "Yes",
                 "normalizationSizeFactor": "32",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
+        "H9E747PSVSGDUCHU": {
+            "sku": "H9E747PSVSGDUCHU",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c5.large",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "2",
+                "physicalProcessor": "Intel Xeon Platinum 8124M",
+                "clockSpeed": "3 GHz",
+                "memory": "4 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Up to 10 Gigabit",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c5.large",
+                "operation": "RunInstances:FFP-CM33T3-1",
+                "capacitystatus": "UsedFFP-CM33T3-1",
+                "dedicatedEbsThroughput": "Up to 2250 Mbps",
+                "ecu": "10",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "4",
                 "preInstalledSw": "NA",
                 "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
                 "servicename": "Amazon Elastic Compute Cloud"
@@ -7053,6 +7802,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "KS6J9C37BCUX6Y5T": {
+            "sku": "KS6J9C37BCUX6Y5T",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c4.large",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "2",
+                "physicalProcessor": "Intel Xeon E5-2666 v3 (Haswell)",
+                "clockSpeed": "2.9 GHz",
+                "memory": "3.75 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Moderate",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c4.large",
+                "operation": "RunInstances:FFP-CMR42T3-1",
+                "capacitystatus": "UsedFFP-CMR42T3-1",
+                "dedicatedEbsThroughput": "500 Mbps",
+                "ecu": "8",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "4",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "GQEA3VZCSAUDZBT8": {
             "sku": "GQEA3VZCSAUDZBT8",
             "productFamily": "Compute Instance",
@@ -7120,6 +7904,76 @@
                 "normalizationSizeFactor": "96",
                 "preInstalledSw": "NA",
                 "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Deep Learning Boost; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
+        "6AN8A89C9S69PW2F": {
+            "sku": "6AN8A89C9S69PW2F",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c5.xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "4",
+                "physicalProcessor": "Intel Xeon Platinum 8124M",
+                "clockSpeed": "3 GHz",
+                "memory": "8 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Up to 10 Gigabit",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c5.xlarge",
+                "operation": "RunInstances:FFP-CMR42T3-1",
+                "capacitystatus": "UsedFFP-CMR42T3-1",
+                "dedicatedEbsThroughput": "Up to 2250 Mbps",
+                "ecu": "20",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "8",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
+        "8Z2RBD892Z95ZNKZ": {
+            "sku": "8Z2RBD892Z95ZNKZ",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c4.2xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "8",
+                "physicalProcessor": "Intel Xeon E5-2666 v3 (Haswell)",
+                "clockSpeed": "2.9 GHz",
+                "memory": "15 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "High",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c4.2xlarge",
+                "operation": "RunInstances:FFP-CM42T3-1",
+                "capacitystatus": "UsedFFP-CM42T3-1",
+                "dedicatedEbsThroughput": "1000 Mbps",
+                "ecu": "31",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "16",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
@@ -7473,6 +8327,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "EXNQKCSJAWY4X9KQ": {
+            "sku": "EXNQKCSJAWY4X9KQ",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c4.2xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "8",
+                "physicalProcessor": "Intel Xeon E5-2666 v3 (Haswell)",
+                "clockSpeed": "2.9 GHz",
+                "memory": "15 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "High",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c4.2xlarge",
+                "operation": "RunInstances:FFP-CM33T3-1",
+                "capacitystatus": "UsedFFP-CM33T3-1",
+                "dedicatedEbsThroughput": "1000 Mbps",
+                "ecu": "31",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "16",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "NBV3C9XXZCYK7RM7": {
             "sku": "NBV3C9XXZCYK7RM7",
             "productFamily": "Compute Instance",
@@ -7788,6 +8677,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "FF6BESS4QFSA7ABH": {
+            "sku": "FF6BESS4QFSA7ABH",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c5.large",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "2",
+                "physicalProcessor": "Intel Xeon Platinum 8124M",
+                "clockSpeed": "3 GHz",
+                "memory": "4 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Up to 10 Gigabit",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c5.large",
+                "operation": "RunInstances:FFP-CM42T3-1",
+                "capacitystatus": "UsedFFP-CM42T3-1",
+                "dedicatedEbsThroughput": "Up to 2250 Mbps",
+                "ecu": "10",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "4",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "QEYG7XF8Q2CA6XYU": {
             "sku": "QEYG7XF8Q2CA6XYU",
             "productFamily": "Compute Instance",
@@ -7998,6 +8922,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "KA6GXQXJRRM8NVHR": {
+            "sku": "KA6GXQXJRRM8NVHR",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c4.2xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "8",
+                "physicalProcessor": "Intel Xeon E5-2666 v3 (Haswell)",
+                "clockSpeed": "2.9 GHz",
+                "memory": "15 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "High",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c4.2xlarge",
+                "operation": "RunInstances:FFP-CMR42T3-1",
+                "capacitystatus": "UsedFFP-CMR42T3-1",
+                "dedicatedEbsThroughput": "1000 Mbps",
+                "ecu": "31",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "16",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "NPTKRW999AKPBK44": {
             "sku": "NPTKRW999AKPBK44",
             "productFamily": "Compute Instance",
@@ -8030,6 +8989,41 @@
                 "normalizationSizeFactor": "32",
                 "preInstalledSw": "NA",
                 "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
+        "XZKCRJ6JRMS4E866": {
+            "sku": "XZKCRJ6JRMS4E866",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c5.xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "4",
+                "physicalProcessor": "Intel Xeon Platinum 8124M",
+                "clockSpeed": "3 GHz",
+                "memory": "8 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Up to 10 Gigabit",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c5.xlarge",
+                "operation": "RunInstances:FFP-CM33T3-1",
+                "capacitystatus": "UsedFFP-CM33T3-1",
+                "dedicatedEbsThroughput": "Up to 2250 Mbps",
+                "ecu": "20",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "8",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
@@ -8418,6 +9412,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "WR6ZWR363WRWSEFN": {
+            "sku": "WR6ZWR363WRWSEFN",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c4.xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "4",
+                "physicalProcessor": "Intel Xeon E5-2666 v3 (Haswell)",
+                "clockSpeed": "2.9 GHz",
+                "memory": "7.5 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "High",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c4.xlarge",
+                "operation": "RunInstances:FFP-CM33T3-1",
+                "capacitystatus": "UsedFFP-CM33T3-1",
+                "dedicatedEbsThroughput": "750 Mbps",
+                "ecu": "16",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "8",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "HKTZ8NKFDE5B6HSF": {
             "sku": "HKTZ8NKFDE5B6HSF",
             "productFamily": "Compute Instance",
@@ -8628,6 +9657,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "4B3BX86DDCRGE9RP": {
+            "sku": "4B3BX86DDCRGE9RP",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c5.xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "4",
+                "physicalProcessor": "Intel Xeon Platinum 8124M",
+                "clockSpeed": "3 GHz",
+                "memory": "8 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Up to 10 Gigabit",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c5.xlarge",
+                "operation": "RunInstances:FFP-CMR33T3-1",
+                "capacitystatus": "UsedFFP-CMR33T3-1",
+                "dedicatedEbsThroughput": "Up to 2250 Mbps",
+                "ecu": "20",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "8",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "JG2FE8MWANQ723FP": {
             "sku": "JG2FE8MWANQ723FP",
             "productFamily": "Compute Instance",
@@ -8835,6 +9899,41 @@
                 "normalizationSizeFactor": "72",
                 "preInstalledSw": "NA",
                 "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
+        "WNUN93CTHUE3KV28": {
+            "sku": "WNUN93CTHUE3KV28",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c4.xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "4",
+                "physicalProcessor": "Intel Xeon E5-2666 v3 (Haswell)",
+                "clockSpeed": "2.9 GHz",
+                "memory": "7.5 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "High",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c4.xlarge",
+                "operation": "RunInstances:FFP-CM42T3-1",
+                "capacitystatus": "UsedFFP-CM42T3-1",
+                "dedicatedEbsThroughput": "750 Mbps",
+                "ecu": "16",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "8",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
@@ -9783,6 +10882,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "VR2336U22TVFSPG2": {
+            "sku": "VR2336U22TVFSPG2",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c5.large",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "2",
+                "physicalProcessor": "Intel Xeon Platinum 8124M",
+                "clockSpeed": "3 GHz",
+                "memory": "4 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Up to 10 Gigabit",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c5.large",
+                "operation": "RunInstances:FFP-CMR42T3-1",
+                "capacitystatus": "UsedFFP-CMR42T3-1",
+                "dedicatedEbsThroughput": "Up to 2250 Mbps",
+                "ecu": "10",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "4",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "9WCDJRPQ4G2FCY6N": {
             "sku": "9WCDJRPQ4G2FCY6N",
             "productFamily": "Compute Instance",
@@ -9990,6 +11124,41 @@
                 "normalizationSizeFactor": "16",
                 "preInstalledSw": "NA",
                 "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
+        "6VZ6945WTUTHQ7WW": {
+            "sku": "6VZ6945WTUTHQ7WW",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c5.2xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "8",
+                "physicalProcessor": "Intel Xeon Platinum 8124M",
+                "clockSpeed": "3 GHz",
+                "memory": "16 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Up to 10 Gigabit",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c5.2xlarge",
+                "operation": "RunInstances:FFP-CM42T3-1",
+                "capacitystatus": "UsedFFP-CM42T3-1",
+                "dedicatedEbsThroughput": "Up to 2250 Mbps",
+                "ecu": "39",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "16",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
@@ -10308,6 +11477,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "TFMPCBHFH6894KCD": {
+            "sku": "TFMPCBHFH6894KCD",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c5.large",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "2",
+                "physicalProcessor": "Intel Xeon Platinum 8124M",
+                "clockSpeed": "3 GHz",
+                "memory": "4 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Up to 10 Gigabit",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c5.large",
+                "operation": "RunInstances:FFP-CMR33T3-1",
+                "capacitystatus": "UsedFFP-CMR33T3-1",
+                "dedicatedEbsThroughput": "Up to 2250 Mbps",
+                "ecu": "10",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "4",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "Q2ZRZNXK2QT5UJR8": {
             "sku": "Q2ZRZNXK2QT5UJR8",
             "productFamily": "Compute Instance",
@@ -10338,6 +11542,41 @@
                 "intelAvx2Available": "Yes",
                 "intelTurboAvailable": "Yes",
                 "normalizationSizeFactor": "32",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
+        "RCM8DGUMVSBNSJ5V": {
+            "sku": "RCM8DGUMVSBNSJ5V",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c5.2xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "8",
+                "physicalProcessor": "Intel Xeon Platinum 8124M",
+                "clockSpeed": "3 GHz",
+                "memory": "16 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Up to 10 Gigabit",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c5.2xlarge",
+                "operation": "RunInstances:FFP-CM33T3-1",
+                "capacitystatus": "UsedFFP-CM33T3-1",
+                "dedicatedEbsThroughput": "Up to 2250 Mbps",
+                "ecu": "39",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "16",
                 "preInstalledSw": "NA",
                 "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
                 "servicename": "Amazon Elastic Compute Cloud"
@@ -10938,6 +12177,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "5YT4X7FVAMPAVBPG": {
+            "sku": "5YT4X7FVAMPAVBPG",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c4.large",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "2",
+                "physicalProcessor": "Intel Xeon E5-2666 v3 (Haswell)",
+                "clockSpeed": "2.9 GHz",
+                "memory": "3.75 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Moderate",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c4.large",
+                "operation": "RunInstances:FFP-CM42T3-1",
+                "capacitystatus": "UsedFFP-CM42T3-1",
+                "dedicatedEbsThroughput": "500 Mbps",
+                "ecu": "8",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "4",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "KCK8YUNCQW4A9BJ3": {
             "sku": "KCK8YUNCQW4A9BJ3",
             "productFamily": "Compute Instance",
@@ -11288,6 +12562,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "2VPQUT64KJ5HX5C9": {
+            "sku": "2VPQUT64KJ5HX5C9",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c4.large",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "2",
+                "physicalProcessor": "Intel Xeon E5-2666 v3 (Haswell)",
+                "clockSpeed": "2.9 GHz",
+                "memory": "3.75 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "Moderate",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c4.large",
+                "operation": "RunInstances:FFP-CMR33T3-1",
+                "capacitystatus": "UsedFFP-CMR33T3-1",
+                "dedicatedEbsThroughput": "500 Mbps",
+                "ecu": "8",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "4",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "MT4K7W9KTWWCVEXY": {
             "sku": "MT4K7W9KTWWCVEXY",
             "productFamily": "Compute Instance",
@@ -11423,6 +12732,41 @@
                 "intelAvx2Available": "Yes",
                 "intelTurboAvailable": "Yes",
                 "normalizationSizeFactor": "32",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
+        "H3MY7XD6FHNRRXB7": {
+            "sku": "H3MY7XD6FHNRRXB7",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "AWS GovCloud (US-West)",
+                "locationType": "AWS Region",
+                "instanceType": "c4.xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "4",
+                "physicalProcessor": "Intel Xeon E5-2666 v3 (Haswell)",
+                "clockSpeed": "2.9 GHz",
+                "memory": "7.5 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "High",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "UGW1-BoxUsage:c4.xlarge",
+                "operation": "RunInstances:FFP-CMR42T3-1",
+                "capacitystatus": "UsedFFP-CMR42T3-1",
+                "dedicatedEbsThroughput": "750 Mbps",
+                "ecu": "16",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "8",
                 "preInstalledSw": "NA",
                 "processorFeatures": "Intel AVX; Intel AVX2; Intel Turbo",
                 "servicename": "Amazon Elastic Compute Cloud"

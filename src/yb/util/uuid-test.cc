@@ -25,7 +25,7 @@ class UuidTest : public YBTest {
     Uuid uuid_orig;
     ASSERT_OK(uuid_orig.FromString(strval));
     std::string bytes;
-    ASSERT_OK(uuid_orig.ToBytes(&bytes));
+    uuid_orig.ToBytes(&bytes);
     Uuid uuid_new;
     ASSERT_OK(uuid_new.FromBytes(bytes));
 
@@ -164,13 +164,19 @@ TEST_F(UuidTest, TestErrors) {
   ASSERT_FALSE(uuid.FromHexString("zz111111111111111111111111111111").ok());
 }
 
-TEST_F(UuidTest, TestHexString) {
+Result<Uuid> HexRoundTrip(const std::string& input) {
   Uuid uuid;
-  ASSERT_OK(uuid.FromHexString("ffffffffffffffffffffffffffffffff"));
-  ASSERT_OK(uuid.FromHexString("00000000000000000000000000000000"));
-  ASSERT_OK(uuid.FromHexString("11000000000000000000000000000000"));
+  RETURN_NOT_OK(uuid.FromHexString(input));
+  EXPECT_EQ(input, uuid.ToHexString());
+  return uuid;
+}
+
+TEST_F(UuidTest, TestHexString) {
+  ASSERT_OK(HexRoundTrip("ffffffffffffffffffffffffffffffff"));
+  ASSERT_OK(HexRoundTrip("00000000000000000000000000000000"));
+  auto uuid = ASSERT_RESULT(HexRoundTrip("11000000000000000000000000000000"));
   EXPECT_EQ("00000000-0000-0000-0000-000000000011", uuid.ToString());
-  ASSERT_OK(uuid.FromHexString("00004455664256a4d3029be867453e12"));
+  uuid = ASSERT_RESULT(HexRoundTrip("00004455664256a4d3029be867453e12"));
   EXPECT_EQ("123e4567-e89b-02d3-a456-426655440000", uuid.ToString());
 }
 

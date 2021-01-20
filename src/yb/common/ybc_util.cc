@@ -29,6 +29,7 @@
 #include "yb/util/scope_exit.h"
 #include "yb/util/status.h"
 #include "yb/util/version_info.h"
+#include "yb/util/thread.h"
 
 #include "yb/util/net/net_util.h"
 
@@ -75,7 +76,7 @@ Status InitGFlags(const char* argv0) {
     RETURN_NOT_OK(Env::Default()->GetExecutablePath(&executable_path_str));
     executable_path = executable_path_str.c_str();
   }
-  DSCHECK(executable_path != nullptr, RuntimeError, "Unable to get path to executable");
+  RSTATUS_DCHECK(executable_path != nullptr, RuntimeError, "Unable to get path to executable");
 
   // Change current working directory from postgres data dir (as set by postmaster)
   // to the one from yb-tserver so that relative paths in gflags would be resolved in the same way.
@@ -242,6 +243,10 @@ YBCStatus YBCInitGFlags(const char* argv0) {
   return ToYBCStatus(yb::InitGFlags(argv0));
 }
 
+bool YBCIsTxnConflictError(uint16_t txn_errcode) {
+  return txn_errcode == static_cast<uint16_t>(TransactionErrorCode::kConflict);
+}
+
 YBCStatus YBCInit(const char* argv0,
                   YBCPAllocFn palloc_fn,
                   YBCCStringToTextWithLenFn cstring_to_text_with_len_fn) {
@@ -290,6 +295,10 @@ void YBCResolveHostname() {
     LOG(WARNING) << "Failed to get fully qualified domain name of the local hostname: "
                  << status;
   }
+}
+
+void YBCInitThreading() {
+  InitThreading();
 }
 
 } // extern "C"

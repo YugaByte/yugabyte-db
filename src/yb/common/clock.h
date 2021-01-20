@@ -37,7 +37,9 @@ class ClockBase : public RefCountedThreadSafe<ClockBase> {
   virtual ~ClockBase() {}
 };
 
-CHECKED_STATUS WaitUntil(ClockBase* clock, HybridTime hybrid_time, CoarseTimePoint deadline);
+// Returns time after wait.
+// Returns error on timeout.
+Result<HybridTime> WaitUntil(ClockBase* clock, HybridTime hybrid_time, CoarseTimePoint deadline);
 
 } // namespace yb
 

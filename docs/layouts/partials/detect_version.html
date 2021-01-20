@@ -5,6 +5,12 @@
 {{ range $index,$value := .Site.Menus }}
   {{ if eq $index $title }}
     {{ $context.Scratch.Set "currentVersionMenu" $value }}
-    {{ $context.Scratch.Set "currentVersionTitle" $index }}
+    {{ if eq $index "latest" }}
+      {{ $context.Scratch.Set "currentVersionTitle" "v2.5 (latest)" }}
+    {{ else if eq $index "stable" }}
+      {{ $context.Scratch.Set "currentVersionTitle" "v2.2 (stable)" }}
+    {{ else }}
+      {{ $context.Scratch.Set "currentVersionTitle" $index }}
+    {{ end }}
   {{ end }}
 {{ end }}

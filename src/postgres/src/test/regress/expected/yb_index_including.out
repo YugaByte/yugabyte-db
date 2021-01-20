@@ -48,7 +48,7 @@ WHERE i.indrelid = 'tbl_include_unique1'::regclass ORDER BY c.relname;
 CREATE TABLE tbl_include_unique2 (c1 int, c2 int, c3 int, c4 int);
 INSERT INTO tbl_include_unique2 SELECT 1, 2, 3*x, 4 FROM generate_series(1,10) AS x;
 CREATE UNIQUE INDEX tbl_include_unique2_idx_unique ON tbl_include_unique2 using lsm (c1, c2) INCLUDE (c3, c4);
-ERROR:  duplicate key value violates unique constraint "tbl_include_unique2_idx_unique"
+ERROR:  Aborted: ERROR:  duplicate key value violates unique constraint "tbl_include_unique2_idx_unique"
 ALTER TABLE tbl_include_unique2 add UNIQUE (c1, c2) INCLUDE (c3, c4);
 ERROR:  duplicate key value violates unique constraint "tbl_include_unique2_c1_c2_c3_c4_key"
 -- NOT SUPPORTED

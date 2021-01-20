@@ -26,6 +26,7 @@
 
 #include "miscadmin.h"
 #include "access/nbtree.h"
+#include "access/reloptions.h"
 #include "access/relscan.h"
 #include "access/sysattr.h"
 #include "access/ybcam.h"
@@ -44,6 +45,7 @@ typedef struct
 	bool	isprimary;		/* are we building a primary index? */
 	double	index_tuples;	/* # of tuples inserted into index */
 	bool	is_backfill;	/* are we concurrently backfilling an index? */
+	uint64_t *write_time;	/* write time for rows written to index */
 } YBCBuildState;
 
 /*
@@ -110,7 +112,8 @@ ybcinbuildCallback(Relation index, HeapTuple heapTuple, Datum *values, bool *isn
 							  values,
 							  isnull,
 							  heapTuple->t_ybctid,
-							  buildstate->is_backfill);
+							  buildstate->is_backfill,
+							  buildstate->write_time);
 
 	buildstate->index_tuples += 1;
 }
@@ -151,6 +154,8 @@ ybcinbackfill(Relation heap,
 	buildstate.isprimary = index->rd_index->indisprimary;
 	buildstate.index_tuples = 0;
 	buildstate.is_backfill = true;
+	/* Backfilled rows should be as if they happened at the time of backfill */
+	buildstate.write_time = read_time;
 	heap_tuples = IndexBackfillHeapRangeScan(heap,
 											 index,
 											 indexInfo,
@@ -183,7 +188,8 @@ ybcininsert(Relation index, Datum *values, bool *isnull, Datum ybctid, Relation 
 							  values,
 							  isnull,
 							  ybctid,
-							  false /* is_backfill */);
+							  false /* is_backfill */,
+							  NULL /* read_time */);
 
 	return index->rd_index->indisunique ? true : false;
 }
@@ -237,6 +243,13 @@ ybcincostestimate(struct PlannerInfo *root, struct IndexPath *path, double loop_
 bytea *
 ybcinoptions(Datum reloptions, bool validate)
 {
+	/*
+	 * For now we only need to validate the reloptions, as we currently have no
+	 * need for a special struct similar to BrinOptions or GinOptions.
+	 * Thus, we will still return NULL for now.
+	 */
+	int numoptions;
+	(void) parseRelOptions(reloptions, validate, RELOPT_KIND_INDEX, &numoptions);
 	return NULL;
 }
 
@@ -244,7 +257,7 @@ bool
 ybcinproperty(Oid index_oid, int attno, IndexAMProperty prop, const char *propname,
 			  bool *res, bool *isnull)
 {
-	return false;	
+	return false;
 }
 
 bool
@@ -270,7 +283,7 @@ ybcinbeginscan(Relation rel, int nkeys, int norderbys)
 	return scan;
 }
 
-void 
+void
 ybcinrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,	ScanKey orderbys, int norderbys)
 {
 	if (scan->opaque)
@@ -303,6 +316,11 @@ ybcingettuple(IndexScanDesc scan, ScanDirection dir)
 
 	YbScanDesc ybscan = (YbScanDesc) scan->opaque;
 	ybscan->exec_params = scan->yb_exec_params;
+	if (!ybscan->exec_params) {
+		ereport(DEBUG1, (errmsg("null exec_params")));
+	} else {
+		ybscan->exec_params->read_from_followers = YBReadFromFollowersEnabled();
+	}
 	Assert(PointerIsValid(ybscan));
 
 	/*
@@ -321,6 +339,9 @@ ybcingettuple(IndexScanDesc scan, ScanDirection dir)
 	}
 	else
 	{
+		if (ybscan->exec_params && ybscan->exec_params->read_from_followers) {
+			ereport(DEBUG2, (errmsg("ybcingettuple read from followers")));
+		}
 		HeapTuple tuple = ybc_getnext_heaptuple(ybscan, is_forward_scan, &scan->xs_recheck);
 		if (tuple)
 		{
@@ -333,7 +354,7 @@ ybcingettuple(IndexScanDesc scan, ScanDirection dir)
 	return scan->xs_ctup.t_ybctid != 0;
 }
 
-void 
+void
 ybcinendscan(IndexScanDesc scan)
 {
 	YbScanDesc ybscan = (YbScanDesc)scan->opaque;

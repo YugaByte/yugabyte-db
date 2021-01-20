@@ -7,7 +7,7 @@ package com.yugabyte.yw.models.helpers;
  *
  * NOTE: the names of fields in this class MUST correspond to the output field names of the script
  * 'yb_inventory.py' which is in the 'devops' repository.
- * 
+ *
  */
 public class CloudSpecificInfo {
   // The private ip address
@@ -33,6 +33,8 @@ public class CloudSpecificInfo {
   public boolean assignPublicIP = true;
   public boolean useTimeSync = false;
 
+  public String mount_roots;
+
   public CloudSpecificInfo() {
   }
 
@@ -49,6 +51,7 @@ public class CloudSpecificInfo {
     cloudInfo.region = region;
     cloudInfo.cloud = cloud;
     cloudInfo.assignPublicIP = assignPublicIP;
+    cloudInfo.mount_roots = mount_roots;
     return cloudInfo;
   }
 
@@ -61,6 +64,9 @@ public class CloudSpecificInfo {
       .append(".").append(cloud)
       .append(", type: ").append(instance_type)
       .append(", ip: ").append(private_ip);
+    if (mount_roots != null && !mount_roots.isEmpty()) {
+      sb.append(", mountRoots: ").append(mount_roots);
+    }
     return sb.toString();
   }
 }

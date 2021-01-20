@@ -52,14 +52,16 @@ struct SstFileMetaData;
 struct ColumnFamilyMetaData {
   ColumnFamilyMetaData() : size(0), name("") {}
   ColumnFamilyMetaData(const std::string& _name, uint64_t _size,
-                       const std::vector<LevelMetaData>&& _levels) :
-      size(_size), name(_name), levels(_levels) {}
+                       const std::vector<LevelMetaData>&& _levels)
+      : size(_size),
+        name(_name),
+        levels(_levels) {}
 
   // The size of this column family in bytes, which is equal to the sum of
   // the file size of its "levels".
-  uint64_t size;
+  uint64_t size = 0;
   // The number of files in this column family.
-  size_t file_count;
+  size_t file_count = 0;
   // The name of the column family.
   std::string name;
   // The metadata of all levels in this column family.
@@ -69,15 +71,16 @@ struct ColumnFamilyMetaData {
 // The metadata that describes a level.
 struct LevelMetaData {
   LevelMetaData(int _level, uint64_t _size,
-                const std::vector<SstFileMetaData>&& _files) :
-      level(_level), size(_size),
-      files(_files) {}
+                const std::vector<SstFileMetaData>&& _files)
+      : level(_level),
+        size(_size),
+        files(_files) {}
 
   // The level which this meta data describes.
-  const int level;
+  const int level = 0;
   // The size of this level in bytes, which is equal to the sum of
   // the file size of its "files".
-  const uint64_t size;
+  const uint64_t size = 0;
   // The metadata of all sst files in this level.
   const std::vector<SstFileMetaData> files;
 };
@@ -254,19 +257,23 @@ struct SstFileMetaData {
                   uint64_t _uncompressed_size,
                   const BoundaryValues& _smallest,
                   const BoundaryValues& _largest,
-                  bool _being_compacted) :
-    total_size(_total_size), base_size(_base_size),
-    uncompressed_size(_uncompressed_size), name(_file_name),
-    db_path(_path), smallest(_smallest), largest(_largest),
-    being_compacted(_being_compacted) {
+                  bool _being_compacted)
+      : total_size(_total_size),
+        base_size(_base_size),
+        uncompressed_size(_uncompressed_size),
+        name(_file_name),
+        db_path(_path),
+        smallest(_smallest),
+        largest(_largest),
+        being_compacted(_being_compacted) {
   }
 
   // Total file(s) (metadata and data (aka s-block) files) size in bytes.
-  uint64_t total_size;
+  uint64_t total_size = 0;
   // Base file size in bytes.
-  uint64_t base_size;
+  uint64_t base_size = 0;
   // Total uncompressed size in bytes.
-  uint64_t uncompressed_size;
+  uint64_t uncompressed_size = 0;
   // The name of the file.
   std::string name;
   // The full path where the file locates.

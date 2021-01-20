@@ -27,6 +27,7 @@ add_library(ql_exec
 
 target_link_libraries(ql_exec
                       ql_parser
+                      ql_audit
                       yb_client
                       yb_util)
-add_dependencies(ql_exec ql_parser)
+add_dependencies(ql_exec ql_parser ql_audit)

@@ -30,7 +30,9 @@
 // under the License.
 //
 
+#include <functional>
 #include <string>
+#include <system_error>
 #include <vector>
 #include <glog/logging.h>
 #include <gtest/gtest.h>
@@ -41,19 +43,28 @@
 #include "yb/client/table_alterer.h"
 #include "yb/client/table_creator.h"
 #include "yb/client/table_handle.h"
+#include "yb/client/tablet_server.h"
 
+#include "yb/client/yb_table_name.h"
+#include "yb/common/common.pb.h"
 #include "yb/common/schema.h"
 #include "yb/common/wire_protocol-test-util.h"
 #include "yb/gutil/strings/substitute.h"
 #include "yb/gutil/strings/util.h"
 #include "yb/integration-tests/external_mini_cluster.h"
+#include "yb/master/master.pb.h"
+#include "yb/master/master.proxy.h"
+#include "yb/rpc/rpc_controller.h"
+#include "yb/util/monotime.h"
 #include "yb/util/net/net_util.h"
 #include "yb/util/stopwatch.h"
 #include "yb/util/test_util.h"
+#include "yb/tools/yb-admin_client.h"
 
 using namespace std::literals;
 
 DECLARE_int32(TEST_yb_num_total_tablets);
+DECLARE_int32(heartbeat_interval_ms);
 
 namespace yb {
 
@@ -62,6 +73,7 @@ namespace yb {
 namespace client {
 
 const int kNumTabletServerReplicas = 3;
+const int kHeartbeatIntervalMs = 500;
 
 using std::shared_ptr;
 using std::string;
@@ -90,7 +102,9 @@ class MasterFailoverTest : public YBTest {
     opts_.extra_tserver_flags.push_back("--heartbeat_max_failures_before_backoff=1");
     // Wait for 500 ms after 'max_consecutive_failed_heartbeats'
     // before trying again (down from 1 second).
-    opts_.extra_tserver_flags.push_back("--heartbeat_interval_ms=500");
+    string heartbeat_interval_flag =
+                "--heartbeat_interval_ms="+std::to_string(kHeartbeatIntervalMs);
+    opts_.extra_tserver_flags.push_back(heartbeat_interval_flag);
   }
 
   void SetUp() override {
@@ -462,6 +476,145 @@ TEST_F(MasterFailoverTest, TestFailoverAfterTsFailure) {
     return tserver_count == 3 && is_idle;
   }, MonoDelta::FromSeconds(30), "Wait for LB idle"));
 
+  cluster_->AssertNoCrashes();
+}
+
+TEST_F(MasterFailoverTest, TestLoadMoveCompletion) {
+  // Original cluster is RF3 so add a TS.
+  LOG(INFO) << "Adding a T-Server.";
+  ASSERT_OK(cluster_->AddTabletServer());
+
+  // Create a table to introduce some workload.
+  YBTableName table_name(YQL_DATABASE_CQL, "test", "testLoadMoveCompletion");
+  ASSERT_OK(CreateTable(table_name, kWaitForCreate));
+
+  // Give some time for the cluster balancer to balance tablets.
+  std::function<Result<bool> ()> is_idle = [&]() -> Result<bool> {
+    return client_->IsLoadBalancerIdle();
+  };
+  ASSERT_OK(WaitFor(is_idle,
+                MonoDelta::FromSeconds(60),
+                "Load Balancer Idle check failed"));
+
+  // Delay TS Heartbeats by 40 times of original rate.
+  ASSERT_OK(cluster_->SetFlagOnTServers("heartbeat_interval_ms",
+                            std::to_string(kHeartbeatIntervalMs * 40)));
+
+  // Wait for the delay to take effect.
+  // Approximately let's give it 4 cycles.
+  SleepFor(MonoDelta::FromMilliseconds(4 * kHeartbeatIntervalMs));
+
+  // Blacklist a TS.
+  ExternalMaster *leader = cluster_->GetLeaderMaster();
+  ExternalTabletServer *ts = cluster_->tablet_server(3);
+  ASSERT_OK(cluster_->AddTServerToBlacklist(leader, ts));
+
+  // Get the initial load.
+  int idx = -1;
+  ASSERT_OK(cluster_->GetLeaderMasterIndex(&idx));
+
+  std::shared_ptr<master::MasterServiceProxy> proxy = cluster_->master_proxy(idx);
+
+  rpc::RpcController rpc;
+  master::GetLoadMovePercentRequestPB req;
+  master::GetLoadMovePercentResponsePB resp;
+  ASSERT_OK(proxy->GetLoadMoveCompletion(req, &resp, &rpc));
+
+  int initial_total_load = resp.total();
+
+  // Failover the leader.
+  ASSERT_OK(cluster_->StepDownMasterLeaderAndWaitForNewLeader());
+
+  // Get the final load and validate.
+  req.Clear();
+  resp.Clear();
+  rpc.Reset();
+
+  ASSERT_OK(cluster_->GetLeaderMasterIndex(&idx));
+
+  proxy = cluster_->master_proxy(idx);
+  ASSERT_OK(proxy->GetLoadMoveCompletion(req, &resp, &rpc));
+
+  EXPECT_EQ(resp.total(), initial_total_load) << "Expected the initial blacklisted load"
+                                  " to be propagated to new leader master.";
+}
+
+class MasterFailoverTestWithPlacement : public MasterFailoverTest {
+ public:
+  virtual void SetUp() override {
+    opts_.extra_tserver_flags.push_back("--placement_cloud=c");
+    opts_.extra_tserver_flags.push_back("--placement_region=r");
+    opts_.extra_tserver_flags.push_back("--placement_zone=z${index}");
+    opts_.extra_tserver_flags.push_back("--placement_uuid=" + kLivePlacementUuid);
+    opts_.extra_master_flags.push_back("--enable_register_ts_from_raft=true");
+    MasterFailoverTest::SetUp();
+    yb_admin_client_ = std::make_unique<tools::enterprise::ClusterAdminClient>(
+        cluster_->GetMasterAddresses(), MonoDelta::FromSeconds(30));
+    ASSERT_OK(yb_admin_client_->Init());
+    ASSERT_OK(yb_admin_client_->ModifyPlacementInfo("c.r.z0,c.r.z1,c.r.z2", 3, kLivePlacementUuid));
+  }
+
+  virtual void TearDown() override {
+    yb_admin_client_.reset();
+    MasterFailoverTest::TearDown();
+  }
+
+  void AssertTserverHasPlacementUuid(
+      const string& ts_uuid, const string& placement_uuid,
+      const std::vector<std::unique_ptr<YBTabletServer>>& tablet_servers) {
+    auto it = std::find_if(tablet_servers.begin(), tablet_servers.end(), [&](const auto& ts) {
+        return ts->uuid() == ts_uuid;
+    });
+    ASSERT_TRUE(it != tablet_servers.end());
+    ASSERT_EQ((*it)->placement_uuid(), placement_uuid);
+  }
+
+ protected:
+  const string kReadReplicaPlacementUuid = "read_replica";
+  const string kLivePlacementUuid = "live";
+  std::unique_ptr<tools::enterprise::ClusterAdminClient> yb_admin_client_;
+};
+
+TEST_F_EX(MasterFailoverTest, TestFailoverWithReadReplicas, MasterFailoverTestWithPlacement) {
+  ASSERT_OK(yb_admin_client_->AddReadReplicaPlacementInfo(
+      "c.r.z0:1", 1, kReadReplicaPlacementUuid));
+
+  // Add a new read replica tserver to the cluster with a matching cloud info to a live placement,
+  // to test that we distinguish not just by cloud info but also by peer role.
+  std::vector<std::string> extra_opts;
+  extra_opts.push_back("--placement_cloud=c");
+  extra_opts.push_back("--placement_region=r");
+  extra_opts.push_back("--placement_zone=z0");
+  extra_opts.push_back("--placement_uuid=" + kReadReplicaPlacementUuid);
+  ASSERT_OK(cluster_->AddTabletServer(true, extra_opts));
+
+  YBTableName table_name(YQL_DATABASE_CQL, "test", "testFailoverWithReadReplicas");
+  ASSERT_OK(CreateTable(table_name, kWaitForCreate));
+
+  // Shutdown the live ts in c.r.z0
+  auto live_ts_uuid = cluster_->tablet_server(0)->instance_id().permanent_uuid();
+  cluster_->tablet_server(0)->Shutdown();
+
+  // Shutdown the rr ts in c.r.z0
+  auto rr_ts_uuid = cluster_->tablet_server(3)->instance_id().permanent_uuid();
+  cluster_->tablet_server(3)->Shutdown();
+
+  // Roll over to a new master.
+  ASSERT_OK(cluster_->ChangeConfig(cluster_->GetLeaderMaster(), consensus::REMOVE_SERVER));
+
+  // Count all servers equal to 4.
+  ASSERT_OK(WaitFor([&]() -> Result<bool> {
+    int tserver_count;
+    RETURN_NOT_OK(client_->TabletServerCount(&tserver_count, false /* primary_only */));
+    return tserver_count == 4;
+  }, MonoDelta::FromSeconds(30), "Wait for tablet server count"));
+
+  std::vector<std::unique_ptr<YBTabletServer>> tablet_servers;
+  ASSERT_OK(client_->ListTabletServers(&tablet_servers));
+
+  ASSERT_NO_FATALS(AssertTserverHasPlacementUuid(live_ts_uuid, kLivePlacementUuid, tablet_servers));
+  ASSERT_NO_FATALS(AssertTserverHasPlacementUuid(
+      rr_ts_uuid, kReadReplicaPlacementUuid, tablet_servers));
   cluster_->AssertNoCrashes();
 }
 

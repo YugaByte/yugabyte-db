@@ -15,6 +15,8 @@
 
 #include "yb/rpc/scheduler.h"
 
+#include <thread>
+
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/strand.hpp>
 
@@ -26,8 +28,10 @@
 #include <glog/logging.h>
 
 #include "yb/util/errno.h"
+#include "yb/util/logging.h"
 #include "yb/util/status.h"
 
+using namespace std::literals;
 using namespace std::placeholders;
 using boost::multi_index::const_mem_fun;
 using boost::multi_index::hashed_unique;
@@ -35,6 +39,12 @@ using boost::multi_index::ordered_non_unique;
 
 namespace yb {
 namespace rpc {
+
+namespace {
+
+constexpr int64_t kShutdownMark = -(1ULL << 32U);
+
+}
 
 class Scheduler::Impl {
  public:
@@ -184,6 +194,33 @@ ScheduledTaskId Scheduler::NextId() {
 
 IoService& Scheduler::io_service() {
   return impl_->io_service();
+}
+
+void ScheduledTaskTracker::Abort() {
+  auto last_scheduled_task_id = last_scheduled_task_id_.load(std::memory_order_acquire);
+  if (last_scheduled_task_id != rpc::kInvalidTaskId) {
+    scheduler_->Abort(last_scheduled_task_id);
+  }
+}
+
+void ScheduledTaskTracker::StartShutdown() {
+  auto num_scheduled = num_scheduled_.load(std::memory_order_acquire);
+  while (num_scheduled >= 0) {
+    num_scheduled_.compare_exchange_strong(num_scheduled, num_scheduled + kShutdownMark);
+  }
+}
+
+void ScheduledTaskTracker::CompleteShutdown() {
+  for (;;) {
+    auto left = num_scheduled_.load(std::memory_order_acquire) - kShutdownMark;
+    if (left <= 0) {
+      LOG_IF(DFATAL, left < 0) << "Negative number of tasks left: " << left;
+      break;
+    }
+    YB_LOG_EVERY_N_SECS(INFO, 1) << "Waiting " << left << " tasks to complete";
+    Abort();
+    std::this_thread::sleep_for(1ms);
+  }
 }
 
 } // namespace rpc

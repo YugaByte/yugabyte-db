@@ -68,7 +68,7 @@ class ExternalMiniClusterSecureTest :
 };
 
 TEST_F(ExternalMiniClusterSecureTest, Simple) {
-  client::KeyValueTableTest::CreateTable(
+  client::kv_table_test::CreateTable(
       client::Transactional::kFalse, CalcNumTablets(3), client_.get(), &table_);
 
   const int32_t kKey = 1;
@@ -76,12 +76,14 @@ TEST_F(ExternalMiniClusterSecureTest, Simple) {
 
   {
     auto session = NewSession();
-    auto op = ASSERT_RESULT(client::KeyValueTableTest::WriteRow(&table_, session, kKey, kValue));
+    auto op = ASSERT_RESULT(client::kv_table_test::WriteRow(
+        &table_, session, kKey, kValue));
     ASSERT_EQ(op->response().status(), QLResponsePB::YQL_STATUS_OK);
   }
 
   {
-    auto value = ASSERT_RESULT(client::KeyValueTableTest::SelectRow(&table_, NewSession(), kKey));
+    auto value = ASSERT_RESULT(client::kv_table_test::SelectRow(
+        &table_, NewSession(), kKey));
     ASSERT_EQ(kValue, value);
   }
 }

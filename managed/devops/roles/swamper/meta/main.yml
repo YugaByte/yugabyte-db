@@ -7,6 +7,10 @@
 # https://github.com/YugaByte/yugabyte-db/blob/master/licenses/POLYFORM-FREE-TRIAL-LICENSE-1.0.0.txt
 
 dependencies:
+  - role: get_prometheus_user_group
+    become: yes
+    become_method: sudo
+
   - role: ansible-prometheus
     become: yes
     become_method: sudo
@@ -14,4 +18,6 @@ dependencies:
     prometheus_use_service: true
     prometheus_node_exporter_opts: "-web.listen-address=:{{ node_exporter_port }}"
     prometheus_node_exporter_use_systemd: true
+    prometheus_user: "{{ node_exporter_user }}"
+    prometheus_group: "{{ node_exporter_group }}"
     when: install_node_exporter is not defined or install_node_exporter|bool

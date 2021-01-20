@@ -9,7 +9,7 @@ import { openDialog, closeDialog } from '../../../actions/modal';
 const mapDispatchToProps = (dispatch) => {
   return {
     showUniverseModal: () => {
-      dispatch(openDialog("universeModal"));
+      dispatch(openDialog('universeModal'));
     },
     closeUniverseModal: () => {
       dispatch(closeDialog());
@@ -17,9 +17,8 @@ const mapDispatchToProps = (dispatch) => {
     },
     fetchUniverseMetadata: () => {
       dispatch(fetchUniverseMetadata());
-    },
+    }
   };
 };
 
 export default connect(null, mapDispatchToProps)(UniverseDisplayPanel);
-

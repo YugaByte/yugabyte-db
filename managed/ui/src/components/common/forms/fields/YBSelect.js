@@ -9,9 +9,16 @@ import { YBLabel } from '../../../../components/common/descriptors';
 
 export class YBControlledSelect extends Component {
   render() {
-    const {selectVal, input, options, defaultValue, onInputChanged, isReadOnly} = this.props;
+    const { selectVal, input, options, defaultValue, onInputChanged, isReadOnly } = this.props;
     return (
-      <select {...input} className="form-control" onChange={onInputChanged} defaultValue={defaultValue} value={selectVal} disabled={isReadOnly}>
+      <select
+        {...input}
+        className="form-control"
+        onChange={onInputChanged}
+        defaultValue={defaultValue}
+        value={selectVal}
+        disabled={isReadOnly}
+      >
         {options}
       </select>
     );
@@ -41,10 +48,10 @@ export class YBUnControlledSelect extends Component {
 
 export class YBControlledSelectWithLabel extends Component {
   render() {
-    const { label, meta, infoContent, infoTitle, ...otherProps} = this.props;
+    const { label, meta, infoContent, infoTitle, ...otherProps } = this.props;
     return (
-      <YBLabel label={label} meta={meta} infoContent={infoContent} infoTitle={infoTitle} >
-        <YBControlledSelect {...otherProps}/>
+      <YBLabel label={label} meta={meta} infoContent={infoContent} infoTitle={infoTitle}>
+        <YBControlledSelect {...otherProps} />
       </YBLabel>
     );
   }
@@ -52,9 +59,9 @@ export class YBControlledSelectWithLabel extends Component {
 
 export default class YBSelectWithLabel extends Component {
   render() {
-    const { label, meta, infoContent, infoTitle, ...otherProps} = this.props;
+    const { label, meta, infoContent, infoTitle, ...otherProps } = this.props;
     return (
-      <YBLabel label={label} meta={meta} infoContent={infoContent} infoTitle={infoTitle} >
+      <YBLabel label={label} meta={meta} infoContent={infoContent} infoTitle={infoTitle}>
         <YBUnControlledSelect {...otherProps} />
       </YBLabel>
     );

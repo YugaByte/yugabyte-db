@@ -72,6 +72,16 @@ void CompactionIterator::ResetRecordCounts() {
 }
 
 void CompactionIterator::SeekToFirst() {
+  if (compaction_filter_) {
+    auto drop_keys_before = compaction_filter_->DropKeysLessThan();
+
+    if (!drop_keys_before.empty()) {
+      IterKey start_iter;
+      start_iter.SetInternalKey(drop_keys_before, kMaxSequenceNumber, kValueTypeForSeek);
+      input_->Seek(start_iter.GetKey());
+    }
+  }
+
   NextFromInput();
   PrepareOutput();
 }
@@ -144,6 +154,15 @@ void CompactionIterator::NextFromInput() {
       iter_stats_.num_input_corrupt_records++;
       valid_ = true;
       break;
+    }
+
+    if (compaction_filter_) {
+      auto drop_keys_greater_or_equal = compaction_filter_->DropKeysGreaterOrEqual();
+      if (!drop_keys_greater_or_equal.empty() &&
+          cmp_->Compare(drop_keys_greater_or_equal, key_) <= 0) {
+        valid_ = false;
+        return;
+      }
     }
 
     // Update input statistics

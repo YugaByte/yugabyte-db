@@ -44,6 +44,7 @@
 #include "yb/consensus/consensus_fwd.h"
 #include "yb/consensus/consensus_context.h"
 #include "yb/consensus/consensus_meta.h"
+#include "yb/consensus/consensus_types.h"
 #include "yb/consensus/log.h"
 #include "yb/gutil/callback.h"
 #include "yb/gutil/ref_counted.h"
@@ -165,7 +166,7 @@ class TabletPeer : public consensus::ConsensusContext,
       ThreadPool* raft_pool,
       ThreadPool* tablet_prepare_pool,
       consensus::RetryableRequests* retryable_requests,
-      const yb::OpId& split_op_id);
+      const consensus::SplitOpInfo& split_op_info);
 
   // Starts the TabletPeer, making it available for Write()s. If this
   // TabletPeer is part of a consensus configuration this will connect it to other peers
@@ -199,8 +200,6 @@ class TabletPeer : public consensus::ConsensusContext,
       std::unique_ptr<WriteOperationState> operation_state, int64_t term, CoarseTimePoint deadline);
 
   void Submit(std::unique_ptr<Operation> operation, int64_t term) override;
-
-  HybridTime Now() override;
 
   void UpdateClock(HybridTime hybrid_time) override;
 
@@ -390,6 +389,9 @@ class TabletPeer : public consensus::ConsensusContext,
   // Returns the number of segments in log_.
   int GetNumLogSegments() const;
 
+  // Might update the can_be_deleted_.
+  bool CanBeDeleted();
+
   std::string LogPrefix() const;
 
  protected:
@@ -480,14 +482,15 @@ class TabletPeer : public consensus::ConsensusContext,
   MonoTime cdc_min_replicated_index_refresh_time_ = MonoTime::Min();
 
  private:
-  HybridTime ReportReadRestart() override;
+  Result<HybridTime> ReportReadRestart() override;
 
-  FixedHybridTimeLease HybridTimeLease(MicrosTime min_allowed, CoarseTimePoint deadline);
-  HybridTime PreparePeerRequest() override;
+  Result<FixedHybridTimeLease> HybridTimeLease(HybridTime min_allowed, CoarseTimePoint deadline);
+  Result<HybridTime> PreparePeerRequest() override;
   void MajorityReplicated() override;
   void ChangeConfigReplicated(const consensus::RaftConfigPB& config) override;
   uint64_t NumSSTFiles() override;
   void ListenNumSSTFilesChanged(std::function<void()> listener) override;
+  rpc::Scheduler& scheduler() const override;
 
   MetricRegistry* metric_registry_;
 
@@ -497,7 +500,14 @@ class TabletPeer : public consensus::ConsensusContext,
 
   TabletSplitter* tablet_splitter_;
 
+  // can_be_deleted_ is set to true if tablet can be deleted (all replicas have been split and
+  // tablet is no longer needed). After setting to true it will stay that way forever until
+  // TabletPeer is destroyed.
+  std::atomic<bool> can_be_deleted_ = {false};
+
   std::shared_future<client::YBClient*> client_future_;
+
+  rpc::Messenger* messenger_;
 
   DISALLOW_COPY_AND_ASSIGN(TabletPeer);
 };

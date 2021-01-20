@@ -61,7 +61,9 @@ class ErrorCollector : public RefCountedThreadSafe<ErrorCollector> {
   int CountErrors() const;
 
   // See YBSession for details.
-  CollectedErrors GetErrors();
+  CollectedErrors GetAndClearErrors();
+
+  void ClearErrors();
 
   // If there is only one error in the error collector, returns its associated status. Otherwise
   // returns Status::OK().

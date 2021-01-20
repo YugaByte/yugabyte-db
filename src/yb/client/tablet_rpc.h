@@ -47,6 +47,9 @@ class TabletRpc {
 
   // attempt_num starts with 1.
   virtual void SendRpcToTserver(int attempt_num) = 0;
+
+  virtual bool ShouldRetryExpiredRequest() { return false; }
+
  protected:
   ~TabletRpc() {}
 };
@@ -54,12 +57,15 @@ class TabletRpc {
 tserver::TabletServerErrorPB_Code ErrorCode(const tserver::TabletServerErrorPB* error);
 class TabletInvoker {
  public:
+  // If table is specified, TabletInvoker can detect that table partitions are stale in case tablet
+  // is no longer available and return ClientErrorCode::kTablePartitionsAreStale.
   explicit TabletInvoker(const bool local_tserver_only,
                          const bool consistent_prefix,
                          YBClient* client,
                          rpc::RpcCommand* command,
                          TabletRpc* rpc,
                          RemoteTablet* tablet,
+                         const std::shared_ptr<const YBTable>& table,
                          rpc::RpcRetrier* retrier,
                          Trace* trace);
 
@@ -78,6 +84,8 @@ class TabletInvoker {
   YBClient& client() const { return *client_; }
   const RemoteTabletServer& current_ts() { return *current_ts_; }
   bool local_tserver_only() const { return local_tserver_only_; }
+
+  bool is_consistent_prefix() const { return consistent_prefix_; }
 
  private:
   friend class TabletRpcTest;
@@ -123,6 +131,8 @@ class TabletInvoker {
   RemoteTabletPtr tablet_;
 
   std::string tablet_id_;
+
+  const std::shared_ptr<const YBTable> table_;
 
   rpc::RpcRetrier* const retrier_;
 

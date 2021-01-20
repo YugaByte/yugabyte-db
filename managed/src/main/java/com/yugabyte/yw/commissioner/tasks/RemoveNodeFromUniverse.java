@@ -14,9 +14,6 @@ import com.yugabyte.yw.commissioner.SubTaskGroupQueue;
 import com.yugabyte.yw.commissioner.UserTaskDetails.SubTaskGroupType;
 import com.yugabyte.yw.commissioner.tasks.UniverseDefinitionTaskBase.ServerType;
 import com.yugabyte.yw.commissioner.tasks.params.NodeTaskParams;
-import com.yugabyte.yw.commissioner.tasks.subtasks.ChangeMasterConfig;
-import com.yugabyte.yw.commissioner.tasks.subtasks.WaitForDataMove;
-import com.yugabyte.yw.commissioner.tasks.subtasks.WaitForLoadBalance;
 import com.yugabyte.yw.common.PlacementInfoUtil;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.UserIntent;
@@ -32,7 +29,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import play.api.Play;
-import play.libs.Json;
 
 // Allows the removal of a node from a universe. Ensures the task waits for the right set of
 // server data move primitives. And stops using the underlying instance, though YW still owns it.
@@ -51,6 +47,7 @@ public class RemoveNodeFromUniverse extends UniverseTaskBase {
     NodeDetails currentNode = null;
     boolean hitException = false;
     try {
+      checkUniverseVersion();
       // Create the task list sequence.
       subTaskGroupQueue = new SubTaskGroupQueue(userTaskUUID);
 
@@ -64,9 +61,12 @@ public class RemoveNodeFromUniverse extends UniverseTaskBase {
         throw new RuntimeException(msg);
       }
 
-      if (currentNode.state != NodeDetails.NodeState.Live) {
-        String msg = "Node " + taskParams().nodeName + " is not in live state, but is in " +
-                     currentNode.state + ", so cannot be removed.";
+      if (currentNode.state != NodeDetails.NodeState.Live
+          && currentNode.state != NodeDetails.NodeState.ToBeRemoved
+          && currentNode.state != NodeDetails.NodeState.ToJoinCluster) {
+        String msg = "Node " + taskParams().nodeName
+            + " is not in Live/ToJoinCluster/ToBeRemoved states, but is in " + currentNode.state
+            + ", so cannot be removed.";
         LOG.error(msg);
         throw new RuntimeException(msg);
       }
@@ -85,7 +85,14 @@ public class RemoveNodeFromUniverse extends UniverseTaskBase {
       createSetNodeStateTask(currentNode, NodeState.Removing)
           .setSubTaskGroupType(SubTaskGroupType.RemovingNode);
 
-      boolean instanceAlive = instanceExists(taskParams());
+      boolean instanceAlive = false;
+      try {
+        instanceAlive = instanceExists(taskParams());
+      } catch (Exception e) {
+        LOG.info("Instance {} in universe {} not found, assuming dead", taskParams().nodeName,
+            universe.name);
+      }
+
       if (instanceAlive) {
         // Remove the master on this node from master quorum and update its state from YW DB,
         // only if it reachable.
@@ -126,7 +133,7 @@ public class RemoveNodeFromUniverse extends UniverseTaskBase {
         int rfInZone = PlacementInfoUtil.getZoneRF(pi, currentNode.cloudInfo.cloud,
                                                    currentNode.cloudInfo.region,
                                                    currentNode.cloudInfo.az);
-        int nodesInZone = PlacementInfoUtil.getNumActiveTserversInZone(
+        long nodesInZone = PlacementInfoUtil.getNumActiveTserversInZone(
             universe.getNodes(), currentNode.cloudInfo.cloud,
             currentNode.cloudInfo.region, currentNode.cloudInfo.az);
 

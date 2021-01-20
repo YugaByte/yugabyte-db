@@ -39,6 +39,9 @@
 
 using namespace std::literals;
 
+DEFINE_int32(master_log_lock_warning_ms, 100,
+             "Print warnings if lock is held for longer than this amount of time.");
+
 using yb::consensus::Consensus;
 using yb::consensus::ConsensusStatePB;
 
@@ -109,7 +112,8 @@ void ScopedLeaderSharedLock::Unlock() {
       lock.swap(leader_shared_lock_);
     }
     auto finish = std::chrono::steady_clock::now();
-    static const auto kLongLockLimit = RegularBuildVsSanitizers(100ms, 750ms);
+    static const auto kLongLockLimit = RegularBuildVsSanitizers(
+        FLAGS_master_log_lock_warning_ms * 1ms, 750ms);
     if (finish > start_ + kLongLockLimit) {
       LOG(WARNING) << "Long lock of catalog manager: " << yb::ToString(finish - start_) << "\n"
                    << GetStackTrace();

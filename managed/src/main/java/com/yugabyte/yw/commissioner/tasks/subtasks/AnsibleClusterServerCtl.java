@@ -12,6 +12,7 @@ package com.yugabyte.yw.commissioner.tasks.subtasks;
 
 import com.yugabyte.yw.common.NodeManager;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,12 +44,14 @@ public class AnsibleClusterServerCtl extends NodeTaskBase {
   public void run() {
     try {
       // Execute the ansible command.
-      ShellProcessHandler.ShellResponse response = getNodeManager().nodeCommand(
+      ShellResponse response = getNodeManager().nodeCommand(
           NodeManager.NodeCommandType.Control, taskParams());
-      logShellResponse(response);
+      processShellResponse(response);
     } catch (Exception e) {
       if (!taskParams().isForceDelete) {
         throw e;
+      } else {
+        LOG.debug("Ignoring error: {}", e.getMessage());
       }
     }
 

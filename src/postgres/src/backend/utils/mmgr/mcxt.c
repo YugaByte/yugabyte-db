@@ -67,6 +67,13 @@ void ResetThreadLocalCurrentMemoryContext()
 	MemoryContextReset(memctx);
 }
 
+void DeleteThreadLocalCurrentMemoryContext()
+{
+	MemoryContext memctx = (MemoryContext) YBCPgSetThreadLocalCurrentMemoryContext(NULL);
+	YBCPgResetCurrentMemCtxThreadLocalVars();
+	MemoryContextDelete(memctx);
+}
+
 /*
  * Standard top-level contexts. For a description of the purpose of each
  * of these contexts, refer to src/backend/utils/mmgr/README
@@ -291,7 +298,8 @@ MemoryContextDelete(MemoryContext context)
 	/*
 	 * Destroy YugaByte memory context.
 	 */
-	HandleYBStatus(YBCPgDestroyMemctx(context->yb_memctx));
+	if (context->yb_memctx)
+		HandleYBStatus(YBCPgDestroyMemctx(context->yb_memctx));
 	context->yb_memctx = NULL;
 
 	VALGRIND_DESTROY_MEMPOOL(context);

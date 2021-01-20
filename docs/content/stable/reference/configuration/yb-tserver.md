@@ -523,6 +523,12 @@ For details on how online index backfill works, see the [Online Index Backfill](
 
 Default: `true`
 
+##### --ycql_enable_audit_log
+
+Set this flag to `true` to enable audit logging for the universe.
+
+For details, see [Audit logging for the YCQL API](../../../secure/audit-logging/ycql).
+
 ---
 
 ### YEDIS flags

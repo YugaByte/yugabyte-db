@@ -45,6 +45,10 @@ class AbstractCloud(AbstractCommandParser):
     CERT_VALID_DURATION = 365
     CERTS_TEMP_DIR = "/opt/yugaware/certs"
     YSQLSH_CERT_DIR = os.path.join(YB_HOME_DIR, ".yugabytedb")
+    ROOT_CERT_NAME = "ca.crt"
+    CLIENT_ROOT_NAME = "root.crt"
+    CLIENT_CERT_NAME = "yugabytedb.crt"
+    CLIENT_KEY_NAME = "yugabytedb.key"
 
     def __init__(self, name):
         super(AbstractCloud, self).__init__(name)
@@ -178,6 +182,73 @@ class AbstractCloud(AbstractCommandParser):
             "-U postgres\"".format(master_addresses, init_db_path)
         )
 
+    def compare_root_certs(self, extra_vars, ssh_options):
+        has_openssl = True
+        root_cert_path = extra_vars["root_cert_path"]
+        certs_node_dir = extra_vars["certs_node_dir"]
+        yb_root_cert_path = os.path.join(certs_node_dir, self.ROOT_CERT_NAME)
+        remote_shell = RemoteShell(ssh_options)
+        try:
+            remote_shell.run_command('which openssl')
+        except YBOpsRuntimeError as e:
+            # No openssl, just compare files.
+            has_openssl = False
+
+        # Check if files exist. If not, let it error out (since the root files should be there.)
+        remote_shell.run_command('test -f {}'.format(root_cert_path))
+        remote_shell.run_command('test -f {}'.format(yb_root_cert_path))
+
+        # Compare the openssl hash if openssl is present.
+        if has_openssl:
+            md5_cmd = "openssl x509 -noout -modulus -in '{}' | openssl md5"
+            curr_root = remote_shell.run_command(md5_cmd.format(yb_root_cert_path))
+            new_root = remote_shell.run_command(md5_cmd.format(root_cert_path))
+            if curr_root.stdout != new_root.stdout:
+                raise YBOpsRuntimeError("Root certs are different.")
+        # Openssl not present, just compare the files after removing whitespace.
+        else:
+            # If there is an error code, that means the files are different. Should fail.
+            remote_shell.run_command('diff -Z {} {}'.format(root_cert_path, yb_root_cert_path))
+
+    def copy_certs(self, extra_vars, ssh_options):
+        node_ip = ssh_options["ssh_host"]
+        root_cert_path = extra_vars["root_cert_path"]
+        node_cert_path = extra_vars["node_cert_path"]
+        node_key_path = extra_vars["node_key_path"]
+        certs_node_dir = extra_vars["certs_node_dir"]
+        logging.info("Moving certs located at {}, {}, {}.".format(root_cert_path, node_cert_path,
+                                                                  node_key_path))
+        key_file = 'node.{}.key'.format(node_ip)
+        cert_file = 'node.{}.crt'.format(node_ip)
+
+        remote_shell = RemoteShell(ssh_options)
+        remote_shell.run_command('mkdir -p ' + certs_node_dir)
+        # Give write permission in case file exists. If the command fails, ignore.
+        remote_shell.run_command('chmod -f 666 {}/* || true'.format(certs_node_dir))
+        remote_shell.run_command('cp {} {}'.format(root_cert_path,
+                                                   os.path.join(certs_node_dir,
+                                                                self.ROOT_CERT_NAME)))
+        remote_shell.run_command('cp {} {}'.format(node_cert_path,
+                                                   os.path.join(certs_node_dir, cert_file)))
+        remote_shell.run_command('cp {} {}'.format(node_key_path,
+                                                   os.path.join(certs_node_dir, key_file)))
+        remote_shell.run_command('chmod 400 {}/*'.format(certs_node_dir))
+        if "client_cert_path" in extra_vars:
+            client_cert_path = extra_vars["client_cert_path"]
+            client_key_path = extra_vars["client_key_path"]
+            logging.info("Moving client certs located at {}, {}.".format(client_cert_path,
+                                                                         client_key_path))
+            remote_shell.run_command('mkdir -p ' + self.YSQLSH_CERT_DIR)
+            # Give write permission in case file exists. If the command fails, ignore.
+            remote_shell.run_command('chmod -f 666 {}/* || true'.format(self.YSQLSH_CERT_DIR))
+            remote_shell.run_command('cp {} {}'.format(client_cert_path,
+                                                       os.path.join(self.YSQLSH_CERT_DIR,
+                                                                    self.CLIENT_CERT_NAME)))
+            remote_shell.run_command('cp {} {}'.format(client_key_path,
+                                                       os.path.join(self.YSQLSH_CERT_DIR,
+                                                                    self.CLIENT_KEY_NAME)))
+            remote_shell.run_command('chmod 400 {}/*'.format(self.YSQLSH_CERT_DIR))
+
     def generate_client_cert(self, extra_vars, ssh_options):
         node_ip = ssh_options["ssh_host"]
         root_cert_path = extra_vars["rootCA_cert"]
@@ -201,8 +272,8 @@ class AbstractCloud(AbstractCommandParser):
             x509.NameAttribute(NameOID.ORGANIZATION_NAME, six.text_type(extra_vars["org_name"]))
         ]))
         builder = builder.issuer_name(root_cert.subject)
-        builder = builder.not_valid_before(datetime.datetime.today())
-        builder = builder.not_valid_after(datetime.datetime.today() + datetime.timedelta(
+        builder = builder.not_valid_before(datetime.datetime.utcnow())
+        builder = builder.not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(
             extra_vars["cert_valid_duration"]))
         builder = builder.serial_number(x509.random_serial_number())
         builder = builder.public_key(public_key)
@@ -239,7 +310,7 @@ class AbstractCloud(AbstractCommandParser):
                               os.path.join(certs_node_dir, key_file))
         remote_shell.put_file(os.path.join(common_path, cert_file),
                               os.path.join(certs_node_dir, cert_file))
-        remote_shell.put_file(root_cert_path, os.path.join(certs_node_dir, 'ca.crt'))
+        remote_shell.put_file(root_cert_path, os.path.join(certs_node_dir, self.ROOT_CERT_NAME))
         remote_shell.run_command('chmod 400 {}/*'.format(certs_node_dir))
 
         if "client_cert" in extra_vars:
@@ -248,11 +319,12 @@ class AbstractCloud(AbstractCommandParser):
             remote_shell.run_command('mkdir -p ' + self.YSQLSH_CERT_DIR)
             # Give write permission in case file exists. If the command fails, ignore.
             remote_shell.run_command('chmod -f 666 {}/* || true'.format(self.YSQLSH_CERT_DIR))
-            remote_shell.put_file(root_cert_path, os.path.join(self.YSQLSH_CERT_DIR, 'root.crt'))
+            remote_shell.put_file(root_cert_path, os.path.join(self.YSQLSH_CERT_DIR,
+                                                               self.CLIENT_ROOT_NAME))
             remote_shell.put_file(client_cert_path, os.path.join(self.YSQLSH_CERT_DIR,
-                                                                 'yugabytedb.crt'))
+                                                                 self.CLIENT_CERT_NAME))
             remote_shell.put_file(client_key_path, os.path.join(self.YSQLSH_CERT_DIR,
-                                                                'yugabytedb.key'))
+                                                                self.CLIENT_KEY_NAME))
             remote_shell.run_command('chmod 400 {}/*'.format(self.YSQLSH_CERT_DIR))
 
         try:
@@ -305,7 +377,7 @@ class AbstractCloud(AbstractCommandParser):
         if args.mount_points:
             return args.mount_points
         else:
-            return ",".join(["/mnt/d{}".format(i) for i in xrange(args.num_volumes)])
+            return ",".join(["/mnt/d{}".format(i) for i in range(args.num_volumes)])
 
     def expand_file_system(self, args, ssh_options):
         remote_shell = RemoteShell(ssh_options)

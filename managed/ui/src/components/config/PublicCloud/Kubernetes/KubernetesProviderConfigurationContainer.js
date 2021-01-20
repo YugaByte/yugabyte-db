@@ -23,11 +23,11 @@ const mapDispatchToProps = (dispatch) => {
       });
     },
     showDeleteConfirmationModal: () => {
-      dispatch(openDialog("confirmDeleteProviderModal"));
+      dispatch(openDialog('confirmDeleteProviderModal'));
     },
     closeModal: () => {
       dispatch(closeDialog());
-    },
+    }
   };
 };
 

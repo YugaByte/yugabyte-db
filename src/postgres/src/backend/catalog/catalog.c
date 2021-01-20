@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include "access/genam.h"
+#include "access/heapam.h"
 #include "access/sysattr.h"
 #include "access/transam.h"
 #include "catalog/catalog.h"
@@ -39,7 +40,9 @@
 #include "catalog/pg_subscription.h"
 #include "catalog/pg_tablespace.h"
 #include "catalog/pg_type.h"
+#include "catalog/pg_yb_catalog_version.h"
 #include "catalog/toasting.h"
+#include "commands/defrem.h"
 #include "miscadmin.h"
 #include "storage/fd.h"
 #include "utils/fmgroids.h"
@@ -231,7 +234,8 @@ IsSharedRelation(Oid relationId)
 		relationId == TableSpaceRelationId ||
 		relationId == DbRoleSettingRelationId ||
 		relationId == ReplicationOriginRelationId ||
-		relationId == SubscriptionRelationId)
+		relationId == SubscriptionRelationId ||
+		relationId == YBCatalogVersionRelationId)
 		return true;
 	/* These are their indexes (see indexing.h) */
 	if (relationId == AuthIdRolnameIndexId ||
@@ -251,7 +255,8 @@ IsSharedRelation(Oid relationId)
 		relationId == ReplicationOriginIdentIndex ||
 		relationId == ReplicationOriginNameIndex ||
 		relationId == SubscriptionObjectIndexId ||
-		relationId == SubscriptionNameIndexId)
+		relationId == SubscriptionNameIndexId ||
+		relationId == YBCatalogVersionDbOidIndexId)
 		return true;
 	/* These are their toast tables and toast indexes (see toasting.h) */
 	if (relationId == PgShdescriptionToastTable ||
@@ -264,6 +269,93 @@ IsSharedRelation(Oid relationId)
 	return false;
 }
 
+/*
+ * GetBackendOidFromRelPersistence
+ *		Returns backend oid for the given type of relation persistence.
+ */
+Oid
+GetBackendOidFromRelPersistence(char relpersistence)
+{
+	switch (relpersistence)
+	{
+		case RELPERSISTENCE_TEMP:
+			return BackendIdForTempRelations();
+		case RELPERSISTENCE_UNLOGGED:
+		case RELPERSISTENCE_PERMANENT:
+			return InvalidBackendId;
+		default:
+			elog(ERROR, "invalid relpersistence: %c", relpersistence);
+			return InvalidOid;	/* placate compiler */
+	}
+}
+
+/*
+ * DoesRelFileExist
+ *		True iff there is an existing file of the same name for this relation.
+ */
+bool
+DoesRelFileExist(const RelFileNodeBackend *rnode)
+{
+	bool 	collides;
+	char 	*rpath = relpath(*rnode, MAIN_FORKNUM);
+	int 	fd = BasicOpenFile(rpath, O_RDONLY | PG_BINARY);
+
+	if (fd >= 0)
+	{
+		/* definite collision */
+		close(fd);
+		collides = true;
+	}
+	else
+	{
+		/*
+		 * Here we have a little bit of a dilemma: if errno is something
+		 * other than ENOENT, should we declare a collision and loop? In
+		 * particular one might think this advisable for, say, EPERM.
+		 * However there really shouldn't be any unreadable files in a
+		 * tablespace directory, and if the EPERM is actually complaining
+		 * that we can't read the directory itself, we'd be in an infinite
+		 * loop.  In practice it seems best to go ahead regardless of the
+		 * errno.  If there is a colliding file we will get an smgr
+		 * failure when we attempt to create the new relation file.
+		 */
+		collides = false;
+	}
+
+	pfree(rpath);
+	return collides;
+}
+
+/*
+ * DoesOidExistInRelation
+ *		True iff the oid already exists in the relation.
+ *		Used typically with relation = pg_class, to check if a new oid is
+ *		already in use.
+ */
+bool
+DoesOidExistInRelation(Oid oid,
+					   Relation relation,
+					   Oid indexId,
+					   AttrNumber oidcolumn)
+{
+	SysScanDesc scan;
+	ScanKeyData key;
+	bool		collides;
+
+	ScanKeyInit(&key,
+				oidcolumn,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(oid));
+
+	/* see notes in GetNewOid about using SnapshotAny */
+	scan = systable_beginscan(relation, indexId, true, SnapshotAny, 1, &key);
+
+	collides = HeapTupleIsValid(systable_getnext(scan));
+
+	systable_endscan(scan);
+
+	return collides;
+}
 
 /*
  * GetNewOid
@@ -347,9 +439,6 @@ Oid
 GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
 {
 	Oid			newOid;
-	SysScanDesc scan;
-	ScanKeyData key;
-	bool		collides;
 
 	/*
 	 * We should never be asked to generate a new pg_type OID during
@@ -365,20 +454,7 @@ GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
 		CHECK_FOR_INTERRUPTS();
 
 		newOid = GetNewObjectId();
-
-		ScanKeyInit(&key,
-					oidcolumn,
-					BTEqualStrategyNumber, F_OIDEQ,
-					ObjectIdGetDatum(newOid));
-
-		/* see notes above about using SnapshotAny */
-		scan = systable_beginscan(relation, indexId, true,
-								  SnapshotAny, 1, &key);
-
-		collides = HeapTupleIsValid(systable_getnext(scan));
-
-		systable_endscan(scan);
-	} while (collides);
+	} while (DoesOidExistInRelation(newOid, relation, indexId, oidcolumn));
 
 	return newOid;
 }
@@ -403,10 +479,6 @@ Oid
 GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 {
 	RelFileNodeBackend rnode;
-	char	   *rpath;
-	int			fd;
-	bool		collides;
-	BackendId	backend;
 
 	/*
 	 * If we ever get here during pg_upgrade, there's something wrong; all
@@ -414,20 +486,6 @@ GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 	 * determined by commands in the dump script.
 	 */
 	Assert(!IsBinaryUpgrade);
-
-	switch (relpersistence)
-	{
-		case RELPERSISTENCE_TEMP:
-			backend = BackendIdForTempRelations();
-			break;
-		case RELPERSISTENCE_UNLOGGED:
-		case RELPERSISTENCE_PERMANENT:
-			backend = InvalidBackendId;
-			break;
-		default:
-			elog(ERROR, "invalid relpersistence: %c", relpersistence);
-			return InvalidOid;	/* placate compiler */
-	}
 
 	/* This logic should match RelationInitPhysicalAddr */
 	rnode.node.spcNode = reltablespace ? reltablespace : MyDatabaseTableSpace;
@@ -438,7 +496,7 @@ GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 	 * that properly here to make sure that any collisions based on filename
 	 * are properly detected.
 	 */
-	rnode.backend = backend;
+	rnode.backend = GetBackendOidFromRelPersistence(relpersistence);;
 
 	do
 	{
@@ -451,33 +509,120 @@ GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 			rnode.node.relNode = GetNewObjectId();
 
 		/* Check for existing file of same name */
-		rpath = relpath(rnode, MAIN_FORKNUM);
-		fd = BasicOpenFile(rpath, O_RDONLY | PG_BINARY);
-
-		if (fd >= 0)
-		{
-			/* definite collision */
-			close(fd);
-			collides = true;
-		}
-		else
-		{
-			/*
-			 * Here we have a little bit of a dilemma: if errno is something
-			 * other than ENOENT, should we declare a collision and loop? In
-			 * particular one might think this advisable for, say, EPERM.
-			 * However there really shouldn't be any unreadable files in a
-			 * tablespace directory, and if the EPERM is actually complaining
-			 * that we can't read the directory itself, we'd be in an infinite
-			 * loop.  In practice it seems best to go ahead regardless of the
-			 * errno.  If there is a colliding file we will get an smgr
-			 * failure when we attempt to create the new relation file.
-			 */
-			collides = false;
-		}
-
-		pfree(rpath);
-	} while (collides);
+	} while (DoesRelFileExist(&rnode));
 
 	return rnode.node.relNode;
+}
+
+/*
+ * IsTableOidUnused
+ *		Returns true iff the given table oid is not used by any other table
+ *		within the database of the given tablespace.
+ *
+ * First checks pg_class to see if the oid is in use (similar to
+ * GetNewOidWithIndex), and then checks if there are any existing relfiles that
+ * have the same oid (similar to GetNewRelFileNode).
+ *
+ * Similar to GetNewOidWithIndex and GetNewRelFileNode, there is a theoretical
+ * race condition, but since we don't worry about it there, it should be fine
+ * here as well.
+ */
+bool
+IsTableOidUnused(Oid table_oid,
+				 Oid reltablespace,
+				 Relation pg_class,
+				 char relpersistence)
+{
+	RelFileNodeBackend rnode;
+	Oid				   oidIndex;
+	bool			   collides;
+
+	/* First check for if the oid is used in pg_class. */
+
+	/* The relcache will cache the identity of the OID index for us */
+	oidIndex = RelationGetOidIndex(pg_class);
+
+	if (!OidIsValid(oidIndex))
+	{
+		elog(WARNING, "Could not find oid index of pg_class.");
+	}
+
+	collides = DoesOidExistInRelation(table_oid,
+									  pg_class,
+									  oidIndex,
+									  ObjectIdAttributeNumber);
+
+	if (!collides)
+	{
+		/*
+		 * Check if there are existing relfiles with the oid.
+		 * YB Note: It looks like we only run into collisions here for
+		 * 			temporary tables.
+		 */
+
+		/*
+		 * The relpath will vary based on the backend ID, so we must initialize
+		 * that properly here to make sure that any collisions based on filename
+		 * are properly detected.
+		 */
+		rnode.backend = GetBackendOidFromRelPersistence(relpersistence);
+
+		/* This logic should match RelationInitPhysicalAddr */
+		rnode.node.spcNode = reltablespace ? reltablespace
+										   : MyDatabaseTableSpace;
+		rnode.node.dbNode = (rnode.node.spcNode == GLOBALTABLESPACE_OID)
+								? InvalidOid
+								: MyDatabaseId;
+
+		rnode.node.relNode = table_oid;
+
+		/* Check for existing file of same name */
+		collides = DoesRelFileExist(&rnode);
+	}
+
+	return !collides;
+}
+
+/*
+ * GetTableOidFromRelOptions
+ *		Scans through relOptions for any 'table_oid' options, and checks if
+ *		that oid is available. If so, return that oid, else return InvalidOid.
+ */
+Oid
+GetTableOidFromRelOptions(List *relOptions,
+						  Oid reltablespace,
+				  		  char relpersistence)
+{
+	ListCell   *opt_cell;
+	Oid			table_oid;
+	bool		is_oid_free;
+
+	foreach(opt_cell, relOptions)
+	{
+		DefElem *def = (DefElem *) lfirst(opt_cell);
+		if (strcmp(def->defname, "table_oid") == 0)
+		{
+			table_oid = strtol(defGetString(def), NULL, 10);
+			if (OidIsValid(table_oid))
+			{
+				Relation pg_class_desc =
+					heap_open(RelationRelationId, RowExclusiveLock);
+				is_oid_free = IsTableOidUnused(table_oid,
+											   reltablespace,
+											   pg_class_desc,
+											   relpersistence);
+				heap_close(pg_class_desc, RowExclusiveLock);
+
+				if (is_oid_free)
+					return table_oid;
+				else
+					elog(ERROR, "Oid %d is in use.", table_oid);
+
+				/* Only process the first table_oid. */
+				break;
+			}
+		}
+	}
+
+	return InvalidOid;
 }

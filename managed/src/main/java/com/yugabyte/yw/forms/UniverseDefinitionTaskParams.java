@@ -13,6 +13,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import javax.persistence.Column;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -20,12 +22,12 @@ import com.google.common.collect.Iterables;
 import com.yugabyte.yw.commissioner.Common;
 import com.yugabyte.yw.commissioner.Common.CloudType;
 import com.yugabyte.yw.commissioner.tasks.UniverseDefinitionTaskBase;
-import com.yugabyte.yw.common.PlacementInfoUtil;
 import com.yugabyte.yw.models.Region;
 import com.yugabyte.yw.models.helpers.DeviceInfo;
 import com.yugabyte.yw.models.helpers.NodeDetails;
 import com.yugabyte.yw.models.helpers.PlacementInfo;
 
+import io.ebean.annotation.DbJson;
 import play.data.validation.Constraints;
 import play.libs.Json;
 
@@ -52,6 +54,11 @@ public class UniverseDefinitionTaskParams extends UniverseTaskParams {
   @Constraints.Required()
   @Constraints.MinLength(1)
   public List<Cluster> clusters = new LinkedList<>();
+
+  @Constraints.Required()
+  @DbJson
+  @Column(nullable = false, columnDefinition = "TEXT")
+  public JsonNode preflight_checks;
 
   @JsonIgnore
   // This is set during configure to figure out which cluster type is intended to be modified.
@@ -100,6 +107,7 @@ public class UniverseDefinitionTaskParams extends UniverseTaskParams {
 
   // Development flag to download package from s3 bucket.
   public String itestS3PackagePath = "";
+  public String remotePackagePath = "";
 
   /**
    * Allowed states for an imported universe.
@@ -265,11 +273,15 @@ public class UniverseDefinitionTaskParams extends UniverseTaskParams {
 
     public boolean enableYSQL = false;
 
+    public boolean enableYEDIS = true;
+
     public boolean enableNodeToNodeEncrypt = false;
 
     public boolean enableClientToNodeEncrypt = false;
 
     public boolean enableVolumeEncryption = false;
+
+    public boolean enableIPV6 = false;
 
     public String awsArnString;
 
@@ -315,6 +327,7 @@ public class UniverseDefinitionTaskParams extends UniverseTaskParams {
       newUserIntent.assignPublicIP = assignPublicIP;
       newUserIntent.useTimeSync = useTimeSync;
       newUserIntent.enableYSQL = enableYSQL;
+      newUserIntent.enableYEDIS = enableYEDIS;
       newUserIntent.enableNodeToNodeEncrypt = enableNodeToNodeEncrypt;
       newUserIntent.enableClientToNodeEncrypt = enableClientToNodeEncrypt;
       newUserIntent.instanceTags = new HashMap<>(instanceTags);
@@ -538,13 +551,16 @@ public class UniverseDefinitionTaskParams extends UniverseTaskParams {
     if (uuid == null) {
       return getPrimaryCluster();
     }
+
     List<Cluster> foundClusters =  clusters.stream()
-                                           .filter(c -> c.uuid.equals(uuid))
-                                           .collect(Collectors.toList());
+      .filter(c -> c.uuid.equals(uuid))
+      .collect(Collectors.toList());
+
     if (foundClusters.size() > 1) {
       throw new RuntimeException("Multiple clusters with uuid " + uuid.toString() +
           " found in params for universe " + universeUUID.toString());
     }
+
     return Iterables.getOnlyElement(foundClusters, null);
   }
 

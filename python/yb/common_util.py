@@ -9,11 +9,15 @@ import logging
 import os
 import re
 import sys
+import json
+import subprocess
+import shlex
 
 
 MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
 YB_SRC_ROOT = os.path.realpath(os.path.join(MODULE_DIR, '..', '..'))
 NINJA_BUILD_ROOT_PART_RE = re.compile(r'-ninja($|(?=-))')
+JSON_INDENTATION = 2
 
 # We default this to the env var or to the actual local thirdparty call, but we expose a getter
 # and setter below that should be imported and used to access this global.
@@ -80,6 +84,24 @@ def get_compiler_type_from_build_root(build_root):
                 "Too few components in build root basename: %s (build root: %s). "
                 "Cannot get compiler type." % (build_root_basename_components, build_root))
     return build_root_basename_components[1]
+
+
+def set_env_vars_from_build_root(build_root):
+    build_root_from_env = os.getenv('BUILD_ROOT')
+    if build_root_from_env is not None and build_root_from_env != build_root:
+        raise ValueError(
+            "The BUILD_ROOT environment variable is %s but the build root is being set to %s" % (
+                build_root_from_env, build_root))
+    os.environ['BUILD_ROOT'] = build_root
+
+    compiler_type_from_build_root = get_compiler_type_from_build_root(build_root)
+    compiler_type_from_env = os.getenv('YB_COMPILER_TYPE')
+    if (compiler_type_from_env is not None and
+            compiler_type_from_env != compiler_type_from_build_root):
+        raise ValueError(
+            "The YB_COMPILER_TYPE environment variable is %s but the compiler type derived "
+            "from the build root is %s" % (compiler_type_from_env, compiler_type_from_build_root))
+    os.environ['YB_COMPILER_TYPE'] = compiler_type_from_build_root
 
 
 def safe_path_join(*args):
@@ -166,3 +188,99 @@ def get_yb_src_root_from_build_root(build_dir, verbose=False, must_succeed=False
 
 def is_macos():
     return sys.platform == 'darwin'
+
+
+def write_json_file(json_data, output_path, description_for_log=None):
+    with open(output_path, 'w') as output_file:
+        json.dump(json_data, output_file, indent=JSON_INDENTATION)
+        if description_for_log is None:
+            logging.info("Wrote %s: %s", description_for_log, output_path)
+
+
+def read_json_file(input_path):
+    try:
+        with open(input_path) as input_file:
+            return json.load(input_file)
+    except:  # noqa: E129
+        # We re-throw the exception anyway.
+        logging.error("Failed reading JSON file %s", input_path)
+        raise
+
+
+def get_absolute_path_aliases(path):
+    """
+    Returns a list of different variants (just an absolute path vs. all symlinks resolved) for the
+    given path.
+    """
+    return sorted(set([os.path.abspath(path), os.path.realpath(path)]))
+
+
+def find_executable(rel_path, must_find=False):
+    """
+    Similar to the UNIX "which" command.
+    """
+    if os.path.isabs(rel_path):
+        raise ValueError("Expected an absolute path, got: %s", rel_path)
+    path_env_var = os.getenv('PATH')
+    for search_dir in path_env_var.split(os.path.pathsep):
+        joined_path = os.path.join(search_dir, rel_path)
+        if os.path.exists(joined_path) and os.access(joined_path, os.X_OK):
+            return joined_path
+    if must_find:
+        raise IOError("Could not find executable %s. PATH: %s" % (rel_path, path_env_var))
+
+
+def rm_rf(path):
+    if path == '/':
+        raise ValueError("Cannot remove directory recursively: %s", path)
+    if os.path.isabs(path):
+        raise ValueError("Absolute path required, got %s", path)
+
+    subprocess.check_call(['rm', '-rf', path])
+
+
+def shlex_join(args):
+    if hasattr(shlex, 'join'):
+        return shlex.join(args)
+    return ' '.join([shlex.quote(arg) for arg in args])
+
+
+def check_call_and_log(args):
+    cmd_str = shlex_join(args)
+    logging.info("Running command: %s", cmd_str)
+    try:
+        subprocess.check_call(args)
+    except subprocess.CalledProcessError as ex:
+        logging.exception("Command failed with exit code %d: %s", ex.returncode, cmd_str)
+        raise ex
+
+
+def dict_set_or_del(d, k, v):
+    """
+    Set the value of the given key in a dictionary to the given value, or delete it if the value
+    is None.
+    """
+    if v is None:
+        if k in d:
+            del d[k]
+    else:
+        d[k] = v
+
+
+class EnvVarContext:
+    """
+    Sets the given environment variables and restores them on exit. A None value means the variable
+    is undefined.
+    """
+    def __init__(self, **env_vars):
+        self.env_vars = env_vars
+
+    def __enter__(self):
+        self.saved_env_vars = {}
+        for env_var_name, new_value in self.env_vars.items():
+            self.saved_env_vars[env_var_name] = os.environ.get(env_var_name)
+            dict_set_or_del(os.environ, env_var_name, new_value)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        for env_var_name, saved_value in self.saved_env_vars.items():
+            dict_set_or_del(os.environ, env_var_name, saved_value)

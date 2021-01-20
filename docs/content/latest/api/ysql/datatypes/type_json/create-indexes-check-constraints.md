@@ -106,7 +106,6 @@ The high-level point is that YSQL allows you to express a constraint using any e
 ```plpgsql
 create function top_level_keys_ok(json_obj in jsonb)
   returns boolean
-  immutable
   language plpgsql
 as
 $body$

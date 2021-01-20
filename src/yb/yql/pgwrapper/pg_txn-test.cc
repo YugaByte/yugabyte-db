@@ -35,5 +35,23 @@ TEST_F(PgTxnTest, YB_DISABLE_TEST_IN_SANITIZERS(EmptyUpdate)) {
   ASSERT_OK(conn.CommitTransaction());
 }
 
+class PgTxnRF1Test : public PgTxnTest {
+ public:
+  int NumTabletServers() override {
+    return 1;
+  }
+};
+
+TEST_F_EX(PgTxnTest, YB_DISABLE_TEST_IN_TSAN(SelectRF1ReadOnlyDeferred), PgTxnRF1Test) {
+  auto conn = ASSERT_RESULT(Connect());
+
+  ASSERT_OK(conn.Execute("CREATE TABLE test (key INT)"));
+  ASSERT_OK(conn.Execute("INSERT INTO test VALUES (1)"));
+  ASSERT_OK(conn.Execute("BEGIN ISOLATION LEVEL SERIALIZABLE, READ ONLY, DEFERRABLE"));
+  auto res = ASSERT_RESULT(conn.FetchValue<int32_t>("SELECT * FROM test"));
+  ASSERT_EQ(res, 1);
+  ASSERT_OK(conn.Execute("COMMIT"));
+}
+
 } // namespace pgwrapper
 } // namespace yb

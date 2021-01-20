@@ -1,63 +1,63 @@
-@import "../../../_style/colors.scss";
+@import '../../../_style/colors.scss';
 
 /* Copyright (c) YugaByte, Inc. */
 
 .progress-bar-container {
-    min-height: 100px;
-    margin-bottom: 24px;
+  min-height: 100px;
+  margin-bottom: 24px;
 }
 
 .progress-bar-container .progressbar {
-    margin-top: 30px;
+  margin-top: 30px;
 }
 .description-text-container {
-    margin-top: 30px;
+  margin-top: 30px;
 }
 .description-text {
-    line-height: 1.5em;
-    font-size: 14px;
-    font-weight: 500;
-    color: $YB_DARK_GRAY;
+  line-height: 1.5em;
+  font-size: 14px;
+  font-weight: 500;
+  color: $YB_DARK_GRAY;
 }
 
 .progressbar .failed:before {
-    background-color: #e73e3e;
-    color: white;
-    border: transparent;
+  background-color: #e73e3e;
+  color: white;
+  border: transparent;
 }
 .current-task {
-    @media (max-width: 1199px) {
-        flex-direction: column;
-    }
+  @media (max-width: 1199px) {
+    flex-direction: column;
+  }
 }
 .current-task-progress {
-    margin-bottom: 100px;
+  margin-bottom: 100px;
 }
 .current-task-details {
-    width: 400px;
-    padding-left: 40px;
-    margin-bottom: 50px;
+  width: 400px;
+  padding-left: 40px;
+  margin-bottom: 50px;
+  @media (max-width: 1199px) {
+    width: auto;
+    padding-left: 0;
+  }
+
+  & > div {
+    position: relative;
+    border: none;
+    min-height: 80px;
+    background-color: #fff;
+    border-radius: 7px;
+    padding: 20px;
     @media (max-width: 1199px) {
-        width: auto;
-        padding-left: 0;
+      background-color: transparent;
+      padding: 0;
     }
 
-    & > div {
-        position: relative;
-        border: none;
-        min-height: 80px;
-        background-color: #fff;
-        border-radius: 7px;
-        padding: 20px;
-        @media (max-width: 1199px) {
-            background-color: transparent;
-            padding: 0;
-        }
-
-        h2 {
-            line-height: 28px;
-            height: auto;
-            margin-bottom: 20px;
-        }
+    h2 {
+      line-height: 28px;
+      height: auto;
+      margin-bottom: 20px;
     }
+  }
 }

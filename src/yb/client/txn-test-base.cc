@@ -21,6 +21,8 @@
 #include "yb/common/ql_value.h"
 #include "yb/consensus/consensus.h"
 
+#include "yb/integration-tests/mini_cluster_utils.h"
+
 #include "yb/tserver/mini_tablet_server.h"
 #include "yb/tserver/tablet_server.h"
 #include "yb/tserver/ts_tablet_manager.h"
@@ -93,7 +95,8 @@ void DisableTransactionTimeout() {
                 &FLAGS_transaction_max_missed_heartbeat_periods);
 }
 
-void TransactionTestBase::SetUp() {
+template <class MiniClusterType>
+void TransactionTestBase<MiniClusterType>::SetUp() {
   FLAGS_TEST_combine_batcher_errors = true;
   FLAGS_transaction_status_tablet_log_segment_size_bytes = log_segment_size_bytes();
   FLAGS_log_min_seconds_to_retain = 5;
@@ -102,7 +105,7 @@ void TransactionTestBase::SetUp() {
   server::SkewedClock::Register();
   FLAGS_time_source = server::SkewedClock::kName;
   FLAGS_load_balancer_max_concurrent_adds = 100;
-  ASSERT_NO_FATALS(KeyValueTableTest::SetUp());
+  ASSERT_NO_FATALS(KeyValueTableTest<MiniClusterType>::SetUp());
 
   if (create_table_) {
     CreateTable();
@@ -118,19 +121,22 @@ void TransactionTestBase::SetUp() {
   transaction_manager2_.emplace(client_.get(), clock2, client::LocalTabletFilter());
 }
 
-void TransactionTestBase::CreateTable() {
-  KeyValueTableTest::CreateTable(
+template <class MiniClusterType>
+void TransactionTestBase<MiniClusterType>::CreateTable() {
+  KeyValueTableTest<MiniClusterType>::CreateTable(
       Transactional(GetIsolationLevel() != IsolationLevel::NON_TRANSACTIONAL));
 }
 
-uint64_t TransactionTestBase::log_segment_size_bytes() const {
+template <class MiniClusterType>
+uint64_t TransactionTestBase<MiniClusterType>::log_segment_size_bytes() const {
   return 128;
 }
 
-Status TransactionTestBase::WriteRows(
+template <class MiniClusterType>
+Status TransactionTestBase<MiniClusterType>::WriteRows(
     const YBSessionPtr& session, size_t transaction, const WriteOpType op_type, Flush flush) {
   for (size_t r = 0; r != kNumRows; ++r) {
-    RETURN_NOT_OK(WriteRow(
+    RETURN_NOT_OK(this->WriteRow(
         session,
         KeyForTransactionAndIndex(transaction, r),
         ValueForTransactionAndIndex(transaction, r, op_type),
@@ -140,29 +146,33 @@ Status TransactionTestBase::WriteRows(
   return Status::OK();
 }
 
-void TransactionTestBase::VerifyRow(
+template <class MiniClusterType>
+void TransactionTestBase<MiniClusterType>::VerifyRow(
     int line, const YBSessionPtr& session, int32_t key, int32_t value,
     const std::string& column) {
   VLOG(4) << "Calling SelectRow";
-  auto row = SelectRow(session, key, column);
+  auto row = this->SelectRow(session, key, column);
   ASSERT_TRUE(row.ok()) << "Bad status: " << row << ", originator: " << __FILE__ << ":" << line;
   VLOG(4) << "SelectRow returned: " << *row;
   ASSERT_EQ(value, *row) << "Originator: " << __FILE__ << ":" << line;
 }
 
-void TransactionTestBase::WriteData(const WriteOpType op_type, size_t transaction) {
+template <class MiniClusterType>
+void TransactionTestBase<MiniClusterType>::WriteData(
+    const WriteOpType op_type, size_t transaction) {
   auto txn = CreateTransaction();
-  ASSERT_OK(WriteRows(CreateSession(txn), transaction, op_type));
+  ASSERT_OK(WriteRows(this->CreateSession(txn), transaction, op_type));
   ASSERT_OK(txn->CommitFuture().get());
   LOG(INFO) << "Committed: " << txn->id();
 }
 
-void TransactionTestBase::WriteDataWithRepetition() {
+template <class MiniClusterType>
+void TransactionTestBase<MiniClusterType>::WriteDataWithRepetition() {
   auto txn = CreateTransaction();
-  auto session = CreateSession(txn);
+  auto session = this->CreateSession(txn);
   for (size_t r = 0; r != kNumRows; ++r) {
     for (int j = 10; j--;) {
-      ASSERT_OK(WriteRow(
+      ASSERT_OK(this->WriteRow(
           session,
           KeyForTransactionAndIndex(0, r),
           ValueForTransactionAndIndex(0, r, WriteOpType::INSERT) + j));
@@ -191,17 +201,22 @@ YBTransactionPtr CreateTransactionHelper(
 
 }  // anonymous namespace
 
-YBTransactionPtr TransactionTestBase::CreateTransaction(SetReadTime set_read_time) {
+template <class MiniClusterType>
+YBTransactionPtr TransactionTestBase<MiniClusterType>::CreateTransaction(
+    SetReadTime set_read_time) {
   return CreateTransactionHelper(
       transaction_manager_.get_ptr(), set_read_time, GetIsolationLevel());
 }
 
-YBTransactionPtr TransactionTestBase::CreateTransaction2(SetReadTime set_read_time) {
+template <class MiniClusterType>
+YBTransactionPtr TransactionTestBase<MiniClusterType>::CreateTransaction2(
+    SetReadTime set_read_time) {
   return CreateTransactionHelper(
       transaction_manager2_.get_ptr(), set_read_time, GetIsolationLevel());
 }
 
-void TransactionTestBase::VerifyRows(
+template <class MiniClusterType>
+void TransactionTestBase<MiniClusterType>::VerifyRows(
     const YBSessionPtr& session, size_t transaction, const WriteOpType op_type,
     const std::string& column) {
   std::vector<client::YBqlReadOpPtr> ops;
@@ -222,7 +237,8 @@ void TransactionTestBase::VerifyRows(
   }
 }
 
-YBqlReadOpPtr TransactionTestBase::ReadRow(
+template <class MiniClusterType>
+YBqlReadOpPtr TransactionTestBase<MiniClusterType>::ReadRow(
     const YBSessionPtr& session, int32_t key, const std::string& column) {
   auto op = table_.NewReadOp();
   auto* const req = op->mutable_request();
@@ -232,16 +248,18 @@ YBqlReadOpPtr TransactionTestBase::ReadRow(
   return op;
 }
 
-void TransactionTestBase::VerifyData(
+template <class MiniClusterType>
+void TransactionTestBase<MiniClusterType>::VerifyData(
     size_t num_transactions, const WriteOpType op_type, const std::string& column) {
   VLOG(4) << "Verifying data..." << std::endl;
-  auto session = CreateSession();
+  auto session = this->CreateSession();
   for (size_t i = 0; i != num_transactions; ++i) {
     VerifyRows(session, i, op_type, column);
   }
 }
 
-bool TransactionTestBase::HasTransactions() {
+template <class MiniClusterType>
+bool TransactionTestBase<MiniClusterType>::HasTransactions() {
   for (int i = 0; i != cluster_->num_tablet_servers(); ++i) {
     auto* tablet_manager = cluster_->mini_tablet_server(i)->server()->tablet_manager();
     auto peers = tablet_manager->GetTabletPeers();
@@ -260,65 +278,18 @@ bool TransactionTestBase::HasTransactions() {
   return false;
 }
 
-size_t TransactionTestBase::CountRunningTransactions() {
-  size_t result = 0;
-  auto peers = ListTabletPeers(cluster_.get(), ListPeersFilter::kAll);
-  for (const auto &peer : peers) {
-    auto participant = peer->tablet()->transaction_participant();
-    result += participant ? participant->TEST_GetNumRunningTransactions() : 0;
-  }
-  return result;
+template <class MiniClusterType>
+size_t TransactionTestBase<MiniClusterType>::CountRunningTransactions() {
+  return yb::CountRunningTransactions(cluster_.get());
 }
 
-void TransactionTestBase::CheckNoRunningTransactions() {
-  MonoTime deadline = MonoTime::Now() + 7s * kTimeMultiplier;
-  bool has_bad = false;
-  for (int i = 0; i != cluster_->num_tablet_servers(); ++i) {
-    auto server = cluster_->mini_tablet_server(i)->server();
-    std::vector<std::shared_ptr<tablet::TabletPeer>> tablets;
-    auto status = Wait([server, &tablets] {
-      tablets.clear();
-      server->tablet_manager()->GetTabletPeers(&tablets);
-      for (const auto& peer : tablets) {
-        if (peer->tablet() == nullptr) {
-          return false;
-        }
-      }
-      return true;
-    }, deadline, "Wait until all peers have tablets");
-    if (!status.ok()) {
-      has_bad = true;
-      for (const auto& peer : tablets) {
-        if (peer->tablet() == nullptr) {
-          LOG(ERROR) << Format(
-              "T $1 P $0: Tablet object is not created",
-              server->permanent_uuid(), peer->tablet_id());
-        }
-      }
-      continue;
-    }
-    for (const auto& peer : tablets) {
-      auto participant = peer->tablet()->transaction_participant();
-      if (participant) {
-        auto status = Wait([participant] {
-              return participant->TEST_GetNumRunningTransactions() == 0;
-            },
-            deadline,
-            "Wait until no transactions are running");
-        if (!status.ok()) {
-          LOG(ERROR) << Format(
-              "T $1 P $0: Transactions: $2",
-              server->permanent_uuid(), peer->tablet_id(),
-              participant->TEST_GetNumRunningTransactions());
-          has_bad = true;
-        }
-      }
-    }
-  }
-  ASSERT_EQ(false, has_bad);
+template <class MiniClusterType>
+void TransactionTestBase<MiniClusterType>::AssertNoRunningTransactions() {
+  yb::AssertNoRunningTransactions(cluster_.get());
 }
 
-bool TransactionTestBase::CheckAllTabletsRunning() {
+template <class MiniClusterType>
+bool TransactionTestBase<MiniClusterType>::CheckAllTabletsRunning() {
   bool result = true;
   size_t count = 0;
   for (int i = 0; i != cluster_->num_tablet_servers(); ++i) {
@@ -342,13 +313,17 @@ bool TransactionTestBase::CheckAllTabletsRunning() {
   return result;
 }
 
-IsolationLevel TransactionTestBase::GetIsolationLevel() {
+template <class MiniClusterType>
+IsolationLevel TransactionTestBase<MiniClusterType>::GetIsolationLevel() {
   return isolation_level_;
 }
 
-void TransactionTestBase::SetIsolationLevel(IsolationLevel isolation_level) {
+template <class MiniClusterType>
+void TransactionTestBase<MiniClusterType>::SetIsolationLevel(IsolationLevel isolation_level) {
   isolation_level_ = isolation_level;
 }
+
+template class TransactionTestBase<MiniCluster>;
 
 } // namespace client
 } // namespace yb

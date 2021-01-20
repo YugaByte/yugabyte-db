@@ -39,14 +39,7 @@ const auto kDefaultTimeout = 30000ms;
 
 class LoadBalancerTest : public YBTableTestBase {
  protected:
-  void SetUp() override {
-    YBTableTestBase::SetUp();
-
-    yb_admin_client_ = std::make_unique<tools::enterprise::ClusterAdminClient>(
-        external_mini_cluster()->GetMasterAddresses(), kDefaultTimeout);
-
-    ASSERT_OK(yb_admin_client_->Init());
-  }
+  bool use_yb_admin_client() override { return true; }
 
   bool use_external_mini_cluster() override { return true; }
 
@@ -59,32 +52,6 @@ class LoadBalancerTest : public YBTableTestBase {
     return false;
   }
 
-  Result<uint32_t> GetLoadOnTserver(ExternalTabletServer* server) {
-    auto proxy = VERIFY_RESULT(GetMasterLeaderProxy());
-    master::GetTableLocationsRequestPB req;
-    req.mutable_table()->set_table_name(table_name().table_name());
-    req.mutable_table()->mutable_namespace_()->set_name(table_name().namespace_name());
-    master::GetTableLocationsResponsePB resp;
-
-    rpc::RpcController rpc;
-    rpc.set_timeout(kDefaultTimeout);
-    RETURN_NOT_OK(proxy->GetTableLocations(req, &resp, &rpc));
-
-    uint32_t count = 0;
-    std::vector<string> replicas;
-    for (const auto& loc : resp.tablet_locations()) {
-      for (const auto& replica : loc.replicas()) {
-        if (replica.ts_info().permanent_uuid() == server->instance_id().permanent_uuid()) {
-          replicas.push_back(loc.tablet_id());
-          count++;
-        }
-      }
-    }
-    LOG(INFO) << Format("For ts $0, tablets are $1 with count $2",
-                        server->instance_id().permanent_uuid(), VectorToString(replicas), count);
-    return count;
-  }
-
   Result<bool> AreLeadersOnPreferredOnly() {
     master::AreLeadersOnPreferredOnlyRequestPB req;
     master::AreLeadersOnPreferredOnlyResponsePB resp;
@@ -95,12 +62,6 @@ class LoadBalancerTest : public YBTableTestBase {
     return !resp.has_error();
   }
 
-  Result<std::shared_ptr<master::MasterServiceProxy>> GetMasterLeaderProxy() {
-    int idx;
-    RETURN_NOT_OK(external_mini_cluster()->GetLeaderMasterIndex(&idx));
-    return external_mini_cluster()->master_proxy(idx);
-  }
-
   void CustomizeExternalMiniCluster(ExternalMiniClusterOptions* opts) override {
     opts->extra_tserver_flags.push_back("--placement_cloud=c");
     opts->extra_tserver_flags.push_back("--placement_region=r");
@@ -108,7 +69,6 @@ class LoadBalancerTest : public YBTableTestBase {
     opts->extra_master_flags.push_back("--load_balancer_skip_leader_as_remove_victim=false");
   }
 
-  std::unique_ptr<tools::enterprise::ClusterAdminClient> yb_admin_client_;
 };
 
 TEST_F(LoadBalancerTest, PreferredZoneAddNode) {

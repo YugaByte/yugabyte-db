@@ -53,11 +53,20 @@ class TServerSharedData {
     return catalog_version_.load(std::memory_order_acquire);
   }
 
+  void SetPostgresAuthKey(uint64_t auth_key) {
+    postgres_auth_key_ = auth_key;
+  }
+
+  uint64_t postgres_auth_key() const {
+    return postgres_auth_key_;
+  }
+
  private:
   // Endpoint that should be used by local processes to access this tserver.
   Endpoint endpoint_;
 
   std::atomic<uint64_t> catalog_version_{0};
+  uint64_t postgres_auth_key_;
 };
 
 }  // namespace tserver

@@ -14,7 +14,7 @@ These functions require that the to-be-searched array is one-dimensional. They r
 
 Create _"view v"_ now. The examples below use it.
 ```plpgsql
-create view v as
+create or replace view v as
 select array[
     'sun', -- 1
     'mon', -- 2

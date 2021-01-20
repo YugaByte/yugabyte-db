@@ -301,7 +301,7 @@ The database activity of `ysql_dump` is normally collected by the statistics col
 
 If your YugabyteDB cluster has any local additions to the `template1` database, be careful to restore the output of `ysql_dump` into a truly empty database; otherwise you are likely to get errors due to duplicate definitions of the added objects. To make an empty database without any local additions, copy from `template0` not `template1`, for example:
 
-```postgresql
+```plpgsql
 CREATE DATABASE foo WITH TEMPLATE template0;
 ```
 

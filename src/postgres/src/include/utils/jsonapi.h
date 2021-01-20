@@ -14,7 +14,6 @@
 #ifndef JSONAPI_H
 #define JSONAPI_H
 
-#include "jsonb.h"
 #include "lib/stringinfo.h"
 
 typedef enum
@@ -33,6 +32,28 @@ typedef enum
 	JSON_TOKEN_NULL,
 	JSON_TOKEN_END
 } JsonTokenType;
+
+typedef enum
+{
+	JSON_SUCCESS,
+	JSON_ESCAPING_INVALID,
+	JSON_ESCAPING_REQUIRED,
+	JSON_EXPECTED_ARRAY_FIRST,
+	JSON_EXPECTED_ARRAY_NEXT,
+	JSON_EXPECTED_COLON,
+	JSON_EXPECTED_END,
+	JSON_EXPECTED_JSON,
+	JSON_EXPECTED_MORE,
+	JSON_EXPECTED_OBJECT_FIRST,
+	JSON_EXPECTED_OBJECT_NEXT,
+	JSON_EXPECTED_STRING,
+	JSON_INVALID_TOKEN,
+	JSON_UNICODE_CODE_POINT_ZERO,
+	JSON_UNICODE_ESCAPE_FORMAT,
+	JSON_UNICODE_HIGH_ESCAPE,
+	JSON_UNICODE_HIGH_SURROGATE,
+	JSON_UNICODE_LOW_SURROGATE
+} JsonParseErrorType;
 
 
 /*
@@ -102,28 +123,39 @@ typedef struct JsonSemAction
  * points to. If the action pointers are NULL the parser
  * does nothing and just continues.
  */
-extern void pg_parse_json(JsonLexContext *lex, JsonSemAction *sem);
+extern JsonParseErrorType pg_parse_json(JsonLexContext *lex,
+										JsonSemAction *sem);
+
+/* the null action object used for pure validation */
+extern JsonSemAction nullSemAction;
 
 /*
  * json_count_array_elements performs a fast secondary parse to determine the
  * number of elements in passed array lex context. It should be called from an
  * array_start action.
+ *
+ * The return value indicates whether any error occurred, while the number
+ * of elements is stored into *elements (but only if the return value is
+ * JSON_SUCCESS).
  */
-extern int	json_count_array_elements(JsonLexContext *lex);
+extern JsonParseErrorType json_count_array_elements(JsonLexContext *lex,
+													int *elements);
 
 /*
- * constructors for JsonLexContext, with or without strval element.
+ * constructor for JsonLexContext, with or without strval element.
  * If supplied, the strval element will contain a de-escaped version of
  * the lexeme. However, doing this imposes a performance penalty, so
  * it should be avoided if the de-escaped lexeme is not required.
- *
- * If you already have the json as a text* value, use the first of these
- * functions, otherwise use  makeJsonLexContextCstringLen().
  */
-extern JsonLexContext *makeJsonLexContext(text *json, bool need_escapes);
 extern JsonLexContext *makeJsonLexContextCstringLen(char *json,
 							 int len,
 							 bool need_escapes);
+
+/* lex one token */
+extern JsonParseErrorType json_lex(JsonLexContext *lex);
+
+/* construct an error detail string for a json error */
+extern char *json_errdetail(JsonParseErrorType error, JsonLexContext *lex);
 
 /*
  * Utility function to check if a string is a valid JSON number.
@@ -131,36 +163,5 @@ extern JsonLexContext *makeJsonLexContextCstringLen(char *json,
  * str argument does not need to be nul-terminated.
  */
 extern bool IsValidJsonNumber(const char *str, int len);
-
-/*
- * Flag types for iterate_json(b)_values to specify what elements from a
- * json(b) document we want to iterate.
- */
-typedef enum JsonToIndex
-{
-	jtiKey = 0x01,
-	jtiString = 0x02,
-	jtiNumeric = 0x04,
-	jtiBool = 0x08,
-	jtiAll = jtiKey | jtiString | jtiNumeric | jtiBool
-} JsonToIndex;
-
-/* an action that will be applied to each value in iterate_json(b)_vaues functions */
-typedef void (*JsonIterateStringValuesAction) (void *state, char *elem_value, int elem_len);
-
-/* an action that will be applied to each value in transform_json(b)_values functions */
-typedef text *(*JsonTransformStringValuesAction) (void *state, char *elem_value, int elem_len);
-
-extern uint32 parse_jsonb_index_flags(Jsonb *jb);
-extern void iterate_jsonb_values(Jsonb *jb, uint32 flags, void *state,
-					 JsonIterateStringValuesAction action);
-extern void iterate_json_values(text *json, uint32 flags, void *action_state,
-					JsonIterateStringValuesAction action);
-extern Jsonb *transform_jsonb_string_values(Jsonb *jsonb, void *action_state,
-							  JsonTransformStringValuesAction transform_action);
-extern text *transform_json_string_values(text *json, void *action_state,
-							 JsonTransformStringValuesAction transform_action);
-
-extern char *JsonEncodeDateTime(char *buf, Datum value, Oid typid);
 
 #endif							/* JSONAPI_H */

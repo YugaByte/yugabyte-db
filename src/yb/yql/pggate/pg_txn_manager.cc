@@ -45,7 +45,8 @@ uint64_t ConvertBound(double value) {
   if (value >= 1.0) {
     return txn_priority_highpri_lower_bound - 1;
   }
-  return value * (txn_priority_highpri_lower_bound - 1);
+  // Have to cast to double to avoid a warning on implicit cast that changes the value.
+  return value * (static_cast<double>(txn_priority_highpri_lower_bound) - 1);
 }
 
 } // namespace
@@ -103,6 +104,23 @@ Status PgTxnManager::BeginTransaction() {
   if (txn_in_progress_) {
     return STATUS(IllegalState, "Transaction is already in progress");
   }
+  return RecreateTransaction(SavePriority::kFalse /* save_priority */);
+}
+
+Status PgTxnManager::RecreateTransaction() {
+  VLOG(2) << "RecreateTransaction: txn_in_progress_=" << txn_in_progress_;
+  if (!txn_) {
+    return Status::OK();
+  }
+  return RecreateTransaction(SavePriority::kTrue /* save_priority */);
+}
+
+Status PgTxnManager::RecreateTransaction(const SavePriority save_priority) {
+  use_saved_priority_ = save_priority;
+  if (save_priority) {
+    saved_priority_ = txn_->GetPriority();
+  }
+
   ResetTxnAndSession();
   txn_in_progress_ = true;
   StartNewSession();
@@ -128,6 +146,20 @@ void PgTxnManager::StartNewSession() {
   session_ = std::make_shared<YBSession>(async_client_init_->client(), clock_);
   session_->SetReadPoint(client::Restart::kFalse);
   session_->SetForceConsistentRead(client::ForceConsistentRead::kTrue);
+}
+
+uint64_t PgTxnManager::GetPriority(const NeedsPessimisticLocking needs_pessimistic_locking) {
+  if (use_saved_priority_) {
+    return saved_priority_;
+  }
+
+  // Use high priority for transactions that need pessimistic locking.
+  if (needs_pessimistic_locking) {
+    return RandomUniformInt(txn_priority_highpri_lower_bound,
+                            txn_priority_highpri_upper_bound);
+  }
+  return RandomUniformInt(txn_priority_regular_lower_bound,
+                          txn_priority_regular_upper_bound);
 }
 
 Status PgTxnManager::BeginWriteTransactionIfNecessary(bool read_only_op,
@@ -176,16 +208,7 @@ Status PgTxnManager::BeginWriteTransactionIfNecessary(bool read_only_op,
       txn_ = std::make_shared<YBTransaction>(GetOrCreateTransactionManager());
     }
 
-    // Using high priority for transactions that need pessimistic locking.
-    uint64_t priority;
-    if (needs_pessimistic_locking) {
-      priority = RandomUniformInt(txn_priority_highpri_lower_bound,
-                                  txn_priority_highpri_upper_bound);
-    } else {
-      priority = RandomUniformInt(txn_priority_regular_lower_bound,
-                                  txn_priority_regular_upper_bound);
-    }
-    txn_->SetPriority(priority);
+    txn_->SetPriority(GetPriority(NeedsPessimisticLocking(needs_pessimistic_locking)));
 
     if (isolation == IsolationLevel::SNAPSHOT_ISOLATION) {
       txn_->InitWithReadPoint(isolation, std::move(*session_->read_point()));
@@ -236,6 +259,13 @@ Status PgTxnManager::CommitTransaction() {
 }
 
 Status PgTxnManager::AbortTransaction() {
+  // If a DDL operation during a DDL txn fails the txn will be aborted before we get here.
+  // However if there are failures afterwards (i.e. during COMMIT or catalog version increment),
+  // then we might get here with a ddl_txn_. Clean it up in that case.
+  if (ddl_txn_) {
+    RETURN_NOT_OK(ExitSeparateDdlTxnMode(false));
+  }
+
   if (!txn_in_progress_) {
     return Status::OK();
   }
@@ -281,6 +311,10 @@ Result<client::YBSession*> PgTxnManager::GetTransactionalSession() {
   return session_.get();
 }
 
+std::shared_future<Result<TransactionMetadata>> PgTxnManager::GetDdlTxnMetadata() const {
+  return ddl_txn_->GetMetadata();
+}
+
 void PgTxnManager::ResetTxnAndSession() {
   txn_in_progress_ = false;
   session_ = nullptr;
@@ -289,10 +323,9 @@ void PgTxnManager::ResetTxnAndSession() {
 }
 
 Status PgTxnManager::EnterSeparateDdlTxnMode() {
-  DSCHECK(!ddl_txn_,
+  RSTATUS_DCHECK(!ddl_txn_,
           IllegalState, "EnterSeparateDdlTxnMode called when already in a DDL transaction");
   VLOG(2) << __PRETTY_FUNCTION__;
-
   ddl_session_ = std::make_shared<YBSession>(async_client_init_->client(), clock_);
   ddl_session_->SetForceConsistentRead(client::ForceConsistentRead::kTrue);
   ddl_txn_ = std::make_shared<YBTransaction>(GetOrCreateTransactionManager());
@@ -305,8 +338,8 @@ Status PgTxnManager::EnterSeparateDdlTxnMode() {
 }
 
 Status PgTxnManager::ExitSeparateDdlTxnMode(bool is_success) {
-  VLOG(2) << __PRETTY_FUNCTION__ << ": ddl_txn_=" << ddl_txn_.get();
-  DSCHECK(!!ddl_txn_,
+  VLOG(2) << __PRETTY_FUNCTION__ << ": ddl_txn_=" << ddl_txn_.get() << ",is_success=" << is_success;
+  RSTATUS_DCHECK(!!ddl_txn_,
           IllegalState, "ExitSeparateDdlTxnMode called when not in a DDL transaction");
   if (is_success) {
     RETURN_NOT_OK(ddl_txn_->CommitFuture().get());

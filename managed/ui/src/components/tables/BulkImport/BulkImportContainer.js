@@ -5,7 +5,7 @@ import { BulkImport } from '../';
 import { bulkImport, bulkImportResponse } from '../../../actions/tables';
 import { reduxForm } from 'redux-form';
 import _ from 'lodash';
-import { isDefinedNotNull } from "../../../utils/ObjectUtils";
+import { isDefinedNotNull } from '../../../utils/ObjectUtils';
 
 const mapDispatchToProps = (dispatch) => {
   return {

@@ -1,0 +1,6 @@
+# src/test/regress/yb_pg_tablespaces_schedule
+#
+####################################################################################################
+# This testsuite contains testcases pertinent to YB Tablespaces.
+####################################################################################################
+test: yb_tablespaces

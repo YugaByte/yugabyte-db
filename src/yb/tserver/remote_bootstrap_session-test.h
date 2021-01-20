@@ -171,7 +171,7 @@ class RemoteBootstrapTest : public YBTabletTest {
         raft_pool_.get(),
         tablet_prepare_pool_.get(),
         nullptr /* retryable_requests */,
-        yb::OpId() /* split_op_id */));
+        consensus::SplitOpInfo()));
     consensus::ConsensusBootstrapInfo boot_info;
     ASSERT_OK(tablet_peer_->Start(boot_info));
 

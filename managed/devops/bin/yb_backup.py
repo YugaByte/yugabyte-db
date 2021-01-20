@@ -21,6 +21,7 @@ import string
 import subprocess
 import time
 import json
+
 from argparse import RawDescriptionHelpFormatter
 from boto.utils import get_instance_metadata
 from multiprocessing.pool import ThreadPool
@@ -30,15 +31,19 @@ import re
 
 TABLET_UUID_LEN = 32
 UUID_RE_STR = '[0-9a-f-]{32,36}'
+COLOCATED_UUID_SUFFIX = '.colocated.parent.uuid'
+COLOCATED_NAME_SUFFIX = '.colocated.parent.tablename'
+COLOCATED_UUID_RE_STR = UUID_RE_STR + COLOCATED_UUID_SUFFIX
 UUID_ONLY_RE = re.compile('^' + UUID_RE_STR + '$')
 NEW_OLD_UUID_RE = re.compile(UUID_RE_STR + '[ ]*\t' + UUID_RE_STR)
+COLOCATED_NEW_OLD_UUID_RE = re.compile(COLOCATED_UUID_RE_STR + '[ ]*\t' + COLOCATED_UUID_RE_STR)
 LEADING_UUID_RE = re.compile('^(' + UUID_RE_STR + r')\b')
 FS_DATA_DIRS_ARG_NAME = '--fs_data_dirs'
 FS_DATA_DIRS_ARG_PREFIX = FS_DATA_DIRS_ARG_NAME + '='
 RPC_BIND_ADDRESSES_ARG_NAME = '--rpc_bind_addresses'
 RPC_BIND_ADDRESSES_ARG_PREFIX = RPC_BIND_ADDRESSES_ARG_NAME + '='
 
-IMPORTED_TABLE_RE = re.compile('Table being imported: ([^\.]*)\.(.*)')
+IMPORTED_TABLE_RE = re.compile(r'(?:Colocated t|T)able being imported: ([^\.]*)\.(.*)')
 RESTORATION_RE = re.compile('^Restoration id: (' + UUID_RE_STR + r')\b')
 
 SNAPSHOT_KEYSPACE_RE = re.compile("^[ \t]*Keyspace:.* name='(.*)' type")
@@ -83,6 +88,11 @@ DEFAULT_YB_USER = 'yugabyte'
 
 class BackupException(Exception):
     """A YugaByte backup exception."""
+    pass
+
+
+class CompatibilityException(BackupException):
+    """Exception which can be ignored for compatibility."""
     pass
 
 
@@ -306,6 +316,21 @@ def keyspace_type(keyspace):
     return 'ysql' if ('.' in keyspace) and (keyspace.split('.')[0].lower() == 'ysql') else 'ycql'
 
 
+def is_parent_colocated_table_name(table_name):
+    return table_name.endswith(COLOCATED_NAME_SUFFIX)
+
+
+def get_postgres_oid_from_table_id(table_id):
+    return table_id[-4:]
+
+
+def verify_colocated_table_ids(old_id, new_id):
+    # Assert that the postgres oids are the same.
+    if (get_postgres_oid_from_table_id(old_id) != get_postgres_oid_from_table_id(new_id)):
+        raise BackupException('Colocated tables have different oids: Old oid: {}, New oid: {}'
+                              .format(old_id, new_id))
+
+
 def keyspace_name(keyspace):
     return keyspace.split('.')[1] if ('.' in keyspace) else keyspace
 
@@ -336,29 +361,38 @@ class AzBackupStorage(AbstractBackupStorage):
         return 'az'
 
     def _command_list_prefix(self):
-        return "azcopy cp"
+        return "azcopy"
 
     def upload_file_cmd(self, src, dest):
         # azcopy requires quotes around the src and dest. This format is necessary to do so.
         src = "'{}'".format(src)
         dest = "'{}'".format(dest + os.getenv('AZURE_STORAGE_SAS_TOKEN'))
-        return ["{} {} {}".format(self._command_list_prefix(), src, dest)]
+        return ["{} {} {} {}".format(self._command_list_prefix(), "cp", src, dest)]
 
     def download_file_cmd(self, src, dest):
         src = "'{}'".format(src + os.getenv('AZURE_STORAGE_SAS_TOKEN'))
         dest = "'{}'".format(dest)
-        return ["{} {} {} {}".format(self._command_list_prefix(), src, dest, "--recursive")]
+        return ["{} {} {} {} {}".format(self._command_list_prefix(), "cp", src,
+                dest, "--recursive")]
 
     def upload_dir_cmd(self, src, dest):
         # azcopy will download the top-level directory as well as the contents without "/*".
         src = "'{}'".format(os.path.join(src, '*'))
         dest = "'{}'".format(dest + os.getenv('AZURE_STORAGE_SAS_TOKEN'))
-        return ["{} {} {} {}".format(self._command_list_prefix(), src, dest, "--recursive")]
+        return ["{} {} {} {} {}".format(self._command_list_prefix(), "cp", src,
+                dest, "--recursive")]
 
     def download_dir_cmd(self, src, dest):
         src = "'{}'".format(os.path.join(src, '*') + os.getenv('AZURE_STORAGE_SAS_TOKEN'))
         dest = "'{}'".format(dest)
-        return ["{} {} {} {}".format(self._command_list_prefix(), src, dest, "--recursive")]
+        return ["{} {} {} {} {}".format(self._command_list_prefix(), "cp", src,
+                dest, "--recursive")]
+
+    def delete_obj_cmd(self, dest):
+        if dest is None or dest == '/' or dest == '':
+            raise BackupException("Destination needs to be well formed.")
+        dest = "'{}'".format(dest + os.getenv('AZURE_STORAGE_SAS_TOKEN'))
+        return ["{} {} {} {}".format(self._command_list_prefix(), "rm", dest, "--recursive=true")]
 
 
 class GcsBackupStorage(AbstractBackupStorage):
@@ -384,6 +418,11 @@ class GcsBackupStorage(AbstractBackupStorage):
 
     def download_dir_cmd(self, src, dest):
         return self._command_list_prefix() + ["-m", "rsync", "-r", src, dest]
+
+    def delete_obj_cmd(self, dest):
+        if dest is None or dest == '/' or dest == '':
+            raise BackupException("Destination needs to be well formed.")
+        return self._command_list_prefix() + ["rm", "-r", dest]
 
 
 class S3BackupStorage(AbstractBackupStorage):
@@ -418,6 +457,11 @@ class S3BackupStorage(AbstractBackupStorage):
     def download_dir_cmd(self, src, dest):
         return self._command_list_prefix() + ["sync", "--no-check-md5", src, dest]
 
+    def delete_obj_cmd(self, dest):
+        if dest is None or dest == '/' or dest == '':
+            raise BackupException("Destination needs to be well formed.")
+        return self._command_list_prefix() + ["del", "-r", dest]
+
 
 class NfsBackupStorage(AbstractBackupStorage):
     def __init__(self, options):
@@ -436,7 +480,7 @@ class NfsBackupStorage(AbstractBackupStorage):
     # This is a single string because that's what we need for doing `mkdir && rsync`.
     def upload_file_cmd(self, src, dest):
         return ["mkdir -p {} && {} {} {}".format(
-            os.path.dirname(dest), " ".join(self._command_list_prefix()),
+            pipes.quote(os.path.dirname(dest)), " ".join(self._command_list_prefix()),
             pipes.quote(src), pipes.quote(dest))]
 
     def download_file_cmd(self, src, dest):
@@ -446,11 +490,16 @@ class NfsBackupStorage(AbstractBackupStorage):
     # `mkdir && rsync` and b) we need a list of 1 element, as it goes through a tuple().
     def upload_dir_cmd(self, src, dest):
         return ["mkdir -p {} && {} {} {}".format(
-            dest, " ".join(self._command_list_prefix()),
+            pipes.quote(dest), " ".join(self._command_list_prefix()),
             pipes.quote(src), pipes.quote(dest))]
 
     def download_dir_cmd(self, src, dest):
         return self._command_list_prefix() + [src, dest]
+
+    def delete_obj_cmd(self, dest):
+        if dest is None or dest == '/' or dest == '':
+            raise BackupException("Destination needs to be well formed.")
+        return ["rm", "-rf", pipes.quote(dest)]
 
 
 BACKUP_STORAGE_ABSTRACTIONS = {
@@ -477,7 +526,7 @@ def get_instance_profile_credentials():
     iam_credentials_endpoint = 'meta-data/iam/security-credentials/'
     metadata = get_instance_metadata(timeout=1, num_retries=1, data=iam_credentials_endpoint)
     if metadata:
-        instance_credentials = metadata.values()[0]
+        instance_credentials = next(iter(metadata.values()))
         if isinstance(instance_credentials, dict):
             try:
                 access_key = instance_credentials['AccessKeyId']
@@ -523,10 +572,8 @@ class YBBackup:
             try:
                 if env is None:
                     env = os.environ.copy()
-                subprocess_result = subprocess.check_output(args, stderr=subprocess.STDOUT,
-                                                            env=env, **kwargs)
-                if not isinstance(subprocess_result, str):
-                    subprocess_result = subprocess_result.decode('utf-8')
+                subprocess_result = str(subprocess.check_output(args, stderr=subprocess.STDOUT,
+                                                                env=env, **kwargs).decode('utf-8'))
 
                 if self.args.verbose:
                     logging.info(
@@ -535,7 +582,7 @@ class YBBackup:
                 return subprocess_result
             except subprocess.CalledProcessError as e:
                 logging.error("Failed to run command [[ {} ]]: code={} output={}".format(
-                    cmd_as_str, e.returncode, e.output))
+                    cmd_as_str, e.returncode, str(e.output.decode('utf-8'))))
                 self.sleep_or_raise(num_retry, timeout, e)
             except Exception as ex:
                 logging.error("Failed to run command [[ {} ]]: {}".format(cmd_as_str, ex))
@@ -642,12 +689,12 @@ class YBBackup:
                  'This also affects the amount of outgoing s3cmd sync traffic when copying a '
                  'backup to S3.')
         parser.add_argument(
-            '--storage_type', choices=BACKUP_STORAGE_ABSTRACTIONS.keys(),
+            '--storage_type', choices=list(BACKUP_STORAGE_ABSTRACTIONS.keys()),
             default=S3BackupStorage.storage_type(),
             help="Storage backing for backups, eg: s3, nfs, gcs, ..")
         parser.add_argument(
-            'command', choices=['create', 'restore', 'restore_keys'],
-            help='Create or restore the backup from the provided backup location.')
+            'command', choices=['create', 'restore', 'restore_keys', 'delete'],
+            help='Create, restore or delete the backup from the provided backup location.')
         parser.add_argument(
             '--certs_dir', required=False,
             help="The directory containing the certs for secure connections.")
@@ -742,6 +789,9 @@ class YBBackup:
 
     def is_az(self):
         return self.args.storage_type == AzBackupStorage.storage_type()
+
+    def is_nfs(self):
+        return self.args.storage_type == NfsBackupStorage.storage_type()
 
     def is_k8s(self):
         return self.args.k8s_config is not None
@@ -947,10 +997,13 @@ class YBBackup:
             raise BackupException('Timed out waiting for snapshot!')
 
         if update_table_list:
-            if len(snapshot_keyspaces) != len(snapshot_tables) or len(snapshot_tables) == 0:
+            if len(snapshot_tables) == 0:
+                raise CompatibilityException("Created snapshot does not have tables.")
+
+            if len(snapshot_keyspaces) != len(snapshot_tables):
                 raise BackupException(
-                    "In the snapshot found {} keyspaces and {} tables. The numbers must be equal "
-                    "and more than zero.".format(len(snapshot_keyspaces), len(snapshot_tables)))
+                    "In the snapshot found {} keyspaces and {} tables. The numbers must be equal.".
+                    format(len(snapshot_keyspaces), len(snapshot_tables)))
 
             self.args.keyspace = snapshot_keyspaces
             self.args.table = snapshot_tables
@@ -966,6 +1019,9 @@ class YBBackup:
         tablet_leaders = []
 
         for i in range(0, len(self.args.table)):
+            # Don't call list_tablets on a parent colocated table.
+            if is_parent_colocated_table_name(self.args.table[i]):
+                continue
             output = self.run_yb_admin(
                 ['list_tablets', self.args.keyspace[i], self.args.table[i], '0'])
             for line in output.splitlines():
@@ -1151,7 +1207,7 @@ class YBBackup:
                 if ip == tserver_ip:
                     logging.info("Found data directories on server {}: {}".format(ip, fs_data_dirs))
                     return fs_data_dirs
-        raise BackupException("Unable find data directories on server {}".format(tserver_ip))
+        raise BackupException("Unable to find data directories on server {}".format(tserver_ip))
 
     def generate_snapshot_dirs(self, data_dir_by_tserver, snapshot_id,
                                tablets_by_tserver_ip, table_ids):
@@ -1547,6 +1603,13 @@ class YBBackup:
             self.storage.download_file_cmd(key_file_src, self.args.restore_keys_destination)
         )
 
+    def delete_bucket_obj(self):
+        del_cmd = self.storage.delete_obj_cmd(self.args.backup_location)
+        if self.is_nfs:
+            self.run_ssh_cmd(del_cmd, self.get_leader_master_ip())
+        else:
+            self.run_program(del_cmd)
+
     def upload_metadata_and_checksum(self, src_path, dest_path):
         """
         Upload metadata file and checksum file to the target backup location.
@@ -1638,7 +1701,21 @@ class YBBackup:
             if not self.args.snapshot_id:
                 snapshot_id = self.create_snapshot()
                 logging.info("Snapshot started with id: %s" % snapshot_id)
-                self.wait_for_snapshot(snapshot_id, 'creating', CREATE_SNAPSHOT_TIMEOUT_SEC, True)
+                # TODO: Remove the following try-catch for compatibility to un-relax the code, after
+                #       we ensure nobody uses versions < v2.1.4 (after all move to >= v2.1.8).
+                try:
+                    # With 'update_table_list=True' it runs: 'yb-admin list_snapshots SHOW_DETAILS'
+                    # to get updated list of backed up namespaces and tables. Note that the last
+                    # argument 'SHOW_DETAILS' is not supported in old YB versions (< v2.1.4).
+                    self.wait_for_snapshot(snapshot_id, 'creating', CREATE_SNAPSHOT_TIMEOUT_SEC,
+                                           update_table_list=True)
+                except CompatibilityException as ex:
+                    logging.info("Ignoring the exception in the compatibility mode: {}".format(ex))
+                    # In the compatibility mode repeat the command in old style
+                    # (without the new command line argument 'SHOW_DETAILS').
+                    # With 'update_table_list=False' it runs: 'yb-admin list_snapshots'.
+                    self.wait_for_snapshot(snapshot_id, 'creating', CREATE_SNAPSHOT_TIMEOUT_SEC,
+                                           update_table_list=False)
 
                 if not self.args.no_snapshot_deleting:
                     logging.info("Snapshot %s will be deleted at exit...", snapshot_id)
@@ -1852,14 +1929,14 @@ class YBBackup:
         snapshot_metadata['table'] = {}
         snapshot_metadata['tablet'] = {}
         snapshot_metadata['snapshot_id'] = {}
-        for line in output.splitlines():
+        for idx, line in enumerate(output.splitlines()):
             table_match = IMPORTED_TABLE_RE.search(line)
             if table_match:
                 snapshot_metadata['keyspace_name'].append(table_match.group(1))
                 snapshot_metadata['table_name'].append(table_match.group(2))
                 logging.info('Imported table: {}.{}'.format(table_match.group(1),
                                                             table_match.group(2)))
-            if NEW_OLD_UUID_RE.search(line):
+            elif NEW_OLD_UUID_RE.search(line):
                 (entity, old_id, new_id) = split_by_tab(line)
                 if entity == 'Table':
                     snapshot_metadata['table'][new_id] = old_id
@@ -1870,6 +1947,19 @@ class YBBackup:
                 elif entity == 'Snapshot':
                     snapshot_metadata['snapshot_id']['old'] = old_id
                     snapshot_metadata['snapshot_id']['new'] = new_id
+            elif COLOCATED_NEW_OLD_UUID_RE.search(line):
+                (entity, old_id, new_id) = split_by_tab(line)
+                if entity == 'ParentColocatedTable':
+                    verify_colocated_table_ids(old_id, new_id)
+                    snapshot_metadata['table'][new_id] = old_id
+                    logging.info('Imported colocated table id was changed from {} to {}'
+                                 .format(old_id, new_id))
+                elif entity == 'ColocatedTable':
+                    # A colocated table's tablets are kept under its corresponding parent colocated
+                    # table, so we just need to verify the table ids now.
+                    verify_colocated_table_ids(old_id, new_id)
+                    logging.info('Imported colocated table id was changed from {} to {}'
+                                 .format(old_id, new_id))
 
         return snapshot_metadata
 
@@ -1915,7 +2005,7 @@ class YBBackup:
                                       snapshot_id, table_ids):
         pool = ThreadPool(self.args.parallelism)
 
-        tserver_ips = tablets_by_tserver_to_download.keys()
+        tserver_ips = list(tablets_by_tserver_to_download.keys())
         data_dir_by_tserver = SingleArgParallelCmd(self.find_data_dirs, tserver_ips).run(pool)
 
         if self.args.verbose:
@@ -1964,7 +2054,7 @@ class YBBackup:
 
         snapshot_metadata = self.import_snapshot(metadata_file_path)
         snapshot_id = snapshot_metadata['snapshot_id']['new']
-        table_ids = snapshot_metadata['table'].keys()
+        table_ids = list(snapshot_metadata['table'].keys())
 
         self.wait_for_snapshot(snapshot_id, 'importing', CREATE_SNAPSHOT_TIMEOUT_SEC, False)
 
@@ -2025,7 +2115,14 @@ class YBBackup:
         logging.info('Restored backup successfully!')
         print(json.dumps({"success": True}))
 
-    # At exit callbacks
+    def delete_backup(self):
+        """
+        Delete the backup specified by the storage location.
+        """
+        if self.args.backup_location:
+            self.delete_bucket_obj()
+        logging.info('Deleted backup %s successfully!', self.args.backup_location)
+        print(json.dumps({"success": True}))
 
     def restore_keys(self):
         """
@@ -2037,6 +2134,7 @@ class YBBackup:
         logging.info('Restored backup universe keys successfully!')
         print(json.dumps({"success": True}))
 
+    # At exit callbacks
     def cleanup_temporary_directory(self, tmp_dir):
         """
         Callback run on exit to clean up temporary directories.
@@ -2074,6 +2172,8 @@ class YBBackup:
                 self.backup_table()
             elif self.args.command == 'restore_keys':
                 self.restore_keys()
+            elif self.args.command == 'delete':
+                self.delete_backup()
             else:
                 logging.error('Command was not specified')
                 print(json.dumps({"error": "Command was not specified"}))

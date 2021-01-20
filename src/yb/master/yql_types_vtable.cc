@@ -18,8 +18,10 @@
 namespace yb {
 namespace master {
 
-QLTypesVTable::QLTypesVTable(const Master* const master)
-    : YQLVirtualTable(master::kSystemSchemaTypesTableName, master, CreateSchema()) {
+QLTypesVTable::QLTypesVTable(const TableName& table_name,
+                             const NamespaceName& namespace_name,
+                             Master* const master)
+    : YQLVirtualTable(table_name, namespace_name, master, CreateSchema()) {
 }
 
 Result<std::shared_ptr<QLRowBlock>> QLTypesVTable::RetrieveData(

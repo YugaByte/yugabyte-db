@@ -33,6 +33,10 @@ class PgMiniTestBase : public YBMiniClusterTestBase<MiniCluster> {
 
   void SetUp() override;
 
+  virtual int NumMasters() {
+    return 1;
+  }
+
   virtual int NumTabletServers() {
     return 3;
   }

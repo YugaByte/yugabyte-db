@@ -3,8 +3,14 @@
 import { connect } from 'react-redux';
 import { reduxForm } from 'redux-form';
 import { DockerProviderConfiguration } from '../../../config';
-import { createDockerProvider, createDockerProviderResponse,
- deleteProvider, deleteProviderFailure, deleteProviderSuccess, fetchCloudMetadata } from '../../../../actions/cloud';
+import {
+  createDockerProvider,
+  createDockerProviderResponse,
+  deleteProvider,
+  deleteProviderFailure,
+  deleteProviderSuccess,
+  fetchCloudMetadata
+} from '../../../../actions/cloud';
 import { openDialog, closeDialog } from '../../../../actions/modal';
 
 const mapStateToProps = (state) => {
@@ -12,7 +18,7 @@ const mapStateToProps = (state) => {
     configuredProviders: state.cloud.providers,
     configuredRegions: state.cloud.supportedRegionList,
     accessKeys: state.cloud.accessKeys,
-    initialValues: { accountName: "Docker" },
+    initialValues: { accountName: 'Docker' },
     dockerBootstrap: state.cloud.dockerBootstrap,
     universeList: state.universe.universeList,
 
@@ -41,7 +47,7 @@ const mapDispatchToProps = (dispatch) => {
     },
 
     showDeleteProviderModal: () => {
-      dispatch(openDialog("deleteDockerProvider"));
+      dispatch(openDialog('deleteDockerProvider'));
     },
 
     hideDeleteProviderModal: () => {
@@ -58,4 +64,7 @@ const dockerConfigForm = reduxForm({
   form: 'dockerConfigForm'
 });
 
-export default connect(mapStateToProps, mapDispatchToProps)(dockerConfigForm(DockerProviderConfiguration));
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(dockerConfigForm(DockerProviderConfiguration));

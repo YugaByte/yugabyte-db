@@ -25,7 +25,7 @@ def request_retry_decorator(fn_to_call, exc_handler):
         MAX_ATTEMPTS = 10
         SLEEP_SEC_MIN = 5
         SLEEP_SEC_MAX = 15
-        for i in xrange(1, MAX_ATTEMPTS + 1):
+        for i in range(1, MAX_ATTEMPTS + 1):
             try:
                 return fn_to_call(*args, **kwargs)
             except Exception as e:

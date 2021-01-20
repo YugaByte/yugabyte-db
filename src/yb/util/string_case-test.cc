@@ -51,6 +51,19 @@ TEST(TestStringCase, TestSnakeToCamel) {
   ASSERT_EQ("Foobar", out);
 }
 
+TEST(TestStringCase, TestAllCapsToCamel) {
+  string out;
+  AllCapsToCamelCase("FOO_BAR", &out);
+  ASSERT_EQ("FooBar", out);
+
+
+  AllCapsToCamelCase("FOO-BAR", &out);
+  ASSERT_EQ("FooBar", out);
+
+  AllCapsToCamelCase("FOOBAR", &out);
+  ASSERT_EQ("Foobar", out);
+}
+
 TEST(TestStringCase, TestToUpperCase) {
   string out;
   ToUpperCase(string("foo"), &out);

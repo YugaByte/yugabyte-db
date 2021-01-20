@@ -1,4 +1,4 @@
-# !/usr/bin/python
+#!/usr/bin/env python
 #
 # Copyright 2019 YugaByte, Inc. and Contributors
 #
@@ -45,7 +45,7 @@ class AnsibleProcess(object):
     def build_connection_target(self, target):
         return target + ","
 
-    def run(self, filename, extra_vars=dict(), host_info={}):
+    def run(self, filename, extra_vars=dict(), host_info={}, print_output=True):
         """Method used to call out to the respective Ansible playbooks.
         Args:
             filename: The playbook file to execute
@@ -91,8 +91,6 @@ class AnsibleProcess(object):
         if ssh_port is None or ssh_host is None:
             connection_type = "local"
             inventory_target = "localhost,"
-            # Ansible automatically uses /usr/local/bin/python when "-i localhost," is specified.
-            process_args.extend(["-e", "ansible_python_interpreter='/usr/bin/env python'"])
         elif self.can_ssh:
             process_args.extend([
                 "--private-key", ssh_key_file,
@@ -111,21 +109,27 @@ class AnsibleProcess(object):
             inventory_target = self.build_connection_target(
                 host_info.get("name", self.connection_target))
 
-        # Set inventory and connection type.
+        # Set inventory, connection type, and pythonpath.
         process_args.extend([
             "-i", inventory_target,
-            "-c", connection_type
+            "-c", connection_type,
+            "-e", "ansible_python_interpreter='/usr/bin/env python'"
         ])
 
         # Setup the full list of extra-vars needed for ansible plays.
         process_args.extend(["--extra-vars", json.dumps(playbook_args)])
-
+        env = {'PROFILE_TASKS_TASK_OUTPUT_LIMIT': '30'}
+        logging.info("[app] Running ansible playbook {} against target {}".format(
+                        filename, inventory_target))
         logging.info("Running ansible command {}".format(json.dumps(process_args,
                                                                     separators=(' ', ' '))))
-        p = subprocess.Popen(process_args, stderr=subprocess.PIPE)
-        _, stderr = p.communicate()
+        p = subprocess.Popen(process_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = p.communicate()
+        if print_output:
+            print(stdout)
+        EXCEPTION_MSG_FORMAT = ("Playbook run of {} against {} with args {} " +
+                                "failed with return code {} and error '{}'")
         if p.returncode != 0:
-            raise YBOpsRuntimeError(
-                "Playbook with args {} failed with return code {} and error {}".format(
-                    process_args, p.returncode, stderr))
+            raise YBOpsRuntimeError(EXCEPTION_MSG_FORMAT.format(
+                    filename, inventory_target, process_args, p.returncode, stderr))
         return p.returncode

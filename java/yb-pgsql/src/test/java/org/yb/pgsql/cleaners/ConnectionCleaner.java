@@ -67,6 +67,7 @@ public class ConnectionCleaner implements ClusterCleaner {
           } else {
             // TODO(dmitry): Workaround for #1721, remove after fix.
             try (Statement statement = connection.createStatement()) {
+              statement.execute("ROLLBACK");
               statement.execute("DISCARD TEMP");
             } catch (SQLException ex) {
               // Exception is acceptable only in case connection was already closed.

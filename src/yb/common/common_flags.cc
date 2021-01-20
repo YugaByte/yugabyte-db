@@ -29,7 +29,7 @@ DEFINE_int32(yb_num_shards_per_tserver, kAutoDetectNumShardsPerTServer,
 DEFINE_int32(ysql_num_shards_per_tserver, 8,
     "The default number of shards per YSQL table per tablet server when a table is created.");
 
-DEFINE_bool(ysql_disable_index_backfill, true,
+DEFINE_bool(ysql_disable_index_backfill, false,
     "A kill switch to disable multi-stage backfill for YSQL indexes.");
 TAG_FLAG(ysql_disable_index_backfill, hidden);
 

@@ -993,7 +993,7 @@ materializeQueryResult(FunctionCallInfo fcinfo,
 	PG_TRY();
 	{
 		/* Create short-lived memory context for data conversions */
-		sinfo.tmpcontext = AllocSetContextCreate(CurrentMemoryContext,
+		sinfo.tmpcontext = AllocSetContextCreate(GetCurrentMemoryContext(),
 												 "dblink temporary context",
 												 ALLOCSET_DEFAULT_SIZES);
 
@@ -1285,13 +1285,13 @@ dblink_get_connections(PG_FUNCTION_ARGS)
 			/* stash away current value */
 			astate = accumArrayResult(astate,
 									  CStringGetTextDatum(hentry->name),
-									  false, TEXTOID, CurrentMemoryContext);
+									  false, TEXTOID, GetCurrentMemoryContext());
 		}
 	}
 
 	if (astate)
 		PG_RETURN_ARRAYTYPE_P(makeArrayResult(astate,
-											  CurrentMemoryContext));
+											  GetCurrentMemoryContext()));
 	else
 		PG_RETURN_NULL();
 }

@@ -12,6 +12,8 @@
 //
 package org.yb.pgsql;
 
+import java.util.Map;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.yb.util.YBTestRunnerNonTsanOnly;
@@ -21,9 +23,19 @@ import org.yb.util.YBTestRunnerNonTsanOnly;
  */
 @RunWith(value=YBTestRunnerNonTsanOnly.class)
 public class TestPgRegressPgMiscIndependent extends BasePgSQLTest {
+
+  private static final int TURN_OFF_SEQUENCE_CACHE_FLAG = 0;
+
   @Override
   public int getTestMethodTimeoutSec() {
     return 1800;
+  }
+
+  @Override
+  protected Map<String, String> getTServerFlags() {
+    Map<String, String> flagMap = super.getTServerFlags();
+    flagMap.put("ysql_sequence_cache_minval", Integer.toString(TURN_OFF_SEQUENCE_CACHE_FLAG));
+    return flagMap;
   }
 
   @Test

@@ -1,0 +1,36 @@
+@import '../../../../uikit/common';
+
+.wizard-stepper {
+  display: flex;
+  align-items: center;
+
+  &__item {
+    font-family: $YB_FONT_FAMILY;
+    font-weight: 600;
+    font-size: 20px;
+    color: $YB_BORDER_1;
+    user-select: none;
+    margin-right: 50px;
+
+    &:first-child {
+      border-top-left-radius: 7px;
+    }
+
+    &:last-child {
+      border-top-right-radius: 7px;
+      border-right-width: 1px;
+    }
+
+    &--active {
+      font-size: 22px;
+      color: $YB_WIZARD_STEPPER_ACTIVE;
+    }
+
+    &--clickable {
+      cursor: pointer;
+      &:hover {
+        color: $YB_CTA;
+      }
+    }
+  }
+}

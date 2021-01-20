@@ -1476,13 +1476,14 @@ TEST_F(TestQLQuery, TestCollectionTypes) {
 
   // Create table.
   const char *list_create_stmt =
-      "CREATE TABLE list_test (id int PRIMARY KEY, v int, ls list<varchar>, c varchar);";
+      "CREATE TABLE list_test"
+      "  (id int PRIMARY KEY, v int, ls list<varchar>, c varchar, lb list<blob>);";
   s = processor->Run(list_create_stmt);
   CHECK(s.ok());
 
   // Insert Values
-  std::string list_insert_stmt("INSERT INTO list_test (id, v, ls, c) values "
-      "(1, 3, ['c', 'd', 'a', 'b', 'd', 'b'], 'x');");
+  std::string list_insert_stmt("INSERT INTO list_test (id, v, ls, c, lb) values "
+      "(1, 3, ['c', 'd', 'a', 'b', 'd', 'b'], 'x', [0x01, 0X02, 0x33, 0x04]);");
   s = processor->Run(list_insert_stmt);
   CHECK_OK(s);
 
@@ -1500,10 +1501,14 @@ TEST_F(TestQLQuery, TestCollectionTypes) {
   EXPECT_EQ("x", list_row.column(3).string_value());
   // check set
   EXPECT_EQ(InternalType::kListValue, list_row.column(2).type());
-  QLSeqValuePB list_value = list_row.column(2).list_value();
+  EXPECT_EQ(InternalType::kListValue, list_row.column(4).type());
+
   // check elems
   // lists should preserve input length (keep duplicates if any)
+  QLSeqValuePB list_value = list_row.column(2).list_value();
   EXPECT_EQ(6, list_value.elems_size());
+  QLSeqValuePB blist_value = list_row.column(4).list_value();
+  EXPECT_EQ(4, blist_value.elems_size());
   // list elements should preserve input order
   EXPECT_EQ("c", list_value.elems(0).string_value());
   EXPECT_EQ("d", list_value.elems(1).string_value());
@@ -1511,6 +1516,11 @@ TEST_F(TestQLQuery, TestCollectionTypes) {
   EXPECT_EQ("b", list_value.elems(3).string_value());
   EXPECT_EQ("d", list_value.elems(4).string_value());
   EXPECT_EQ("b", list_value.elems(5).string_value());
+
+  EXPECT_EQ("\x1", blist_value.elems(0).binary_value());
+  EXPECT_EQ("\x2", blist_value.elems(1).binary_value());
+  EXPECT_EQ("\x33", blist_value.elems(2).binary_value());
+  EXPECT_EQ("\x4", blist_value.elems(3).binary_value());
 }
 
 TEST_F(TestQLQuery, TestSystemLocal) {

@@ -53,7 +53,7 @@ Users who are familiar with the rules that are described in that section often f
 The example below attempts to make many teaching points in one piece of code.
 
 - The actual syntax, when the expressions that the `array[]` constructor uses are all literals, is far simpler than the syntax that governs how to construct an array literal.
-- You can use all of YSQL's array functionality in PL/pgSQL code, just as you can in SQL statements. The code creates and invokes a table function, and not just a `DO` block, to emphasize this interoperability point.
+- You can use all of the YSQL array functionality in PL/pgSQL code, just as you can in SQL statements. The code creates and invokes a table function, and not just a `DO` block, to emphasize this interoperability point.
 - Array-like functionality is essential in any programming language.
 - The `array[]` constructor is most valuable when the expressions that it uses are composed using declared variables, and especially formal parameters, that are used to build whatever values are intended. In this example, the values have the user-defined data type _"rt"_. In other words, the `array[]` constructor is particularly valuable when you build an array programmatically from scalar values that you know first at run time.
 - It vividly demonstrates the semantic effect of the `array[]` constructor like this:

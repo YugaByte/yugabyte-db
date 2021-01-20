@@ -17,6 +17,7 @@ import static org.yb.AssertionWrappers.*;
 import static org.yb.util.SanitizerUtil.isASAN;
 import static org.yb.util.SanitizerUtil.isTSAN;
 
+import com.google.common.net.HostAndPort;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -33,8 +34,10 @@ import org.postgresql.util.PGobject;
 import org.postgresql.util.PSQLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yb.client.AsyncYBClient;
 import org.yb.client.IsInitDbDoneResponse;
 import org.yb.client.TestUtils;
+import org.yb.client.YBClient;
 import org.yb.minicluster.*;
 import org.yb.minicluster.Metrics.YSQLStat;
 import org.yb.pgsql.cleaners.ClusterCleaner;
@@ -200,6 +203,8 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     }
 
     flagMap.put("ysql_beta_features", "true");
+    flagMap.put("ysql_sleep_before_retry_on_txn_conflict", "false");
+    flagMap.put("ysql_max_write_restart_attempts", "2");
 
     return flagMap;
   }
@@ -396,6 +401,7 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
   protected static class AgregatedValue {
     long count;
     double value;
+    long rows;
   }
 
   protected void resetStatementStat() throws Exception {
@@ -422,6 +428,7 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
       if (ysqlStat != null) {
         value.count += ysqlStat.calls;
         value.value += ysqlStat.total_time;
+        value.rows += ysqlStat.rows;
       }
       scanner.close();
     }
@@ -506,45 +513,143 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
       Metrics.YSQLMetric metric = new Metrics(obj).getYSQLMetric(metricName);
       value.count += metric.count;
       value.value += metric.sum;
+      value.rows += metric.rows;
     }
     return value;
+  }
+
+  protected Long getTserverMetricCountForTable(String metricName, String tableName)
+      throws Exception {
+    long count = 0;
+    for (JsonArray rawMetric : getRawTSMetric()) {
+      for (JsonElement elem : rawMetric.getAsJsonArray()) {
+        JsonObject obj = elem.getAsJsonObject();
+        if (obj.get("type").getAsString().equals("tablet") &&
+            obj.getAsJsonObject("attributes").get("table_name").getAsString().equals(tableName)) {
+          for (JsonElement subelem : obj.getAsJsonArray("metrics")) {
+            if (!subelem.isJsonObject()) {
+              continue;
+            }
+            JsonObject metric = subelem.getAsJsonObject();
+            if (metric.has("name") && metric.get("name").getAsString().equals(metricName)) {
+              count += metric.get("value").getAsLong();
+            }
+          }
+        }
+      }
+    }
+    return count;
   }
 
   protected long getMetricCounter(String metricName) throws Exception {
     return getMetric(metricName).count;
   }
 
-  /** Time execution of a query. */
-  protected long verifyStatementMetric(Statement stmt, String sql, String metricName,
-                                       int queryMetricDelta, int txnMetricDelta,
-                                       boolean validStmt) throws Exception {
-    long oldQueryMetricValue = metricName == null ? 0 : getMetricCounter(metricName);
-    long oldTxnMetricValue = getMetricCounter(TRANSACTIONS_METRIC);
+  private interface MetricFetcher {
+    AgregatedValue fetch(String name) throws Exception;
+  }
 
-    final long startTimeMillis = System.currentTimeMillis();
-    if (validStmt) {
-      stmt.execute(sql);
-    } else {
-      runInvalidQuery(stmt, sql, "ERROR");
+  private static abstract class QueryExecutionMetricChecker {
+    private MetricFetcher fetcher;
+    private String metricName;
+    private AgregatedValue oldValue;
+
+    public QueryExecutionMetricChecker(String metricName, MetricFetcher fetcher) {
+      this.fetcher = fetcher;
+      this.metricName = metricName;
     }
 
+    public void beforeQueryExecution() throws Exception {
+      oldValue = fetcher.fetch(metricName);
+    }
+
+    public void afterQueryExecution(String query) throws Exception {
+      check(query, metricName, oldValue, fetcher.fetch(metricName));
+    }
+
+    protected abstract void check(
+      String query, String metricName, AgregatedValue oldValue, AgregatedValue newValue);
+  }
+
+  private class MetricCountChecker extends QueryExecutionMetricChecker {
+    private long countDelta;
+
+    public MetricCountChecker(String name, MetricFetcher fetcher, long countDelta) {
+      super(name, fetcher);
+      this.countDelta = countDelta;
+    }
+
+    @Override
+    public void check(
+      String query, String metric, AgregatedValue oldValue, AgregatedValue newValue) {
+      assertEquals(
+        String.format("'%s' count delta assertion failed for query '%s'", metric, query),
+        countDelta, newValue.count - oldValue.count);
+    }
+  }
+
+  private class MetricRowsChecker extends MetricCountChecker {
+    private long rowsDelta;
+
+    public MetricRowsChecker(String name, MetricFetcher fetcher, long countDelta, long rowsDelta) {
+      super(name, fetcher, countDelta);
+      this.rowsDelta = rowsDelta;
+    }
+
+    @Override
+    public void check(
+      String query, String metric, AgregatedValue oldValue, AgregatedValue newValue) {
+      super.check(query, metric, oldValue, newValue);
+      assertEquals(
+        String.format("'%s' row count delta assertion failed for query '%s'", metric, query),
+        rowsDelta, newValue.rows - oldValue.rows);
+    }
+  }
+
+  /** Time execution of a query. */
+  private long verifyQuery(Statement statement,
+                           String query,
+                           boolean validStmt,
+                           QueryExecutionMetricChecker... checkers) throws Exception {
+    for (QueryExecutionMetricChecker checker : checkers) {
+      checker.beforeQueryExecution();
+    }
+    final long startTimeMillis = System.currentTimeMillis();
+    if (validStmt) {
+      statement.execute(query);
+    } else {
+      runInvalidQuery(statement, query, "ERROR");
+    }
     // Check the elapsed time.
-    long result = System.currentTimeMillis() - startTimeMillis;
-
-    long newValue = metricName == null ? 0 : getMetricCounter(metricName);
-    long newTxnValue = getMetricCounter(TRANSACTIONS_METRIC);
-
-    assertEquals("Metric '" + metricName + "' assertion failed for query '" + sql + "'",
-        oldQueryMetricValue + queryMetricDelta, newValue);
-    assertEquals("Metric '" + TRANSACTIONS_METRIC + "' assertion failed for query '" + sql + "'",
-        oldTxnMetricValue + txnMetricDelta, newTxnValue);
-
+    final long result = System.currentTimeMillis() - startTimeMillis;
+    for (QueryExecutionMetricChecker checker : checkers) {
+      checker.afterQueryExecution(query);
+    }
     return result;
   }
 
-  protected void verifyStatementTxnMetric(Statement statement, String sql,
-                                          int txnMetricDelta) throws Exception {
-    verifyStatementMetric(statement, sql, null, 0, txnMetricDelta, true);
+  /** Time execution of a query. */
+  protected long verifyStatementMetric(
+    Statement statement, String query, String metricName,
+    int queryMetricDelta, int txnMetricDelta, boolean validStmt) throws Exception {
+    return verifyQuery(
+      statement, query, validStmt,
+      new MetricCountChecker(TRANSACTIONS_METRIC, this::getMetric, txnMetricDelta),
+      new MetricCountChecker(metricName, this::getMetric, queryMetricDelta));
+  }
+
+  protected void verifyStatementTxnMetric(
+    Statement statement, String query, int txnMetricDelta) throws Exception {
+    verifyQuery(
+      statement, query,true,
+      new MetricCountChecker(TRANSACTIONS_METRIC, this::getMetric, txnMetricDelta));
+  }
+
+  protected void verifyStatementMetricRows(
+    Statement statement, String query, String metricName,
+    int countDelta, int rowsDelta) throws Exception {
+    verifyQuery(statement, query, true,
+      new MetricRowsChecker(metricName, this::getMetric, countDelta, rowsDelta));
   }
 
   protected void executeWithTimeout(Statement statement, String sql)
@@ -1022,7 +1127,6 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
   }
 
   /**
-   *
    * @param statement The statement used to execute the query.
    * @param query The query string.
    * @param errorSubstring A (case-insensitive) substring of the expected error message.
@@ -1039,6 +1143,24 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
                            e.getMessage(), errorSubstring));
       }
     }
+  }
+
+  /**
+   * Verify that a (write) query succeeds with a warning matching the given substring.
+   * @param statement The statement used to execute the query.
+   * @param query The query string.
+   * @param warningSubstring A (case-insensitive) substring of the expected warning message.
+   */
+  protected void verifyStatementWarning(Statement statement,
+                                        String query,
+                                        String warningSubstring) throws SQLException {
+    statement.execute(query);
+    SQLWarning warning = statement.getWarnings();
+    assertNotEquals("Expected (at least) one warning", null, warning);
+    assertTrue(String.format("Unexpected Warning Message. Got: '%s', expected to contain : '%s",
+                             warning.getMessage(), warningSubstring),
+               StringUtils.containsIgnoreCase(warning.getMessage(), warningSubstring));
+    assertEquals("Expected (at most) one warning", null, warning.getNextWarning());
   }
 
   protected String getSimpleTableCreationStatement(
@@ -1107,7 +1229,7 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
   }
 
   /** Run a query and check row-count. */
-  private void runQueryWithRowCount(Statement stmt, String query, int expectedRowCount)
+  public int runQueryWithRowCount(Statement stmt, String query, int expectedRowCount)
       throws Exception {
     // Query and check row count.
     int rowCount = 0;
@@ -1122,6 +1244,8 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
     } else {
       LOG.info(String.format("Exec query: row count = %d", rowCount));
     }
+
+    return rowCount;
   }
 
   /** Run a query and check row-count. */
@@ -1319,6 +1443,24 @@ public class BasePgSQLTest extends BaseMiniClusterTest {
   }
 
   /** Immutable connection builder */
+  private void runProcess(String... args) throws Exception {
+    assertEquals(0, new ProcessBuilder(args).start().waitFor());
+  }
+
+  protected HostAndPort getMasterLeaderAddress() {
+    return miniCluster.getClient().getLeaderMasterHostAndPort();
+  }
+
+  protected void setServerFlag(HostAndPort server, String flag, String value) throws Exception {
+    runProcess(TestUtils.findBinary("yb-ts-cli"),
+               "--server_address",
+               server.toString(),
+               "set_flag",
+               "-force",
+               flag,
+               value);
+  }
+
   public static class ConnectionBuilder implements Cloneable {
     private static final int MAX_CONNECTION_ATTEMPTS = 15;
     private static final int INITIAL_CONNECTION_DELAY_MS = 500;

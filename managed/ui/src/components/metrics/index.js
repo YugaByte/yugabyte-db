@@ -11,7 +11,7 @@ export { default as CpuUsagePanel } from './MetricsPanel/CpuUsagePanel';
 export { default as CustomerMetricsPanel } from './CustomerMetricsPanel/CustomerMetricsPanel';
 export { default as CustomerMetricsPanelContainer } from './CustomerMetricsPanel/CustomerMetricsPanelContainer';
 export { DEFAULT_GRAPH_FILTER } from './GraphPanelHeader/GraphPanelHeader';
-export { default as UniverseReadWriteMetrics} from './UniverseReadWriteMetrics/UniverseReadWriteMetrics';
+export { default as UniverseReadWriteMetrics } from './UniverseReadWriteMetrics/UniverseReadWriteMetrics';
 export { default as GraphPanelContainer } from './GraphPanel/GraphPanelContainer';
 export { default as GraphPanelHeaderContainer } from './GraphPanelHeader/GraphPanelHeaderContainer';
 export { default as StandaloneMetricsPanel } from './StandaloneMetricsPanel/StandaloneMetricsPanel';

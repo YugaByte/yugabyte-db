@@ -23,7 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Removes all databases excluding `postgres`, `template1`, and `template2`.
+ * Removes all databases excluding `postgres`, `yugabyte`, `system_platform`, `template1`,
+ * and `template2`.
  * Any lower-priority cleaners should only clean objects in one of the remaining
  * three databases, or cluster-wide objects (e.g. roles).
  * The passed connection must be open in one of the three databases listed above.
@@ -43,7 +44,8 @@ public class DatabaseCleaner implements ClusterCleaner {
               " WHERE datname <> 'template0'" +
               " AND datname <> 'template1'" +
               " AND datname <> 'postgres'" +
-              " AND datname <> 'yugabyte'");
+              " AND datname <> 'yugabyte'" +
+              " AND datname <> 'system_platform'");
 
       List<String> databases = new ArrayList<>();
       while (resultSet.next()) {
@@ -51,6 +53,7 @@ public class DatabaseCleaner implements ClusterCleaner {
       }
 
       for (String database : databases) {
+        LOG.info("Dropping database '" + database + "'");
         statement.execute("DROP DATABASE " + database);
       }
     }

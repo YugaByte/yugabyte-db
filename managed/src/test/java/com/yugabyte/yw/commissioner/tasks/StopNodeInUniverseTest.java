@@ -11,6 +11,7 @@ import com.yugabyte.yw.commissioner.tasks.params.NodeTaskParams;
 import com.yugabyte.yw.common.ApiUtils;
 import com.yugabyte.yw.common.ModelFactory;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import com.yugabyte.yw.models.*;
 import com.yugabyte.yw.models.helpers.TaskType;
@@ -21,6 +22,8 @@ import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.yb.client.YBClient;
+import org.yb.client.GetMasterClusterConfigResponse;
+import org.yb.master.Master;
 import play.libs.Json;
 
 import java.util.List;
@@ -42,7 +45,7 @@ public class StopNodeInUniverseTest extends CommissionerBaseTest {
     @InjectMocks
     Commissioner commissioner;
     Universe defaultUniverse;
-    ShellProcessHandler.ShellResponse dummyShellResponse;
+    ShellResponse dummyShellResponse;
     YBClient mockClient;
 
     @Before
@@ -62,8 +65,15 @@ public class StopNodeInUniverseTest extends CommissionerBaseTest {
                 ApiUtils.mockUniverseUpdater(userIntent, true /* setMasters */));
 
         mockClient = mock(YBClient.class);
+        Master.SysClusterConfigEntryPB.Builder configBuilder =
+          Master.SysClusterConfigEntryPB.newBuilder().setVersion(2);
+        GetMasterClusterConfigResponse mockConfigResponse =
+          new GetMasterClusterConfigResponse(1111, "", configBuilder.build(), null);
+        try {
+          when(mockClient.getMasterClusterConfig()).thenReturn(mockConfigResponse);
+        } catch (Exception e) {}
         when(mockYBClient.getClient(any(), any())).thenReturn(mockClient);
-        dummyShellResponse =  new ShellProcessHandler.ShellResponse();
+        dummyShellResponse =  new ShellResponse();
         dummyShellResponse.message = "true";
         when(mockNodeManager.nodeCommand(any(), any())).thenReturn(dummyShellResponse);
     }

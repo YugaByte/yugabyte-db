@@ -52,7 +52,7 @@ See the semantics of each option in the [PostgreSQL docs][postgresql-docs-drop-r
 
 Basic example.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE t1(a int4, b int4);
 yugabyte=# CREATE TABLE t2(a int4, b int4);
 yugabyte=# CREATE RULE t1_to_t2 AS ON INSERT TO t1 DO INSTEAD

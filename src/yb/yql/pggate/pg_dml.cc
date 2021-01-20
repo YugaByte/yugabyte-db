@@ -25,9 +25,6 @@
 namespace yb {
 namespace pggate {
 
-using docdb::PrimitiveValue;
-using docdb::ValueType;
-
 using namespace std::literals;  // NOLINT
 using std::list;
 
@@ -370,77 +367,6 @@ Result<bool> PgDml::GetNextRow(PgTuple *pg_tuple) {
   }
 
   return false;
-}
-
-Result<string> PgDml::BuildYBTupleId(const PgAttrValueDescriptor *attrs, int32_t nattrs) {
-  SCHECK_EQ(nattrs, target_desc_->num_key_columns(), Corruption,
-      "Number of key components does not match column description");
-  vector<PrimitiveValue> *values = nullptr;
-  PgsqlExpressionPB *expr_pb;
-  PgsqlExpressionPB temp_expr_pb;
-  google::protobuf::RepeatedPtrField<PgsqlExpressionPB> hashed_values;
-  vector<docdb::PrimitiveValue> hashed_components, range_components;
-
-  size_t remain_attr = nattrs;
-  auto attrs_end = attrs + nattrs;
-  // DocDB API requires that partition columns must be listed in their created-order.
-  // Order from target_desc_ should be used as attributes sequence may have different order.
-  for (const auto& c : target_desc_->columns()) {
-    for (auto attr = attrs; attr != attrs_end; ++attr) {
-      if (attr->attr_num == c.attr_num()) {
-        if (!c.desc()->is_primary()) {
-          return STATUS_SUBSTITUTE(InvalidArgument, "Attribute number $0 not a primary attribute",
-                                   attr->attr_num);
-        }
-        if (c.desc()->is_partition()) {
-          // Hashed component.
-          values = &hashed_components;
-          expr_pb = hashed_values.Add();
-        } else {
-          // Range component.
-          values = &range_components;
-          expr_pb = &temp_expr_pb;
-        }
-
-        if (attr->is_null) {
-          values->emplace_back(ValueType::kNullLow);
-        } else {
-          if (attr->attr_num == to_underlying(PgSystemAttrNum::kYBRowId)) {
-            expr_pb->mutable_value()->set_binary_value(pg_session()->GenerateNewRowid());
-          } else {
-            RETURN_NOT_OK(PgConstant(attr->type_entity, attr->datum, false).Eval(this, expr_pb));
-          }
-          values->push_back(PrimitiveValue::FromQLValuePB(expr_pb->value(),
-                                                          c.desc()->sorting_type()));
-        }
-
-        if (--remain_attr == 0) {
-          SCHECK_EQ(hashed_values.size(), target_desc_->num_hash_key_columns(), Corruption,
-                    "Number of hashed values does not match column description");
-          SCHECK_EQ(hashed_components.size(), target_desc_->num_hash_key_columns(), Corruption,
-                    "Number of hashed components does not match column description");
-          SCHECK_EQ(range_components.size(),
-                    target_desc_->num_key_columns() - target_desc_->num_hash_key_columns(),
-                    Corruption, "Number of range components does not match column description");
-          if (hashed_values.empty()) {
-            return docdb::DocKey(move(range_components)).Encode().ToStringBuffer();
-          }
-          string partition_key;
-          const PartitionSchema& partition_schema = target_desc_->table()->partition_schema();
-          RETURN_NOT_OK(partition_schema.EncodeKey(hashed_values, &partition_key));
-          const uint16_t hash = PartitionSchema::DecodeMultiColumnHashValue(partition_key);
-
-          return docdb::DocKey(
-              hash,
-              move(hashed_components),
-              move(range_components)).Encode().ToStringBuffer();
-        }
-        break;
-      }
-    }
-  }
-
-  return STATUS_FORMAT(Corruption, "Not all attributes ($0) were resolved", remain_attr);
 }
 
 bool PgDml::has_aggregate_targets() {

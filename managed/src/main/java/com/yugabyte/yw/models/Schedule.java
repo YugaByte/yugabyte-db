@@ -23,6 +23,7 @@ import javax.persistence.Enumerated;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Entity
 public class Schedule extends Model {
@@ -117,6 +118,22 @@ public class Schedule extends Model {
 
   public static List<Schedule> getAllActive() {
     return find.query().where().eq("status", "Active").findList();
+  }
+
+  public static boolean existsStorageConfig(UUID customerConfigUUID) {
+    List<Schedule> scheduleList = find.query().where()
+        .or()
+          .eq("task_type", TaskType.BackupUniverse)
+          .eq("task_type", TaskType.MultiTableBackup)
+        .endOr()
+        .eq("status", "Active")
+        .findList();
+    // This should be safe to do since storageConfigUUID is a required constraint.
+    scheduleList = scheduleList.stream()
+        .filter(s -> s.getTaskParams().path("storageConfigUUID")
+          .asText().equals(customerConfigUUID.toString()))
+        .collect(Collectors.toList());
+    return scheduleList.size() != 0;
   }
 
   public void setFailureCount(int count) {

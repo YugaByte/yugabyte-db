@@ -37,6 +37,13 @@ For CentOS, this would be something like:
 4. ./bin/post_install.sh
 ```
 
+
+{{< note title="Note" >}}
+
+If you are using PostgreSQL extensions, make sure to install the extensions in the new YugabyteDB version before upgrading. Follow the steps in [Install and use extensions](../../api/ysql/extensions). 
+
+{{< /note >}}
+
 ## Upgrade YB-Masters
 
 ```

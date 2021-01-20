@@ -109,3 +109,7 @@ export PATH=$HOME/tools/apache-maven-3.6.3/bin:$PATH
 ```
 
 For building YugabyteDB Java code, you'll need to install Java and Apache Maven.
+
+## Build release package
+
+Currently a release package can only be built in [CentOS](../build-from-src-centos) & [MacOS](../build-from-src-macos).

@@ -140,6 +140,10 @@ public class TaskInfo extends Model {
     return taskState;
   }
 
+  boolean hasCompleted() {
+    return taskState == State.Success || taskState == State.Failure;
+  }
+
   public TaskType getTaskType() {
     return taskType;
   }
@@ -205,9 +209,9 @@ public class TaskInfo extends Model {
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("taskType : " + taskType);
+    sb.append("taskType : ").append(taskType);
     sb.append(", ");
-    sb.append("taskState: " + taskState);
+    sb.append("taskState: ").append(taskState);
     return sb.toString();
   }
 

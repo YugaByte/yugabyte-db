@@ -15,11 +15,10 @@
 
 #include "yb/client/tablet_rpc.h"
 
-#include "yb/consensus/consensus_error.h"
-
 #include "yb/common/wire_protocol.h"
 
 #include "yb/client/client.h"
+#include "yb/client/client_error.h"
 #include "yb/client/meta_cache.h"
 
 #include "yb/tserver/tserver_service.proxy.h"
@@ -33,6 +32,15 @@ DEFINE_int32(force_lookup_cache_refresh_secs, 0, "When non-zero, specifies how o
              "GetTabletLocations request to the master leader to update the tablet replicas cache. "
              "This request is only sent if we are processing a ConsistentPrefix read.");
 
+DEFINE_int32(lookup_cache_refresh_secs, 60, "When non-zero, specifies how often we send a "
+             "GetTabletLocations request to the master leader to update the tablet replicas cache. "
+             "This request is only sent if we are processing a ConsistentPrefix read and the RPC "
+             "layer has determined that its view of the replicas is inconsistent with what the "
+             "master has reported");
+DEFINE_test_flag(int32, assert_failed_replicas_less_than, 0,
+                 "If greater than 0, this process will crash if the number of failed replicas for "
+                 "a RemoteTabletServer is greater than the specified number.");
+
 using namespace std::placeholders;
 
 namespace yb {
@@ -45,6 +53,7 @@ TabletInvoker::TabletInvoker(const bool local_tserver_only,
                              rpc::RpcCommand* command,
                              TabletRpc* rpc,
                              RemoteTablet* tablet,
+                             const std::shared_ptr<const YBTable>& table,
                              rpc::RpcRetrier* retrier,
                              Trace* trace)
       : client_(client),
@@ -52,6 +61,7 @@ TabletInvoker::TabletInvoker(const bool local_tserver_only,
         rpc_(rpc),
         tablet_(tablet),
         tablet_id_(tablet != nullptr ? tablet->tablet_id() : std::string()),
+        table_(table),
         retrier_(retrier),
         trace_(trace),
         local_tserver_only_(local_tserver_only),
@@ -61,6 +71,11 @@ TabletInvoker::~TabletInvoker() {}
 
 void TabletInvoker::SelectTabletServerWithConsistentPrefix() {
   TRACE_TO(trace_, "SelectTabletServerWithConsistentPrefix()");
+  if (FLAGS_TEST_assert_failed_replicas_less_than) {
+    if (tablet_->GetNumFailedReplicas() >= FLAGS_TEST_assert_failed_replicas_less_than) {
+      LOG(FATAL) << "Invalid number of failed replicas: " << tablet_->ReplicasAsString();
+    }
+  }
 
   std::vector<RemoteTabletServer*> candidates;
   current_ts_ = client_->data_->SelectTServer(tablet_.get(),
@@ -141,10 +156,46 @@ void TabletInvoker::Execute(const std::string& tablet_id, bool leader_only) {
   }
 
   if (!tablet_) {
-    client_->LookupTabletById(tablet_id_, retrier_->deadline(),
+    client_->LookupTabletById(tablet_id_, table_, retrier_->deadline(),
                               std::bind(&TabletInvoker::InitialLookupTabletDone, this, _1),
                               UseCache::kTrue);
     return;
+  }
+
+  if (consistent_prefix_ && !leader_only) {
+    bool refresh_cache = false;
+    if (PREDICT_FALSE(FLAGS_force_lookup_cache_refresh_secs > 0) &&
+        MonoTime::Now().GetDeltaSince(tablet_->refresh_time()).ToSeconds() >
+        FLAGS_force_lookup_cache_refresh_secs) {
+
+      refresh_cache = true;
+
+      VLOG(1) << "Updating tablet " << tablet_->tablet_id() << " replicas cache "
+              << "force_lookup_cache_refresh_secs: " << FLAGS_force_lookup_cache_refresh_secs
+              << ". " << MonoTime::Now().GetDeltaSince(tablet_->refresh_time()).ToSeconds()
+              << " seconds since the last update. Replicas in current cache: "
+              << tablet_->ReplicasAsString();
+    } else if (FLAGS_lookup_cache_refresh_secs > 0 &&
+               MonoTime::Now().GetDeltaSince(tablet_->refresh_time()).ToSeconds() >
+               FLAGS_lookup_cache_refresh_secs &&
+               !tablet_->IsReplicasCountConsistent()) {
+      refresh_cache = true;
+      VLOG(1) << "Updating tablet " << tablet_->tablet_id() << " replicas cache "
+              << "force_lookup_cache_refresh_secs: " << FLAGS_force_lookup_cache_refresh_secs
+              << ". " << MonoTime::Now().GetDeltaSince(tablet_->refresh_time()).ToSeconds()
+              << " seconds since the last update. Replicas in current cache: "
+              << tablet_->ReplicasAsString();
+    }
+
+
+    if (refresh_cache) {
+      client_->LookupTabletById(tablet_id_,
+                                table_,
+                                retrier_->deadline(),
+                                std::bind(&TabletInvoker::LookupTabletCb, this, _1),
+                                UseCache::kFalse);
+      return;
+    }
   }
 
   // Sets current_ts_.
@@ -165,28 +216,14 @@ void TabletInvoker::Execute(const std::string& tablet_id, bool leader_only) {
   // Put another way, we don't care about the lookup results at all; we're
   // just using it to fetch the latest consensus configuration information.
   //
-  // TODO: When we support tablet splits, we should let the lookup shift
+  // TODO(tsplit): When we support tablet splits, we should let the lookup shift
   // the write to another tablet (i.e. if it's since been split).
   if (!current_ts_) {
     client_->LookupTabletById(tablet_id_,
+                              table_,
                               retrier_->deadline(),
                               std::bind(&TabletInvoker::LookupTabletCb, this, _1),
                               UseCache::kTrue);
-    return;
-  } else if (consistent_prefix_ &&
-             FLAGS_force_lookup_cache_refresh_secs > 0 &&
-             MonoTime::Now().GetDeltaSince(tablet_->refresh_time()).ToSeconds() >
-                 FLAGS_force_lookup_cache_refresh_secs) {
-
-    VLOG(1) << "Updating tablet " << tablet_->tablet_id() << " replicas cache for tablet "
-            << " after " << MonoTime::Now().GetDeltaSince(tablet_->refresh_time()).ToSeconds()
-            << " seconds since the last update. Replicas: "
-            << tablet_->ReplicasAsString();
-
-    client_->LookupTabletById(tablet_id_,
-                              retrier_->deadline(),
-                              std::bind(&TabletInvoker::LookupTabletCb, this, _1),
-                              UseCache::kFalse);
     return;
   }
 
@@ -257,6 +294,12 @@ bool TabletInvoker::Done(Status* status) {
   assign_new_leader_ = false;
 
   if (status->IsAborted() || retrier_->finished()) {
+    if (status->ok()) {
+      *status = retrier_->controller().status();
+      if (status->ok()) {
+        *status = STATUS(Aborted, "Retrier finished");
+      }
+    }
     return true;
   }
 
@@ -294,11 +337,14 @@ bool TabletInvoker::Done(Status* status) {
     }
   }
 
-  if (ErrorCode(rsp_err) == tserver::TabletServerErrorPB::TABLET_SPLIT) {
+  const bool is_tablet_split = ErrorCode(rsp_err) == tserver::TabletServerErrorPB::TABLET_SPLIT;
+  if (is_tablet_split || ClientError(*status) == ClientErrorCode::kTablePartitionsAreStale) {
     // Replace status error with TryAgain, so upper layer retry request after refreshing
     // table partitioning metadata.
-    *status = STATUS(TryAgain, status->message());
-    tablet_->MarkAsSplit();
+    *status = status->CloneAndReplaceCode(Status::kTryAgain);
+    if (is_tablet_split) {
+      tablet_->MarkAsSplit();
+    }
     rpc_->Failed(*status);
     return true;
   }
@@ -364,6 +410,11 @@ bool TabletInvoker::Done(Status* status) {
       if (tablet_ != nullptr && current_ts_ != nullptr) {
         tablet_->MarkReplicaFailed(current_ts_, *status);
       }
+    }
+    if (status->IsExpired() && rpc_->ShouldRetryExpiredRequest()) {
+      client_->MaybeUpdateMinRunningRequestId(
+          tablet_->tablet_id(), MinRunningRequestIdStatusData(*status).value());
+      *status = STATUS(TryAgain, status->message());
     }
     std::string current_ts_string;
     if (current_ts_) {
@@ -433,7 +484,8 @@ void TabletInvoker::LookupTabletCb(const Result<RemoteTabletPtr>& result) {
   // leader election doesn't depend on the existence of a master at all.
   // Unless we know that this status is persistent.
   // For instance if tablet was deleted, we would always receive "Not found".
-  if (!result.ok() && result.status().IsNotFound()) {
+  if (!result.ok() && (result.status().IsNotFound() ||
+                       ClientError(result.status()) == ClientErrorCode::kTablePartitionsAreStale)) {
     command_->Finished(result.status());
     return;
   }

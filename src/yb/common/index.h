@@ -103,6 +103,10 @@ class IndexInfo {
   // Is the index being backfilled?
   bool IsBackfilling() const { return index_permissions_ == INDEX_PERM_DO_BACKFILL; }
 
+  const std::string& backfill_error_message() const {
+    return backfill_error_message_;
+  }
+
   std::string ToString() const {
     IndexInfoPB pb;
     ToPB(&pb);
@@ -135,6 +139,7 @@ class IndexInfo {
   const std::vector<ColumnId> indexed_hash_column_ids_;  // Hash column ids in the indexed table.
   const std::vector<ColumnId> indexed_range_column_ids_; // Range column ids in the indexed table.
   const IndexPermissions index_permissions_ = INDEX_PERM_READ_WRITE_AND_DELETE;
+  const std::string backfill_error_message_;
 
   // Column ids covered by the index (include indexed columns).
   std::unordered_set<ColumnId> covered_column_ids_;

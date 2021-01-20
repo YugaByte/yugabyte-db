@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 # Copyright 2019 YugaByte, Inc. and Contributors
 #
@@ -59,7 +59,8 @@ class ReleaseManager(object):
     def check_for_uncommitted_changes(self):
         """This method checks if the git repository isn't dirty.
         """
-        local_changes = subprocess.check_output(["git", "diff", "origin/master"]).strip()
+        local_changes = subprocess.check_output(
+            ["git", "diff", "origin/master"]).decode("utf-8").strip()
 
         if not local_changes:
             return
@@ -75,7 +76,8 @@ class ReleaseManager(object):
         """This method checks if there is local commits which haven't been pushed upstream.
         """
         subprocess.call(["git", "fetch", "origin"])
-        local_commits = subprocess.check_output(["git", "log", "origin/master..HEAD", "--oneline"])
+        local_commits = subprocess.check_output(
+            ["git", "log", "origin/master..HEAD", "--oneline"]).decode("utf-8")
         if not local_commits:
             return
 

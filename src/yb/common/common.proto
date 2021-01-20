@@ -260,7 +260,7 @@ message TablePropertiesPB {
   optional bool use_mangled_column_name =  6 [ default = false ];
   optional int32 num_tablets = 7 [ default = 0 ];
   optional bool is_ysql_catalog_table = 8 [ default = false ];
-  optional bool is_backfilling = 9 [ default = false ];
+  optional bool retain_delete_markers = 9 [ default = false ];
   optional uint64 backfilling_timestamp = 10;
 }
 
@@ -322,6 +322,9 @@ message IndexInfoPB {
   // The mangled-name flag is kept on both IndexInfo and IndexTable as the same mangled-name is
   // used in both IndexInfo and IndexTable columns.
   optional bool use_mangled_column_name = 11 [ default = false ];  // Newer index has mangled name.
+
+  // When backfill fails with error, the first message that it failed with.
+  optional string backfill_error_message = 31;
 }
 
 message HostPortPB {
@@ -354,12 +357,30 @@ message PartitionSchemaPB {
     }
   }
 
+  message RangeSplitPB {
+    // Each range column will be assigned a lower bound.
+    optional bytes column_bounds = 1;
+
+    // TODO (neil)
+    //   To identify where to scan, each split/partition should have an ID.  See bug 6051.
+    //   NOTE: Original Postgres names each of its range partitions, and that's one way to
+    //         identify them although their syntax is not friendly.
+    // Add the following field when we extend SPLIT syntax.
+    // optional int32 id = ??;
+  }
+
   message RangeSchemaPB {
     // Column identifiers of columns included in the range. All columns must be
     // a component of the primary key.
     repeated ColumnIdentifierPB columns = 1;
+
     // Split points for range tables.
-    repeated string split_rows = 2;
+    repeated RangeSplitPB splits = 3;
+
+    // Field "split_rows" is only available in beta version for SPLIT AT feature. This feature had
+    // not been used, so the release version for SPLIT AT does not need to be compatible with
+    // the beta version in the past releases.
+    repeated bytes DEPRECATED_split_rows = 2;
   }
 
   message HashBucketSchemaPB {
@@ -456,7 +477,8 @@ enum TransactionStatus {
   // tablets:
   APPLYING = 20;
   APPLIED_IN_ONE_OF_INVOLVED_TABLETS = 21;
-  CLEANUP = 22;
+  IMMEDIATE_CLEANUP = 22;
+  GRACEFUL_CLEANUP = 23;
 }
 
 message TransactionMetadataPB {
@@ -476,11 +498,13 @@ message TransactionMetadataPB {
 message ReadHybridTimePB {
   optional fixed64 read_ht = 1;
 
-  optional fixed64 local_limit_ht = 2;
+  optional fixed64 DEPRECATED_max_of_read_time_and_local_limit_ht = 2;
 
   optional fixed64 global_limit_ht = 3;
 
   optional fixed64 in_txn_limit_ht = 4;
+
+  optional fixed64 local_limit_ht = 5;
 }
 
 // For clarification of field meaning see comments of appropriate fields in YBTransaction::Impl
@@ -530,6 +554,11 @@ message CloudInfoPB {
 // YQL support.
 // The following section is common for all query language.
 //--------------------------------------------------------------------------------------------------
+// Represent system internal values.
+enum QLVirtualValuePB {
+  LIMIT_MAX = 1;
+  LIMIT_MIN = 2;
+}
 
 // A QL value
 message QLValuePB {
@@ -566,6 +595,8 @@ message QLValuePB {
     int64 time_value = 22;
     uint32 uint32_value = 23;
     uint64 uint64_value = 24;
+    // Represent various system values.
+    QLVirtualValuePB virtual_value = 25;
   }
 }
 

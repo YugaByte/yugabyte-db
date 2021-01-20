@@ -1,6 +1,6 @@
 // Copyright (c) YugaByte, Inc.
 
-@import "../../../_style/colors.scss";
+@import '../../../_style/colors.scss';
 
 .metrics-panel {
   padding: 1px;
@@ -15,9 +15,7 @@
     margin: 0;
 
     .main-svg {
-
       .hoverlayer {
-        
         .axistext {
           display: none;
         }

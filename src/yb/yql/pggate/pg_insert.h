@@ -26,14 +26,6 @@ namespace pggate {
 
 class PgInsert : public PgDmlWrite {
  public:
-  // Public types.
-  typedef scoped_refptr<PgInsert> ScopedRefPtr;
-  typedef scoped_refptr<const PgInsert> ScopedRefPtrConst;
-
-  typedef std::unique_ptr<PgInsert> UniPtr;
-  typedef std::unique_ptr<const PgInsert> UniPtrConst;
-
-  // Constructors.
   PgInsert(PgSession::ScopedRefPtr pg_session, const PgObjectId& table_id, bool is_single_row_txn)
       : PgDmlWrite(std::move(pg_session), table_id, is_single_row_txn) {}
 
@@ -41,6 +33,10 @@ class PgInsert : public PgDmlWrite {
 
   void SetUpsertMode() {
     write_req_->set_stmt_type(PgsqlWriteRequestPB::PGSQL_UPSERT);
+  }
+
+  void SetIsBackfill(const bool is_backfill) {
+    write_req_->set_is_backfill(is_backfill);
   }
 
  private:

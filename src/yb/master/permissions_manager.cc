@@ -32,6 +32,8 @@ using yb::util::kBcryptHashSize;
 using yb::util::bcrypt_hashpw;
 using strings::Substitute;
 
+DECLARE_bool(ycql_cache_login_info);
+
 // TODO: remove direct references to member fields in CatalogManager from here.
 
 namespace yb {
@@ -675,6 +677,12 @@ void PermissionsManager::BuildResourcePermissionsUnlocked() {
     granted_roles.insert(role_name);
     auto* role_permissions = response->add_role_permissions();
     role_permissions->set_role(role_name);
+    const auto& rinfo = roles_map_[role_name];
+    {
+      auto l = rinfo->LockForRead();
+      role_permissions->set_salted_hash(l->data().pb.salted_hash());
+      role_permissions->set_can_login(l->data().pb.can_login());
+    }
 
     // No permissions on ALL ROLES and ALL KEYSPACES by default.
     role_permissions->set_all_keyspaces_permissions(0);

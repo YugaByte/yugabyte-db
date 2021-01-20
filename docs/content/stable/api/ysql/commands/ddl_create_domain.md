@@ -82,11 +82,11 @@ The key word VALUE should be used to refer to the value being tested. Expression
 
 ## Examples
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE DOMAIN phone_number AS TEXT CHECK(VALUE ~ '^\d{3}-\d{3}-\d{4}$');
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE person(first_name TEXT, last_name TEXT, phone_number phone_number);
 ```
 

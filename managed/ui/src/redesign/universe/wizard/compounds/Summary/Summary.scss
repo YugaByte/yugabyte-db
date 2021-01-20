@@ -1,0 +1,46 @@
+@import '../../../../uikit/common';
+
+.wizard-summary {
+  width: 260px;
+  height: fit-content;
+  margin-left: -1px; // to overlap with step form border
+
+  font-family: $YB_FONT_FAMILY;
+  background-color: $YB_WIZARD_SUMMARY_BACKGROUND;
+  border: 1px solid $YB_BORDER_1;
+
+  &__title {
+    font-size: 20px;
+    font-weight: 600;
+    background-color: $YB_WIZARD_SUMMARY_BACKGROUND;
+    mix-blend-mode: multiply;
+    padding: 15px 40px;
+    color: $YB_TEXT_2;
+  }
+
+  &__content {
+    padding: 15px 40px;
+  }
+
+  &__provider {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__number {
+    font-size: 40px;
+    font-weight: 600;
+    color: $YB_TEXT_1;
+    line-height: 1.2;
+  }
+
+  &__subtext {
+    font-size: 14px;
+    color: $YB_TEXT_1;
+    margin-bottom: 15px;
+  }
+}

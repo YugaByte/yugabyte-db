@@ -102,7 +102,7 @@ public class PgRegressRunner {
       // TODO(dmitry): Workaround for #1721, remove after fix.
       for (File f : (new File(pgRegressOutputDir, "sql")).listFiles()) {
         try (FileWriter fr = new FileWriter(f, true)) {
-          fr.write("\n-- YB_DATA_END\nDISCARD TEMP;");
+          fr.write("\n-- YB_DATA_END\nROLLBACK;DISCARD TEMP;");
         }
       }
     } catch (IOException ex) {

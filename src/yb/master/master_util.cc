@@ -98,8 +98,10 @@ void TakeRegistration(consensus::RaftPeerPB* source, TSInfoPB* dest) {
   dest->mutable_cloud_info()->Swap(source->mutable_cloud_info());
 }
 
-void CopyRegistration(consensus::RaftPeerPB source, TSInfoPB* dest) {
-  TakeRegistration(&source, dest);
+void CopyRegistration(const consensus::RaftPeerPB& source, TSInfoPB* dest) {
+  dest->mutable_private_rpc_addresses()->CopyFrom(source.last_known_private_addr());
+  dest->mutable_broadcast_addresses()->CopyFrom(source.last_known_broadcast_addr());
+  dest->mutable_cloud_info()->CopyFrom(source.cloud_info());
 }
 
 void TakeRegistration(ServerRegistrationPB* source, TSInfoPB* dest) {
@@ -108,8 +110,10 @@ void TakeRegistration(ServerRegistrationPB* source, TSInfoPB* dest) {
   dest->mutable_cloud_info()->Swap(source->mutable_cloud_info());
 }
 
-void CopyRegistration(ServerRegistrationPB source, TSInfoPB* dest) {
-  TakeRegistration(&source, dest);
+void CopyRegistration(const ServerRegistrationPB& source, TSInfoPB* dest) {
+  dest->mutable_private_rpc_addresses()->CopyFrom(source.private_rpc_addresses());
+  dest->mutable_broadcast_addresses()->CopyFrom(source.broadcast_addresses());
+  dest->mutable_cloud_info()->CopyFrom(source.cloud_info());
 }
 
 bool IsSystemNamespace(const std::string& namespace_name) {

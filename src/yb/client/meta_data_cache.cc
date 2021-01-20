@@ -158,6 +158,31 @@ void YBMetaDataCache::RemoveCachedUDType(const string& keyspace_name,
   cached_types_.erase(std::make_pair(keyspace_name, type_name));
 }
 
+Status YBMetaDataCache::WaitForPermissionCache() {
+  if (!permissions_cache_) {
+    LOG(WARNING) << "Permissions cache disabled. This only should be used in unit tests";
+    return STATUS(TimedOut, "Permissions cache unavailable");
+  }
+
+  if (!permissions_cache_->ready()) {
+    if (!permissions_cache_->WaitUntilReady(
+            MonoDelta::FromMilliseconds(FLAGS_update_permissions_cache_msecs))) {
+      return STATUS(TimedOut, "Permissions cache unavailable");
+    }
+  }
+  return Status::OK();
+}
+
+Result<std::string> YBMetaDataCache::RoleSaltedHash(const RoleName& role_name) {
+  RETURN_NOT_OK(WaitForPermissionCache());
+  return permissions_cache_->salted_hash(role_name);
+}
+
+Result<bool> YBMetaDataCache::RoleCanLogin(const RoleName& role_name) {
+  RETURN_NOT_OK(WaitForPermissionCache());
+  return permissions_cache_->can_login(role_name);
+}
+
 Status YBMetaDataCache::HasResourcePermission(const std::string& canonical_resource,
                                               const ql::ObjectType& object_type,
                                               const RoleName& role_name,

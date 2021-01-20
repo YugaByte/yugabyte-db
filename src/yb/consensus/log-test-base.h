@@ -218,7 +218,7 @@ class LogTestBase : public YBTest {
     AppendSync sync = AppendSync::kTrue;
     consensus::OperationType op_type = consensus::OperationType::WRITE_OP;
     TransactionId txn_id = TransactionId::Nil();
-    TransactionStatus txn_status = TransactionStatus::CLEANUP;
+    TransactionStatus txn_status = TransactionStatus::IMMEDIATE_CLEANUP;
   };
 
   void AppendReplicateBatch(AppendReplicateBatchData data) {

@@ -18,8 +18,8 @@
 // or implied.  See the License for the specific language governing permissions and limitations
 // under the License.
 //
-#ifndef STRINGS_STRCAT_H_
-#define STRINGS_STRCAT_H_
+#ifndef YB_GUTIL_STRINGS_STRCAT_H
+#define YB_GUTIL_STRINGS_STRCAT_H
 
 #include <string>
 using std::string;
@@ -55,29 +55,39 @@ struct AlphaNum {
 
   // No bool ctor -- bools convert to an integral type.
   // A bool ctor would also convert incoming pointers (bletch).
+  // It is OK that digits is not initialized.
 
+  //-V:digits:730
   AlphaNum(int32 i32)  // NOLINT(runtime/explicit)
       : piece(digits, FastInt32ToBufferLeft(i32, digits) - &digits[0]) {}
+  //-V:digits_:730
   AlphaNum(uint32 u32)  // NOLINT(runtime/explicit)
       : piece(digits, FastUInt32ToBufferLeft(u32, digits) - &digits[0]) {}
+  //-V:digits_:730
   AlphaNum(int64 i64)  // NOLINT(runtime/explicit)
       : piece(digits, FastInt64ToBufferLeft(i64, digits) - &digits[0]) {}
+  //-V:digits_:730
   AlphaNum(uint64 u64)  // NOLINT(runtime/explicit)
       : piece(digits, FastUInt64ToBufferLeft(u64, digits) - &digits[0]) {}
 
 #if defined(__APPLE__)
+  //-V:digits_:730
   AlphaNum(size_t size)  // NOLINT(runtime/explicit)
       : piece(digits, FastUInt64ToBufferLeft(size, digits) - &digits[0]) {}
 #endif
 
+  //-V:digits_:730
   AlphaNum(float f)  // NOLINT(runtime/explicit)
-    : piece(digits, strlen(FloatToBuffer(f, digits))) {}
+      : piece(digits, strlen(FloatToBuffer(f, digits))) {}
+  //-V:digits_:730
   AlphaNum(double f)  // NOLINT(runtime/explicit)
-    : piece(digits, strlen(DoubleToBuffer(f, digits))) {}
+      : piece(digits, strlen(DoubleToBuffer(f, digits))) {}
 
+  //-V:digits_:730
   AlphaNum(const char *c_str) : piece(c_str) {}  // NOLINT(runtime/explicit)
-  AlphaNum(GStringPiece pc)
-      : piece(std::move(pc)) {}            // NOLINT(runtime/explicit)
+  //-V:digits_:730
+  AlphaNum(GStringPiece pc) : piece(std::move(pc)) {}  // NOLINT(runtime/explicit)
+  //-V:digits_:730
   AlphaNum(const string &s) : piece(s) {}  // NOLINT(runtime/explicit)
 
   GStringPiece::size_type size() const { return piece.size(); }
@@ -391,4 +401,4 @@ void StrAppend(string *dest,      const AlphaNum &a, const AlphaNum &b,
                const AlphaNum &h = gEmptyAlphaNum,
                const AlphaNum &i = gEmptyAlphaNum);
 
-#endif  // STRINGS_STRCAT_H_
+#endif  // YB_GUTIL_STRINGS_STRCAT_H

@@ -352,6 +352,10 @@ class RaftGroupMetadata : public RefCountedThreadSafe<RaftGroupMetadata> {
 
   int64_t cdc_min_replicated_index() const;
 
+  CHECKED_STATUS set_is_under_twodc_replication(bool is_under_twodc_replication);
+
+  bool is_under_twodc_replication() const;
+
   bool has_been_fully_compacted() const {
     std::lock_guard<MutexType> lock(data_mutex_);
     return kv_store_.has_been_fully_compacted;
@@ -555,17 +559,19 @@ class RaftGroupMetadata : public RefCountedThreadSafe<RaftGroupMetadata> {
   std::string wal_dir_;
 
   // The current state of remote bootstrap for the tablet.
-  TabletDataState tablet_data_state_;
+  TabletDataState tablet_data_state_ = TABLET_DATA_UNKNOWN;
 
   // Record of the last opid logged by the tablet before it was last tombstoned. Has no meaning for
   // non-tombstoned tablets.
   yb::OpId tombstone_last_logged_opid_;
 
   // True if the raft group is for a colocated tablet.
-  bool colocated_;
+  bool colocated_ = false;
 
   // The minimum index that has been replicated by the cdc service.
   int64_t cdc_min_replicated_index_ = std::numeric_limits<int64_t>::max();
+
+  bool is_under_twodc_replication_ = false;
 
   DISALLOW_COPY_AND_ASSIGN(RaftGroupMetadata);
 };

@@ -17,6 +17,7 @@ import com.yugabyte.yw.common.ConfigHelper;
 import com.yugabyte.yw.common.AccessManager;
 import com.yugabyte.yw.common.DnsManager;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.forms.CloudProviderFormData;
 import com.yugabyte.yw.forms.CloudBootstrapFormData;
 import com.yugabyte.yw.forms.KubernetesProviderFormData;
@@ -588,7 +589,7 @@ public class CloudProviderController extends AuthenticatedController {
 
   private Result validateAwsHostedZoneUpdate(Provider provider, String hostedZoneId) {
     // TODO: do we have a good abstraction to inspect this AND know that it's an error outside?
-    ShellProcessHandler.ShellResponse response = dnsManager.listDnsRecord(
+    ShellResponse response = dnsManager.listDnsRecord(
         provider.uuid, hostedZoneId);
     if (response.code != 0) {
       return ApiResponse.error(INTERNAL_SERVER_ERROR, "Invalid devops API response: " + response.message);

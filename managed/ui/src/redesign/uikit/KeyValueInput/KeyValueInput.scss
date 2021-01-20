@@ -1,0 +1,35 @@
+@import '../common';
+
+.key-value-input {
+  padding: 12px 0;
+
+  &__row {
+    display: flex;
+    align-items: center;
+
+    &:not(:first-child) {
+      margin-top: 12px;
+    }
+  }
+
+  &__input {
+    width: 400px;
+
+    &:first-child {
+      margin-right: 20px;
+    }
+  }
+
+  &__icon {
+    margin-left: 10px;
+    cursor: pointer;
+    fill: $YB_TEXT_1;
+    width: 22px;
+  }
+
+  &__add-row-btn {
+    font-size: 14px;
+    color: $YB_TEXT_2;
+    margin-top: 12px;
+  }
+}

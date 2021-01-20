@@ -60,7 +60,8 @@ extern void YBCExecuteInsertIndex(Relation rel,
 								  Datum *values,
 								  bool *isnull,
 								  Datum ybctid,
-								  bool is_backfill);
+								  bool is_backfill,
+								  uint64_t *write_time);
 
 /*
  * Delete a tuple (identified by ybctid) from a YugaByte table.
@@ -126,8 +127,7 @@ extern bool YBCIsSingleRowTxnCapableRel(ResultRelInfo *resultRelInfo);
 
 extern Datum YBCGetYBTupleIdFromSlot(TupleTableSlot *slot);
 
-extern Datum YBCGetYBTupleIdFromTuple(YBCPgStatement pg_stmt,
-									  Relation rel,
+extern Datum YBCGetYBTupleIdFromTuple(Relation rel,
 									  HeapTuple tuple,
 									  TupleDesc tupleDesc);
 

@@ -18,9 +18,10 @@ namespace yb {
 namespace master {
 
 YQLEmptyVTable::YQLEmptyVTable(const TableName& table_name,
+                               const NamespaceName& namespace_name,
                                const Master* const master,
                                const Schema& schema)
-    : YQLVirtualTable(table_name, master, schema) {
+    : YQLVirtualTable(table_name, namespace_name, master, schema) {
 }
 
 Result<std::shared_ptr<QLRowBlock>> YQLEmptyVTable::RetrieveData(

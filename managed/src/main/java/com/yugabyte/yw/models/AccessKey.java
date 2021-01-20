@@ -27,6 +27,10 @@ public class AccessKey extends Model {
     public boolean airGapInstall = false;
     public boolean passwordlessSudoAccess = true;
     public String provisionInstanceScript = "";
+    public boolean installNodeExporter = true;
+    public Integer nodeExporterPort = 9300;
+    public String nodeExporterUser = "prometheus";
+    public boolean skipProvisioning = false;
   }
 
   @EmbeddedId
@@ -67,5 +71,9 @@ public class AccessKey extends Model {
 
   public static List<AccessKey> getAll(UUID providerUUID) {
     return find.query().where().eq("provider_uuid", providerUUID).findList();
+  }
+
+  public static List<AccessKey> getAll() {
+    return find.query().findList();
   }
 }

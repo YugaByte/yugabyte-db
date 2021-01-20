@@ -21,6 +21,8 @@
 #include "storage/sinval.h"
 #include "utils/datetime.h"
 
+#include "yb/yql/pggate/ybc_pg_typedefs.h"
+
 /*
  * Maximum size of Global Transaction ID (including '\0').
  *
@@ -285,8 +287,8 @@ typedef struct xl_xact_abort
 
 	/* xl_xact_xinfo follows if XLOG_XACT_HAS_INFO */
 	/* xl_xact_dbinfo follows if XINFO_HAS_DBINFO */
-	/* xl_xact_subxacts follows if HAS_SUBXACT */
-	/* xl_xact_relfilenodes follows if HAS_RELFILENODES */
+	/* xl_xact_subxacts follows if XINFO_HAS_SUBXACT */
+	/* xl_xact_relfilenodes follows if XINFO_HAS_RELFILENODES */
 	/* No invalidation messages needed. */
 	/* xl_xact_twophase follows if XINFO_HAS_TWOPHASE */
 	/* twophase_gid follows if XINFO_HAS_GID. As a null-terminated string. */
@@ -375,6 +377,7 @@ extern void CommandCounterIncrement(void);
 extern void ForceSyncCommit(void);
 extern void YBInitializeTransaction(void);
 extern void StartTransactionCommand(void);
+extern void YBCRestartWriteTransaction(void);
 extern void SetTxnWithPGRel(void);
 extern bool IsCurrentTxnWithPGRel(void);
 extern void CommitTransactionCommand(void);
@@ -440,6 +443,25 @@ extern void ExitParallelMode(void);
 extern bool IsInParallelMode(void);
 
 extern void YBMarkDataSent(void);
+extern void YBMarkDataNotSent(void);
 extern bool YBIsDataSent(void);
+
+/*
+ * Utilities for postponed pggate DDL statement handles, that can be
+ * executed after the YSQL DDL transaction has commited. To qualify for this
+ * the DDL must have the following properties:
+ *   1. It cannot be rolled back by abort (so we wait for commit to succeed).
+ *   2. It does not cause inconsistencies if it fails (i.e. after txn commit).
+ * Currently the main example is dropping DocDB objects (e.g. table/indexes)
+ * which we cannot roll back, and also does not cause inconsistency if it fails
+ * after YSQL-layer deleted the metadata entry for that object (because we do
+ * not reuse oids/uuids -- so objects remain simply orphaned/unused).
+ * Note: Orphaned DocDB objects will be best-effort cleaned by a DocDB (catalog
+ *       manager) background-cleanup job. This would eventually also roll back
+ *       failed (online) alter operations (#3979).
+ */
+extern void YBSaveDdlHandle(YBCPgStatement handle);
+extern List* YBGetDdlHandles(void);
+extern void YBClearDdlHandles(void);
 
 #endif							/* XACT_H */

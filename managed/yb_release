@@ -7,7 +7,7 @@ export YB_MANAGED_DEVOPS_USE_PYTHON3=1
 
 . "$DEVOPS_HOME/bin/"/common.sh
 
-"$DEVOPS_HOME/bin/install_python_requirements.sh"
+"$DEVOPS_HOME/bin/install_python_requirements.sh" --use_dynamic_paths
 
 activate_virtualenv
 "$( dirname "${BASH_SOURCE[0]}" )"/yb_release.py "$@"

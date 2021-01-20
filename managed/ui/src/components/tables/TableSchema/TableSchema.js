@@ -9,7 +9,9 @@ import './TableSchema.scss';
 
 export default class TableSchema extends Component {
   render() {
-    const {tableInfo: {tableDetails}} = this.props;
+    const {
+      tableInfo: { tableDetails }
+    } = this.props;
     let ttlInSeconds = 0;
     const partitionKeyRows = [];
     const clusteringKeyRows = [];
@@ -32,7 +34,7 @@ export default class TableSchema extends Component {
     }
     return (
       <div>
-        <Row className={"schema-definition-header"}>
+        <Row className={'schema-definition-header'}>
           <Col lg={3}></Col>
           <Col lg={9}>
             <Row>
@@ -48,7 +50,7 @@ export default class TableSchema extends Component {
             <h5 className="no-bottom-margin">Partition Key Columns</h5>
           </Col>
           <Col lg={9}>
-            <SchemaRowDefinition rows={partitionKeyRows}/>
+            <SchemaRowDefinition rows={partitionKeyRows} />
           </Col>
         </Row>
         <hr />
@@ -57,7 +59,7 @@ export default class TableSchema extends Component {
             <h5 className="no-bottom-margin">Clustering Columns</h5>
           </Col>
           <Col lg={9}>
-            <SchemaRowDefinition rows={clusteringKeyRows}/>
+            <SchemaRowDefinition rows={clusteringKeyRows} />
           </Col>
         </Row>
         <hr />
@@ -66,7 +68,7 @@ export default class TableSchema extends Component {
             <h5 className="no-bottom-margin">Other Columns</h5>
           </Col>
           <Col lg={9}>
-            <SchemaRowDefinition rows={otherKeyRows}/>
+            <SchemaRowDefinition rows={otherKeyRows} />
           </Col>
         </Row>
         <Row className="schema-table-level-row">
@@ -75,9 +77,7 @@ export default class TableSchema extends Component {
               <Col lg={2}>
                 <h5 className="no-bottom-margin">TTL:</h5>
               </Col>
-              <Col lg={10}>
-                { ttlMessage }
-              </Col>
+              <Col lg={10}>{ttlMessage}</Col>
             </Row>
           </Col>
         </Row>
@@ -88,10 +88,10 @@ export default class TableSchema extends Component {
 
 class SchemaRowDefinition extends Component {
   render() {
-    const {rows} = this.props;
-    let rowEntries = <span/>;
+    const { rows } = this.props;
+    let rowEntries = <span />;
     if (isNonEmptyArray(rows)) {
-      rowEntries = rows.map(function(item, idx){
+      rowEntries = rows.map(function (item, idx) {
         return (
           <Row key={idx}>
             <Col lg={4}>{item.name}</Col>
@@ -101,10 +101,6 @@ class SchemaRowDefinition extends Component {
         );
       });
     }
-    return (
-      <div>
-        {rowEntries}
-      </div>
-    );
+    return <div>{rowEntries}</div>;
   }
 }

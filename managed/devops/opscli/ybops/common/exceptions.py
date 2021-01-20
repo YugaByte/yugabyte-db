@@ -6,6 +6,8 @@
 #
 # https://github.com/YugaByte/yugabyte-db/blob/master/licenses/POLYFORM-FREE-TRIAL-LICENSE-1.0.0.txt
 
+import six
+
 
 class YBOpsException(Exception):
     """Base exception class which we override we any exception within our YBOps process
@@ -23,7 +25,7 @@ class YBOpsException(Exception):
 
     def __str__(self):
         """Method returns the string representation for the exception."""
-        return "{}: {}".format(self.type, self.message)
+        return "{}: {}".format(self.type, get_exception_message(super(YBOpsException, self)))
 
 
 class YBOpsRuntimeError(YBOpsException):
@@ -33,3 +35,9 @@ class YBOpsRuntimeError(YBOpsException):
 
     def __init__(self, message):
         super(YBOpsRuntimeError, self).__init__(self.EXCEPTION_TYPE, message)
+
+
+def get_exception_message(exc):
+    """Method to get exception message independent from python version.
+    """
+    return exc.message if six.PY2 else str(exc.args[0])

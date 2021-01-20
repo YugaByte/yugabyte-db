@@ -57,6 +57,7 @@ DECLARE_int64(log_stop_retaining_min_disk_mb);
 DECLARE_uint64(log_segment_size_bytes);
 DECLARE_int32(update_metrics_interval_ms);
 DECLARE_bool(enable_collect_cdc_metrics);
+DECLARE_bool(cdc_enable_replicate_intents);
 
 METRIC_DECLARE_entity(cdc);
 METRIC_DECLARE_gauge_int64(last_read_opid_index);
@@ -80,13 +81,15 @@ const client::YBTableName kTableName(YQL_DATABASE_CQL, kCDCTestKeyspace, kCDCTes
 const client::YBTableName kCdcStateTableName(
     YQL_DATABASE_CQL, master::kSystemNamespaceName, master::kCdcStateTableName);
 
-class CDCServiceTest : public YBMiniClusterTestBase<MiniCluster> {
+class CDCServiceTest : public YBMiniClusterTestBase<MiniCluster>,
+                       public testing::WithParamInterface<bool> {
  protected:
   void SetUp() override {
     YBMiniClusterTestBase::SetUp();
 
     MiniClusterOptions opts;
     SetAtomicFlag(false, &FLAGS_enable_ysql);
+    SetAtomicFlag(GetParam(), &FLAGS_cdc_enable_replicate_intents);
     opts.num_tablet_servers = server_count();
     opts.num_masters = 1;
     cluster_.reset(new MiniCluster(env_.get(), opts));
@@ -325,7 +328,7 @@ void CDCServiceTest::WriteToProxyWithRetries(
       MonoDelta::FromSeconds(10), "Write test row");
 }
 
-TEST_F(CDCServiceTest, TestCompoundKey) {
+TEST_P(CDCServiceTest, TestCompoundKey) {
   // Create a table with a compound primary key.
   static const std::string kCDCTestTableCompoundKeyName = "cdc_test_table_compound_key";
   static const client::YBTableName kTableNameCompoundKey(
@@ -393,7 +396,7 @@ TEST_F(CDCServiceTest, TestCompoundKey) {
   }
 }
 
-TEST_F(CDCServiceTest, TestCreateCDCStream) {
+TEST_P(CDCServiceTest, TestCreateCDCStream) {
   CDCStreamId stream_id;
   CreateCDCStream(cdc_proxy_, table_.table()->id(), &stream_id);
 
@@ -403,7 +406,7 @@ TEST_F(CDCServiceTest, TestCreateCDCStream) {
   ASSERT_EQ(table_id, table_.table()->id());
 }
 
-TEST_F(CDCServiceTest, TestBootstrapProducer) {
+TEST_P(CDCServiceTest, TestBootstrapProducer) {
   constexpr int kNRows = 100;
   auto master_proxy = std::make_shared<master::MasterServiceProxy>(
       &client_->proxy_cache(),
@@ -454,7 +457,7 @@ TEST_F(CDCServiceTest, TestBootstrapProducer) {
   ASSERT_EQ(nrows, 1);
 }
 
-TEST_F(CDCServiceTest, TestCreateCDCStreamWithDefaultRententionTime) {
+TEST_P(CDCServiceTest, TestCreateCDCStreamWithDefaultRententionTime) {
   // Set default WAL retention time to 10 hours.
   FLAGS_cdc_wal_retention_time_secs = 36000;
 
@@ -469,7 +472,7 @@ TEST_F(CDCServiceTest, TestCreateCDCStreamWithDefaultRententionTime) {
   VerifyWalRetentionTime(cluster_.get(), kCDCTestTableName, FLAGS_cdc_wal_retention_time_secs);
 }
 
-TEST_F(CDCServiceTest, TestDeleteCDCStream) {
+TEST_P(CDCServiceTest, TestDeleteCDCStream) {
   FLAGS_cdc_state_checkpoint_update_interval_ms = 0;
   CDCStreamId stream_id;
   CreateCDCStream(cdc_proxy_, table_.table()->id(), &stream_id);
@@ -505,7 +508,7 @@ TEST_F(CDCServiceTest, TestDeleteCDCStream) {
   }
 }
 
-TEST_F(CDCServiceTest, TestMetricsOnDeletedReplication) {
+TEST_P(CDCServiceTest, TestMetricsOnDeletedReplication) {
   CDCStreamId stream_id;
   CreateCDCStream(cdc_proxy_, table_.table()->id(), &stream_id);
   ANNOTATE_UNPROTECTED_WRITE(FLAGS_enable_collect_cdc_metrics) = true;
@@ -562,7 +565,7 @@ TEST_F(CDCServiceTest, TestMetricsOnDeletedReplication) {
 }
 
 
-TEST_F(CDCServiceTest, TestGetChanges) {
+TEST_P(CDCServiceTest, TestGetChanges) {
   CDCStreamId stream_id;
   CreateCDCStream(cdc_proxy_, table_.table()->id(), &stream_id);
   ANNOTATE_UNPROTECTED_WRITE(FLAGS_enable_collect_cdc_metrics) = true;
@@ -692,7 +695,7 @@ TEST_F(CDCServiceTest, TestGetChanges) {
   }
 }
 
-TEST_F(CDCServiceTest, TestGetChangesInvalidStream) {
+TEST_P(CDCServiceTest, TestGetChangesInvalidStream) {
   std::string tablet_id;
   GetTablet(&tablet_id);
 
@@ -710,7 +713,7 @@ TEST_F(CDCServiceTest, TestGetChangesInvalidStream) {
   ASSERT_TRUE(change_resp.has_error());
 }
 
-TEST_F(CDCServiceTest, TestGetCheckpoint) {
+TEST_P(CDCServiceTest, TestGetCheckpoint) {
   CDCStreamId stream_id;
   CreateCDCStream(cdc_proxy_, table_.table()->id(), &stream_id);
 
@@ -739,7 +742,7 @@ class CDCServiceTestMultipleServersOneTablet : public CDCServiceTest {
   virtual int tablet_count() override { return 1; }
 };
 
-TEST_F_EX(CDCServiceTest, TestUpdateLagMetrics, CDCServiceTestMultipleServersOneTablet) {
+TEST_P(CDCServiceTestMultipleServersOneTablet, TestUpdateLagMetrics) {
   CDCStreamId stream_id;
   CreateCDCStream(cdc_proxy_, table_.table()->id(), &stream_id);
   ANNOTATE_UNPROTECTED_WRITE(FLAGS_enable_collect_cdc_metrics) = true;
@@ -902,7 +905,7 @@ class CDCServiceTestMultipleServers : public CDCServiceTest {
   virtual int tablet_count() override { return 4; }
 };
 
-TEST_F_EX(CDCServiceTest, TestListTablets, CDCServiceTestMultipleServers) {
+TEST_P(CDCServiceTestMultipleServers, TestListTablets) {
   CDCStreamId stream_id;
   CreateCDCStream(cdc_proxy_, table_.table()->id(), &stream_id);
 
@@ -948,7 +951,7 @@ TEST_F_EX(CDCServiceTest, TestListTablets, CDCServiceTestMultipleServers) {
   }
 }
 
-TEST_F_EX(CDCServiceTest, TestGetChangesProxyRouting, CDCServiceTestMultipleServers) {
+TEST_P(CDCServiceTestMultipleServers, TestGetChangesProxyRouting) {
   CDCStreamId stream_id;
   CreateCDCStream(cdc_proxy_, table_.table()->id(), &stream_id);
 
@@ -1048,7 +1051,7 @@ TEST_F_EX(CDCServiceTest, TestGetChangesProxyRouting, CDCServiceTestMultipleServ
   ASSERT_EQ(server_metrics->cdc_rpc_proxy_count->value(), remote_tablets.size());
 }
 
-TEST_F(CDCServiceTest, TestOnlyGetLocalChanges) {
+TEST_P(CDCServiceTest, TestOnlyGetLocalChanges) {
   CDCStreamId stream_id;
   CreateCDCStream(cdc_proxy_, table_.table()->id(), &stream_id);
 
@@ -1156,7 +1159,7 @@ TEST_F(CDCServiceTest, TestOnlyGetLocalChanges) {
 
 }
 
-TEST_F(CDCServiceTest, TestCheckpointUpdatedForRemoteRows) {
+TEST_P(CDCServiceTest, TestCheckpointUpdatedForRemoteRows) {
   CDCStreamId stream_id;
   CreateCDCStream(cdc_proxy_, table_.table()->id(), &stream_id);
 
@@ -1211,7 +1214,7 @@ TEST_F(CDCServiceTest, TestCheckpointUpdatedForRemoteRows) {
 // Test to ensure that cdc_state table's checkpoint is updated as expected.
 // This also tests for #2897 to ensure that cdc_state table checkpoint is not overwritten to 0.0
 // in case the consumer does not send from checkpoint.
-TEST_F(CDCServiceTest, TestCheckpointUpdate) {
+TEST_P(CDCServiceTest, TestCheckpointUpdate) {
   FLAGS_cdc_state_checkpoint_update_interval_ms = 0;
 
   CDCStreamId stream_id;
@@ -1330,7 +1333,7 @@ class CDCServiceTestMaxRentionTime : public CDCServiceTest {
   const int kMaxSecondsToRetain = 30;
 };
 
-TEST_F_EX(CDCServiceTest, TestLogRetentionByOpId_MaxRentionTime, CDCServiceTestMaxRentionTime) {
+TEST_P(CDCServiceTestMaxRentionTime, TestLogRetentionByOpId_MaxRentionTime) {
   CDCStreamId stream_id;
   CreateCDCStream(cdc_proxy_, table_.table()->id(), &stream_id);
 
@@ -1396,8 +1399,7 @@ class CDCServiceTestDurableMinReplicatedIndex : public CDCServiceTest {
   }
 };
 
-TEST_F_EX(CDCServiceTest, TestLogCDCMinReplicatedIndexIsDurable,
-          CDCServiceTestDurableMinReplicatedIndex) {
+TEST_P(CDCServiceTestDurableMinReplicatedIndex, TestLogCDCMinReplicatedIndexIsDurable) {
   CDCStreamId stream_id;
   CreateCDCStream(cdc_proxy_, table_.table()->id(), &stream_id);
 
@@ -1457,7 +1459,7 @@ class CDCServiceTestMinSpace : public CDCServiceTest {
   }
 };
 
-TEST_F_EX(CDCServiceTest, TestLogRetentionByOpId_MinSpace, CDCServiceTestMinSpace) {
+TEST_P(CDCServiceTestMinSpace, TestLogRetentionByOpId_MinSpace) {
   CDCStreamId stream_id;
   CreateCDCStream(cdc_proxy_, table_.table()->id(), &stream_id);
 
@@ -1522,7 +1524,7 @@ class CDCLogAndMetaIndex : public CDCServiceTest {
   }
 };
 
-TEST_F_EX(CDCServiceTest, TestLogAndMetaCdcIndex, CDCLogAndMetaIndex) {
+TEST_P(CDCLogAndMetaIndex, TestLogAndMetaCdcIndex) {
   constexpr int kNStreams = 5;
 
   // This will rollover log segments a lot faster.
@@ -1582,7 +1584,7 @@ class CDCLogAndMetaIndexReset : public CDCLogAndMetaIndex {
 
 // Test that when all the streams for a specific tablet have been deleted, the log and meta
 // cdc min replicated index is reset to max int64.
-TEST_F_EX(CDCServiceTest, TestLogAndMetaCdcIndexAreReset, CDCLogAndMetaIndexReset) {
+TEST_P(CDCLogAndMetaIndexReset, TestLogAndMetaCdcIndexAreReset) {
   constexpr int kNStreams = 5;
 
   // This will rollover log segments a lot faster.
@@ -1716,7 +1718,7 @@ void CDCServiceTestThreeServers::GetFirstTabletIdAndLeaderPeer(TabletId* tablet_
 
 // Test that whenever a leader change happens (forced here by shutting down the tablet leader),
 // next leader correctly reads the minimum applied cdc index by reading the cdc_state table.
-TEST_F_EX(CDCServiceTest, TestNewLeaderUpdatesLogCDCAppliedIndex, CDCServiceTestThreeServers) {
+TEST_P(CDCServiceTestThreeServers, TestNewLeaderUpdatesLogCDCAppliedIndex) {
   constexpr int kNRecords = 30;
   constexpr int kGettingLeaderTimeoutSecs = 20;
 

@@ -425,7 +425,7 @@ Default: `false`
 
 The expected maximum clock skew, in microseconds (µs), between any two servers in your deployment.
 
-Default: `50000` (50,000 µs = 50ms)
+Default: `500000` (500,000 µs = 500ms)
 
 ##### --replication_factor
 
@@ -459,7 +459,7 @@ Default: `8`
 
 {{< note title="Note" >}}
 
-On a per-table basis, the [`CREATE TABLE ...SPLIT INTO`](../../../api/ysql/commands/ddl_create_table/#split-into) clause can be used to override the `ysql_num_shards_per_tserver` value.
+On a per-table basis, the [`CREATE TABLE ...SPLIT INTO`](../../../api/ysql/the-sql-language/statements/ddl_create_table/#split-into) clause can be used to override the `ysql_num_shards_per_tserver` value.
 
 {{< /note >}}
 

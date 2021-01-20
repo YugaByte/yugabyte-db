@@ -25,6 +25,7 @@ import java.util.List;
 import static org.yb.AssertionWrappers.assertEquals;
 import static org.yb.AssertionWrappers.assertTrue;
 
+import org.yb.client.TestUtils;
 import org.yb.YBTestRunner;
 
 import org.junit.runner.RunWith;
@@ -40,7 +41,8 @@ public class TestJsonIndex extends BaseCQLTest {
     session.execute("CREATE INDEX jidx ON test_json_index(j1->'a'->>'b')");
     session.execute("CREATE INDEX cidx ON test_json_index(a_column)");
 
-    for (int h = 0; h < 3000; h++) {
+    int h;
+    for (h = 0; h < 3000; h++) {
       String jvalue = String.format("{ \"a\" : { \"b\" : \"bvalue_%d\" }," +
                                     "  \"a_column\" : %d }", h, h );
       String stmt = String.format("INSERT INTO test_json_index(h, j1, j2) VALUES (%d, '%s', '%s');",
@@ -48,15 +50,23 @@ public class TestJsonIndex extends BaseCQLTest {
       session.execute(stmt);
     }
 
-    long runtimeMillis;
-    String query;
+    // Insert various value formats to the JSONB column to make sure that the JSONB expression
+    // index supports null values.
+    session.execute(String.format("INSERT INTO test_json_index(h) values (%d);", h++));
+    session.execute(String.format("INSERT INTO test_json_index(h, j1) values (%d, 'null');", h++));
+    session.execute(String.format("INSERT INTO test_json_index(h, j1) values (%d, '\"abc\"');",
+                                  h++));
+    session.execute(String.format("INSERT INTO test_json_index(h, j1) values (%d, '3');", h++));
+    session.execute(String.format("INSERT INTO test_json_index(h, j1) values (%d, 'true');", h++));
+    session.execute(String.format("INSERT INTO test_json_index(h, j1) values (%d, 'false');", h++));
+    session.execute(String.format("INSERT INTO test_json_index(h, j1) values (%d, '2.0');", h++));
 
     // Run index scan and check the time.
-    query = "SELECT h FROM test_json_index WHERE j1->'a'->>'b' = 'bvalue_77';";
+    String query = "SELECT h FROM test_json_index WHERE j1->'a'->>'b' = 'bvalue_77';";
     // Not timing the first run.
     assertEquals(1, session.execute(query).all().size());
 
-    runtimeMillis = System.currentTimeMillis();
+    long runtimeMillis = System.currentTimeMillis();
     assertEquals(1, session.execute(query).all().size());
     long elapsedTimeMillis_index = System.currentTimeMillis() - runtimeMillis;
     LOG.info(String.format("Indexed query: Elapsed time = %d msecs", elapsedTimeMillis_index));
@@ -71,8 +81,11 @@ public class TestJsonIndex extends BaseCQLTest {
     long elapsedTimeMillis_full = System.currentTimeMillis() - runtimeMillis;
     LOG.info(String.format("Full scan query: Elapsed time = %d msecs", elapsedTimeMillis_full));
 
-    // Check that full-scan is 5 times slower than index-scan.
-    assertTrue((elapsedTimeMillis_full/3) > elapsedTimeMillis_index);
+    // Do performance testing ONLY in RELEASE build.
+    if (TestUtils.isReleaseBuild()) {
+      // Check that full-scan is 5 times slower than index-scan.
+      assertTrue((elapsedTimeMillis_full/3.0) >= elapsedTimeMillis_index);
+    }
 
     // Scenarios 2: Full scan and check the time. Attribute "j1->>a_column" is not indexed
     // even though column "a_column" is indexed.
@@ -85,8 +98,11 @@ public class TestJsonIndex extends BaseCQLTest {
     elapsedTimeMillis_full = System.currentTimeMillis() - runtimeMillis;
     LOG.info(String.format("Full scan query: Elapsed time = %d msecs", elapsedTimeMillis_full));
 
-    // Check that full-scan is slower than index-scan.
-    assertTrue((elapsedTimeMillis_full/3.0) > elapsedTimeMillis_index);
+    // Do performance testing ONLY in RELEASE build.
+    if (TestUtils.isReleaseBuild()) {
+      // Check that full-scan is slower than index-scan.
+      assertTrue((elapsedTimeMillis_full/3.0) >= elapsedTimeMillis_index);
+    }
   }
 
   @Test

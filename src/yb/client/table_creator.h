@@ -19,6 +19,8 @@
 #include "yb/master/master.pb.h"
 
 namespace yb {
+struct TransactionMetadata;
+
 namespace client {
 
 // Creates a new table with the desired options.
@@ -57,6 +59,9 @@ class YBTableCreator {
   // Sets the schema with which to create the table. Must remain valid for
   // the lifetime of the builder. Required.
   YBTableCreator& schema(const YBSchema* schema);
+
+  // The creation of this table is dependent upon the success of this higher-level transaction.
+  YBTableCreator& part_of_transaction(const TransactionMetadata* txn);
 
   // Adds a set of hash partitions to the table.
   //
@@ -180,6 +185,8 @@ class YBTableCreator {
   bool wait_ = true;
 
   bool colocated_ = true;
+
+  const TransactionMetadata * txn_ = nullptr;
 
   // The tablegroup id to assign (if a table is in a tablegroup).
   std::string tablegroup_id_;

@@ -18,8 +18,10 @@
 namespace yb {
 namespace master {
 
-YQLAuthRolesVTable::YQLAuthRolesVTable(const Master* const master)
-    : YQLVirtualTable(master::kSystemAuthRolesTableName, master, CreateSchema()) {
+YQLAuthRolesVTable::YQLAuthRolesVTable(const TableName& table_name,
+                                       const NamespaceName& namespace_name,
+                                       Master * const master)
+    : YQLVirtualTable(table_name, namespace_name, master, CreateSchema()) {
 }
 
 Result<std::shared_ptr<QLRowBlock>> YQLAuthRolesVTable::RetrieveData(

@@ -1,0 +1,134 @@
+/* Copyright (c) YugaByte, Inc. */
+
+@import '../../../../_style/colors';
+
+.bs-table-certs {
+  tr.tr-cert-name {
+    td {
+      vertical-align: middle;
+    }
+  }
+}
+
+.cert-download-icon {
+  vertical-align: bottom;
+}
+
+.modal {
+  .DayPicker,
+  .DayPickerInput {
+    display: inline-block;
+    font-size: 1.3rem;
+
+    input {
+      border: none;
+    }
+
+    .DayPicker-Day {
+      padding: 7px;
+      border-radius: 5px;
+
+      &:not(.DayPicker-Day--disabled):not(.DayPicker-Day--selected):not(.DayPicker-Day--outside):hover {
+        background-color: rgba($YB_SIDEBAR_TEXT, 0.2);
+      }
+
+      &.DayPicker-Day--selected {
+        &:not(.DayPicker-Day--disabled):not(.DayPicker-Day--outside) {
+          background-color: $YB_SIDEBAR_ACTIVE;
+          color: #fff;
+
+          &:hover {
+            background-color: $YB_VIOLET_TEXT;
+          }
+        }
+      }
+
+      &.DayPicker-Day--today {
+        color: $YB_ORANGE;
+      }
+    }
+  }
+}
+
+.modal-shake {
+  animation: shake 0.7s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes shake {
+  10%,
+  90% {
+    transform: translate3d(-1px, 0, 0);
+  }
+  20%,
+  80% {
+    transform: translate3d(2px, 0, 0);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translate3d(-4px, 0, 0);
+  }
+  40%,
+  60% {
+    transform: translate3d(4px, 0, 0);
+  }
+}
+
+.loading-text {
+  position: fixed;
+  bottom: 5%;
+  left: 100px;
+  z-index: 200000;
+  color: white;
+  background: rgb(60, 64, 67);
+  padding: 15px 20px;
+  border-radius: 2px;
+
+  i {
+    margin-left: 15px;
+    font-size: 24px;
+    color: #bbb;
+    cursor: pointer;
+  }
+  span {
+    font-size: 14px;
+    vertical-align: text-bottom;
+  }
+}
+
+.modal-content {
+  .info-text {
+    margin-bottom: 15px;
+  }
+}
+
+#add-cert-tabs {
+  .date-picker-input {
+    background: #FFF;
+    border: 1px solid #C5C6CE;
+    border-radius: 7px;
+    padding: 8px 15px;
+    cursor: pointer;
+  }
+
+
+  .tab-content {
+    padding: 20px 35px 30px;
+    min-height: initial;
+
+    > .tab-pane {
+      .form-group + .form-group {
+        margin-top: 15px;
+      }
+    }
+  }
+
+}
+
+.cert-details-modal__list {
+  padding: 20px 10px;
+
+  li + li {
+    margin-top: 15px;
+  }
+}

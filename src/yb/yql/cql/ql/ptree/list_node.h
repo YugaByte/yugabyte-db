@@ -15,6 +15,9 @@
 // List Node Declaration.
 //
 // This modules includes specifications for nodes that contain a list of tree nodes.
+//
+// YCQL audit expects these nodes to be DMLs encased between PTStartTransaction and PTCommit,
+// which is verified during Analyze step.
 //--------------------------------------------------------------------------------------------------
 
 #ifndef YB_YQL_CQL_QL_PTREE_LIST_NODE_H_

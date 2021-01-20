@@ -100,7 +100,7 @@ $ ./bin/ysqlsh
 
 1. Copy the YSQL statements below into the shell and press **Enter**.
 
-```postgresql
+```plpgsql
 INSERT INTO author(name) VALUES ('John Doe'), ('Jane Doe'); 
 INSERT INTO article(title, content, rating, author_id) 
 VALUES ('Jane''s First Book', 'Lorem ipsum', 10, 2);

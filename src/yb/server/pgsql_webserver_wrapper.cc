@@ -36,9 +36,8 @@ static void (*resetYsqlStatementStats)();
 static rpczEntry **rpczResultPointer;
 
 static postgresCallbacks pgCallbacks;
-
 static void PgMetricsHandler(const Webserver::WebRequest& req,
-                                    Webserver::WebResponse* resp) {
+                             Webserver::WebResponse* resp) {
   std::stringstream *output = &resp->output;
   JsonWriter::Mode json_mode;
   string arg = FindWithDefault(req.parsed_args, "compact", "false");
@@ -55,14 +54,16 @@ static void PgMetricsHandler(const Webserver::WebRequest& req,
   writer.String("metrics");
   writer.StartArray();
 
-  for (int i = 0; i < ybpgm_num_entries; ++i) {
+  for (const auto* entry = ybpgm_table, *end = entry + ybpgm_num_entries; entry != end; ++entry) {
     writer.StartObject();
     writer.String("name");
-    writer.String(ybpgm_table[i].name);
+    writer.String(entry->name);
     writer.String("count");
-    writer.Int64(ybpgm_table[i].calls);
+    writer.Int64(entry->calls);
     writer.String("sum");
-    writer.Int64(ybpgm_table[i].total_time);
+    writer.Int64(entry->total_time);
+    writer.String("rows");
+    writer.Int64(entry->rows);
     writer.EndObject();
   }
 

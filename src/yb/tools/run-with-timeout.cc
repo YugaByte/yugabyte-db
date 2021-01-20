@@ -31,8 +31,8 @@
 #include <sys/resource.h>
 #endif
 
-constexpr int kWaitSecAfterSigQuit = 10;
-constexpr int kWaitSecAfterSigSegv = 10;
+constexpr int kWaitSecAfterSigQuit = 30;
+constexpr int kWaitSecAfterSigSegv = 30;
 
 using std::cerr;
 using std::condition_variable;

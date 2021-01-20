@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -323,6 +324,211 @@ public class TestPgSelect extends BasePgSQLTest {
                                              boolean pushdown_expected) throws Exception {
     verifyStatementMetric(statement, stmt, AGGREGATE_PUSHDOWNS_METRIC,
                           pushdown_expected ? 1 : 0, 1, true);
+  }
+
+  private Long getCountForTable(String metricName, String tableName) throws Exception {
+    return getTserverMetricCountForTable(metricName, tableName);
+  }
+
+  /*
+   * TODO: move this test to a different file. For now it makes sense for them to be here
+   * because they are related to the consistent prefix tests
+   */
+  @Test
+  public void testSetIsolationLevelsWithReadFromFollowersSessionVariable() throws Exception {
+    try (Statement statement = connection.createStatement()) {
+      final String CANT_CHANGE_TXN_LEVEL =
+          "ERROR: cannot use this transaction isolation level with yb_read_from_followers enabled";
+      final String CANT_CHANGE_YB_READ_FROM_FOLLOWERS =
+          "ERROR: cannot enable yb_read_from_followers with the current transaction isolation mode";
+
+      // READ UNCOMMITTED with yb_read_from_followers enabled -> ok.
+      statement.execute(
+          "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ UNCOMMITTED");
+      statement.execute("SET yb_read_from_followers = true");
+
+      // Reset session variable.
+      statement.execute("SET yb_read_from_followers = false");
+
+      // READ COMMITTED with yb_read_from_followers enabled -> ok.
+      statement.execute(
+          "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED");
+      statement.execute("SET yb_read_from_followers = true");
+
+      // Reset session variable.
+      statement.execute("SET yb_read_from_followers = false");
+
+      // REPEATABLE READ with yb_read_from_followers enabled -> error.
+      statement.execute(
+          "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+
+      runInvalidQuery(statement, "SET yb_read_from_followers = true",
+          CANT_CHANGE_YB_READ_FROM_FOLLOWERS);
+
+      // SERIALIZABLE with yb_read_from_followers enabled -> error.
+      statement.execute(
+          "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE");
+      runInvalidQuery(statement, "SET yb_read_from_followers = true",
+          CANT_CHANGE_YB_READ_FROM_FOLLOWERS);
+
+      // Reset the isolation level to the lowest possible.
+      statement.execute(
+          "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ UNCOMMITTED");
+
+      statement.execute("SET yb_read_from_followers = true");
+
+      // yb_read_from_followers enabled with READ UNCOMMITTED -> ok.
+      statement.execute(
+          "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ UNCOMMITTED");
+
+      // yb_read_from_followers enabled with READ COMMITTED -> ok.
+      statement.execute(
+          "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED");
+
+      // yb_read_from_followers enabled with REPEATABLE READ -> error.
+      runInvalidQuery(statement,
+          "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+          CANT_CHANGE_TXN_LEVEL);
+
+      // yb_read_from_followers enabled with SERIALIZABLE -> error.
+      runInvalidQuery(statement,
+          "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE",
+          CANT_CHANGE_TXN_LEVEL);
+
+      // Reset the isolation level to the lowest possible.
+      statement.execute(
+          "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ UNCOMMITTED");
+
+      // yb_read_from_followers enabled with START TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+      // -> ok.
+      statement.execute("SET yb_read_from_followers = true");
+      statement.execute("START TRANSACTION ISOLATION LEVEL READ UNCOMMITTED");
+      statement.execute("ABORT");
+
+      // yb_read_from_followers enabled with START TRANSACTION ISOLATION LEVEL READ COMMITTED
+      // -> ok.
+      statement.execute("START TRANSACTION ISOLATION LEVEL READ COMMITTED");
+      statement.execute("ABORT");
+
+
+      // yb_read_from_followers enabled with START TRANSACTION ISOLATION LEVEL REPEATABLE READ
+      // -> error.
+      runInvalidQuery(statement, "START TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+          CANT_CHANGE_TXN_LEVEL);
+
+      // yb_read_from_followers enabled with START TRANSACTION ISOLATION LEVEL SERIALIZABLE
+      // -> error.
+      runInvalidQuery(statement, "START TRANSACTION ISOLATION LEVEL SERIALIZABLE",
+          CANT_CHANGE_TXN_LEVEL);
+
+      // Reset session variable.
+      statement.execute("SET yb_read_from_followers = false");
+
+      // START TRANSACTION ISOLATION LEVEL READ UNCOMMITTED with yb_read_from_followers enabled
+      // -> ok.
+      statement.execute("START TRANSACTION ISOLATION LEVEL READ UNCOMMITTED");
+      statement.execute("SET yb_read_from_followers = true");
+      statement.execute("ABORT");
+
+      // Reset session variable.
+      statement.execute("SET yb_read_from_followers = false");
+
+      // START TRANSACTION ISOLATION LEVEL READ COMMITTED with yb_read_from_followers enabled
+      // -> ok.
+      statement.execute("START TRANSACTION ISOLATION LEVEL READ COMMITTED");
+      statement.execute("SET yb_read_from_followers = true");
+      statement.execute("ABORT");
+
+      // Reset session variable.
+      statement.execute("SET yb_read_from_followers = false");
+      // START TRANSACTION ISOLATION LEVEL REPEATABLE READ with yb_read_from_followers enabled
+      // -> error.
+      statement.execute("START TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+      runInvalidQuery(statement, "SET yb_read_from_followers = true",
+          CANT_CHANGE_YB_READ_FROM_FOLLOWERS);
+      statement.execute("ABORT");
+
+      // Reset session variable.
+      statement.execute("SET yb_read_from_followers = false");
+      // START TRANSACTION ISOLATION LEVEL SERIALIZABLE with yb_read_from_followers enabled
+      // -> error.
+      statement.execute("START TRANSACTION ISOLATION LEVEL SERIALIZABLE");
+      runInvalidQuery(statement, "SET yb_read_from_followers = true",
+          CANT_CHANGE_YB_READ_FROM_FOLLOWERS);
+      statement.execute("ABORT");
+    }
+  }
+
+  @Test
+  public void testCountConsistentPrefix() throws Exception {
+    try (Statement statement = connection.createStatement()) {
+      statement.execute("CREATE TABLE consistentprefixcount(k int primary key)");
+      for (int i = 0; i < 100; i++) {
+        statement.execute(String.format("INSERT INTO consistentprefixcount(k) VALUES(%d)", i));
+      }
+
+      statement.execute(
+          "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED");
+      statement.execute("SET yb_read_from_followers = true;");
+      assertOneRow(statement, "SELECT count(*) FROM consistentprefixcount", 100L);
+
+      long count = getCountForTable("consistent_prefix_read_requests", "consistentprefixcount");
+      assertEquals(count, 3); // 3 tablets, 3 consistent prefix requests.
+    }
+  }
+
+  @Test
+  public void testOrderedSelectConsistentPrefix() throws Exception {
+    List<Row> expected_rows = new ArrayList<>();
+    try (Statement statement = connection.createStatement()) {
+      statement.execute("CREATE TABLE consistentprefixorderedselect(k int primary key)");
+      for (int i = 0; i < 5000; i++) {
+        statement.execute(String.format(
+            "INSERT INTO consistentprefixorderedselect(k) VALUES(%d)", i));
+        expected_rows.add(new Row(i));
+      }
+
+      statement.execute(
+          "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED");
+      statement.execute("SET yb_read_from_followers = true;");
+      assertRowList(statement,
+          "SELECT * FROM consistentprefixorderedselect ORDER BY k", expected_rows);
+
+      long count = getCountForTable("consistent_prefix_read_requests",
+          "consistentprefixorderedselect");
+      // Max number of records per request is 1024, so we will need to issue two requests per
+      // tablet.
+      assertEquals(6, count);
+
+      count = getCountForTable("pgsql_consistent_prefix_read_rows",
+          "consistentprefixorderedselect");
+      assertEquals(5000, count);
+    }
+  }
+
+  @Test
+  public void testSelectConsistentPrefix() throws Exception {
+    List<Row> expected_rows = new ArrayList<>();
+    try (Statement statement = connection.createStatement()) {
+      statement.execute("CREATE TABLE consistentprefixselect(k int primary key)");
+      for (int i = 0; i < 7000; i++) {
+        statement.execute(String.format("INSERT INTO consistentprefixselect(k) VALUES(%d)", i));
+        expected_rows.add(new Row(i));
+      }
+
+      statement.execute(
+          "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED");
+      statement.execute("SET yb_read_from_followers = true;");
+      statement.executeQuery("SELECT * from consistentprefixselect");
+
+      long count = getCountForTable("consistent_prefix_read_requests", "consistentprefixselect");
+      // Max number of records per request is 1024, so we will need to issue three requests per
+      // tablet.
+      assertEquals(9, count);
+
+      count = getCountForTable("pgsql_consistent_prefix_read_rows", "consistentprefixselect");
+      assertEquals(7000, count);
+    }
   }
 
   @Test

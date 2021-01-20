@@ -61,6 +61,8 @@
 #include <glog/logging.h>
 #include <squeasel.h>
 
+#include <cds/init.h>
+
 #include "yb/gutil/map-util.h"
 #include "yb/gutil/stl_util.h"
 #include "yb/gutil/stringprintf.h"
@@ -73,6 +75,7 @@
 #include "yb/util/net/net_util.h"
 #include "yb/util/scope_exit.h"
 #include "yb/util/status.h"
+#include "yb/util/thread.h"
 #include "yb/util/url-coding.h"
 #include "yb/util/version_info.h"
 #include "yb/util/shared_lock.h"
@@ -212,6 +215,8 @@ Status Webserver::Start() {
   memset(&callbacks, 0, sizeof(callbacks));
   callbacks.begin_request = &Webserver::BeginRequestCallbackStatic;
   callbacks.log_message = &Webserver::LogMessageCallbackStatic;
+  callbacks.enter_worker_thread = &Webserver::EnterWorkerThreadCallbackStatic;
+  callbacks.leave_worker_thread = &Webserver::LeaveWorkerThreadCallbackStatic;
 
   // To work around not being able to pass member functions as C callbacks, we store a
   // pointer to this server in the per-server state, and register a static method as the
@@ -300,19 +305,21 @@ Status Webserver::GetBoundAddresses(std::vector<Endpoint>* addrs_ptr) const {
     switch (sockaddrs[i]->ss_family) {
       case AF_INET: {
         sockaddr_in* addr = reinterpret_cast<struct sockaddr_in*>(sockaddrs[i]);
-        DSCHECK(addrs[i].capacity() >= sizeof(*addr), IllegalState, "Unexpected size of struct");
+        RSTATUS_DCHECK(
+            addrs[i].capacity() >= sizeof(*addr), IllegalState, "Unexpected size of struct");
         memcpy(addrs[i].data(), addr, sizeof(*addr));
         break;
       }
       case AF_INET6: {
         sockaddr_in6* addr6 = reinterpret_cast<struct sockaddr_in6*>(sockaddrs[i]);
-        DSCHECK(addrs[i].capacity() >= sizeof(*addr6), IllegalState, "Unexpected size of struct");
+        RSTATUS_DCHECK(
+            addrs[i].capacity() >= sizeof(*addr6), IllegalState, "Unexpected size of struct");
         memcpy(addrs[i].data(), addr6, sizeof(*addr6));
         break;
       }
       default: {
         LOG(ERROR) << "Unexpected address family: " << sockaddrs[i]->ss_family;
-        DSCHECK(false, IllegalState, "Unexpected address family");
+        RSTATUS_DCHECK(false, IllegalState, "Unexpected address family");
         break;
       }
     }
@@ -359,7 +366,6 @@ int Webserver::BeginRequestCallback(struct sq_connection* connection,
 
   return RunPathHandler(*handler, connection, request_info);
 }
-
 
 int Webserver::RunPathHandler(const PathHandler& handler,
                               struct sq_connection* connection,
@@ -530,6 +536,14 @@ void Webserver::BootstrapPageFooter(stringstream* output) {
     *output << "</div></footer>";
   }
   *output << "</body></html>";
+}
+
+void Webserver::EnterWorkerThreadCallbackStatic() {
+  cds::threading::Manager::attachThread();
+}
+
+void Webserver::LeaveWorkerThreadCallbackStatic() {
+  cds::threading::Manager::detachThread();
 }
 
 } // namespace yb

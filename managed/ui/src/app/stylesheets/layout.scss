@@ -1,6 +1,6 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../_style/colors.scss";
+@import '../../_style/colors.scss';
 
 .full-height-container {
   position: absolute;
@@ -24,7 +24,7 @@
 
   & > *:first-child {
     &:before {
-      content: "";
+      content: '';
       position: fixed;
       top: 0;
       left: 90px;
@@ -97,10 +97,6 @@ legend {
   justify-content: center;
 }
 
-.no-top-margin {
-  margin-top: 0 !important;
-}
-
 .no-bottom-margin {
   margin-bottom: 0 !important;
 }
@@ -161,7 +157,7 @@ pre {
   max-width: none;
   z-index: 1030;
   font-size: 13px;
-  font-family: "Inter", sans-serif;
+  font-family: 'Inter', sans-serif;
 
   &:before {
     position: absolute;
@@ -173,7 +169,7 @@ pre {
 
     &:before {
       left: -8px;
-      top: calc( 50% - 8px );
+      top: calc(50% - 8px);
       border-color: transparent rgba($YB_VIOLET_DARK, 0.85);
       border-style: solid;
       border-width: 8px 8px 8px 0px;
@@ -183,7 +179,6 @@ pre {
   }
 }
 
-
 dd {
   margin-inline-start: 40px;
 }
@@ -192,7 +187,8 @@ dd {
   margin: 0;
   padding: 0;
 
-  dd, dt {
+  dd,
+  dt {
     font-weight: 400;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -215,7 +211,8 @@ dd {
   margin: 0;
   padding: 0;
 
-  dd, dt {
+  dd,
+  dt {
     font-weight: 400;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -253,7 +250,8 @@ dd {
     }
   }
 
-  dd, dt {
+  dd,
+  dt {
     font-weight: 400;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -269,7 +267,6 @@ dd {
     margin-right: 3px;
   }
 }
-
 
 .popover {
   .dl-normal {

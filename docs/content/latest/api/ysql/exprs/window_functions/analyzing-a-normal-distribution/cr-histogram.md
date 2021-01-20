@@ -20,7 +20,6 @@ create or replace function histogram(
   no_of_bukets in int,
   scale_factor in numeric)
   returns SETOF text
-  immutable
   language sql
 as $body$
   with

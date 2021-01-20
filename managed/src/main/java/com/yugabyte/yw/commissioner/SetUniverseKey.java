@@ -72,7 +72,7 @@ public class SetUniverseKey {
         this.actorSystem.scheduler().schedule(
                 Duration.create(0, TimeUnit.MINUTES),
                 Duration.create(YB_SET_UNIVERSE_KEY_INTERVAL, TimeUnit.MINUTES),
-                () -> scheduleRunner(),
+                this::scheduleRunner,
                 this.executionContext
         );
     }
@@ -150,9 +150,8 @@ public class SetUniverseKey {
 
     @VisibleForTesting
     void scheduleRunner() {
-        if (!running.get()) {
-            LOG.info("Running universe key setter");
-            running.set(true);
+        if (running.compareAndSet(false, true)) {
+            LOG.debug("Running universe key setter");
             Customer.getAll().forEach(c -> {
               try {
                 setCustomerUniverseKeys(c);

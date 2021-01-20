@@ -103,7 +103,7 @@ std::unique_ptr<IntentAwareIterator> CreateIntentAwareIterator(
     const Slice* iterate_upper_bound = nullptr);
 
 // Request RocksDB compaction and wait until it completes.
-void ForceRocksDBCompact(rocksdb::DB* db);
+CHECKED_STATUS ForceRocksDBCompact(rocksdb::DB* db);
 
 // Initialize the RocksDB 'options'.
 // The 'statistics' object provided by the caller will be used by RocksDB to maintain the stats for
@@ -127,6 +127,9 @@ class RocksDBPatcher {
 
   // Set hybrid time filter for DB.
   CHECKED_STATUS SetHybridTimeFilter(HybridTime value);
+
+  // Modify flushed frontier and clean up smallest/largest op id in per-SST file metadata.
+  CHECKED_STATUS ModifyFlushedFrontier(const ConsensusFrontier& frontier);
 
  private:
   class Impl;

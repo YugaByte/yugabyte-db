@@ -1,11 +1,10 @@
-
-@import "../../../_style/colors.scss";
+@import '../../../_style/colors.scss';
 
 .universe-region-marker {
   width: auto;
   min-width: 120px;
   height: 30px !important;
-  padding-top:4px;
+  padding-top: 4px;
   border-radius: 7px;
   background-color: transparent;
   font-size: 12px;
@@ -24,5 +23,4 @@
     border: 4px solid $YB_ORANGE;
     background: rgba(255, 255, 255, 0.7);
   }
-
 }

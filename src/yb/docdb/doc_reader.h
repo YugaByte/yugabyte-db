@@ -24,6 +24,7 @@
 #include "yb/common/read_hybrid_time.h"
 #include "yb/common/transaction.h"
 
+#include "yb/docdb/doc_reader_redis.h"
 #include "yb/docdb/docdb_types.h"
 #include "yb/docdb/expiration.h"
 #include "yb/docdb/intent.h"
@@ -36,79 +37,6 @@
 
 namespace yb {
 namespace docdb {
-
-class DeadlineInfo;
-
-class SliceKeyBound {
- public:
-  SliceKeyBound() {}
-  SliceKeyBound(const Slice& key, BoundType type)
-      : key_(key), type_(type) {}
-
-  bool CanInclude(const Slice& other) const {
-    if (!is_valid()) {
-      return true;
-    }
-    int comp = key_.compare(Slice(other.data(), std::min(other.size(), key_.size())));
-    if (is_lower()) {
-      comp = -comp;
-    }
-    return is_exclusive() ? comp > 0 : comp >= 0;
-  }
-
-  static const SliceKeyBound& Invalid();
-
-  bool is_valid() const { return type_ != BoundType::kInvalid; }
-  const Slice& key() const { return key_; }
-
-  bool is_exclusive() const {
-    return type_ == BoundType::kExclusiveLower || type_ == BoundType::kExclusiveUpper;
-  }
-
-  bool is_lower() const {
-    return type_ == BoundType::kExclusiveLower || type_ == BoundType::kInclusiveLower;
-  }
-
-  explicit operator bool() const {
-    return is_valid();
-  }
-
-  std::string ToString() const {
-    if (!is_valid()) {
-      return "{ empty }";
-    }
-    return Format("{ $0$1 $2 }", is_lower() ? ">" : "<", is_exclusive() ? "" : "=",
-                  SubDocKey::DebugSliceToString(key_));
-  }
-
- private:
-  Slice key_;
-  BoundType type_ = BoundType::kInvalid;
-};
-
-class IndexBound {
- public:
-  IndexBound() :
-      index_(-1),
-      is_lower_bound_(false) {}
-
-  IndexBound(int64 index, bool is_lower_bound) :
-      index_(index),
-      is_lower_bound_(is_lower_bound) {}
-
-  bool CanInclude(int64 curr_index) const {
-    if (index_ == -1 ) {
-      return true;
-    }
-    return is_lower_bound_ ? index_ <= curr_index : index_ >= curr_index;
-  }
-
-  static const IndexBound& Empty();
-
- private:
-  int64 index_;
-  bool is_lower_bound_;
-};
 
 // Pass data to GetSubDocument function.
 struct GetSubDocumentData {
@@ -177,9 +105,6 @@ struct GetSubDocumentData {
 inline std::ostream& operator<<(std::ostream& out, const GetSubDocumentData& data) {
   return out << data.ToString();
 }
-
-// Indicates if we can get away by only seeking forward, or if we must do a regular seek.
-YB_STRONGLY_TYPED_BOOL(SeekFwdSuffices);
 
 // Returns the whole SubDocument below some node identified by subdocument_key.
 // subdocument_key should not have a timestamp.

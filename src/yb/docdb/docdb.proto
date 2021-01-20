@@ -25,6 +25,11 @@ message KeyValuePairPB {
   optional fixed64 external_hybrid_time = 3;
 }
 
+message ApplyExternalTransactionPB {
+  optional bytes transaction_id = 1;
+  optional fixed64 commit_hybrid_time = 2;
+}
+
 // A set of key/value pairs to be written into RocksDB.
 message KeyValueWriteBatchPB {
   repeated KeyValuePairPB write_pairs = 1;
@@ -34,6 +39,7 @@ message KeyValueWriteBatchPB {
   // In case of read-modify-write operation both read_pairs and write_pairs could present.
   repeated KeyValuePairPB read_pairs = 5;
   optional RowMarkType row_mark_type = 6;
+  repeated ApplyExternalTransactionPB apply_external_transactions = 7;
 }
 
 message ConsensusFrontierPB {

@@ -1,0 +1,19 @@
+@import '../../../../uikit/common';
+
+.master-flags-field {
+  &__head {
+    display: flex;
+    align-items: center;
+  }
+
+  &__title {
+    font-size: 16px;
+    color: $YB_TEXT_2;
+    margin-right: 10px;
+  }
+
+  &__line {
+    border-top: 1px solid $YB_BORDER_1;
+    width: 742px;
+  }
+}

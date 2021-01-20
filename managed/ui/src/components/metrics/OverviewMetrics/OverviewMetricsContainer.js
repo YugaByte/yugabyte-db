@@ -3,14 +3,17 @@
 import { connect } from 'react-redux';
 
 import { OverviewMetrics } from '../../metrics';
-import { queryMetrics, queryMetricsSuccess, queryMetricsFailure,
-  resetMetrics } from '../../../actions/graph';
+import {
+  queryMetrics,
+  queryMetricsSuccess,
+  queryMetricsFailure,
+  resetMetrics
+} from '../../../actions/graph';
 
 const mapDispatchToProps = (dispatch) => {
   return {
     queryMetrics: (queryParams, panelType) => {
-      dispatch(queryMetrics(queryParams))
-      .then((response) => {
+      dispatch(queryMetrics(queryParams)).then((response) => {
         if (!response.error) {
           dispatch(queryMetricsSuccess(response.payload, panelType));
         } else {
@@ -26,8 +29,8 @@ const mapDispatchToProps = (dispatch) => {
 const mapStateToProps = (state) => {
   return {
     currentCustomer: state.customer.currentCustomer,
-    graph: state.graph,
+    graph: state.graph
   };
 };
 
-export default connect( mapStateToProps, mapDispatchToProps)(OverviewMetrics);
+export default connect(mapStateToProps, mapDispatchToProps)(OverviewMetrics);

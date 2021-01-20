@@ -11,7 +11,7 @@ export default class YBCopyButton extends PureComponent {
       debug: PropTypes.bool,
       message: PropTypes.string
     })
-  }
+  };
   constructor(props) {
     super(props);
     this.state = {
@@ -19,28 +19,28 @@ export default class YBCopyButton extends PureComponent {
     };
   }
 
-  onClick = event => {
-    const {
-      text,
-      options
-    } = this.props;
+  onClick = (event) => {
+    const { text, options } = this.props;
 
     event.preventDefault();
     copy(text, options);
-    this.setState({clicked: true});
-    setTimeout(
-      () => {
-        this.setState({clicked: false});
-      }
-    , 2500);
+    this.setState({ clicked: true });
+    setTimeout(() => {
+      this.setState({ clicked: false });
+    }, 2500);
   };
-
 
   render() {
     const { className, children } = this.props;
-    const { caption, additionalClassName } = this.state.clicked ? {caption: 'Copied', additionalClassName: ''} : {caption: 'Copy', additionalClassName: ' btn-copy-inactive'};
+    const { caption, additionalClassName } = this.state.clicked
+      ? { caption: 'Copied', additionalClassName: '' }
+      : { caption: 'Copy', additionalClassName: ' btn-copy-inactive' };
     return (
-      <button {...this.props} className={"btn btn-small btn-copy " + className + additionalClassName} onClick={this.onClick}>
+      <button
+        {...this.props}
+        className={'btn btn-small btn-copy ' + className + additionalClassName}
+        onClick={this.onClick}
+      >
         {children || caption}
       </button>
     );

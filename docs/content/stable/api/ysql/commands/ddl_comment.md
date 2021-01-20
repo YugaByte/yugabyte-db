@@ -60,16 +60,16 @@ Add or change a comment about a database object. To remove a comment, set the va
 
 ### Add a comment
 
-```postgresql
+```plpgsql
 COMMENT ON DATABASE postgres IS 'Default database';
 ```
 
-```postgresql
+```plpgsql
 COMMENT ON INDEX index_name IS 'Special index';
 ```
 
 ### Remove a comment
 
-```postgresql
+```plpgsql
 COMMENT ON TABLE some_table IS NULL;
 ```

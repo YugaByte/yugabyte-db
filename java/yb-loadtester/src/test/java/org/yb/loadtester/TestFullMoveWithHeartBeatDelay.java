@@ -20,7 +20,6 @@ import com.google.common.net.HostAndPort;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.yb.util.YBTestRunnerNonTsanOnly;
-import org.yb.minicluster.MiniYBCluster;
 
 import java.util.HashSet;
 import java.util.Iterator;
@@ -72,7 +71,7 @@ public class TestFullMoveWithHeartBeatDelay extends TestClusterBase {
     }
 
     // Wait for tservers to get heartbeat from new master.
-    Thread.sleep(MiniYBCluster.TSERVER_HEARTBEAT_TIMEOUT_MS * 4);
+    Thread.sleep(miniCluster.getClusterParameters().getTServerHeartbeatTimeoutMs() * 4);
 
     for (HostAndPort hp : miniCluster.getTabletServers().keySet()) {
       String masters = client.getMasterAddresses(hp);

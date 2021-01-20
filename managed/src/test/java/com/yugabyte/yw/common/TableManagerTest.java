@@ -194,6 +194,11 @@ import static org.mockito.Mockito.when;
 
   private List<String> getExpectedBackupTableCommand(
       BackupTableParams backupTableParams, String storageType) {
+    return getExpectedBackupTableCommand(backupTableParams, storageType, false);
+  }
+
+  private List<String> getExpectedBackupTableCommand(
+      BackupTableParams backupTableParams, String storageType, boolean isDelete) {
     AccessKey accessKey = AccessKey.get(testProvider.uuid, keyCode);
     Map<String, String> namespaceToConfig = new HashMap<>();
     UserIntent userIntent = testUniverse.getUniverseDetails().getPrimaryCluster().userIntent;
@@ -212,23 +217,34 @@ import static org.mockito.Mockito.when;
 
     cmd.add(testUniverse.getMasterAddresses());
 
-    cmd.add("--parallelism");
-    cmd.add("8");
+    if (!isDelete) {
+      cmd.add("--parallelism");
+      cmd.add("8");
 
-    if (backupTableParams.tableNameList != null) {
-      for (String tableName : backupTableParams.tableNameList) {
-        cmd.add("--table");
-        cmd.add(tableName);
+      if (backupTableParams.tableNameList != null) {
+        for (String tableName : backupTableParams.tableNameList) {
+          cmd.add("--table");
+          cmd.add(tableName);
+          cmd.add("--keyspace");
+          cmd.add(backupTableParams.keyspace);
+        }
+      } else {
+        if (backupTableParams.tableName != null) {
+          cmd.add("--table");
+          cmd.add(backupTableParams.tableName);
+        }
         cmd.add("--keyspace");
         cmd.add(backupTableParams.keyspace);
       }
-    } else {
-      if (backupTableParams.tableName != null) {
-        cmd.add("--table");
-        cmd.add(backupTableParams.tableName);
+      if (backupTableParams.actionType.equals(BackupTableParams.ActionType.CREATE) &&
+          backupTableParams.tableUUID != null) {
+        cmd.add("--table_uuid");
+        cmd.add(backupTableParams.tableUUID.toString().replace("-", ""));
       }
-      cmd.add("--keyspace");
-      cmd.add(backupTableParams.keyspace);
+      cmd.add("--no_auto_name");
+      if (backupTableParams.sse) {
+        cmd.add("--sse");
+      }
     }
     if (testProvider.code.equals("kubernetes")) {
       cmd.add("--k8s_config");
@@ -247,12 +263,6 @@ import static org.mockito.Mockito.when;
     cmd.add(backupTableParams.storageLocation);
     cmd.add("--storage_type");
     cmd.add(storageType);
-    if (backupTableParams.actionType.equals(BackupTableParams.ActionType.CREATE) &&
-        backupTableParams.tableUUID != null) {
-      cmd.add("--table_uuid");
-      cmd.add(backupTableParams.tableUUID.toString().replace("-", ""));
-    }
-    cmd.add("--no_auto_name");
     if (userIntent.enableNodeToNodeEncrypt) {
       cmd.add("--certs_dir");
       cmd.add(testProvider.code.equals("kubernetes") ? K8S_CERT_PATH : VM_CERT_PATH);
@@ -260,9 +270,6 @@ import static org.mockito.Mockito.when;
     cmd.add(backupTableParams.actionType.name().toLowerCase());
     if (backupTableParams.enableVerboseLogs) {
       cmd.add("--verbose");
-    }
-    if (backupTableParams.sse) {
-      cmd.add("--sse");
     }
     return cmd;
   }
@@ -498,5 +505,20 @@ import static org.mockito.Mockito.when;
   public void testCreateBackupKubernetesWithTLS() {
     setupUniverse(ModelFactory.kubernetesProvider(testCustomer), "0.0.1", true);
     testCreateBackupKubernetesHelper();
+  }
+
+  @Test
+  public void testDeleteUniverseBackup() {
+    setupUniverse(ModelFactory.awsProvider(testCustomer));
+    CustomerConfig storageConfig = ModelFactory.createNfsStorageConfig(testCustomer);;
+    BackupTableParams backupTableParams = getBackupUniverseParams(
+        BackupTableParams.ActionType.CREATE, storageConfig.configUUID);
+    Backup.create(testCustomer.uuid, backupTableParams);
+    Map<String, String> expectedEnvVars = storageConfig.dataAsMap();
+    for (BackupTableParams params : backupTableParams.backupList) {
+      tableManager.deleteBackup(params);
+      List<String> expectedCommand = getExpectedBackupTableCommand(params, "nfs", true);
+      verify(shellProcessHandler, times(1)).run(expectedCommand, expectedEnvVars);
+    }
   }
 }

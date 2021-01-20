@@ -516,4 +516,14 @@ const HostPortPB& DesiredHostPort(const ServerRegistrationPB& registration,
       registration.cloud_info(), connect_from);
 }
 
+const std::string kMinRunningRequestIdCategoryName = "min running request ID";
+
+StatusCategoryRegisterer min_running_request_id_category_registerer(
+    StatusCategoryDescription::Make<MinRunningRequestIdTag>(&kMinRunningRequestIdCategoryName));
+
+static const std::string kSplitChildTabletIdsCategoryName = "split child tablet IDs";
+
+StatusCategoryRegisterer split_child_tablet_ids_category_registerer(
+    StatusCategoryDescription::Make<SplitChildTabletIdsTag>(&kSplitChildTabletIdsCategoryName));
+
 } // namespace yb

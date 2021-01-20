@@ -43,3 +43,5 @@ ALTER TABLE rls_private FORCE ROW LEVEL SECURITY;
 CREATE POLICY p1 ON rls_public FOR ALL TO PUBLIC USING (k % 2 = 0);
 CREATE POLICY p2 ON rls_private FOR INSERT WITH CHECK (k % 2 = 1);
 CREATE POLICY p3 ON rls_private FOR UPDATE USING (k % 2 = 1);
+
+CREATE TABLE chat_user("chatID" text NOT NULL, PRIMARY KEY("chatID")); 

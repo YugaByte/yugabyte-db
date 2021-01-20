@@ -12,33 +12,56 @@ export default class AlertsList extends Component {
   }
 
   render() {
-    const { customer: { currentCustomer, alerts }} = this.props;
-    showOrRedirect(currentCustomer.data.features, "menu.alerts");
+    const {
+      customer: { currentCustomer, alerts }
+    } = this.props;
+    showOrRedirect(currentCustomer.data.features, 'menu.alerts');
 
-    const tableBodyContainer = {marginBottom: "1%", paddingBottom: "1%"};
+    const tableBodyContainer = { marginBottom: '1%', paddingBottom: '1%' };
     return (
       <div>
         <h2 className="content-title">Alerts</h2>
         <YBPanelItem
           body={
-            <BootstrapTable data={alerts.alertsList} bodyStyle={tableBodyContainer} pagination={true}>
-              <TableHeaderColumn dataField="uuid" isKey={true} hidden={true}/>
-              <TableHeaderColumn dataField="createTime" columnClassName="no-border"
-                                className="no-border" dataAlign="left" width={'10%'}>
+            <BootstrapTable
+              data={alerts.alertsList}
+              bodyStyle={tableBodyContainer}
+              pagination={true}
+            >
+              <TableHeaderColumn dataField="uuid" isKey={true} hidden={true} />
+              <TableHeaderColumn
+                dataField="createTime"
+                columnClassName="no-border"
+                className="no-border"
+                dataAlign="left"
+                width={'20%'}
+              >
                 Time
               </TableHeaderColumn>
-              <TableHeaderColumn dataField="type" columnClassName="no-border name-column"
-                                className="no-border" dataFormat={alertTypeFormatter}
-                                width={'10%'}>
+              <TableHeaderColumn
+                dataField="type"
+                columnClassName="no-border name-column"
+                className="no-border"
+                dataFormat={alertTypeFormatter}
+                width={'10%'}
+              >
                 Type
               </TableHeaderColumn>
-              <TableHeaderColumn dataField="errCode" columnClassName="no-border name-column"
-                                className="no-border" width={'10%'}>
+              <TableHeaderColumn
+                dataField="errCode"
+                columnClassName="no-border name-column"
+                className="no-border"
+                width={'20%'}
+              >
                 Error Code
               </TableHeaderColumn>
-              <TableHeaderColumn dataField="message" columnClassName="no-border name-column"
-                                className="no-border" width={'70%'}
-                                tdStyle={ { whiteSpace: 'normal' } }>
+              <TableHeaderColumn
+                dataField="message"
+                columnClassName="no-border name-column"
+                className="no-border"
+                width={'50%'}
+                tdStyle={{ whiteSpace: 'normal' }}
+              >
                 Message
               </TableHeaderColumn>
             </BootstrapTable>

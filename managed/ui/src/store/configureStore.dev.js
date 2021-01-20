@@ -7,7 +7,7 @@ import reducer from '../reducers';
 export default function configureStore(initialState) {
   const finalCreateStore = compose(
     applyMiddleware(promise),
-    window.__REDUX_DEVTOOLS_EXTENSION__ ? window.__REDUX_DEVTOOLS_EXTENSION__() : f => f
+    window.__REDUX_DEVTOOLS_EXTENSION__ ? window.__REDUX_DEVTOOLS_EXTENSION__() : (f) => f
   )(createStore);
 
   const store = finalCreateStore(reducer, initialState);

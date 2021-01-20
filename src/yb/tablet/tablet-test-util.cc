@@ -32,9 +32,10 @@ namespace yb {
 namespace tablet {
 
 YBTabletTest::YBTabletTest(const Schema& schema, TableType table_type)
-  : schema_(schema.CopyWithColumnIds()),
+  : schema_(schema),
     client_schema_(schema),
     table_type_(table_type) {
+  const_cast<Schema&>(schema_).InitColumnIdsByDefault();
   // Keep unit tests fast, but only if no one has set the flag explicitly.
   if (google::GetCommandLineFlagInfoOrDie("enable_data_block_fsync").is_default) {
     FLAGS_enable_data_block_fsync = false;

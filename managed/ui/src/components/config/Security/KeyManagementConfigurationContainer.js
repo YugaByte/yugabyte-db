@@ -3,9 +3,14 @@
 import { connect } from 'react-redux';
 import { KeyManagementConfiguration } from '../../config';
 import { fetchCustomerConfigs, fetchCustomerConfigsResponse } from '../../../actions/customers';
-import { createKMSProviderConfig, createKMSProviderConfigResponse,
-  fetchAuthConfigList, fetchAuthConfigListResponse,
-  deleteKMSProviderConfig, deleteKMSProviderConfigResponse } from '../../../actions/cloud';
+import {
+  createKMSProviderConfig,
+  createKMSProviderConfigResponse,
+  fetchAuthConfigList,
+  fetchAuthConfigListResponse,
+  deleteKMSProviderConfig,
+  deleteKMSProviderConfigResponse
+} from '../../../actions/cloud';
 
 const mapStateToProps = (state) => {
   return {
@@ -18,7 +23,6 @@ const mapStateToProps = (state) => {
 
 const mapDispatchToProps = (dispatch) => {
   return {
-
     fetchCustomerConfigs: () => {
       return dispatch(fetchCustomerConfigs()).then((response) =>
         dispatch(fetchCustomerConfigsResponse(response.payload))
@@ -36,17 +40,18 @@ const mapDispatchToProps = (dispatch) => {
         .then((response) => {
           return dispatch(createKMSProviderConfigResponse(response.payload));
         })
-        .catch(err => console.err('Error submitting KMS configuration: ', err));
+        .catch((err) => console.err('Error submitting KMS configuration: ', err));
     },
 
     deleteKMSConfig: (configUUID) => {
-      dispatch(deleteKMSProviderConfig(configUUID)).then((response) => {
-        if (response.payload.status === 200) {
-          return dispatch(deleteKMSProviderConfigResponse(configUUID));
-        }
-        console.warn('Warning: Deleting configuration returned unsuccessful response.');
-      })
-      .catch(err => console.error(err));
+      dispatch(deleteKMSProviderConfig(configUUID))
+        .then((response) => {
+          if (response.payload.status === 200) {
+            return dispatch(deleteKMSProviderConfigResponse(configUUID));
+          }
+          console.warn('Warning: Deleting configuration returned unsuccessful response.');
+        })
+        .catch((err) => console.error(err));
     }
   };
 };

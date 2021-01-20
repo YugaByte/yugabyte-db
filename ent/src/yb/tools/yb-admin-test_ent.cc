@@ -51,7 +51,7 @@ using master::MasterBackupServiceProxy;
 using master::SysSnapshotEntryPB;
 using rpc::RpcController;
 
-class AdminCliTest : public client::KeyValueTableTest {
+class AdminCliTest : public client::KeyValueTableTest<MiniCluster> {
  protected:
   MasterBackupServiceProxy& BackupServiceProxy() {
     if (!backup_service_proxy_) {
@@ -102,7 +102,7 @@ TEST_F(AdminCliTest, DISABLED_TestTLS) {
 }
 
 TEST_F(AdminCliTest, TestCreateSnapshot) {
-  CreateTable(client::Transactional::kFalse);
+  CreateTable(Transactional::kFalse);
   const string& table_name = table_.name().table_name();
   const string& keyspace = table_.name().namespace_name();
 
@@ -170,7 +170,7 @@ void AdminCliTest::CheckImportedTable(const YBTable* src_table,
 
   ASSERT_EQ(same_ids, table->id() == src_table->id());
   ASSERT_EQ(table->table_type(), src_table->table_type());
-  ASSERT_EQ(table->GetPartitions(), src_table->GetPartitions());
+  ASSERT_EQ(table->GetPartitionsCopy(), src_table->GetPartitionsCopy());
   ASSERT_TRUE(table->partition_schema().Equals(src_table->partition_schema()));
   ASSERT_TRUE(table->schema().Equals(src_table->schema()));
   ASSERT_EQ(table->schema().table_properties().is_transactional(),
@@ -198,7 +198,7 @@ void AdminCliTest::ImportTableAs(const string& snapshot_file,
 }
 
 TEST_F(AdminCliTest, TestImportSnapshot) {
-  CreateTable(client::Transactional::kFalse);
+  CreateTable(Transactional::kFalse);
   const string& table_name = table_.name().table_name();
   const string& keyspace = table_.name().namespace_name();
 
@@ -231,7 +231,7 @@ TEST_F(AdminCliTest, TestImportSnapshot) {
 }
 
 TEST_F(AdminCliTest, TestExportImportSnapshot) {
-  CreateTable(client::Transactional::kFalse);
+  CreateTable(Transactional::kFalse);
   const string& table_name = table_.name().table_name();
   const string& keyspace = table_.name().namespace_name();
 
@@ -411,7 +411,7 @@ Result<SysSnapshotEntryPB::State> WaitForRestoration(MasterBackupServiceProxy* p
 }
 
 TEST_F(AdminCliTest, TestFailedRestoration) {
-  CreateTable(client::Transactional::kTrue);
+  CreateTable(Transactional::kTrue);
   const string& table_name = table_.name().table_name();
   const string& keyspace = table_.name().namespace_name();
 

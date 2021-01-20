@@ -10,6 +10,7 @@ import com.yugabyte.yw.commissioner.tasks.subtasks.ManipulateDnsRecordTask;
 import com.yugabyte.yw.common.DnsManager;
 import com.yugabyte.yw.common.ModelFactory;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.models.CustomerTask;
 import com.yugabyte.yw.models.TaskInfo;
 import com.yugabyte.yw.models.Universe;
@@ -56,7 +57,7 @@ public class ManipulateDnsRecordTaskTest extends CommissionerBaseTest {
 
   @Test
   public void testSimpleTaskSuccess() {
-    ShellProcessHandler.ShellResponse response = new ShellProcessHandler.ShellResponse();
+    ShellResponse response = new ShellResponse();
     response.code = 0;
     response.message = "";
     when(mockDnsManager.manipulateDnsRecord(any(), any(), anyString(), anyString(), anyString())).thenReturn(response);

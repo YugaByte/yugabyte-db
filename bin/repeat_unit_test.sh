@@ -68,6 +68,7 @@ delete_tmp_files() {
 
 set -euo pipefail
 
+# shellcheck source=build-support/common-test-env.sh
 . "${0%/*}"/../build-support/common-test-env.sh
 
 unset TEST_TMPDIR
@@ -186,7 +187,10 @@ if [[ -n $yb_compiler_type_arg ]]; then
 fi
 
 set_cmake_build_type_and_compiler_type
+
+# shellcheck disable=SC2119
 set_build_root
+
 set_sanitizer_runtime_options
 
 declare -i -r num_pos_args=${#positional_args[@]}
@@ -228,7 +232,7 @@ fi
 if ! "$is_java_test"; then
   abs_test_binary_path=$( find_test_binary "$test_binary_name" )
   rel_test_binary=${abs_test_binary_path#$BUILD_ROOT/}
-  if [[ $rel_test_binary == $abs_test_binary_path ]]; then
+  if [[ $rel_test_binary == "$abs_test_binary_path" ]]; then
     fatal "Expected absolute test binary path ('$abs_test_binary_path') to start with" \
           "BUILD_ROOT ('$BUILD_ROOT')"
   fi
@@ -270,14 +274,17 @@ if [[ $iteration -gt 0 ]]; then
       "$YB_BUILD_SUPPORT_DIR"/run-test.sh "${positional_args[@]}"
     )
   else
+    # We allow word splitting in YB_EXTRA_GTEST_FLAGS on purpose.
+    # shellcheck disable=SC2206
     test_cmd_line=( "$abs_test_binary_path" "$gtest_filter_arg" $more_test_args
                     ${YB_EXTRA_GTEST_FLAGS:-} )
     test_wrapper_cmd_line=(
-      "$BUILD_ROOT"/bin/run-with-timeout $(( $timeout_sec + 1 )) "${test_cmd_line[@]}"
+      "$BUILD_ROOT"/bin/run-with-timeout $(( timeout_sec + 1 )) "${test_cmd_line[@]}"
     )
   fi
 
-  declare -i start_time_sec=$( date +%s )
+  declare -i start_time_sec
+  start_time_sec=$( date +%s )
   (
     cd "$TEST_TMPDIR"
     if "$verbose"; then
@@ -287,8 +294,9 @@ if [[ $iteration -gt 0 ]]; then
     ( set -x; "${test_wrapper_cmd_line[@]}" ) &>"$test_log_path"
   )
   exit_code=$?
-  declare -i end_time_sec=$( date +%s )
-  declare -i elapsed_time_sec=$(( $end_time_sec - $start_time_sec ))
+  declare -i end_time_sec
+  end_time_sec=$( date +%s )
+  declare -i elapsed_time_sec=$(( end_time_sec - start_time_sec ))
   set -e
   comment=""
   keep_log=$keep_all_logs
@@ -298,8 +306,8 @@ if [[ $iteration -gt 0 ]]; then
       process_core_file
     fi
     if "$skip_address_already_in_use" && \
-       ( egrep '\bAddress already in use\b' "$test_log_path" >/dev/null ||
-         egrep '\bWebserver: Could not start on address\b' "$test_log_path" >/dev/null ); then
+       ( grep -Eq '\bAddress already in use\b' "$test_log_path" ||
+         grep -Eq '\bWebserver: Could not start on address\b' "$test_log_path" ); then
       # TODO: perhaps we should not skip some types of errors that did_test_succeed finds in the
       # logs (ASAN/TSAN, check failures, etc.), even if we see "address already in use".
       comment=" [assuming \"Address already in use\" is a false positive]"
@@ -316,7 +324,7 @@ if [[ $iteration -gt 0 ]]; then
         pushd "$log_dir"
         test_log_path="${YB_SUREFIRE_REPORTS_DIR}_combined_logs.txt"
 
-        for file_path in $( ls "$YB_SUREFIRE_REPORTS_DIR"/* | sort ); do
+        while IFS='' read -r file_path; do
           (
             echo
             echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -327,7 +335,9 @@ if [[ $iteration -gt 0 ]]; then
             echo
           ) >>"$test_log_path"
           cat "$file_path" >>"$test_log_path"
-        done
+        done < <(
+          find "$YB_SUREFIRE_REPORTS_DIR" -maxdepth 1 -mindepth 1 | sort
+        )
 
         gzip "$test_log_path"
         test_log_path+=".gz"
@@ -392,6 +402,6 @@ else
   fi
   log "Saving repeated test execution logs to: $log_dir"
   ln -sfn "$log_dir" "$HOME/logs/latest_test"
-  seq 1 $num_iter | \
+  seq 1 "$num_iter" | \
     xargs -P $parallelism -n 1 "$0" "${original_args[@]}" --log_dir "$log_dir" --iteration
 fi

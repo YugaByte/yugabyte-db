@@ -64,6 +64,8 @@ class TransactionStatusResolver {
   // Returns future for resolution status.
   std::future<Status> ResultFuture();
 
+  bool Running() const;
+
  private:
   class Impl;
 

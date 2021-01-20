@@ -22,6 +22,7 @@
 #include "yb/docdb/doc_key.h"
 #include "yb/docdb/intent.h"
 #include "yb/docdb/docdb-internal.h"
+#include "yb/docdb/doc_kv_util.h"
 
 namespace yb {
 namespace docdb {
@@ -42,29 +43,8 @@ Result<std::string> DocDBKeyToDebugStr(Slice key_slice, StorageDbType db_type) {
     {
       RETURN_NOT_OK(key_slice.consume_byte(ValueTypeAsChar::kTransactionId));
       auto transaction_id = VERIFY_RESULT(DecodeTransactionId(&key_slice));
-      if (key_slice.empty() || key_slice.size() > kMaxBytesPerEncodedHybridTime + 1) {
-        return STATUS_FORMAT(
-            Corruption,
-            "Invalid doc hybrid time in reverse intent record, transaction id: $0, suffix: $1",
-            transaction_id, key_slice.ToDebugHexString());
-      }
-      size_t doc_ht_buffer[kMaxWordsPerEncodedHybridTimeWithValueType];
-      memcpy(doc_ht_buffer, key_slice.data(), key_slice.size());
-      for (size_t i = 0; i != kMaxWordsPerEncodedHybridTimeWithValueType; ++i) {
-        doc_ht_buffer[i] = ~doc_ht_buffer[i];
-      }
-      key_slice = Slice(pointer_cast<char*>(doc_ht_buffer), key_slice.size());
-
-      if (static_cast<ValueType>(key_slice[0]) != ValueType::kHybridTime) {
-        return STATUS_FORMAT(
-            Corruption,
-            "Invalid prefix of doc hybrid time in reverse intent record, transaction id: $0, "
-                "decoded suffix: $1",
-            transaction_id, key_slice.ToDebugHexString());
-      }
-      key_slice.consume_byte();
-      DocHybridTime doc_ht;
-      RETURN_NOT_OK(doc_ht.DecodeFrom(&key_slice));
+      auto doc_ht = VERIFY_RESULT_PREPEND(
+          DecodeInvertedDocHt(key_slice), Format("Reverse txn record for: $0", transaction_id));
       return Format("TXN REV $0 $1", transaction_id, doc_ht);
     }
     case KeyType::kTransactionMetadata:
@@ -81,6 +61,14 @@ Result<std::string> DocDBKeyToDebugStr(Slice key_slice, StorageDbType db_type) {
           "Error: failed decoding RocksDB intent key " +
           FormatSliceAsStr(key_slice));
       return subdoc_key.ToString();
+    case KeyType::kExternalIntents:
+    {
+      RETURN_NOT_OK(key_slice.consume_byte(ValueTypeAsChar::kExternalTransactionId));
+      auto transaction_id = VERIFY_RESULT(DecodeTransactionId(&key_slice));
+      auto doc_hybrid_time = VERIFY_RESULT_PREPEND(
+          DecodeInvertedDocHt(key_slice), Format("External txn record for: $0", transaction_id));
+      return Format("TXN EXT $0 $1", transaction_id, doc_hybrid_time);
+    }
   }
   return STATUS_FORMAT(Corruption, "Corrupted KeyType: $0", yb::ToString(key_type));
 }
@@ -129,6 +117,31 @@ Result<std::string> DocDBValueToDebugStr(
     case KeyType::kIntentKey: FALLTHROUGH_INTENDED;
     case KeyType::kValueKey:
       return DocDBValueToDebugStr(value, key_type);
+    case KeyType::kExternalIntents: {
+      std::vector<std::string> intents;
+      SubDocKey sub_doc_key;
+      RETURN_NOT_OK(value.consume_byte(ValueTypeAsChar::kUuid));
+      Uuid involved_tablet;
+      RETURN_NOT_OK(involved_tablet.FromSlice(value.Prefix(kUuidSize)));
+      value.remove_prefix(kUuidSize);
+      RETURN_NOT_OK(value.consume_byte(ValueTypeAsChar::kExternalIntents));
+      for (;;) {
+        auto len = VERIFY_RESULT(util::FastDecodeUnsignedVarInt(&value));
+        if (len == 0) {
+          break;
+        }
+        RETURN_NOT_OK(sub_doc_key.FullyDecodeFrom(value.Prefix(len), HybridTimeRequired::kFalse));
+        value.remove_prefix(len);
+        len = VERIFY_RESULT(util::FastDecodeUnsignedVarInt(&value));
+        intents.push_back(Format(
+            "$0 -> $1",
+            sub_doc_key,
+            VERIFY_RESULT(DocDBValueToDebugStr(value.Prefix(len), KeyType::kValueKey))));
+        value.remove_prefix(len);
+      }
+      DCHECK(value.empty());
+      return Format("IT $0 $1", involved_tablet.ToHexString(), intents);
+    }
   }
   FATAL_INVALID_ENUM_VALUE(KeyType, key_type);
 }

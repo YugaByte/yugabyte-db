@@ -103,6 +103,8 @@ class RpcController {
   // * the call timed out
   CHECKED_STATUS status() const;
 
+  CHECKED_STATUS thread_pool_failure() const;
+
   // If status() returns a RemoteError object, then this function returns
   // the error response provided by the server. Service implementors may
   // use protobuf Extensions to add application-specific data to this PB.
@@ -154,6 +156,8 @@ class RpcController {
   //
   // May fail if index is invalid.
   Result<Slice> GetSidecar(int idx) const;
+
+  int32_t call_id() const;
 
  private:
   friend class OutboundCall;

@@ -171,7 +171,7 @@ class TabletPeerTest : public YBTabletTest {
                                            raft_pool_.get(),
                                            tablet_prepare_pool_.get(),
                                            nullptr /* retryable_requests */,
-                                           yb::OpId() /* split_op_id */));
+                                           consensus::SplitOpInfo()));
   }
 
   Status StartPeer(const ConsensusBootstrapInfo& info) {

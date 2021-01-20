@@ -11,15 +11,19 @@ export default class YBDropZone extends Component {
     this.props.input.onChange(file[0]);
   };
   render() {
-    const { input, title, meta: { touched, error } } = this.props;
+    const {
+      input,
+      title,
+      meta: { touched, error }
+    } = this.props;
     return (
       <Fragment>
-        <div className={`form-group file-upload form-alt ${ touched && error ? 'has-error' : ''} ${input.value ? 'has-value' : ''}`}>
-          <Dropzone
-            className={this.props.className}
-            name={this.props.name}
-            onDrop={this.onDrop}
-            >
+        <div
+          className={`form-group file-upload form-alt ${touched && error ? 'has-error' : ''} ${
+            input.value ? 'has-value' : ''
+          }`}
+        >
+          <Dropzone className={this.props.className} name={this.props.name} onDrop={this.onDrop}>
             <p>{title}</p>
           </Dropzone>
           {touched && error && <span className="help-block standard-error">{error}</span>}
@@ -30,24 +34,32 @@ export default class YBDropZone extends Component {
   }
 }
 
-
 export class YBDropZoneWithLabel extends Component {
   onDrop = (file, e) => {
     this.props.input.onChange(file[0]);
   };
   render() {
-    const { input, title, meta: { touched, error } } = this.props;
-    const { insetError, infoContent, label,
-      infoTitle, infoPlacement } = this.props;
+    const {
+      input,
+      title,
+      meta: { touched, error }
+    } = this.props;
+    const { insetError, infoContent, label, infoTitle, infoPlacement } = this.props;
     return (
-      <YBLabel label={label} insetError={insetError} meta={this.props.meta} infoContent={infoContent} infoTitle={infoTitle}
-               infoPlacement={infoPlacement}>
-        <div className={`form-group yb-field-group form-alt file-upload ${ touched && error ? 'has-error' : ''} ${input.value ? 'has-value' : ''}`}>
-          <Dropzone
-            className={this.props.className}
-            name={this.props.name}
-            onDrop={this.onDrop}
-            >
+      <YBLabel
+        label={label}
+        insetError={insetError}
+        meta={this.props.meta}
+        infoContent={infoContent}
+        infoTitle={infoTitle}
+        infoPlacement={infoPlacement}
+      >
+        <div
+          className={`form-group yb-field-group form-alt file-upload ${
+            touched && error ? 'has-error' : ''
+          } ${input.value ? 'has-value' : ''}`}
+        >
+          <Dropzone className={this.props.className} name={this.props.name} onDrop={this.onDrop}>
             <p>{title}</p>
           </Dropzone>
           {touched && error && <span className="help-block standard-error">{error}</span>}

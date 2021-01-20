@@ -146,7 +146,7 @@ class FlushITest : public YBTest {
     size_t bytes = 0;
     auto tablet_peers = cluster_->GetTabletPeers(0);
     for (auto& peer : tablet_peers) {
-      bytes += peer->tablet()->rocksdb_statistics()->getTickerCount(rocksdb::FLUSH_WRITE_BYTES);
+      bytes += peer->tablet()->regulardb_statistics()->getTickerCount(rocksdb::FLUSH_WRITE_BYTES);
     }
     return bytes;
   }

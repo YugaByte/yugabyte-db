@@ -43,8 +43,8 @@ cd "$yb_devops_home"
 log "There should be no pre-installed Python modules in the virtualenv"
 ( set -x; run_pip list )
 
-log "Installing Python modules according to the python_requirements.txt file"
-( set -x; run_pip install -r python_requirements.txt )
+log "Installing Python modules according to the ${REQUIREMENTS_FILE_NAME} file"
+( set -x; run_pip install -r "${REQUIREMENTS_FILE_NAME}" )
 
 log "Generating $FROZEN_REQUIREMENTS_FILE"
 

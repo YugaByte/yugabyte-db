@@ -34,6 +34,7 @@ SUBDIRS = \
 		pg_prewarm	\
 		pg_standby	\
 		pg_stat_statements \
+		pgaudit 	\
 		pg_trgm		\
 		pgcrypto	\
 		pgrowlocks	\

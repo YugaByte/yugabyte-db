@@ -1208,21 +1208,21 @@ static std::unordered_map<OperationType, std::string, std::hash<unsigned char>>
 
 class Stats {
  private:
-  int id_;
-  uint64_t start_;
-  uint64_t finish_;
-  double seconds_;
-  uint64_t done_;
-  uint64_t last_report_done_;
-  uint64_t next_report_;
-  uint64_t bytes_;
-  uint64_t last_op_finish_;
-  uint64_t last_report_finish_;
+  int id_ = 0;
+  uint64_t start_ = 0;
+  uint64_t finish_ = 0;
+  double seconds_ = 0.0;
+  uint64_t done_ = 0;
+  uint64_t last_report_done_ = 0;
+  uint64_t next_report_ = 0;
+  uint64_t bytes_ = 0;
+  uint64_t last_op_finish_ = 0;
+  uint64_t last_report_finish_ = 0;
   std::unordered_map<OperationType, HistogramImpl,
                      std::hash<unsigned char>> hist_;
   std::string message_;
-  bool exclude_from_merge_;
-  ReporterAgent* reporter_agent_;  // does not own
+  bool exclude_from_merge_ = false;
+  ReporterAgent* reporter_agent_ = nullptr;  // does not own
 
  public:
   Stats() { Start(-1); }

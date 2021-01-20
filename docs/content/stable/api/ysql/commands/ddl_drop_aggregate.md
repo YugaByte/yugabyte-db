@@ -52,7 +52,7 @@ See the semantics of each option in the [PostgreSQL docs][postgresql-docs-drop-a
 
 Basic example.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE AGGREGATE newcnt(*) (
              sfunc = int8inc,
              stype = int8,
@@ -64,7 +64,7 @@ yugabyte=# DROP AGGREGATE newcnt(*);
 
 `IF EXISTS` example.
 
-```postgresql
+```plpgsql
 yugabyte=# DROP AGGREGATE IF EXISTS newcnt(*);
 yugabyte=# CREATE AGGREGATE newcnt(*) (
              sfunc = int8inc,
@@ -77,7 +77,7 @@ yugabyte=# DROP AGGREGATE IF EXISTS newcnt(*);
 
 `CASCADE` and `RESTRICT` example.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE AGGREGATE newcnt(*) (
              sfunc = int8inc,
              stype = int8,

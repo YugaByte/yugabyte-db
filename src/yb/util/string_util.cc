@@ -58,7 +58,7 @@ vector<string> StringSplit(const string& arg, char delim) {
   stringstream ss(arg);
   string item;
   while (getline(ss, item, delim)) {
-    splits.push_back(item);
+    splits.push_back(std::move(item));
   }
   return splits;
 }

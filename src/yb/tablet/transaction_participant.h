@@ -93,7 +93,7 @@ class TransactionIntentApplier {
   virtual CHECKED_STATUS RemoveIntents(
       const RemoveIntentsData& data, const TransactionIdSet& transactions) = 0;
 
-  virtual HybridTime ApplierSafeTime(HybridTime min_allowed, CoarseTimePoint deadline) = 0;
+  virtual Result<HybridTime> ApplierSafeTime(HybridTime min_allowed, CoarseTimePoint deadline) = 0;
 
   // See TransactionParticipant::WaitMinRunningHybridTime below
   virtual void MinRunningHybridTimeSatisfied() = 0;
@@ -108,13 +108,13 @@ class TransactionParticipantContext {
   virtual const std::string& tablet_id() const = 0;
   virtual const std::shared_future<client::YBClient*>& client_future() const = 0;
   virtual const server::ClockPtr& clock_ptr() const = 0;
+  virtual rpc::Scheduler& scheduler() const = 0;
 
   // Fills RemoveIntentsData with information about replicated state.
   virtual void GetLastReplicatedData(RemoveIntentsData* data) = 0;
 
   // Enqueue task to participant context strand.
   virtual void StrandEnqueue(rpc::StrandTask* task) = 0;
-  virtual HybridTime Now() = 0;
   virtual void UpdateClock(HybridTime hybrid_time) = 0;
   virtual bool IsLeader() = 0;
   virtual void SubmitUpdateTransaction(
@@ -125,19 +125,21 @@ class TransactionParticipantContext {
 
   std::string LogPrefix() const;
 
+  HybridTime Now();
+
  protected:
   ~TransactionParticipantContext() {}
 };
 
 struct TransactionalBatchData {
   // Write id of last strong write intent in transaction.
-  IntraTxnWriteId write_id = 0;
+  IntraTxnWriteId next_write_id = 0;
 
   // Hybrid time of last replicated write in transaction.
   HybridTime hybrid_time;
 
   std::string ToString() const {
-    return Format("{ write_id: $0 hybrid_time: $1 }", write_id, hybrid_time);
+    return YB_STRUCT_TO_STRING(next_write_id, hybrid_time);
   }
 };
 

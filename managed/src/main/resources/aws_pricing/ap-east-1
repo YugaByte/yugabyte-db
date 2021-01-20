@@ -5,7 +5,7 @@
                 "YP2QZCVJMGX2URNX.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "YP2QZCVJMGX2URNX",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "YP2QZCVJMGX2URNX.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "YP2QZCVJMGX2URNX.JRTCKXETXF.6YS6EN2CT7",
@@ -26,7 +26,7 @@
                 "2REFZ4PXWWEJYQ54.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "2REFZ4PXWWEJYQ54",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "2REFZ4PXWWEJYQ54.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "2REFZ4PXWWEJYQ54.JRTCKXETXF.6YS6EN2CT7",
@@ -47,7 +47,7 @@
                 "EEFZUR65GG8SJ556.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "EEFZUR65GG8SJ556",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "EEFZUR65GG8SJ556.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "EEFZUR65GG8SJ556.JRTCKXETXF.6YS6EN2CT7",
@@ -68,7 +68,7 @@
                 "UMNPWBP59RYES2AX.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "UMNPWBP59RYES2AX",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "UMNPWBP59RYES2AX.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "UMNPWBP59RYES2AX.JRTCKXETXF.6YS6EN2CT7",
@@ -89,7 +89,7 @@
                 "C9BYT7MV38F5UAAQ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "C9BYT7MV38F5UAAQ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "C9BYT7MV38F5UAAQ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "C9BYT7MV38F5UAAQ.JRTCKXETXF.6YS6EN2CT7",
@@ -110,7 +110,7 @@
                 "RKDDATTSSWFJPXQS.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "RKDDATTSSWFJPXQS",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "RKDDATTSSWFJPXQS.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "RKDDATTSSWFJPXQS.JRTCKXETXF.6YS6EN2CT7",
@@ -131,7 +131,7 @@
                 "4SEHGPX4SEPTDT43.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "4SEHGPX4SEPTDT43",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "4SEHGPX4SEPTDT43.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "4SEHGPX4SEPTDT43.JRTCKXETXF.6YS6EN2CT7",
@@ -152,7 +152,7 @@
                 "JFURWYGE9Z5YZXE6.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "JFURWYGE9Z5YZXE6",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "JFURWYGE9Z5YZXE6.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "JFURWYGE9Z5YZXE6.JRTCKXETXF.6YS6EN2CT7",
@@ -173,7 +173,7 @@
                 "PFRW82WEUFXKKAUY.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "PFRW82WEUFXKKAUY",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "PFRW82WEUFXKKAUY.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "PFRW82WEUFXKKAUY.JRTCKXETXF.6YS6EN2CT7",
@@ -190,11 +190,32 @@
                     "termAttributes": {}
                 }
             },
+            "S3NTZ6PTETXD8V73": {
+                "S3NTZ6PTETXD8V73.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "S3NTZ6PTETXD8V73",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "S3NTZ6PTETXD8V73.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "S3NTZ6PTETXD8V73.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$5.184 per On Demand Linux c5.24xlarge Instance Hour",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "5.1840000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "NMUXPGJKW5UD9A64": {
                 "NMUXPGJKW5UD9A64.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "NMUXPGJKW5UD9A64",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "NMUXPGJKW5UD9A64.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "NMUXPGJKW5UD9A64.JRTCKXETXF.6YS6EN2CT7",
@@ -215,7 +236,7 @@
                 "GZS33MRX5JT3UZPA.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "GZS33MRX5JT3UZPA",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "GZS33MRX5JT3UZPA.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "GZS33MRX5JT3UZPA.JRTCKXETXF.6YS6EN2CT7",
@@ -232,11 +253,32 @@
                     "termAttributes": {}
                 }
             },
+            "AAC4N7STC4A7XAS2": {
+                "AAC4N7STC4A7XAS2.JRTCKXETXF": {
+                    "offerTermCode": "JRTCKXETXF",
+                    "sku": "AAC4N7STC4A7XAS2",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
+                    "priceDimensions": {
+                        "AAC4N7STC4A7XAS2.JRTCKXETXF.6YS6EN2CT7": {
+                            "rateCode": "AAC4N7STC4A7XAS2.JRTCKXETXF.6YS6EN2CT7",
+                            "description": "$2.592 per On Demand Linux c5.12xlarge Instance Hour",
+                            "beginRange": "0",
+                            "endRange": "Inf",
+                            "unit": "Hrs",
+                            "pricePerUnit": {
+                                "USD": "2.5920000000"
+                            },
+                            "appliesTo": []
+                        }
+                    },
+                    "termAttributes": {}
+                }
+            },
             "UX3AKDNS3ZFJV7VE": {
                 "UX3AKDNS3ZFJV7VE.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "UX3AKDNS3ZFJV7VE",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "UX3AKDNS3ZFJV7VE.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "UX3AKDNS3ZFJV7VE.JRTCKXETXF.6YS6EN2CT7",
@@ -257,7 +299,7 @@
                 "MK986TZK9VJ6BJDN.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "MK986TZK9VJ6BJDN",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "MK986TZK9VJ6BJDN.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "MK986TZK9VJ6BJDN.JRTCKXETXF.6YS6EN2CT7",
@@ -278,7 +320,7 @@
                 "TQRVZ94DBG874RKA.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "TQRVZ94DBG874RKA",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "TQRVZ94DBG874RKA.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "TQRVZ94DBG874RKA.JRTCKXETXF.6YS6EN2CT7",
@@ -299,7 +341,7 @@
                 "EEGBU8ZU8TMZMM5X.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "EEGBU8ZU8TMZMM5X",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "EEGBU8ZU8TMZMM5X.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "EEGBU8ZU8TMZMM5X.JRTCKXETXF.6YS6EN2CT7",
@@ -320,7 +362,7 @@
                 "3UBWTTRFPMJVSUD9.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "3UBWTTRFPMJVSUD9",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "3UBWTTRFPMJVSUD9.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "3UBWTTRFPMJVSUD9.JRTCKXETXF.6YS6EN2CT7",
@@ -341,7 +383,7 @@
                 "VMMBZ5RPYGZJZYWQ.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "VMMBZ5RPYGZJZYWQ",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "VMMBZ5RPYGZJZYWQ.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "VMMBZ5RPYGZJZYWQ.JRTCKXETXF.6YS6EN2CT7",
@@ -362,7 +404,7 @@
                 "8RR98TE2SM6X42M2.JRTCKXETXF": {
                     "offerTermCode": "JRTCKXETXF",
                     "sku": "8RR98TE2SM6X42M2",
-                    "effectiveDate": "2020-06-01T00:00:00Z",
+                    "effectiveDate": "2020-10-01T00:00:00Z",
                     "priceDimensions": {
                         "8RR98TE2SM6X42M2.JRTCKXETXF.6YS6EN2CT7": {
                             "rateCode": "8RR98TE2SM6X42M2.JRTCKXETXF.6YS6EN2CT7",
@@ -697,6 +739,41 @@
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },
+        "S3NTZ6PTETXD8V73": {
+            "sku": "S3NTZ6PTETXD8V73",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "Asia Pacific (Hong Kong)",
+                "locationType": "AWS Region",
+                "instanceType": "c5.24xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "96",
+                "physicalProcessor": "Intel Xeon Platinum 8275L",
+                "clockSpeed": "3 GHz",
+                "memory": "192 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "25 Gigabit",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "APE1-BoxUsage:c5.24xlarge",
+                "operation": "RunInstances",
+                "capacitystatus": "Used",
+                "dedicatedEbsThroughput": "14000 Mbps",
+                "ecu": "375",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "192",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Deep Learning Boost; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
         "NMUXPGJKW5UD9A64": {
             "sku": "NMUXPGJKW5UD9A64",
             "productFamily": "Compute Instance",
@@ -764,6 +841,41 @@
                 "normalizationSizeFactor": "8",
                 "preInstalledSw": "NA",
                 "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+                "servicename": "Amazon Elastic Compute Cloud"
+            }
+        },
+        "AAC4N7STC4A7XAS2": {
+            "sku": "AAC4N7STC4A7XAS2",
+            "productFamily": "Compute Instance",
+            "attributes": {
+                "servicecode": "AmazonEC2",
+                "location": "Asia Pacific (Hong Kong)",
+                "locationType": "AWS Region",
+                "instanceType": "c5.12xlarge",
+                "currentGeneration": "Yes",
+                "instanceFamily": "Compute optimized",
+                "vcpu": "48",
+                "physicalProcessor": "Intel Xeon Platinum 8275L",
+                "clockSpeed": "3 GHz",
+                "memory": "96 GiB",
+                "storage": "EBS only",
+                "networkPerformance": "12 Gigabit",
+                "processorArchitecture": "64-bit",
+                "tenancy": "Shared",
+                "operatingSystem": "Linux",
+                "licenseModel": "No License required",
+                "usagetype": "APE1-BoxUsage:c5.12xlarge",
+                "operation": "RunInstances",
+                "capacitystatus": "Used",
+                "dedicatedEbsThroughput": "7000 Mbps",
+                "ecu": "188",
+                "enhancedNetworkingSupported": "Yes",
+                "intelAvxAvailable": "Yes",
+                "intelAvx2Available": "Yes",
+                "intelTurboAvailable": "Yes",
+                "normalizationSizeFactor": "96",
+                "preInstalledSw": "NA",
+                "processorFeatures": "Intel AVX; Intel AVX2; Intel AVX512; Intel Deep Learning Boost; Intel Turbo",
                 "servicename": "Amazon Elastic Compute Cloud"
             }
         },

@@ -142,7 +142,7 @@ Status TabletSnapshots::Create(SnapshotOperationState* tx_state) {
 
   if (is_transactional_snapshot) {
     rocksdb::Options rocksdb_options;
-    tablet().InitRocksDBOptions(&rocksdb_options, /* log_prefix= */ std::string());
+    tablet().InitRocksDBOptions(&rocksdb_options, LogPrefix());
     docdb::RocksDBPatcher patcher(tmp_snapshot_dir, rocksdb_options);
 
     RETURN_NOT_OK(patcher.Load());
@@ -166,7 +166,8 @@ Status TabletSnapshots::Create(SnapshotOperationState* tx_state) {
   RETURN_NOT_OK(tablet().ModifyFlushedFrontier(
       frontier, rocksdb::FrontierModificationMode::kUpdate));
 
-  LOG_WITH_PREFIX(INFO) << "Complete snapshot creation in folder: " << snapshot_dir;
+  LOG_WITH_PREFIX(INFO) << "Complete snapshot creation in folder: " << snapshot_dir
+                        << ", snapshot hybrid time: " << snapshot_hybrid_time;
 
   exit_on_failure = false;
   return Status::OK();
@@ -217,27 +218,20 @@ Status TabletSnapshots::RestoreCheckpoint(
     return STATUS(IllegalState, "Unable to copy checkpoint files", s.ToString());
   }
 
+  {
+    rocksdb::Options rocksdb_options;
+    tablet().InitRocksDBOptions(&rocksdb_options, LogPrefix());
+    docdb::RocksDBPatcher patcher(db_dir, rocksdb_options);
+
+    RETURN_NOT_OK(patcher.Load());
+    RETURN_NOT_OK(patcher.ModifyFlushedFrontier(frontier));
+  }
+
   // Reopen database from copied checkpoint.
   // Note: db_dir == metadata()->rocksdb_dir() is still valid db dir.
   s = OpenRocksDBs();
   if (PREDICT_FALSE(!s.ok())) {
     LOG_WITH_PREFIX(WARNING) << "Failed tablet db opening from checkpoint: " << s;
-    return s;
-  }
-
-  docdb::ConsensusFrontier final_frontier = frontier;
-  rocksdb::UserFrontierPtr checkpoint_flushed_frontier = regular_db().GetFlushedFrontier();
-
-  // The history cutoff we are setting after restoring to this snapshot is determined by the
-  // compactions that were done in the checkpoint, not in the old state of RocksDB in this replica.
-  if (checkpoint_flushed_frontier) {
-    final_frontier.set_history_cutoff(
-        down_cast<docdb::ConsensusFrontier&>(*checkpoint_flushed_frontier).history_cutoff());
-  }
-
-  s = tablet().ModifyFlushedFrontier(final_frontier, rocksdb::FrontierModificationMode::kForce);
-  if (PREDICT_FALSE(!s.ok())) {
-    LOG_WITH_PREFIX(WARNING) << "Failed tablet DB setting flushed op id: " << s;
     return s;
   }
 

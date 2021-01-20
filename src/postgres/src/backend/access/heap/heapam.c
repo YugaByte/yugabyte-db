@@ -130,7 +130,7 @@ static void MultiXactIdWait(MultiXactId multi, MultiXactStatus status, uint16 in
 static bool ConditionalMultiXactIdWait(MultiXactId multi, MultiXactStatus status,
 						   uint16 infomask, Relation rel, int *remaining);
 static XLogRecPtr log_heap_new_cid(Relation relation, HeapTuple tup);
-static HeapTuple ExtractReplicaIdentity(Relation rel, HeapTuple tup, bool key_modified,
+static HeapTuple ExtractReplicaIdentity(Relation rel, HeapTuple tup, bool key_changed,
 					   bool *copy);
 static bool ProjIndexIsUnchanged(Relation relation, HeapTuple oldtup, HeapTuple newtup);
 
@@ -4554,14 +4554,14 @@ ProjIndexIsUnchanged(Relation relation, HeapTuple oldtup, HeapTuple newtup)
 			int			i;
 
 			ResetExprContext(econtext);
-			ExecStoreTuple(oldtup, slot, InvalidBuffer, false);
+			ExecStoreHeapTuple(oldtup, slot, false);
 			FormIndexDatum(indexInfo,
 						   slot,
 						   estate,
 						   old_values,
 						   old_isnull);
 
-			ExecStoreTuple(newtup, slot, InvalidBuffer, false);
+			ExecStoreHeapTuple(newtup, slot, false);
 			FormIndexDatum(indexInfo,
 						   slot,
 						   estate,
@@ -6447,7 +6447,7 @@ heap_inplace_update(Relation relation, HeapTuple tuple)
 	uint32		oldlen;
 	uint32		newlen;
 
-	if (IsYugaByteEnabled())
+	if (IsYBRelation(relation))
 	{
 		YBCUpdateSysCatalogTuple(relation, NULL /* oldtuple */, tuple);
 		return;

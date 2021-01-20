@@ -56,8 +56,10 @@ static std::string GetDefaultDocumentRoot();
 // not use these directly, but rather access them via WebserverOptions.
 // This makes it easier to instantiate web servers with different options
 // within a single unit test.
-DEFINE_string(webserver_interface, "",
-    "Interface to start debug webserver on. If blank, webserver binds to 0.0.0.0");
+DEFINE_string(
+    webserver_interface, "",
+    "Interface to start debug webserver on. If blank, webserver binds to first host IP"
+    "present in the list of comma separated rpc_bind_addresses");
 TAG_FLAG(webserver_interface, advanced);
 
 DEFINE_string(webserver_doc_root, yb::GetDefaultDocumentRoot(),

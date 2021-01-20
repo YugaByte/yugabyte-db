@@ -58,7 +58,7 @@ public class SmartKeyEARService extends EncryptionAtRestService<SmartKeyAlgorith
                 "Authorization", String.format("Basic %s", apiToken)
         );
         final String url = Util.buildURL(baseUrl, endpoint);
-        final JsonNode response = this.apiHelper.postRequest(url, null, headers);
+        final JsonNode response = this.apiHelper.postRequest(url, Json.newObject(), headers);
         final JsonNode errors = response.get("error");
         if (errors != null) throw new RuntimeException(errors.toString());
         return String.format(

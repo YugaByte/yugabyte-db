@@ -27,10 +27,6 @@ namespace pggate {
 
 class PgUpdate : public PgDmlWrite {
  public:
-  // Public types.
-  typedef scoped_refptr<PgUpdate> ScopedRefPtr;
-
-  // Constructors.
   PgUpdate(PgSession::ScopedRefPtr pg_session, const PgObjectId& table_id, bool is_single_row_txn)
       : PgDmlWrite(std::move(pg_session), table_id, is_single_row_txn) {}
 

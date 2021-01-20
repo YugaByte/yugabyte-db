@@ -1,7 +1,7 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../_style/colors.scss";
-@import "../../../_style/mixins.scss";
+@import '../../../_style/colors.scss';
+@import '../../../_style/mixins.scss';
 
 .graph-panel-container {
   margin-top: 4px;
@@ -12,7 +12,6 @@
 .graph-panel {
   margin: 0 2px;
 }
-
 
 .graph-panel .metrics-container {
   margin: 0px;
@@ -112,13 +111,13 @@
 }
 .graph-panel .panel-title a:after {
   font-family: 'FontAwesome';
-  content: "\f078";
+  content: '\f078';
   float: left;
   margin-right: 5px;
   line-height: 18px;
 }
 .graph-panel .panel-title a.collapsed:after {
-  content: "\f054";
+  content: '\f054';
 }
 
 .panel-body .col-lg-4 {

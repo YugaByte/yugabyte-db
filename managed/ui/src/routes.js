@@ -26,11 +26,10 @@ import Help from './pages/Help';
 import Profile from './pages/Profile';
 import YugawareLogs from './pages/YugawareLogs';
 import Importer from './pages/Importer';
-import Certificates from './pages/Certificates';
 import Releases from './pages/Releases';
 import { isDefinedNotNull } from './utils/ObjectUtils';
-import { CreateUniverse } from './redesign/universes/CreateUniverse';
-import { EditUniverse } from './redesign/universes/EditUniverse';
+import { CreateUniverse } from './redesign/universe/CreateUniverse';
+import { EditUniverse } from './redesign/universe/EditUniverse';
 
 export const clearCredentials = () => {
   localStorage.removeItem('authToken');
@@ -139,10 +138,16 @@ export default (store) => {
           <Route path="/universes/:uuid/tables/:tableUUID" component={TableDetail}/>
         </Route>
 
-        <Route path="/new/universes">
-          <Route path="/new/universes/create" component={CreateUniverse} />
-          <Route path="/new/universes/:uuid/edit" component={EditUniverse} />
-        </Route>
+        {/* ------------------------------------------------------------------------*/}
+        <Route path="/universe/create" component={CreateUniverse} />
+        {/* <Route path="/universe/:universeId/create/async" component={CreateUniverse} /> - create async cluster, not supported at the moment */}
+        <Route path="/universe/:universeId/edit/primary" component={EditUniverse} />
+
+        {/* <Route path="/universe/:universeId/edit/primary/:wizardStep" component={EditUniverse} /> - jump to particular step on editing primary cluster, not supported at the moment */}
+        {/* <Route path="/universe/:universeId/edit/async" component={EditUniverse} /> - edit the only async cluster, not supported at the moment */}
+        {/* <Route path="/universe/:universeId/edit/async/:asyncClusterId" component={EditUniverse} /> - edit specific async cluster, not supported at the moment */}
+        {/* <Route path="/universe/:universeId/edit/async/:asyncClusterId/:wizardStep" component={EditUniverse} /> - jump to particular step for editing specific async cluster, not supported at the moment */}
+        {/* ------------------------------------------------------------------------*/}
 
         <Route path="/tasks" component={Tasks} >
           <IndexRoute component={TasksList}/>
@@ -160,7 +165,6 @@ export default (store) => {
         <Route path="/profile/:tab" component={Profile}/>
         <Route path="/logs" component={YugawareLogs}/>
         <Route path="/releases" component={Releases}/>
-        <Route path="/certificates" component={Certificates}/>
       </Route>
     </Route>
   );

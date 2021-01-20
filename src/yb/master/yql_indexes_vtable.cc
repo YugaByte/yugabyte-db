@@ -20,8 +20,10 @@
 namespace yb {
 namespace master {
 
-YQLIndexesVTable::YQLIndexesVTable(const Master* const master)
-    : YQLVirtualTable(master::kSystemSchemaIndexesTableName, master, CreateSchema()) {
+YQLIndexesVTable::YQLIndexesVTable(const TableName& table_name,
+                                   const NamespaceName& namespace_name,
+                                   Master* const master)
+    : YQLVirtualTable(table_name, namespace_name, master, CreateSchema()) {
 }
 
 namespace {

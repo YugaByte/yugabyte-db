@@ -311,7 +311,7 @@ void TableIterator::HandleError(const Status& status) {
   if (error_handler_) {
     error_handler_(status);
   } else {
-    CollectedErrors errors = session_->GetPendingErrors();
+    CollectedErrors errors = session_->GetAndClearPendingErrors();
     for (const auto& error : errors) {
       LOG(ERROR) << "Failed operation: " << error->failed_op().ToString()
                  << ", status: " << error->status();

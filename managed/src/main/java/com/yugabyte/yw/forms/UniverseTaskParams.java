@@ -119,6 +119,9 @@ public class UniverseTaskParams extends AbstractTaskParams {
     public boolean installNodeExporter = true;
   }
 
+  // Which user to run the node exporter service on nodes with
+  public String nodeExporterUser = "prometheus";
+
   // The primary device info.
   public DeviceInfo deviceInfo;
 
@@ -145,4 +148,8 @@ public class UniverseTaskParams extends AbstractTaskParams {
 
   // Dependencies that can be install on nodes or not
   public ExtraDependencies extraDependencies = new ExtraDependencies();
+
+  // Whether this task has been tried before or not. Awkward naming because we cannot use
+  // `isRetry` due to play reading the "is" prefix differently.
+  public boolean firstTry = true;
 }

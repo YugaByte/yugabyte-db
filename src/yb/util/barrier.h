@@ -45,41 +45,51 @@ namespace yb {
 class Barrier {
  public:
   // Initialize the barrier with the given initial count.
-  explicit Barrier(int count) :
+  explicit Barrier(size_t count) :
       cond_(&mutex_),
       count_(count),
-      initial_count_(count) {
-    DCHECK_GT(count, 0);
-  }
-
-  ~Barrier() {
+      wait_count_(count) {
   }
 
   // Wait until all threads have reached the barrier.
-  // Once all threads have reached the barrier, the barrier is reset
-  // to the initial count.
+  // Once all threads have reached the barrier, it is reset to the initial count.
   void Wait() {
+    WaitImpl(false /* detach */);
+  }
+
+  // Wait until all threads have reached the barrier.
+  // Once all threads have reached the barrier, it is reset to the initial count minus 1.
+  // This method must be called in case thread is finished.
+  // Other threads will not wait for it on next loop.
+  void Detach() {
+    WaitImpl(true /* detach */);
+  }
+
+ private:
+  void WaitImpl(bool detach) {
     ThreadRestrictions::AssertWaitAllowed();
     MutexLock l(mutex_);
+    if (detach) {
+      DCHECK_GT(wait_count_, 0);
+      --wait_count_;
+    }
     if (--count_ == 0) {
-      count_ = initial_count_;
-      cycle_count_++;
+      count_ = wait_count_;
+      ++cycle_count_;
       cond_.Broadcast();
       return;
     }
 
-    int initial_cycle = cycle_count_;
-    while (cycle_count_ == initial_cycle) {
+    for (const auto initial_cycle = cycle_count_; cycle_count_ == initial_cycle;) {
       cond_.Wait();
     }
   }
 
- private:
   Mutex mutex_;
   ConditionVariable cond_;
-  int count_;
-  uint32_t cycle_count_ = 0;
-  const int initial_count_;
+  size_t count_;
+  size_t cycle_count_ = 0;
+  size_t wait_count_;
   DISALLOW_COPY_AND_ASSIGN(Barrier);
 };
 

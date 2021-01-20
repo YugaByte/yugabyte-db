@@ -48,6 +48,18 @@ namespace yb {
 void SnakeToCamelCase(const std::string &snake_case,
                       std::string *camel_case);
 
+// Convert the given ALL_CAPS string to camel case.
+// Also treats '-' in a string like a '_'
+// For example:
+// - 'FOO_BAR' -> FooBar
+// - 'FOO-BAR' -> FooBar
+//
+// This function cannot operate in-place -- i.e. 'camel_case' must not
+// point to 'all_caps'.
+void AllCapsToCamelCase(const std::string &all_caps,
+                        std::string *camel_case);
+std::string AllCapsToCamelCase(const std::string &all_caps);
+
 // Lower-case all of the characters in the given string.
 // 'string' and 'out' may refer to the same string to replace in-place.
 void ToLowerCase(const std::string &string,

@@ -2,30 +2,45 @@
 
 import { connect } from 'react-redux';
 import { reduxForm } from 'redux-form';
-import {OnPremProviderAndAccessKey} from '../../../config';
-import {setOnPremConfigData} from '../../../../actions/cloud';
-import {isDefinedNotNull, isNonEmptyObject, isNonEmptyArray} from '../../../../utils/ObjectUtils';
+import { OnPremProviderAndAccessKey } from '../../../config';
+import { setOnPremConfigData } from '../../../../actions/cloud';
+import { isDefinedNotNull, isNonEmptyObject, isNonEmptyArray } from '../../../../utils/ObjectUtils';
 import _ from 'lodash';
+
+const DEFAULT_NODE_EXPORTER_PORT = 9300;
+const DEFAULT_NODE_EXPORTER_USER = 'prometheus';
 
 const mapDispatchToProps = (dispatch, ownProps) => {
   return {
     setOnPremProviderAndAccessKey: (formData) => {
-      Object.keys(formData).forEach((key) => { if (typeof formData[key] === 'string' || formData[key] instanceof String) formData[key] = formData[key].trim(); });
+      Object.keys(formData).forEach((key) => {
+        if (typeof formData[key] === 'string' || formData[key] instanceof String)
+          formData[key] = formData[key].trim();
+      });
       if (!ownProps.isEditProvider) {
+        const installNodeExporter = _.get(formData, 'installNodeExporter', true);
         const formSubmitVals = {
           provider: {
             name: formData.name,
-            config: { YB_HOME_DIR: formData.homeDir, USE_HOSTNAME: _.get(formData, "useHostnames", false).toString() }
+            config: {
+              YB_HOME_DIR: formData.homeDir,
+              USE_HOSTNAME: _.get(formData, 'useHostnames', false).toString()
+            }
           },
           key: {
-            code: formData.name.toLowerCase().replace(/ /g, "-") + "-key",
+            code: formData.name.toLowerCase().replace(/ /g, '-') + '-key',
             privateKeyContent: formData.privateKeyContent,
             sshUser: formData.sshUser,
             sshPort: formData.sshPort,
             passwordlessSudoAccess: formData.passwordlessSudoAccess,
-            airGapInstall: formData.airGapInstall
+            airGapInstall: formData.airGapInstall,
+            skipProvisioning: formData.skipProvisioning,
+            installNodeExporter: installNodeExporter,
+            nodeExporterPort: _.get(formData, 'nodeExporterPort', DEFAULT_NODE_EXPORTER_PORT),
+            nodeExporterUser: _.get(formData, 'nodeExporterUser', DEFAULT_NODE_EXPORTER_USER)
           }
         };
+
         dispatch(setOnPremConfigData(formSubmitVals));
       }
       ownProps.nextPage();
@@ -36,11 +51,16 @@ const mapDispatchToProps = (dispatch, ownProps) => {
 const mapStateToProps = (state, ownProps) => {
   let initialFormValues = {
     sshPort: 54422,
-    passwordlessSudoAccess: true,
     airGapInstall: false,
-    useHostnames: false
+    useHostnames: false,
+    installNodeExporter: true,
+    nodeExporterUser: DEFAULT_NODE_EXPORTER_USER,
+    nodeExporterPort: DEFAULT_NODE_EXPORTER_PORT,
+    skipProvisioning: false
   };
-  const {cloud: {onPremJsonFormData}} = state;
+  const {
+    cloud: { onPremJsonFormData }
+  } = state;
   if (ownProps.isEditProvider && isNonEmptyObject(onPremJsonFormData)) {
     initialFormValues = {
       name: onPremJsonFormData.provider.name,
@@ -48,27 +68,38 @@ const mapStateToProps = (state, ownProps) => {
       privateKeyContent: onPremJsonFormData.key.privateKeyContent,
       sshUser: onPremJsonFormData.key.sshUser,
       sshPort: onPremJsonFormData.key.sshPort,
-      passwordlessSudoAccess: onPremJsonFormData.key.passwordlessSudoAccess,
       airGapInstall: onPremJsonFormData.key.airGapInstall,
-      useHostnames: _.get(onPremJsonFormData, "provider.config.USE_HOSTNAME", "false") === "true",
-      homeDir: _.get(onPremJsonFormData, "provider.config.YB_HOME_DIR", ""),
-      machineTypeList : onPremJsonFormData.instanceTypes.map(function (item) {
+      skipProvisioning: onPremJsonFormData.key.skipProvisioning,
+      useHostnames: _.get(onPremJsonFormData, 'provider.config.USE_HOSTNAME', 'false') === 'true',
+      installNodeExporter: onPremJsonFormData.key.installNodeExporter,
+      nodeExporterUser: onPremJsonFormData.key.nodeExporterUser,
+      nodeExporterPort: onPremJsonFormData.key.nodeExporterPort,
+      homeDir: _.get(onPremJsonFormData, 'provider.config.YB_HOME_DIR', ''),
+      machineTypeList: onPremJsonFormData.instanceTypes.map(function (item) {
         return {
           code: item.instanceTypeCode,
           numCores: item.numCores,
           memSizeGB: item.memSizeGB,
-          volumeSizeGB: isNonEmptyArray(item.volumeDetailsList) ? item.volumeDetailsList[0].volumeSizeGB : 0,
-          mountPath: isNonEmptyArray(item.volumeDetailsList) ?  item.volumeDetailsList.map(function(volItem) {
-            return volItem.mountPath;
-          }).join(", ") : "/"
+          volumeSizeGB: isNonEmptyArray(item.volumeDetailsList)
+            ? item.volumeDetailsList[0].volumeSizeGB
+            : 0,
+          mountPath: isNonEmptyArray(item.volumeDetailsList)
+            ? item.volumeDetailsList
+              .map(volItem => volItem.mountPath)
+              .join(', ')
+            : '/'
         };
       }),
-      regionsZonesList: onPremJsonFormData.regions.map(function(regionZoneItem) {
-        return {code: regionZoneItem.code,
-          location: Number(regionZoneItem.latitude) + ", " + Number(regionZoneItem.longitude),
-          zones: regionZoneItem.zones.map(function(zoneItem){
-            return zoneItem;
-          }).join(", ")};
+      regionsZonesList: onPremJsonFormData.regions.map(function (regionZoneItem) {
+        return {
+          code: regionZoneItem.code,
+          location: Number(regionZoneItem.latitude) + ', ' + Number(regionZoneItem.longitude),
+          zones: regionZoneItem.zones
+            .map(function (zoneItem) {
+              return zoneItem;
+            })
+            .join(', ')
+        };
       })
     };
   }
@@ -79,7 +110,7 @@ const mapStateToProps = (state, ownProps) => {
   };
 };
 
-const validate = values => {
+const validate = (values) => {
   const errors = {};
   if (!isDefinedNotNull(values.name)) {
     errors.name = 'Required';
@@ -95,11 +126,26 @@ const validate = values => {
 
 const onPremProviderConfigForm = reduxForm({
   form: 'onPremConfigForm',
-  fields: ['name', 'sshUser', 'sshPort', 'privateKeyContent', 'passwordlessSudoAccess', 'airGapInstall', 'useHostnames', 'homeDir'],
+  fields: [
+    'name',
+    'sshUser',
+    'sshPort',
+    'privateKeyContent',
+    'airGapInstall',
+    'skipProvisioning',
+    'useHostnames',
+    'homeDir',
+    'installNodeExporter',
+    'nodeExporterUser',
+    'nodeExporterPort'
+  ],
   validate,
   destroyOnUnmount: false,
   enableReinitialize: true,
   keepDirtyOnReinitialize: true
 });
 
-export default connect(mapStateToProps, mapDispatchToProps)(onPremProviderConfigForm(OnPremProviderAndAccessKey));
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(onPremProviderConfigForm(OnPremProviderAndAccessKey));

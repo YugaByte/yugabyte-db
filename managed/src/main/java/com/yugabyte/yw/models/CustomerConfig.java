@@ -94,6 +94,24 @@ public class CustomerConfig extends Model {
     return maskedData;
   }
 
+  // Returns if there is an in use reference to the object.
+  public boolean getInUse() {
+    if (this.type == ConfigType.STORAGE) {
+      // Check if a backup or schedule currently has a reference.
+      return (Backup.existsStorageConfig(this.configUUID) ||
+              Schedule.existsStorageConfig(this.configUUID));
+    }
+    return false;
+  }
+
+  @Override
+  public boolean delete() {
+    if (!this.getInUse()) {
+      return super.delete();
+    }
+    return false;
+  }
+
   public static CustomerConfig createWithFormData(UUID customerUUID, JsonNode formData) {
     CustomerConfig customerConfig = Json.fromJson(formData, CustomerConfig.class);
     customerConfig.customerUUID = customerUUID;

@@ -48,7 +48,7 @@ To build your Java application using the YugabyteDB Spark Connector for YCQL, ad
 <dependency>
   <groupId>com.yugabyte.spark</groupId>
   <artifactId>spark-cassandra-connector_2.11</artifactId>
-  <version>2.4-yb-2</version>
+  <version>2.4-yb-3</version>
 </dependency>
 ```
 

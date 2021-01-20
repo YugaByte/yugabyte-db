@@ -1,0 +1,22 @@
+# src/test/regress/yb_pg_join_schedule
+#
+####################################################################################################
+# This includes tests for Join Clause
+####################################################################################################
+# Dependencies for `yb_pg_join`
+test: yb_pg_text
+test: yb_pg_int4
+test: yb_pg_int2
+test: yb_pg_int8
+test: yb_pg_float8
+
+# Dependencies for `yb_pg_join`
+# TODO: add yb_pg_inherit
+
+# Chain of dependencies for `yb_pg_join`
+test: yb_pg_create_function_1
+test: yb_pg_create_type
+test: yb_pg_create_table
+test: yb_pg_copy
+
+test: yb_pg_join

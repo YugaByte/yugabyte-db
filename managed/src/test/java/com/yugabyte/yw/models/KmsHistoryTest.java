@@ -10,22 +10,38 @@
 
 package com.yugabyte.yw.models;
 
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.yugabyte.yw.common.kms.util.KeyProvider;
 import com.yugabyte.yw.common.FakeDBApplication;
+import com.yugabyte.yw.common.ModelFactory;
+import com.yugabyte.yw.common.kms.util.KeyProvider;
+import com.yugabyte.yw.models.KmsHistoryId.TargetType;
+import org.junit.Before;
 import org.junit.Test;
 import play.libs.Json;
+
 import java.util.List;
 import java.util.UUID;
-import com.yugabyte.yw.models.KmsHistoryId.TargetType;
+
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertNotNull;
 
 public class KmsHistoryTest extends FakeDBApplication {
+
+  private KmsConfig testKMSConfig;
+
+  @Before
+  public void setup() {
+    Customer testCustomer = ModelFactory.testCustomer();
+    testKMSConfig = KmsConfig.createKMSConfig(
+      testCustomer.uuid,
+      KeyProvider.AWS,
+      Json.newObject().put("test_key", "test_val"),
+      "some config name"
+    );
+  }
+
     @Test
     public void testCreateUniverseHistory() {
-        UUID configUUID = UUID.randomUUID();
+        UUID configUUID = testKMSConfig.configUUID;
         UUID universeUUID = UUID.randomUUID();
         KmsHistory keyRef = KmsHistory
                 .createKmsHistory(configUUID, universeUUID, TargetType.UNIVERSE_KEY, "a");
@@ -34,7 +50,7 @@ public class KmsHistoryTest extends FakeDBApplication {
 
     @Test
     public void testGetCurrentKeyRef() {
-        UUID configUUID = UUID.randomUUID();
+        UUID configUUID = testKMSConfig.configUUID;
         UUID universeUUID = UUID.randomUUID();
         KmsHistory.createKmsHistory(configUUID, universeUUID, TargetType.UNIVERSE_KEY, "a");
         KmsHistory.createKmsHistory(configUUID, universeUUID, TargetType.UNIVERSE_KEY, "b");
@@ -60,7 +76,7 @@ public class KmsHistoryTest extends FakeDBApplication {
 
     @Test
     public void testGetAllTargetKeyRefs() {
-        UUID configUUID = UUID.randomUUID();
+        UUID configUUID = testKMSConfig.configUUID;
         UUID universeUUID = UUID.randomUUID();
         KmsHistory.createKmsHistory(configUUID, universeUUID, TargetType.UNIVERSE_KEY, "a");
         List<KmsHistory> targetHistory = KmsHistory
@@ -70,7 +86,7 @@ public class KmsHistoryTest extends FakeDBApplication {
 
     @Test
     public void testDeleteAllTargetKeyRefs() {
-        UUID configUUID = UUID.randomUUID();
+        UUID configUUID = testKMSConfig.configUUID;
         UUID universeUUID = UUID.randomUUID();
         KmsHistory.createKmsHistory(configUUID, universeUUID, TargetType.UNIVERSE_KEY, "a");
         KmsHistory.deleteAllConfigTargetKeyRefs(configUUID, universeUUID, TargetType.UNIVERSE_KEY);

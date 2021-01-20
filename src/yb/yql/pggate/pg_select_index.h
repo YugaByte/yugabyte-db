@@ -26,11 +26,6 @@ namespace pggate {
 
 class PgSelectIndex : public PgDmlRead {
  public:
-  // Public types.
-  typedef scoped_refptr<PgSelectIndex> ScopedRefPtr;
-  typedef std::shared_ptr<PgSelectIndex> SharedPtr;
-
-  // Constructors.
   PgSelectIndex(PgSession::ScopedRefPtr pg_session,
                 const PgObjectId& table_id,
                 const PgObjectId& index_id,

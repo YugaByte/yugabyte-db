@@ -24,6 +24,7 @@ public class DeleteNodeFromUniverse extends UniverseTaskBase {
   @Override
   public void run() {
     try {
+      checkUniverseVersion();
       // Create the task list sequence.
       subTaskGroupQueue = new SubTaskGroupQueue(userTaskUUID);
       // Update the universe DB with the update to be performed and set the 'updateInProgress' flag

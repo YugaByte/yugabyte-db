@@ -25,6 +25,30 @@ namespace tserver {
 
 void SetupErrorAndRespond(TabletServerErrorPB* error,
                           const Status& s,
+                          TabletServerErrorPB::Code code,
+                          rpc::RpcContext* context) {
+  // Generic "service unavailable" errors will cause the client to retry later.
+  if (code == TabletServerErrorPB::UNKNOWN_ERROR) {
+    if (s.IsServiceUnavailable()) {
+      TabletServerDelay delay(s);
+      if (!delay.value().Initialized()) {
+        context->RespondRpcFailure(rpc::ErrorStatusPB::ERROR_SERVER_TOO_BUSY, s);
+        return;
+      }
+    }
+    consensus::ConsensusError consensus_error(s);
+    if (consensus_error.value() == consensus::ConsensusErrorPB::TABLET_SPLIT) {
+      code = TabletServerErrorPB::TABLET_SPLIT;
+    }
+  }
+
+  StatusToPB(s, error->mutable_status());
+  error->set_code(code);
+  context->RespondSuccess();
+}
+
+void SetupErrorAndRespond(TabletServerErrorPB* error,
+                          const Status& s,
                           rpc::RpcContext* context) {
   auto ts_error = TabletServerError::FromStatus(s);
   SetupErrorAndRespond(
@@ -69,6 +93,11 @@ Result<int64_t> LeaderTerm(const tablet::TabletPeer& tablet_peer) {
   }
 
   return leader_state.term;
+}
+
+void LeaderTabletPeer::FillTabletPeer(TabletPeerTablet source) {
+  peer = std::move(source.tablet_peer);
+  tablet = std::move(source.tablet);
 }
 
 bool LeaderTabletPeer::FillTerm(TabletServerErrorPB* error, rpc::RpcContext* context) {

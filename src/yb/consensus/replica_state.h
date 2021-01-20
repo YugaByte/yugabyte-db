@@ -113,11 +113,12 @@ class ReplicaState {
 
   typedef std::unique_lock<std::mutex> UniqueLock;
 
-  // split_op_id is the ID of Raft split operation requesting split of this tablet or unset.
+  // split_op_info contains parameters of Raft split operation requesting split of this tablet
+  // (could be empty if not split has been requested).
   ReplicaState(
       ConsensusOptions options, std::string peer_uuid, std::unique_ptr<ConsensusMetadata> cmeta,
       ConsensusContext* consensus_context, SafeOpIdWaiter* safe_op_id_waiter,
-      RetryableRequests* retryable_requests, const yb::OpId& split_op_id,
+      RetryableRequests* retryable_requests, const SplitOpInfo& split_op_info,
       std::function<void(const OpIds&)> applied_ops_tracker);
 
   ~ReplicaState();
@@ -281,7 +282,7 @@ class ReplicaState {
   //
   // If this advanced the committed index, sets *committed_op_id_changed to true.
   CHECKED_STATUS UpdateMajorityReplicatedUnlocked(
-      const OpIdPB& majority_replicated, OpIdPB* committed_op_id, bool* committed_op_id_changed,
+      const OpId& majority_replicated, OpId* committed_op_id, bool* committed_op_id_changed,
       OpId* last_applied_op_id);
 
   // Advances the committed index.
@@ -310,8 +311,9 @@ class ReplicaState {
   // to Raft log and uninitialized OpId otherwise.
   const yb::OpId& GetSplitOpIdUnlocked() const;
 
-  // Makes split_op_id uninitialized. To be used on split operation abort.
-  void ResetSplitOpIdUnlocked();
+  // Return split child tablet IDs if split operation has been added to Raft log and array of empty
+  // tablet IDs otherwise.
+  std::array<TabletId, kNumSplitParts> GetSplitChildTabletIdsUnlocked() const;
 
   // Returns true if an op from the current term has been committed.
   bool AreCommittedAndCurrentTermsSameUnlocked() const;
@@ -409,7 +411,7 @@ class ReplicaState {
   //                      at least this microsecond timestamp.
   // @param deadline - won't wait past this deadline.
   // @return leader lease or 0 if timed out.
-  MicrosTime MajorityReplicatedHtLeaseExpiration(
+  Result<MicrosTime> MajorityReplicatedHtLeaseExpiration(
       MicrosTime min_allowed, CoarseTimePoint deadline) const;
 
   // The on-disk size of the consensus metadata.
@@ -448,6 +450,9 @@ class ReplicaState {
 
   PendingOperations::iterator FindPendingOperation(int64_t index);
 
+  // Checks whether first pending operation matches last committed op index + 1.
+  void CheckPendingOperationsHead() const;
+
   const ConsensusOptions options_;
 
   // The UUID of the local peer.
@@ -478,7 +483,7 @@ class ReplicaState {
   // this id do not need to be resent by the leader. This is not guaranteed to
   // be monotonically increasing due to the possibility for log truncation and
   // aborted operations when a leader change occurs.
-  yb::OpId last_received_op_id_;
+  OpId last_received_op_id_;
 
   // Same as last_received_op_id_ but only includes operations sent by the
   // current leader. The "term" in this op may not actually match the current
@@ -492,18 +497,18 @@ class ReplicaState {
   // The ID of the operation that was last committed. Initialized to MinimumOpId().
   // NOTE: due to implementation details at this and lower layers all operations up to
   // last_committed_op_id_ are guaranteed to be already applied.
-  yb::OpId last_committed_op_id_;
+  OpId last_committed_op_id_;
 
-  // The id of the split operation requesting to split this tablet. This is set when split
+  // Parameters of the split operation requesting to split this tablet. This is set when split
   // operation is added to log and cleared if this operation is aborted.
-  // Apply of tablet split operation does not change split_op_id_.
+  // Apply of tablet split operation does not change split_op_info_.
   //
-  // Note: In tablets created as a result of split operation split_op_id_ is uninitialized until
-  // split operation requesting to split them will be added to their Raft log.
+  // Note: In tablets created as a result of split operation split_op_info_ is uninitialized
+  // until split operation requesting to split them will be added to their Raft log.
   // After n-th split the latest after-split tablet created could have n split operations in its
-  // Raft log, but split_op_id will be uninitialized, because all these split operations are
+  // Raft log, but split_op_info_ will be uninitialized, because all these split operations are
   // designated for "ancestors" of this tablet, but not for this tablet itself.
-  yb::OpId split_op_id_;
+  SplitOpInfo split_op_info_;
 
   // If set, a leader election is pending upon the specific op id commitment to this peer's log.
   OpIdPB pending_election_opid_;

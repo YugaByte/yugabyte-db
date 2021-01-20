@@ -40,12 +40,16 @@
 #include <gtest/gtest.h>
 
 #include "yb/client/client-test-util.h"
+#include "yb/client/client_fwd.h"
 #include "yb/client/table.h"
 #include "yb/client/table_creator.h"
+#include "yb/common/common.pb.h"
 #include "yb/common/wire_protocol-test-util.h"
 #include "yb/integration-tests/external_mini_cluster-itest-base.h"
+#include "yb/integration-tests/external_mini_cluster.h"
 #include "yb/master/catalog_manager.h"
 #include "yb/master/master_util.h"
+#include "yb/master/sys_catalog_initialization.h"
 #include "yb/util/metrics.h"
 #include "yb/util/path_util.h"
 
@@ -358,7 +362,9 @@ TEST_F(CreateTableITest, TableColocationRemoteBootstrapTest) {
   ts_flags.push_back("--follower_unavailable_considered_failed_sec=3");
   ASSERT_NO_FATALS(StartCluster(ts_flags, master_flags, kNumReplicas));
   ASSERT_OK(
-      client_->CreateNamespace("colocation_test", boost::none, "", "", "", boost::none, true));
+      client_->CreateNamespace("colocation_test", boost::none /* db */, "" /* creator */,
+                               "" /* ns_id */, "" /* src_ns_id */,
+                               boost::none /* next_pg_oid */, boost::none /* txn */, true));
 
   {
     string ns_id;
@@ -426,8 +432,9 @@ TEST_F(CreateTableITest, TablegroupRemoteBootstrapTest) {
   ts_flags.push_back("--ysql_beta_feature_tablegroup=true");
   ASSERT_NO_FATALS(StartCluster(ts_flags, master_flags, kNumReplicas));
 
-  ASSERT_OK(
-      client_->CreateNamespace(namespace_name, YQL_DATABASE_PGSQL, "", "", "", boost::none, false));
+  ASSERT_OK(client_->CreateNamespace(namespace_name, YQL_DATABASE_PGSQL, "" /* creator */,
+                                     "" /* ns_id */, "" /* src_ns_id */,
+                                     boost::none /* next_pg_oid */, boost::none /* txn */, false));
 
   {
     auto namespaces = ASSERT_RESULT(client_->ListNamespaces(boost::none));
@@ -519,6 +526,37 @@ TEST_F(CreateTableITest, TestIsRaftLeaderMetric) {
     }
   }
   ASSERT_EQ(kNumRaftLeaders, kExpectedRaftLeaders);
+}
+
+TEST_F(CreateTableITest, TestTransactionStatusTableCreation) {
+  // Set up an RF 1.
+  // Tell the Master leader to wait for 3 TS to join before creating the
+  // transaction status table.
+  vector<string> master_flags = {
+        "--txn_table_wait_min_ts_count=3"
+  };
+  // We also need to enable ysql.
+  ASSERT_NO_FATALS(StartCluster({}, master_flags, 1, 1, true));
+
+  // Check that the transaction table hasn't been created yet.
+  YQLDatabase db = YQL_DATABASE_CQL;
+  YBTableName transaction_status_table(db, master::kSystemNamespaceId,
+                                  master::kSystemNamespaceName, kTransactionsTableName);
+  bool exists = ASSERT_RESULT(client_->TableExists(transaction_status_table));
+  ASSERT_FALSE(exists) << "Transaction table exists even though the "
+                          "requirement for the minimum number of TS not met";
+
+  // Add two tservers.
+  ASSERT_OK(cluster_->AddTabletServer());
+  ASSERT_OK(cluster_->AddTabletServer());
+
+  auto tbl_exists = [&]() -> Result<bool> {
+    return client_->TableExists(transaction_status_table);
+  };
+
+  ASSERT_OK(WaitFor(tbl_exists, 30s * kTimeMultiplier,
+                    "Transaction table doesn't exist even though the "
+                    "requirement for the minimum number of TS met"));
 }
 
 }  // namespace yb

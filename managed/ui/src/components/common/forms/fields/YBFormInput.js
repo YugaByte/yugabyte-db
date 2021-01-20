@@ -6,7 +6,7 @@ import { FormControl } from 'react-bootstrap';
 import { isDefinedNotNull } from '../../../../utils/ObjectUtils';
 
 export default class YBFormInput extends Component {
-  handleChange = event => {
+  handleChange = (event) => {
     const { field, onChange } = this.props;
     field.onChange(event);
     if (isDefinedNotNull(onChange)) onChange(this.props, event);
@@ -16,11 +16,7 @@ export default class YBFormInput extends Component {
     const { infoContent, ...rest } = this.props;
     return (
       <YBLabel {...this.props} infoContent={infoContent}>
-        <FormControl
-          {...this.props.field}
-          {...rest}
-          onChange={this.handleChange}
-        />
+        <FormControl {...this.props.field} {...rest} onChange={this.handleChange} />
       </YBLabel>
     );
   }

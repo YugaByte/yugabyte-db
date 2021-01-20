@@ -50,8 +50,13 @@ public class DeleteNode extends NodeTaskBase {
             cluster.userIntent.numNodes = universeDetails.nodeDetailsSet.size();
             // If OnPrem Free up the node.
             if (cluster.userIntent.providerType.equals(Common.CloudType.onprem)) {
-              NodeInstance node = NodeInstance.getByName(taskParams().nodeName);
-              node.clearNodeDetails();
+              try {
+                NodeInstance node = NodeInstance.getByName(taskParams().nodeName);
+                node.clearNodeDetails();
+              } catch (Exception ex) {
+                LOG.warn("On-prem node {} in universe {} doesn't have a linked instance. "
+                    + "Deletion is skipped.", taskParams().nodeName, universe.name);
+              }
             }
             universe.setUniverseDetails(universeDetails);
           }
@@ -59,7 +64,7 @@ public class DeleteNode extends NodeTaskBase {
       };
       // Perform the update. If unsuccessful, this will throw a runtime exception which we do not
       // catch as we want to fail.
-      Universe.saveDetails(taskParams().universeUUID, updater);
+      saveUniverseDetails(updater);
     } catch (Exception e) {
       String msg = getName() + " failed with exception "  + e.getMessage();
       LOG.warn(msg, e.getMessage());

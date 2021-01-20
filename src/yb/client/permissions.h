@@ -67,7 +67,13 @@ class RolePermissions {
   std::unordered_map<std::string, Permissions> resource_permissions_;
 };
 
+struct RoleAuthInfo {
+  std::string salted_hash;
+  bool can_login;
+};
+
 using RolesPermissionsMap = std::unordered_map<RoleName, RolePermissions>;
+using RolesAuthInfoMap = std::unordered_map<RoleName, RoleAuthInfo>;
 
 enum class CacheCheckMode {
   NO_RETRY,
@@ -106,6 +112,9 @@ class PermissionsCache {
                                       const RoleName &role_name,
                                       const PermissionType &permission);
 
+  Result<std::string> salted_hash(const RoleName& role_name);
+  Result<bool> can_login(const RoleName& role_name);
+
  private:
   void ScheduleGetPermissionsFromMaster(bool now);
 
@@ -120,6 +129,7 @@ class PermissionsCache {
 
   // role name -> RolePermissions.
   std::shared_ptr<RolesPermissionsMap> roles_permissions_map_;
+  std::shared_ptr<RolesAuthInfoMap> roles_auth_info_map_;
 
   // Used to modify the internal state.
   mutable simple_spinlock permissions_cache_lock_;

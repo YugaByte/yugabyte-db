@@ -33,12 +33,14 @@
 #include "yb/master/catalog_loaders.h"
 #include "yb/master/master_util.h"
 
-DEFINE_bool(master_ignore_deleted_on_load, false,
+DEFINE_bool(master_ignore_deleted_on_load, true,
   "Whether the Master should ignore deleted tables & tablets on restart.  "
   "This reduces failover time at the expense of garbage data." );
 
 namespace yb {
 namespace master {
+
+using namespace std::placeholders;
 
 ////////////////////////////////////////////////////////////
 // Table Loader
@@ -74,6 +76,19 @@ Status TableLoader::Visit(const TableId& table_id, const SysTablesEntryPB& metad
   l->Commit();
   catalog_manager_->HandleNewTableId(table->id());
 
+  // Tables created as part of a Transaction should check transaction status and be deleted
+  // if the transaction is aborted.
+  if (metadata.has_transaction()) {
+    LOG(INFO) << "Enqueuing table for Transaction Verification: " << table->ToString();
+    TransactionMetadata txn = VERIFY_RESULT(TransactionMetadata::FromPB(metadata.transaction()));
+    std::function<Status(bool)> when_done =
+        std::bind(&CatalogManager::VerifyTablePgLayer, catalog_manager_, table, _1);
+    WARN_NOT_OK(catalog_manager_->background_tasks_thread_pool_->SubmitFunc(
+        std::bind(&YsqlTransactionDdl::VerifyTransaction, &catalog_manager_->ysql_transaction_,
+                  txn, when_done)),
+        "Could not submit VerifyTransaction to thread pool");
+  }
+
   LOG(INFO) << "Loaded metadata for table " << table->ToString();
   VLOG(1) << "Metadata for table " << table->ToString() << ": " << metadata.ShortDebugString();
 
@@ -90,9 +105,11 @@ Status TabletLoader::Visit(const TabletId& tablet_id, const SysTabletsEntryPB& m
       *catalog_manager_->table_ids_map_, metadata.table_id()));
 
   // TODO: We need to properly remove deleted tablets.  This can happen async of master loading.
-  if (FLAGS_master_ignore_deleted_on_load &&
-      metadata.state() == SysTabletsEntryPB::DELETED &&
-      !first_table) {
+  if (!first_table) {
+    if (metadata.state() != SysTabletsEntryPB::DELETED) {
+      LOG(ERROR) << "Unexpected Tablet state for " << tablet_id << ": "
+                 << SysTabletsEntryPB::State_Name(metadata.state());
+    }
     return Status::OK();
   }
 
@@ -130,14 +147,8 @@ Status TabletLoader::Visit(const TabletId& tablet_id, const SysTabletsEntryPB& m
 
   bool tablet_deleted = l->mutable_data()->is_deleted();
 
-  // true if we need to delete this tablet because the tables this tablets belongs to have been
-  // marked as DELETING. It will be set to false as soon as we find a table that is not in the
-  // DELETING or DELETED state.
-  bool should_delete_tablet = true;
-
-  // We need to check if this is a tablegroup parent tablet. If so, we need to add this to the
-  // catalog manager maps below.
-  bool is_tablegroup_tablet = catalog_manager_->IsTablegroupParentTable(*first_table);
+  // Assume we need to delete this tablet until we find an active table using this tablet.
+  bool should_delete_tablet = !tablet_deleted;
 
   for (auto table_id : table_ids) {
     scoped_refptr<TableInfo> table(FindPtrOrNull(*catalog_manager_->table_ids_map_, table_id));
@@ -146,31 +157,41 @@ Status TabletLoader::Visit(const TabletId& tablet_id, const SysTabletsEntryPB& m
       // If the table is missing and the tablet is in "preparing" state
       // may mean that the table was not created (maybe due to a failed write
       // for the sys-tablets). The cleaner will remove.
-      if (l->data().pb.state() == SysTabletsEntryPB::PREPARING) {
+      auto tablet_state = l->data().pb.state();
+      if (tablet_state == SysTabletsEntryPB::PREPARING) {
         LOG(WARNING) << "Missing table " << table_id << " required by tablet " << tablet_id
                       << " (probably a failed table creation: the tablet was not assigned)";
         return Status::OK();
       }
 
-      // if the tablet is not in a "preparing" state, something is wrong...
-      LOG(ERROR) << "Missing table " << table_id << " required by tablet " << tablet_id
-                  << ", metadata: " << metadata.DebugString()
-                  << ", tables: " << yb::ToString(*catalog_manager_->table_ids_map_);
+      // Otherwise, something is wrong...
+      LOG(WARNING) << "Missing table " << table_id << " required by tablet " << tablet_id
+                   << ", metadata: " << metadata.DebugString()
+                   << ", tables: " << yb::ToString(*catalog_manager_->table_ids_map_);
+      // If we ignore deleted tables, then a missing table can be expected and we continue.
+      if (PREDICT_TRUE(FLAGS_master_ignore_deleted_on_load)) {
+        continue;
+      }
+      // Otherwise, we need to surface the corruption.
       return STATUS(Corruption, "Missing table for tablet: ", tablet_id);
     }
 
     // Add the tablet to the Table.
     if (!tablet_deleted) {
+      // Any table listed under the sys catalog tablet, is by definition a system table.
+      // This is the easiest place to mark these as system tables, as we'll only go over
+      // sys_catalog tablet once and can mark in memory all the relevant tables.
+      if (tablet_id == kSysCatalogTabletId) {
+        table->set_is_system();
+      }
       table->AddTablet(tablet);
     }
 
     auto tl = table->LockForRead();
-    if (tablet_deleted || !tl->data().started_deleting()) {
-      // The tablet is already deleted or the table hasn't been deleted. So we don't delete
-      // this tablet.
+    if (!tl->data().started_deleting()) {
+      // Found an active table.
       should_delete_tablet = false;
     }
-
   }
 
 
@@ -191,7 +212,7 @@ Status TabletLoader::Visit(const TabletId& tablet_id, const SysTabletsEntryPB& m
   }
 
   // Add the tablet to tablegroup_tablet_ids_map_ if the tablet is a tablegroup parent.
-  if (is_tablegroup_tablet) {
+  if (catalog_manager_->IsTablegroupParentTable(*first_table)) {
     catalog_manager_->tablegroup_tablet_ids_map_[first_table->namespace_id()]
         [first_table->id().substr(0, 32)] = catalog_manager_->tablet_map_->find(tablet_id)->second;
 
@@ -254,6 +275,20 @@ Status NamespaceLoader::Visit(const NamespaceId& ns_id, const SysNamespaceEntryP
       }
       l->Commit();
       LOG(INFO) << "Loaded metadata for namespace " << ns->ToString();
+
+      // Namespaces created as part of a Transaction should check transaction status and be deleted
+      // if the transaction is aborted.
+      if (metadata.has_transaction()) {
+        LOG(INFO) << "Enqueuing keyspace for Transaction Verification: " << ns->ToString();
+        TransactionMetadata txn = VERIFY_RESULT(
+            TransactionMetadata::FromPB(metadata.transaction()));
+        std::function<Status(bool)> when_done =
+            std::bind(&CatalogManager::VerifyNamespacePgLayer, catalog_manager_, ns, _1);
+        WARN_NOT_OK(catalog_manager_->background_tasks_thread_pool_->SubmitFunc(
+            std::bind(&YsqlTransactionDdl::VerifyTransaction, &catalog_manager_->ysql_transaction_,
+                      txn, when_done)),
+          "Could not submit VerifyTransaction to thread pool");
+      }
       break;
     case SysNamespaceEntryPB::PREPARING:
       // PREPARING means the server restarted before completing NS creation.
@@ -273,6 +308,7 @@ Status NamespaceLoader::Visit(const NamespaceId& ns_id, const SysNamespaceEntryP
       }
       l->Commit();
       LOG(INFO) << "Loaded metadata to DELETE namespace " << ns->ToString();
+      LOG_IF(DFATAL, ns->database_type() != YQL_DATABASE_PGSQL) << "PGSQL Databases only";
       WARN_NOT_OK(catalog_manager_->background_tasks_thread_pool_->SubmitFunc(
           std::bind(&CatalogManager::DeleteYsqlDatabaseAsync, catalog_manager_, ns)),
           "Could not submit DeleteYsqlDatabaseAsync to thread pool");

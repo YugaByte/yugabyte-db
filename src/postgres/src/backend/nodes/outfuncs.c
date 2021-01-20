@@ -396,7 +396,7 @@ _outModifyTable(StringInfo str, const ModifyTable *node)
 	WRITE_UINT_FIELD(exclRelRTI);
 	WRITE_NODE_FIELD(exclRelTlist);
 	WRITE_NODE_FIELD(ybPushdownTlist);
-	WRITE_BOOL_FIELD(no_index_update);
+	WRITE_NODE_FIELD(no_update_index_list);
 	WRITE_BOOL_FIELD(no_row_trigger);
 }
 
@@ -2681,6 +2681,7 @@ _outCreateStmtInfo(StringInfo str, const CreateStmt *node)
 	WRITE_ENUM_FIELD(oncommit, OnCommitAction);
 	WRITE_STRING_FIELD(tablespacename);
 	WRITE_BOOL_FIELD(if_not_exists);
+	WRITE_NODE_FIELD(split_options);
 }
 
 static void

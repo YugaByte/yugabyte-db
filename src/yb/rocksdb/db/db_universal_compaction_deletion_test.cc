@@ -313,6 +313,12 @@ TEST_F(DBTestUniversalCompactionDeletion, DeleteObsoleteFilesDelayedByScheduledC
     ASSERT_TRUE(env_->FileExists(dbname_ + file.name).IsNotFound());
   }
 
+  // Need to wait for compaction 3 to actually generate its output file, before we try to get that
+  // filename below.
+  AssertLoggedWaitFor(
+      [this]{ return file_create_listener_->NumFilesCreated() == 2 * kNumCompactionTrigger + 2; },
+      "Waiting for compaction (3) to be completed");
+
   const auto compaction_3_output = file_create_listener_->GetLastCreatedFileName();
   file_create_listener_->ResumeFileName(compaction_3_output);
   dbfull()->TEST_WaitForCompact();

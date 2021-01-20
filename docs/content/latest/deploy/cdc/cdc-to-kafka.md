@@ -42,7 +42,7 @@ To get a local Confluent Platform (with Apache Kafka) up and running quickly, fo
 
 With your local YugabyteDB cluster running, create a table, called `users`, in the default database (`yugabyte`).
 
-```postgresql
+```plpgsql
 CREATE TABLE users (name text, pass text, id int, primary key (id));
 ```
 

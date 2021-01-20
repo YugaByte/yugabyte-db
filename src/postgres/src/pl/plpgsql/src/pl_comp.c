@@ -172,7 +172,7 @@ recheck:
 	if (function)
 	{
 		/* We have a compiled function, but is it still valid? */
-		if (IsYugaByteEnabled() ? function->yb_catalog_version == yb_catalog_cache_version :
+		if (IsYugaByteEnabled() ? function->yb_catalog_version == YBGetActiveCatalogCacheVersion() :
 				(function->fn_xmin == HeapTupleHeaderGetRawXmin(procTup->t_data) &&
 				ItemPointerEquals(&function->fn_tid, &procTup->t_self)))
 			function_valid = true;
@@ -370,7 +370,7 @@ do_compile(FunctionCallInfo fcinfo,
 
 	function->fn_prokind = procStruct->prokind;
 
-	function->yb_catalog_version = yb_catalog_cache_version;
+	function->yb_catalog_version = YBGetActiveCatalogCacheVersion();
 
 	/*
 	 * Initialize the compiler, particularly the namespace stack.  The
@@ -2305,6 +2305,7 @@ plpgsql_add_initdatums(int **varnos)
 					case PLPGSQL_DTYPE_VAR:
 					case PLPGSQL_DTYPE_REC:
 						(*varnos)[n++] = plpgsql_Datums[i]->dno;
+						switch_fallthrough();
 
 					default:
 						break;

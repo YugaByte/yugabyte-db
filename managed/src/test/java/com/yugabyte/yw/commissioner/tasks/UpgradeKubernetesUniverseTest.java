@@ -10,7 +10,7 @@ import com.yugabyte.yw.commissioner.tasks.UpgradeUniverse;
 import com.yugabyte.yw.commissioner.tasks.UpgradeUniverse.UpgradeTaskType;
 import com.yugabyte.yw.common.ApiUtils;
 import com.yugabyte.yw.common.RegexMatcher;
-import com.yugabyte.yw.common.ShellProcessHandler.ShellResponse;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.UserIntent;
 import com.yugabyte.yw.models.AvailabilityZone;
 import com.yugabyte.yw.models.InstanceType;
@@ -26,6 +26,8 @@ import org.mockito.runners.MockitoJUnitRunner;
 import org.yb.Common;
 import org.yb.client.IsServerReadyResponse;
 import org.yb.client.YBClient;
+import org.yb.client.GetMasterClusterConfigResponse;
+import org.yb.master.Master;
 import play.libs.Json;
 
 import java.util.HashMap;
@@ -90,6 +92,11 @@ public class UpgradeKubernetesUniverseTest extends CommissionerBaseTest {
     ShellResponse responsePod = new ShellResponse();
     when(mockKubernetesManager.helmUpgrade(any(), any(), any())).thenReturn(responseEmpty);
 
+    Master.SysClusterConfigEntryPB.Builder configBuilder =
+      Master.SysClusterConfigEntryPB.newBuilder().setVersion(2);
+    GetMasterClusterConfigResponse mockConfigResponse =
+      new GetMasterClusterConfigResponse(1111, "", configBuilder.build(), null);
+
     responsePod.message =
         "{\"status\": { \"phase\": \"Running\", \"conditions\": [{\"status\": \"True\"}]}}";
     when(mockKubernetesManager.getPodStatus(any(), any(), any())).thenReturn(responsePod);
@@ -98,6 +105,7 @@ public class UpgradeKubernetesUniverseTest extends CommissionerBaseTest {
     when(mockClient.waitForServer(any(), anyLong())).thenReturn(true);
     IsServerReadyResponse okReadyResp = new IsServerReadyResponse(0, "", null, 0, 0);
     try {
+      when(mockClient.getMasterClusterConfig()).thenReturn(mockConfigResponse);
       when(mockClient.isServerReady(any(), anyBoolean())).thenReturn(okReadyResp);
     } catch (Exception ex) {}
     when(mockYBClient.getClient(any(), any())).thenReturn(mockClient);
@@ -148,19 +156,19 @@ public class UpgradeKubernetesUniverseTest extends CommissionerBaseTest {
 
   List<TaskType> KUBERNETES_UPGRADE_SOFTWARE_TASKS = ImmutableList.of(
       TaskType.KubernetesCommandExecutor,
+      TaskType.KubernetesCommandExecutor,
+      TaskType.KubernetesWaitForPod,
+      TaskType.WaitForServer,
+      TaskType.WaitForServerReady,
+      TaskType.KubernetesCommandExecutor,
+      TaskType.KubernetesWaitForPod,
+      TaskType.WaitForServer,
+      TaskType.WaitForServerReady,
+      TaskType.KubernetesCommandExecutor,
+      TaskType.KubernetesWaitForPod,
+      TaskType.WaitForServer,
+      TaskType.WaitForServerReady,
       TaskType.LoadBalancerStateChange,
-      TaskType.KubernetesCommandExecutor,
-      TaskType.KubernetesWaitForPod,
-      TaskType.WaitForServer,
-      TaskType.WaitForServerReady,
-      TaskType.KubernetesCommandExecutor,
-      TaskType.KubernetesWaitForPod,
-      TaskType.WaitForServer,
-      TaskType.WaitForServerReady,
-      TaskType.KubernetesCommandExecutor,
-      TaskType.KubernetesWaitForPod,
-      TaskType.WaitForServer,
-      TaskType.WaitForServerReady,
       TaskType.KubernetesCommandExecutor,
       TaskType.KubernetesWaitForPod,
       TaskType.WaitForServer,
@@ -180,7 +188,6 @@ public class UpgradeKubernetesUniverseTest extends CommissionerBaseTest {
 
   List<JsonNode> KUBERNETES_UPGRADE_SOFTWARE_RESULTS = ImmutableList.of(
       Json.toJson(ImmutableMap.of("commandType", POD_INFO.name())),
-      Json.toJson(ImmutableMap.of()),
       Json.toJson(ImmutableMap.of("commandType", HELM_UPGRADE.name(),
                                   "ybSoftwareVersion", "new-version")),
       Json.toJson(ImmutableMap.of("commandType", WAIT_FOR_POD.name())),
@@ -194,6 +201,7 @@ public class UpgradeKubernetesUniverseTest extends CommissionerBaseTest {
       Json.toJson(ImmutableMap.of("commandType", HELM_UPGRADE.name(),
                                   "ybSoftwareVersion", "new-version")),
       Json.toJson(ImmutableMap.of("commandType", WAIT_FOR_POD.name())),
+      Json.toJson(ImmutableMap.of()),
       Json.toJson(ImmutableMap.of()),
       Json.toJson(ImmutableMap.of()),
       Json.toJson(ImmutableMap.of("commandType", HELM_UPGRADE.name(),
@@ -219,19 +227,19 @@ public class UpgradeKubernetesUniverseTest extends CommissionerBaseTest {
   List<TaskType> KUBERNETES_UPGRADE_GFLAG_TASKS = ImmutableList.of(
       TaskType.UpdateAndPersistGFlags,
       TaskType.KubernetesCommandExecutor,
+      TaskType.KubernetesCommandExecutor,
+      TaskType.KubernetesWaitForPod,
+      TaskType.WaitForServer,
+      TaskType.WaitForServerReady,
+      TaskType.KubernetesCommandExecutor,
+      TaskType.KubernetesWaitForPod,
+      TaskType.WaitForServer,
+      TaskType.WaitForServerReady,
+      TaskType.KubernetesCommandExecutor,
+      TaskType.KubernetesWaitForPod,
+      TaskType.WaitForServer,
+      TaskType.WaitForServerReady,
       TaskType.LoadBalancerStateChange,
-      TaskType.KubernetesCommandExecutor,
-      TaskType.KubernetesWaitForPod,
-      TaskType.WaitForServer,
-      TaskType.WaitForServerReady,
-      TaskType.KubernetesCommandExecutor,
-      TaskType.KubernetesWaitForPod,
-      TaskType.WaitForServer,
-      TaskType.WaitForServerReady,
-      TaskType.KubernetesCommandExecutor,
-      TaskType.KubernetesWaitForPod,
-      TaskType.WaitForServer,
-      TaskType.WaitForServerReady,
       TaskType.KubernetesCommandExecutor,
       TaskType.KubernetesWaitForPod,
       TaskType.WaitForServer,
@@ -252,7 +260,6 @@ public class UpgradeKubernetesUniverseTest extends CommissionerBaseTest {
       Json.toJson(ImmutableMap.of("masterGFlags", Json.parse("{\"master-flag\":\"m1\"}"),
                                   "tserverGFlags", Json.parse("{\"tserver-flag\":\"t1\"}"))),
       Json.toJson(ImmutableMap.of("commandType", POD_INFO.name())),
-      Json.toJson(ImmutableMap.of()),
       Json.toJson(ImmutableMap.of("commandType", HELM_UPGRADE.name())),
       Json.toJson(ImmutableMap.of("commandType", WAIT_FOR_POD.name())),
       Json.toJson(ImmutableMap.of()),
@@ -263,6 +270,7 @@ public class UpgradeKubernetesUniverseTest extends CommissionerBaseTest {
       Json.toJson(ImmutableMap.of()),
       Json.toJson(ImmutableMap.of("commandType", HELM_UPGRADE.name())),
       Json.toJson(ImmutableMap.of("commandType", WAIT_FOR_POD.name())),
+      Json.toJson(ImmutableMap.of()),
       Json.toJson(ImmutableMap.of()),
       Json.toJson(ImmutableMap.of()),
       Json.toJson(ImmutableMap.of("commandType", HELM_UPGRADE.name())),

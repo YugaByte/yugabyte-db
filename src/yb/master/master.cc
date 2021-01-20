@@ -120,6 +120,9 @@ DEFINE_int32(master_remote_bootstrap_svc_queue_length, 50,
              "RPC queue length for master remote bootstrap service");
 TAG_FLAG(master_remote_bootstrap_svc_queue_length, advanced);
 
+DEFINE_test_flag(string, master_extra_list_host_port, "",
+                 "Additional host port used in list masters");
+
 DECLARE_int64(inbound_rpc_memory_limit);
 
 namespace yb {
@@ -177,11 +180,16 @@ Status Master::Init() {
       metric_entity(),
       mem_tracker(),
       messenger());
-  async_client_init_->builder().set_master_address_flag_name("master_addresses");
-  async_client_init_->builder().AddMasterAddressSource([this] {
+  async_client_init_->builder()
+      .set_master_address_flag_name("master_addresses")
+      .default_admin_operation_timeout(MonoDelta::FromMilliseconds(FLAGS_master_rpc_timeout_ms))
+      .AddMasterAddressSource([this] {
     std::vector<std::string> result;
     consensus::ConsensusStatePB state;
-    auto status = catalog_manager_->GetCurrentConfig(&state);
+    auto status = catalog_manager_->CheckOnline();
+    if (status.ok()) {
+      status = catalog_manager_->GetCurrentConfig(&state);
+    }
     if (!status.ok()) {
       LOG(WARNING) << "Failed to get current config: " << status;
       return result;
@@ -239,8 +247,8 @@ Status Master::RegisterServices() {
 void Master::DisplayGeneralInfoIcons(std::stringstream* output) {
   server::RpcAndWebServerBase::DisplayGeneralInfoIcons(output);
   // Tasks.
-  DisplayIconTile(output, "fa-list-ul", "Tasks", "/tasks");
-  DisplayIconTile(output, "fa-list-ul", "Replica Info", "/tablet-replication");
+  DisplayIconTile(output, "fa-check", "Tasks", "/tasks");
+  DisplayIconTile(output, "fa-clone", "Replica Info", "/tablet-replication");
 }
 
 Status Master::StartAsync() {
@@ -313,8 +321,11 @@ void Master::Shutdown() {
     // before shutting down catalog manager. This is needed to prevent async calls callbacks
     // (running on reactor threads) from trying to use catalog manager thread pool which would be
     // already shutdown.
+    auto started = catalog_manager_->StartShutdown();
+    LOG_IF(DFATAL, !started) << name << " catalog manager shutdown already in progress";
+    async_client_init_->Shutdown();
     RpcAndWebServerBase::Shutdown();
-    catalog_manager_->Shutdown();
+    catalog_manager_->CompleteShutdown();
     LOG(INFO) << name << " shutdown complete.";
   } else {
     LOG(INFO) << ToString() << " did not start, shutting down all that started...";
@@ -414,6 +425,10 @@ Status Master::ListMasters(std::vector<ServerEntryPB>* masters) const {
     }
     for (const auto& hp : peer.last_known_broadcast_addr()) {
       addrs.push_back(HostPortFromPB(hp));
+    }
+    if (!FLAGS_TEST_master_extra_list_host_port.empty()) {
+      addrs.push_back(VERIFY_RESULT(HostPort::FromString(
+          FLAGS_TEST_master_extra_list_host_port, 0)));
     }
 
     // Make GetMasterRegistration calls for peer master info.

@@ -31,6 +31,7 @@ boto>=2.42.0
 boto3>=1.4.0
 botocore>=1.4.59
 cryptography==1.7.2
+distro==1.5.0
 docker-compose==1.9.0
 docker-py==1.7.0
 fabric==2.2.1
@@ -45,7 +46,6 @@ pycrypto
 python-dateutil==2.5.3
 python-dotenv==0.6.4
 PyYAML==3.13
-s3cmd==2.0.2
 setuptools>=11.333
 six==1.10.0
 slackclient

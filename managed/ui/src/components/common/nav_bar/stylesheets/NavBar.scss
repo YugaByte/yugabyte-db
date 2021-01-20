@@ -1,6 +1,6 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../../_style/colors.scss";
+@import '../../../../_style/colors.scss';
 
 /* From gentelella.css need to cleanup */
 
@@ -10,7 +10,7 @@
     width: 90px;
     padding: 0;
     z-index: 999;
-    left:0;
+    left: 0;
     position: absolute;
     background: $YB_VIOLET;
     .logo {
@@ -60,7 +60,6 @@
     }
   }
 
-
   .nav.child_menu li.active,
   .nav.side-menu li.active-sm {
     border-right: 5px solid #333;
@@ -80,7 +79,7 @@
     top: 0;
     width: 210px;
     z-index: 4000;
-    background: #3E5367;
+    background: #3e5367;
     display: none;
 
     li {

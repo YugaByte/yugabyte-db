@@ -1,0 +1,31 @@
+# Copyright 2020 YugaByte, Inc. and Contributors
+#
+# Licensed under the Polyform Free Trial License 1.0.0 (the "License"); you
+# may not use this file except in compliance with the License. You
+# may obtain a copy of the License at
+#
+# https://github.com/YugaByte/yugabyte-db/blob/master/licenses/POLYFORM-FREE-TRIAL-LICENSE-1.0.0.txt
+
+- name: Confirm package_path exists
+  assert:
+    that:
+      - local_package_path is defined or remote_package_path is defined
+
+- set_fact:
+    package_path: "{{ remote_package_path if remote_package_path is defined and remote_package_path != '' else local_package_path }}"
+    is_remote: "{{ 'yes' if remote_package_path is defined and remote_package_path != '' else 'no' }}"
+
+- name: Check if {{ util.name }} already exists
+  become: yes
+  become_method: sudo
+  become_user: "{{ user_name }}"
+  shell: "which {{ util.name }}"
+  register: util_exists
+  failed_when: False
+
+- name: Install {{ util.name }}
+  include: "install-{{ util.name }}.yml"
+  become: yes
+  become_method: sudo
+  when: util_exists.rc != 0
+  ignore_errors: cloud_type == "onprem"

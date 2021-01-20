@@ -76,7 +76,8 @@ bool HumanReadableNumBytes::ToInt64(const string &str, int64 *num_bytes) {
       return false;
   }
   d *= scale;
-  if (d > kint64max || d < 0)
+  // We have to cast kint64max to double to avoid a warning on implicit cast that changes the value.
+  if (d > static_cast<double>(kint64max) || d < 0)
     return false;
   *num_bytes = static_cast<int64>(d + 0.5);
   if (neg) {
@@ -264,7 +265,8 @@ bool HumanReadableNum::ToDouble(const string &str, double *value) {
 bool HumanReadableInt::ToInt64(const string &str, int64 *value) {
   char *end;
   double d = strtod(str.c_str(), &end);
-  if (d > kint64max || d < kint64min)
+  // We have to cast kint64max to double to avoid a warning on implicit cast that changes the value.
+  if (d > static_cast<double>(kint64max) || d < kint64min)
     return false;
   if (*end == 'k') {
     d *= 1000;

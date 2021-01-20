@@ -24,8 +24,8 @@
 #include "utils/datetime.h"
 #include "utils/lsyscache.h"
 #include "utils/json.h"
-#include "utils/jsonapi.h"
 #include "utils/jsonb.h"
+#include "utils/jsonfuncs.h"
 #include "utils/syscache.h"
 #include "utils/typcache.h"
 
@@ -164,6 +164,73 @@ jsonb_send(PG_FUNCTION_ARGS)
 }
 
 /*
+ * Get the type name of a jsonb container.
+ */
+static const char *
+JsonbContainerTypeName(JsonbContainer *jbc)
+{
+	JsonbValue	scalar;
+
+	if (JsonbExtractScalar(jbc, &scalar))
+		return JsonbTypeName(&scalar);
+	else if (JsonContainerIsArray(jbc))
+		return "array";
+	else if (JsonContainerIsObject(jbc))
+		return "object";
+	else
+	{
+		elog(ERROR, "invalid jsonb container type: 0x%08x", jbc->header);
+		return "unknown";
+	}
+}
+
+/*
+ * Get the type name of a jsonb value.
+ */
+const char *
+JsonbTypeName(JsonbValue *jbv)
+{
+	switch (jbv->type)
+	{
+		case jbvBinary:
+			return JsonbContainerTypeName(jbv->val.binary.data);
+		case jbvObject:
+			return "object";
+		case jbvArray:
+			return "array";
+		case jbvNumeric:
+			return "number";
+		case jbvString:
+			return "string";
+		case jbvBool:
+			return "boolean";
+		case jbvNull:
+			return "null";
+		case jbvDatetime:
+			switch (jbv->val.datetime.typid)
+			{
+				case DATEOID:
+					return "date";
+				case TIMEOID:
+					return "time without time zone";
+				case TIMETZOID:
+					return "time with time zone";
+				case TIMESTAMPOID:
+					return "timestamp without time zone";
+				case TIMESTAMPTZOID:
+					return "timestamp with time zone";
+				default:
+					elog(ERROR, "unrecognized jsonb value datetime type: %d",
+						 jbv->val.datetime.typid);
+			}
+			return "unknown";
+		default:
+			elog(ERROR, "unrecognized jsonb value type: %d", jbv->type);
+			return "unknown";
+	}
+}
+
+/*
  * SQL function jsonb_typeof(jsonb) -> text
  *
  * This function is here because the analog json function is in json.c, since
@@ -173,45 +240,7 @@ Datum
 jsonb_typeof(PG_FUNCTION_ARGS)
 {
 	Jsonb	   *in = PG_GETARG_JSONB_P(0);
-	JsonbIterator *it;
-	JsonbValue	v;
-	char	   *result;
-
-	if (JB_ROOT_IS_OBJECT(in))
-		result = "object";
-	else if (JB_ROOT_IS_ARRAY(in) && !JB_ROOT_IS_SCALAR(in))
-		result = "array";
-	else
-	{
-		Assert(JB_ROOT_IS_SCALAR(in));
-
-		it = JsonbIteratorInit(&in->root);
-
-		/*
-		 * A root scalar is stored as an array of one element, so we get the
-		 * array and then its first (and only) member.
-		 */
-		(void) JsonbIteratorNext(&it, &v, true);
-		Assert(v.type == jbvArray);
-		(void) JsonbIteratorNext(&it, &v, true);
-		switch (v.type)
-		{
-			case jbvNull:
-				result = "null";
-				break;
-			case jbvString:
-				result = "string";
-				break;
-			case jbvNumeric:
-				result = "number";
-				break;
-			case jbvBool:
-				result = "boolean";
-				break;
-			default:
-				elog(ERROR, "unknown jsonb scalar type");
-		}
-	}
+	const char *result = JsonbContainerTypeName(&in->root);
 
 	PG_RETURN_TEXT_P(cstring_to_text(result));
 }
@@ -243,7 +272,7 @@ jsonb_from_cstring(char *json, int len)
 	sem.scalar = jsonb_in_scalar;
 	sem.object_field_start = jsonb_in_object_field_start;
 
-	pg_parse_json(lex, &sem);
+	pg_parse_json_or_ereport(lex, &sem);
 
 	/* after parsing, the item member has the composed jsonb structure */
 	PG_RETURN_POINTER(JsonbValueToJsonb(state.res));
@@ -794,17 +823,20 @@ datum_to_jsonb(Datum val, bool is_null, JsonbInState *result,
 				break;
 			case JSONBTYPE_DATE:
 				jb.type = jbvString;
-				jb.val.string.val = JsonEncodeDateTime(NULL, val, DATEOID);
+				jb.val.string.val = JsonEncodeDateTime(NULL, val,
+													   DATEOID, NULL);
 				jb.val.string.len = strlen(jb.val.string.val);
 				break;
 			case JSONBTYPE_TIMESTAMP:
 				jb.type = jbvString;
-				jb.val.string.val = JsonEncodeDateTime(NULL, val, TIMESTAMPOID);
+				jb.val.string.val = JsonEncodeDateTime(NULL, val,
+													   TIMESTAMPOID, NULL);
 				jb.val.string.len = strlen(jb.val.string.val);
 				break;
 			case JSONBTYPE_TIMESTAMPTZ:
 				jb.type = jbvString;
-				jb.val.string.val = JsonEncodeDateTime(NULL, val, TIMESTAMPTZOID);
+				jb.val.string.val = JsonEncodeDateTime(NULL, val,
+													   TIMESTAMPTZOID, NULL);
 				jb.val.string.len = strlen(jb.val.string.val);
 				break;
 			case JSONBTYPE_JSONCAST:
@@ -828,7 +860,7 @@ datum_to_jsonb(Datum val, bool is_null, JsonbInState *result,
 					sem.scalar = jsonb_in_scalar;
 					sem.object_field_start = jsonb_in_object_field_start;
 
-					pg_parse_json(lex, &sem);
+					pg_parse_json_or_ereport(lex, &sem);
 
 				}
 				break;
@@ -1857,7 +1889,7 @@ jsonb_object_agg_finalfn(PG_FUNCTION_ARGS)
 /*
  * Extract scalar value from raw-scalar pseudo-array jsonb.
  */
-static bool
+bool
 JsonbExtractScalar(JsonbContainer *jbc, JsonbValue *res)
 {
 	JsonbIterator *it;

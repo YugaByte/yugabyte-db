@@ -11,6 +11,7 @@ import static com.yugabyte.yw.models.helpers.TaskType.StopNodeInUniverse;
 import static com.yugabyte.yw.models.helpers.TaskType.AddNodeToUniverse;
 import static com.yugabyte.yw.models.helpers.TaskType.RemoveNodeFromUniverse;
 import static com.yugabyte.yw.models.helpers.TaskType.ReleaseInstanceFromUniverse;
+import static com.yugabyte.yw.models.helpers.TaskType.StartMasterOnNode;
 import static org.junit.Assert.assertEquals;
 
 public class NodeActionTypeTest {
@@ -28,6 +29,8 @@ public class NodeActionTypeTest {
     assertEquals("Removed", NodeActionType.REMOVE.toString(true));
     assertEquals("Releasing", NodeActionType.RELEASE.toString(false));
     assertEquals("Released", NodeActionType.RELEASE.toString(true));
+    assertEquals("Starting Master", NodeActionType.START_MASTER.toString(false));
+    assertEquals("Started Master", NodeActionType.START_MASTER.toString(true));
   }
 
   @Test
@@ -38,6 +41,7 @@ public class NodeActionTypeTest {
     assertEquals(AddNodeToUniverse, NodeActionType.ADD.getCommissionerTask());
     assertEquals(RemoveNodeFromUniverse, NodeActionType.REMOVE.getCommissionerTask());
     assertEquals(ReleaseInstanceFromUniverse, NodeActionType.RELEASE.getCommissionerTask());
+    assertEquals(StartMasterOnNode, NodeActionType.START_MASTER.getCommissionerTask());
   }
 
   @Test
@@ -48,5 +52,6 @@ public class NodeActionTypeTest {
     assertEquals(CustomerTask.TaskType.Add, NodeActionType.ADD.getCustomerTask());
     assertEquals(CustomerTask.TaskType.Release, NodeActionType.RELEASE.getCustomerTask());
     assertEquals(CustomerTask.TaskType.Remove, NodeActionType.REMOVE.getCustomerTask());
+    assertEquals(CustomerTask.TaskType.StartMaster, NodeActionType.START_MASTER.getCustomerTask());
   }
 }

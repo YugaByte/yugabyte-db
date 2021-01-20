@@ -112,6 +112,10 @@ using strings::Substitute;
 
 using namespace std::placeholders;
 
+// See comment below in SetThreadName.
+constexpr int kMaxThreadNameInPerf = 15;
+const char Thread::kPaddingChar = 'x';
+
 namespace {
 
 uint64_t GetCpuUTime() {
@@ -389,9 +393,9 @@ int Compare(const Result<StackTrace>& lhs, const Result<StackTrace>& rhs) {
 
 void ThreadMgr::RenderThreadCategoryRows(const ThreadCategory& category, std::string* output) {
   struct ThreadData {
-    int64_t tid;
-    ThreadIdForStack tid_for_stack;
-    const std::string* name;
+    int64_t tid = 0;
+    ThreadIdForStack tid_for_stack = 0;
+    const std::string* name = nullptr;
     ThreadStats stats;
     Result<StackTrace> stack_trace = StackTrace();
     int rowspan = -1;
@@ -671,11 +675,18 @@ std::string Thread::ToString() const {
 Status Thread::StartThread(const std::string& category, const std::string& name,
                            ThreadFunctor functor, scoped_refptr<Thread> *holder) {
   InitThreading();
-  const string log_prefix = Substitute("$0 ($1) ", name, category);
+  string padded_name = name;
+  // See comment in SetThreadName. We're padding names to the 15 char limit in order to get
+  // aggregations when using the linux perf tool, as that groups up stacks based on the 15 char
+  // prefix of all the thread names.
+  if (name.length() < kMaxThreadNameInPerf) {
+    padded_name += string(kMaxThreadNameInPerf - name.length(), Thread::kPaddingChar);
+  }
+  const string log_prefix = Substitute("$0 ($1) ", padded_name, category);
   SCOPED_LOG_SLOW_EXECUTION_PREFIX(WARNING, 500 /* ms */, log_prefix, "starting thread");
 
   // Temporary reference for the duration of this function.
-  scoped_refptr<Thread> t(new Thread(category, name, std::move(functor)));
+  scoped_refptr<Thread> t(new Thread(category, padded_name, std::move(functor)));
 
   {
     SCOPED_LOG_SLOW_EXECUTION_PREFIX(WARNING, 500 /* ms */, log_prefix, "creating pthread");
@@ -714,7 +725,7 @@ Status Thread::StartThread(const std::string& category, const std::string& name,
     }
   }
 
-  VLOG(2) << "Started thread " << t->tid()<< " - " << category << ":" << name;
+  VLOG(2) << "Started thread " << t->tid()<< " - " << category << ":" << padded_name;
   return Status::OK();
 }
 

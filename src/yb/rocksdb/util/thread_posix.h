@@ -99,7 +99,7 @@ class ThreadPool {
   std::atomic_uint queue_len_{0};  // Queue length. Used for stats reporting
   bool exit_all_threads_ = false;
   bool low_io_priority_ = false;
-  Env::Priority priority_;
+  Env::Priority priority_ = static_cast<Env::Priority>(0);
   Env* env_ = nullptr;
 
   void SetBackgroundThreadsInternal(int num, bool allow_reduce);

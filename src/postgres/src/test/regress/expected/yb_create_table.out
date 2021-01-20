@@ -426,7 +426,7 @@ CREATE TABLE tbl6 (
 	b			text,
 	primary key (b asc)
 ) SPLIT AT VALUES (('a'), (2, 'aba'), ('ac'));
-ERROR:  Split points cannot be more than the number of primary key columns
+ERROR:  Number of SPLIT values cannot be greater than number of SPLIT columns
 CREATE TABLE tbl7 (
 	a			int4,
 	primary key (a asc)
@@ -436,12 +436,11 @@ CREATE TABLE tbl8 (
 	a			text,
 	primary key (a asc)
 ) SPLIT AT VALUES ((100), (1000), (10000));
-ERROR:  Type mismatch in split point
 CREATE TABLE tbl9 (
 	a			int4,
 	primary key (a hash)
 ) SPLIT AT VALUES ((100), (1000), (10000));
-ERROR:  HASH columns cannot be used for split points
+ERROR:  Invalid argument: SPLIT AT option is not yet supported for hash partitioned tables
 CREATE TEMPORARY TABLE tbl10 (
 	a			int4 primary key
 ) SPLIT INTO 20 TABLETS;
@@ -467,7 +466,6 @@ CREATE TABLE tbl14 (
 	a			int4,
 	primary key (a asc)
 ) SPLIT AT VALUES ((MINVALUE), (0), (MAXVALUE));
-ERROR:  Split points must specify finite values
 CREATE TABLE tbl15 (
 	a			int4,
 	b			int4,
@@ -661,3 +659,50 @@ SELECT k FROM ordered_desc WHERE k > 10 and k < 40 ORDER BY k ASC;
  35
  36
 (8 rows)
+
+-- Test create ... with (table_oid = x)
+set yb_enable_create_with_table_oid=1;
+create table with_invalid_table_oid (a int) with (table_oid = 0);
+ERROR:  User tables must have an OID >= 16384.
+create table with_invalid_table_oid (a int) with (table_oid = -1);
+ERROR:  value -1 out of bounds for option "table_oid"
+DETAIL:  Valid values are between "16384" and "2147483647".
+create table with_invalid_table_oid (a int) with (table_oid = 123);
+ERROR:  User tables must have an OID >= 16384.
+create table with_invalid_table_oid (a int) with (table_oid = 'test');
+ERROR:  User tables must have an OID >= 16384.
+create table with_table_oid (a int) with (table_oid = 1234567);
+select relname, oid from pg_class where relname = 'with_table_oid';
+    relname     |   oid
+----------------+---------
+ with_table_oid | 1234567
+(1 row)
+
+create table with_table_oid_duplicate (a int) with (table_oid = 1234567);
+ERROR:  Oid 1234567 is in use.
+-- Test temp tables with (table_oid = x)
+begin;
+create temp table with_table_oid_temp (a int) with (table_oid = 1234568) on commit drop;
+select relname, oid from pg_class where relname = 'with_table_oid_temp';
+       relname       |   oid
+---------------------+---------
+ with_table_oid_temp | 1234568
+(1 row)
+
+end;
+-- Creating a new temp table with that oid will fail
+create temp table with_table_oid_temp_2 (a int) with (table_oid = 1234568);
+ERROR:  Oid 1234568 is in use.
+-- But creating a regular table with that oid should succeed
+create table with_table_oid_2 (a int) with (table_oid = 1234568);
+select relname, oid from pg_class where relname = 'with_table_oid_2';
+     relname      |   oid
+------------------+---------
+ with_table_oid_2 | 1234568
+(1 row)
+
+-- Test with session variable off
+set yb_enable_create_with_table_oid=0;
+create table with_table_oid_variable_false (a int) with (table_oid = 55555);
+ERROR:  Create table with oid is not allowed.
+HINT:  Try enabling the session variable yb_enable_create_with_table_oid.

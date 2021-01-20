@@ -56,7 +56,7 @@ public class PlacementInfo {
     public UUID uuid;
     // The AZ name.
     public String name;
-    // The number of copies of data we should place into this AZ.
+    // The minimum number of copies of data we should place into this AZ.
     public int replicationFactor;
     // The subnet in the AZ.
     public String subnet;

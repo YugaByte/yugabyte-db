@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.ImmutableList;
 import com.yugabyte.yw.cloud.PublicCloudConstants;
 import com.yugabyte.yw.commissioner.Common;
+import com.typesafe.config.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,6 +30,8 @@ public class InstanceType extends Model {
 
   public static List<String> AWS_INSTANCE_PREFIXES_SUPPORTED = ImmutableList.of(
     "m3.", "c5.", "c5d.", "c4.", "c3.", "i3.");
+  static final String YB_AWS_DEFAULT_VOLUME_COUNT_KEY = "yb.aws.default_volume_count";
+  static final String YB_AWS_DEFAULT_VOLUME_SIZE_GB_KEY = "yb.aws.default_volume_size_gb";
 
   public enum VolumeType {
     @EnumValue("EBS")
@@ -156,8 +159,8 @@ public class InstanceType extends Model {
   /**
    * Delete Instance Types corresponding to given provider
    */
-  public static void deleteInstanceTypesForProvider(Provider provider) {
-    for (InstanceType instanceType : findByProvider(provider)) {
+  public static void deleteInstanceTypesForProvider(Provider provider, Config config) {
+    for (InstanceType instanceType : findByProvider(provider, config)) {
       instanceType.delete();
     }
   }
@@ -166,23 +169,38 @@ public class InstanceType extends Model {
     return p -> supportedPrefixes.stream().anyMatch(prefix -> p.getInstanceTypeCode().startsWith(prefix));
   }
 
+  private static List<InstanceType> populateDefaultsIfEmpty(List<InstanceType> entries,
+                                                            Config config) {
+    // For AWS, we would filter and show only supported instance prefixes
+    entries = entries.stream()
+      .filter(supportedInstanceTypes(AWS_INSTANCE_PREFIXES_SUPPORTED))
+      .collect(Collectors.toList());
+    for (InstanceType instanceType : entries) {
+      instanceType.instanceTypeDetails =
+        Json.fromJson(Json.parse(instanceType.instanceTypeDetailsJson), InstanceTypeDetails.class);
+      if (instanceType.instanceTypeDetails.volumeDetailsList.isEmpty()) {
+        instanceType.instanceTypeDetails.setVolumeDetailsList(
+          config.getInt(YB_AWS_DEFAULT_VOLUME_COUNT_KEY),
+          config.getInt(YB_AWS_DEFAULT_VOLUME_SIZE_GB_KEY), VolumeType.EBS);
+      }
+    }
+    return entries;
+  }
+
   /**
    * Query Helper to find supported instance types for a given cloud provider.
    */
-  public static List<InstanceType> findByProvider(Provider provider) {
+  public static List<InstanceType> findByProvider(Provider provider, Config config) {
     List<InstanceType> entries = InstanceType.find.query().where()
       .eq("provider_code", provider.code)
       .eq("active", true)
       .findList();
     if (provider.code.equals("aws")) {
-      // For AWS, we would filter and show only supported instance prefixes
-      entries = entries.stream()
-        .filter(supportedInstanceTypes(AWS_INSTANCE_PREFIXES_SUPPORTED))
-        .collect(Collectors.toList());
+      return populateDefaultsIfEmpty(entries, config);
+    } else {
+      return entries.stream().map(entry -> InstanceType.get(entry.getProviderCode(),
+        entry.getInstanceTypeCode())).collect(Collectors.toList());
     }
-
-    return entries.stream().map(entry -> InstanceType.get(entry.getProviderCode(),
-      entry.getInstanceTypeCode())).collect(Collectors.toList());
   }
 
   public static InstanceType createWithMetadata(Provider provider, String instanceTypeCode,
@@ -251,6 +269,5 @@ public class InstanceType extends Model {
               volumeType);
       return instanceTypeDetails;
     }
-
   }
 }

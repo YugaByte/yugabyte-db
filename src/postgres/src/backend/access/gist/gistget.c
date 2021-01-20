@@ -699,7 +699,7 @@ gistgettuple(IndexScanDesc scan, ScanDirection dir)
 			}
 
 			/*
-			 * Check the last returned tuple and add it to killitems if
+			 * Check the last returned tuple and add it to killedItems if
 			 * necessary
 			 */
 			if (scan->kill_prior_tuple

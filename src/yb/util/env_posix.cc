@@ -1411,39 +1411,41 @@ class PosixEnv : public Env {
     return available_blocks * block_size;
   }
 
-  Status GetUlimit(int resource, int64_t* soft_limit, int64_t* hard_limit) override {
+  Result<ResourceLimits> GetUlimit(int resource) override {
     struct rlimit lim;
     if (getrlimit(resource, &lim) != 0) {
       return STATUS_IO_ERROR("getrlimit() failed", errno);
     }
-    if (soft_limit != NULL) *soft_limit = lim.rlim_cur;
-    if (hard_limit != NULL) *hard_limit = lim.rlim_max;
-    return Status::OK();
+    ResourceLimit soft(lim.rlim_cur);
+    ResourceLimit hard(lim.rlim_max);
+    ResourceLimits limits { soft, hard };
+    return limits;
   }
 
-  Status SetUlimit(int resource, int64_t value) override {
+  CHECKED_STATUS SetUlimit(int resource, ResourceLimit value) override {
     return SetUlimit(resource, value, strings::Substitute("resource no. $0", resource));
   }
 
-  Status SetUlimit(int resource, int64_t value, const std::string& resource_name) override {
-    int64_t soft_limit = 0, hard_limit = 0;
-    RETURN_NOT_OK(GetUlimit(resource, &soft_limit, &hard_limit));
-    if (soft_limit == value) {
+  CHECKED_STATUS SetUlimit(
+      int resource, ResourceLimit value, const std::string& resource_name) override {
+
+    auto limits = VERIFY_RESULT(GetUlimit(resource));
+    if (limits.soft == value) {
       return Status::OK();
     }
-    if (hard_limit != RLIM_INFINITY && hard_limit < value) {
+    if (limits.hard < value) {
       return STATUS_FORMAT(
         InvalidArgument,
         "Resource limit value $0 for resource $1 greater than hard limit $2",
-        value, resource, hard_limit);
+        value, resource, limits.hard.ToString());
     }
     struct rlimit lim;
-    lim.rlim_cur = value;
-    lim.rlim_max = hard_limit;
+    lim.rlim_cur = value.RawValue();
+    lim.rlim_max = limits.hard.RawValue();
     LOG(INFO)
         << "Modifying limit for " << resource_name
-        << " from " << soft_limit
-        << " to " << value;
+        << " from " << limits.soft.ToString()
+        << " to " << value.ToString();
     if (setrlimit(resource, &lim) != 0) {
       return STATUS(RuntimeError, "Unable to set rlimit", Errno(errno));
     }

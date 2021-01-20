@@ -11,7 +11,7 @@ export default class YBConfirmModal extends Component {
     onConfirm: PropTypes.func.isRequired,
     confirmLabel: PropTypes.string,
     cancelLabel: PropTypes.string
-  }
+  };
 
   static defaultProps = {
     confirmLabel: 'Confirm',
@@ -30,13 +30,16 @@ export default class YBConfirmModal extends Component {
     const { name, title, confirmLabel, cancelLabel, hideConfirmModal } = this.props;
     return (
       <div className={name} key={name}>
-        <YBModal title={title}
-                 visible={this.props.visibleModal === this.props.currentModal}
-                 onHide={hideConfirmModal}
-                 showCancelButton={true}
-                 cancelLabel={cancelLabel}
-                 submitLabel={confirmLabel}
-                 onFormSubmit={this.submitConfirmModal}>
+        <YBModal
+          title={title}
+          visible={this.props.visibleModal === this.props.currentModal}
+          onHide={hideConfirmModal}
+          showCancelButton={true}
+          cancelLabel={cancelLabel}
+          submitLabel={confirmLabel}
+          onFormSubmit={this.submitConfirmModal}
+          submitOnCarriage
+        >
           {this.props.children}
         </YBModal>
       </div>

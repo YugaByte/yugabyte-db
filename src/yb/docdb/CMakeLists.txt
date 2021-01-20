@@ -48,11 +48,6 @@ ADD_YB_LIBRARY(yb_docdb_encoding
         )
 
 include_directories(${YB_BUILD_ROOT}/postgres/include/server)
-link_directories(${YB_BUILD_ROOT}/postgres/lib)
-
-add_library(yb_pgbackend SHARED IMPORTED)
-set_target_properties(yb_pgbackend PROPERTIES IMPORTED_LOCATION "${YB_PGBACKEND_SHARED_LIB}")
-message("Added shared library dependency yb_pgbackend: ${YB_PGBACKEND_SHARED_LIB}")
 
 set(DOCDB_SRCS
         bounded_rocksdb_iterator.cc
@@ -70,6 +65,7 @@ set(DOCDB_SRCS
         docdb_compaction_filter_intents.cc
         docdb-internal.cc
         doc_reader.cc
+        doc_reader_redis.cc
         docdb_rocksdb_util.cc
         doc_expr.cc
         doc_pgsql_scanspec.cc
@@ -105,7 +101,8 @@ set(DOCDB_DEPS
 
 ADD_YB_LIBRARY(yb_docdb
         SRCS ${DOCDB_SRCS}
-        DEPS ${DOCDB_DEPS})
+        DEPS ${DOCDB_DEPS}
+        NONLINK_DEPS postgres)
 
 # Ensure protobuf headers we depend on are generated prior to building DocDB.
 add_dependencies(
@@ -116,11 +113,6 @@ add_dependencies(
         gen_src_yb_tablet_tablet_proto
         gen_src_yb_tserver_tserver_proto
 )
-
-add_dependencies(yb_docdb postgres)
-
-cotire(yb_docdb_encoding)
-cotire(yb_docdb)
 
 # A library with common code shared between DocDB tests.
 set(DOCDB_TEST_COMMON_SRCS

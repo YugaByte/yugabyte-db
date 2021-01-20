@@ -1,16 +1,16 @@
 /* Copyright (c) YugaByte, Inc. */
 
 .flex-cnt {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    justify-content: space-between;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: space-between;
 }
 .flex-grow {
-    flex-shrink: 0; 
-    flex-grow: 1; 
+  flex-shrink: 0;
+  flex-grow: 1;
 }
 .flex-shrink {
-    flex-shrink: 1; 
-    flex-grow: 0; 
+  flex-shrink: 1;
+  flex-grow: 0;
 }

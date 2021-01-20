@@ -1907,7 +1907,8 @@ coerceToInt(PgBenchValue *pval, int64 *ival)
 	{
 		double		dval = pval->u.dval;
 
-		if (dval < PG_INT64_MIN || PG_INT64_MAX < dval)
+		/* Cast to avoid -Wimplicit-int-float-conversion */
+		if (dval < (double) PG_INT64_MIN || (double) PG_INT64_MAX < dval)
 		{
 			ereport(ELEVEL_LOG_CLIENT_FAIL,
 					(errmsg("double to int overflow for %f\n", dval)));

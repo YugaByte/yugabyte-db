@@ -37,6 +37,7 @@ public class UpdateDiskSize extends UniverseDefinitionTaskBase {
   @Override
   public void run() {
     try {
+      checkUniverseVersion();
       // Create the task list sequence.
       subTaskGroupQueue = new SubTaskGroupQueue(userTaskUUID);
 

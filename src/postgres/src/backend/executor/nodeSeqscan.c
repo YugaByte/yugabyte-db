@@ -84,15 +84,14 @@ SeqNext(SeqScanState *node)
 	 * our scan tuple slot and return the slot.  Note: we pass 'false' because
 	 * tuples returned by heap_getnext() are pointers onto disk pages and were
 	 * not created with palloc() and so should not be pfree()'d.  Note also
-	 * that ExecStoreTuple will increment the refcount of the buffer; the
+	 * that ExecStoreHeapTuple will increment the refcount of the buffer; the
 	 * refcount will not be dropped until the tuple table slot is cleared.
 	 */
 	if (tuple)
-		ExecStoreTuple(tuple,	/* tuple to store */
-					   slot,	/* slot to store in */
-					   scandesc->rs_cbuf,	/* buffer associated with this
-											 * tuple */
-					   false);	/* don't pfree this pointer */
+		ExecStoreBufferHeapTuple(tuple,	/* tuple to store */
+								 slot,	/* slot to store in */
+								 scandesc->rs_cbuf);	/* buffer associated
+														 * with this tuple */
 	else
 		ExecClearTuple(slot);
 
@@ -179,9 +178,9 @@ ExecInitSeqScan(SeqScan *node, EState *estate, int eflags)
 						  RelationGetDescr(scanstate->ss.ss_currentRelation));
 
 	/*
-	 * Initialize result slot, type and projection.
+	 * Initialize result type and projection.
 	 */
-	ExecInitResultTupleSlotTL(estate, &scanstate->ss.ps);
+	ExecInitResultTypeTL(&scanstate->ss.ps);
 	ExecAssignScanProjectionInfo(&scanstate->ss);
 
 	/*
@@ -219,7 +218,8 @@ ExecEndSeqScan(SeqScanState *node)
 	/*
 	 * clean out the tuple table
 	 */
-	ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
+	if (node->ss.ps.ps_ResultTupleSlot)
+		ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
 	ExecClearTuple(node->ss.ss_ScanTupleSlot);
 
 	/*

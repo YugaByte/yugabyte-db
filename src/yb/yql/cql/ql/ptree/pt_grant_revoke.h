@@ -84,8 +84,8 @@ class PTGrantRevokeRole : public TreeNode {
 
  private:
   const GrantRevokeStatementType statement_type_;
-  const MCSharedPtr<MCString>  granted_role_name_;
-  const MCSharedPtr<MCString>  recipient_role_name_;
+  const MCSharedPtr<MCString> granted_role_name_;
+  const MCSharedPtr<MCString> recipient_role_name_;
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -182,7 +182,8 @@ class PTGrantRevokePermission : public TreeNode {
 
  protected:
   const GrantRevokeStatementType statement_type_;
-  PermissionType permission_;
+  // Just need an arbitrary default value here.
+  PermissionType permission_ = PermissionType::ALL_PERMISSION;
   const MCSharedPtr<MCString> permission_name_;
   // complete_resource_name_ is nullptr for ALL KEYSPACES and ALL ROLES.
   const PTQualifiedName::SharedPtr complete_resource_name_;

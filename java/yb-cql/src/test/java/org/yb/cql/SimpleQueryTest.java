@@ -333,6 +333,19 @@ public class SimpleQueryTest extends CQLTester
   }
 
   @Test
+  public void testIndexWithoutRangeKey() throws Throwable
+  {
+    createTable("CREATE TABLE %s (k int, t int, v int, PRIMARY KEY ((k, t))) "+
+                "WITH transactions = { 'enabled' : true };");
+    createIndex("CREATE INDEX %s ON %s((t));");
+    execute("INSERT INTO %s (k, t, v) values (?, ?, ?)", 1, 1, 1);
+    execute("INSERT INTO %s (k, t, v) values (?, ?, ?)", 1, 2, 3);
+    assertRows(execute("SELECT * FROM %s WHERE t = 1"),
+               row(1, 1, 1)
+               );
+  }
+
+  @Test
   public void test2ndaryIndexes() throws Throwable
   {
     createTable("CREATE TABLE %s (k text, t int, v text, PRIMARY KEY (k, t)) "+

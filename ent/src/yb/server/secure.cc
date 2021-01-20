@@ -22,7 +22,11 @@
 #include "yb/util/env.h"
 #include "yb/util/path_util.h"
 
-DEFINE_bool(use_node_to_node_encryption, false, "Use node to node encryption");
+DEFINE_bool(use_node_to_node_encryption, false, "Use node to node encryption.");
+
+DEFINE_bool(node_to_node_encryption_use_client_certificates, false,
+            "Should client certificates be sent and verified for encrypted node to node "
+            "communication.");
 
 DEFINE_string(certs_dir, "",
               "Directory that contains certificate authority, private key and certificates for "
@@ -35,6 +39,13 @@ DEFINE_string(certs_for_client_dir, "",
               "this server that should be used for client to server communications. "
               "When empty, the same dir as for server to server communications is used.");
 
+DEFINE_string(cert_node_filename, "",
+              "The file name that will be used in the names of the node "
+              "certificates and keys. These files will be named : "
+              "'node.{cert_node_filename}.{key|crt}'. "
+              "If this flag is not set, then --server_broadcast_addresses will be "
+              "used if it is set, and if not, --rpc_bind_addresses will be used.");
+
 namespace yb {
 namespace server {
 namespace {
@@ -43,11 +54,11 @@ string DefaultCertsDir(const string& root_dir) {
   return JoinPathSegments(root_dir, "certs");
 }
 
+} // namespace
+
 string DefaultRootDir(const FsManager& fs_manager) {
   return DirName(fs_manager.GetRaftGroupMetadataDir());
 }
-
-} // namespace
 
 string DefaultCertsDir(const FsManager& fs_manager) {
   return DefaultCertsDir(DefaultRootDir(fs_manager));
@@ -92,6 +103,11 @@ Result<std::unique_ptr<rpc::SecureContext>> SetupSecureContext(
   }
 
   auto context = VERIFY_RESULT(CreateSecureContext(dir, name));
+  if (type == SecureContextType::kServerToServer &&
+      FLAGS_node_to_node_encryption_use_client_certificates) {
+    context->set_require_client_certificate(true);
+    context->set_use_client_certificate(true);
+  }
   ApplySecureContext(context.get(), builder);
   return context;
 }

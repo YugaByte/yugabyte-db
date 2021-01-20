@@ -13,29 +13,37 @@
 
 set(PGWRAPPER_SRCS
     pg_wrapper.cc)
-
 set(PGWRAPPER_LIBS
-    yb_util
-    yb_pggate_flags)
-
+    yb_common
+    yb_pggate_flags
+    yb_util)
 ADD_YB_LIBRARY(yb_pgwrapper
                SRCS ${PGWRAPPER_SRCS}
                DEPS ${PGWRAPPER_LIBS})
 
-include_directories(${YB_BUILD_ROOT}/postgres/include)
-link_directories(${YB_BUILD_ROOT}/postgres/lib)
-
-add_library(
-    pg_wrapper_test_base
-    pg_mini_test_base.cc
-    pg_wrapper_test_base.cc
-    libpq_test_base.cc
+set(PQ_UTILS_SRCS
     libpq_utils.cc)
+set(PQ_UTILS_DEPS
+    pgsql_protocol_proto
+    pq
+    ql_protocol_proto
+    yb_common_proto
+    yb_pggate_flags)
+ADD_YB_LIBRARY(pq_utils
+               SRCS ${PQ_UTILS_SRCS}
+               DEPS ${PQ_UTILS_DEPS})
 
-# PostgresSQL needs to be fully built before we can use libpq.
-add_dependencies(pg_wrapper_test_base postgres)
+set(PG_WRAPPER_TEST_BASE_SRCS
+    libpq_test_base.cc
+    pg_mini_test_base.cc
+    pg_wrapper_test_base.cc)
+set(PG_WRAPPER_TEST_BASE_DEPS
+    pq_utils)
+ADD_YB_LIBRARY(pg_wrapper_test_base
+               SRCS ${PG_WRAPPER_TEST_BASE_SRCS}
+               DEPS ${PG_WRAPPER_TEST_BASE_DEPS})
 
-target_link_libraries(pg_wrapper_test_base pq gutil integration-tests yb_pggate_flags)
+target_link_libraries(pg_wrapper_test_base integration-tests)
 
 set(YB_TEST_LINK_LIBS yb_pgwrapper yb_client ql-dml-test-base pg_wrapper_test_base
    ${YB_MIN_TEST_LIBS})
@@ -54,10 +62,11 @@ set(CREATE_INITIAL_SYS_CATALOG_SNAPSHOT_TARGET_NAME ${LAST_ADDED_TEST_BINARY_NAM
 set(gen_initial_sys_catalog_snapshot_cmd
     "${BUILD_SUPPORT_DIR}/gen_initial_sys_catalog_snapshot_wrapper")
 
-if (YB_USE_TSAN)
-  # Don't build the initial sys catalog snapshot target automatically in TSAN.
+if ("${YB_BUILD_TYPE}" STREQUAL "tsan")
+  # Don't build the initial sys catalog snapshot target automatically in TSAN. But still create the
+  # target so it could be built explicitly.
   add_custom_target(
-    initial_sys_catalog_snapshot
+    initial_sys_catalog_snapshot  # Don't add "ALL" here.
     COMMAND ${gen_initial_sys_catalog_snapshot_cmd})
 else()
   add_custom_target(

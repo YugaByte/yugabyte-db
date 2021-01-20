@@ -1,6 +1,6 @@
 /* Copyright (c) YugaByte, Inc. */
-@import "../../../_style/colors.scss";
-@import "../../../_style/mixins.scss";
+@import '../../../_style/colors.scss';
+@import '../../../_style/mixins.scss';
 
 .form-action-button-container {
   position: absolute;
@@ -17,6 +17,18 @@
     margin: 0 6px;
     min-width: 120px !important;
   }
+}
+
+.onprem-node-instances__title {
+  margin-top: 20px;
+}
+
+.onprem-config__json {
+  background: $YB_CODE_BACKGROUND;
+  border: 1px solid $YB_GRAY;
+  border-radius: 7px;
+  padding: 0 15px;
+  margin: 15px 0;
 }
 
 .node-link-container {
@@ -78,19 +90,20 @@
   padding-left: 15px;
   padding-right: 15px;
   color: #444;
-  background-color: #DDD;
-  box-shadow: 0 0 5px -1px rgba(0,0,0,0.2);
+  background-color: #ddd;
+  box-shadow: 0 0 5px -1px rgba(0, 0, 0, 0.2);
   vertical-align: middle;
   @include transition(0.125s);
 
   &:hover {
-    background-color: hsl(0,0%,80%);
+    background-color: hsl(0, 0%, 80%);
     @include transition(0.35s);
   }
 }
 
 .config-section-header .buttons {
-  .btn, button {
+  .btn,
+  button {
     margin-left: 8px;
   }
 }
@@ -120,7 +133,46 @@
   color: $YB_ORANGE;
 }
 
-.pre-provision-message .yb-code-block {
-  margin-top: 5px;
-  margin-bottom: -5px;
+.UniverseHealthCheckList {
+  .header .row {
+    margin-right: 0px;
+    margin-left: 0px;
+  }
+
+  .pre-provision-message .yb-code-block {
+    margin-top: 5px;
+    margin-bottom: -5px;
+  }
+  .alert.pre-provision-message {
+    position: relative;
+    z-index: 980;
+    width: fit-content;
+    margin: 0 auto;
+    left: unset;
+
+    @media screen and (min-width: 1440px) {
+      position: absolute;
+      top: 10px;
+      width: 600px;
+      left: calc(50% - 300px);
+    }
+  }
+}
+
+.onprem-nodes-table.react-bs-table-container {
+  margin-top: 90px;
+
+  .form-group.react-bs-table-search-form {
+    margin-right: 50px;
+    margin-top: -72px;
+
+    .input-group-btn {
+      button.react-bs-table-search-clear-btn {
+        height: 42px;
+        padding: 5px 15px;
+        border-top-right-radius: 5px;
+        border-bottom-right-radius: 5px;
+      }
+    }
+  }
 }

@@ -575,10 +575,11 @@ TEST_F(DBBloomFilterTest, BloomFilterReverseCompatibility) {
 
 namespace {
 
-template <class TKeyTransformer>
 class TestFilterPolicy : public FilterPolicy {
  public:
-  explicit TestFilterPolicy(const std::string& name) : name_(name) {
+  explicit TestFilterPolicy(
+      const std::string& name, std::unique_ptr<KeyTransformer> key_transformer)
+      : name_(name), key_transformer_(std::move(key_transformer)) {
     wrapped_policy_.reset(rocksdb::NewFixedSizeFilterPolicy(
         FilterPolicy::kDefaultFixedSizeFilterBits,
         rocksdb::FilterPolicy::kDefaultFixedSizeFilterErrorRate, nullptr));
@@ -604,22 +605,41 @@ class TestFilterPolicy : public FilterPolicy {
 
   const char* Name() const override { return name_.c_str(); }
 
-  const KeyTransformer* GetKeyTransformer() const override { return &key_transformer_; }
+  const KeyTransformer* GetKeyTransformer() const override { return key_transformer_.get(); }
 
  private:
   std::string name_;
   std::unique_ptr<const rocksdb::FilterPolicy> wrapped_policy_;
-  TKeyTransformer key_transformer_;
+  std::unique_ptr<KeyTransformer> key_transformer_;
 };
 
-class KeyToEmptyTransformer : public FilterPolicy::KeyTransformer {
+class KeyToConstTransformer : public FilterPolicy::KeyTransformer {
  public:
-  Slice Transform(Slice key) const override { return Slice(); }
+  Slice Transform(Slice key) const override {
+    static const std::string kFilterKey("fixed-filter-key");
+    return kFilterKey;
+  }
 };
 
 class KeyIdentityTransformer : public FilterPolicy::KeyTransformer {
  public:
   Slice Transform(Slice key) const override { return key; }
+};
+
+class KeyIdentityAltEmptyTransformer : public FilterPolicy::KeyTransformer {
+ public:
+  explicit KeyIdentityAltEmptyTransformer(int parity) : parity_(parity) {}
+
+  Slice Transform(Slice key) const override {
+    if (!key.empty() && (*(key.end() - 1) & 1) == parity_) {
+      // Return empty filter key for key that ends with byte having parity of kParity.
+      return Slice();
+    }
+    return key;
+  }
+
+ private:
+  int parity_;
 };
 
 } // namespace
@@ -674,26 +694,84 @@ void DBBloomFilterTest::CheckOtherFilterPoliciesSupport(
 }
 
 TEST_F(DBBloomFilterTest, OtherFilterPoliciesSupport) {
-  FilterPolicyCreator emptyPolicyCreator = []{
-    return new TestFilterPolicy<KeyToEmptyTransformer>("EmptyFilterPolicy");
+  FilterPolicyCreator constPolicyCreator = [] {
+    return new TestFilterPolicy("ConstFilterPolicy", std::make_unique<KeyToConstTransformer>());
   };
-  FilterPolicyCreator identityPolicyCreator = []{
-    return new TestFilterPolicy<KeyIdentityTransformer>("IdentityFilterPolicy");
+  FilterPolicyCreator identityPolicyCreator = [] {
+    return new TestFilterPolicy("IdentityFilterPolicy", std::make_unique<KeyIdentityTransformer>());
   };
 
   constexpr auto kNumKeys = 1000;
   Options options = CurrentOptions();
 
   ASSERT_NO_FATALS(CheckOtherFilterPoliciesSupport(
-    &options, kNumKeys, emptyPolicyCreator, identityPolicyCreator, /* should_be_useful =*/ false));
-  // Bloom filter with empty key transformer is not useful.
+    &options, kNumKeys, constPolicyCreator, identityPolicyCreator, /* should_be_useful =*/ false));
+  // Bloom filter with const key transformer is not useful.
   ASSERT_EQ(TestGetTickerCount(options, BLOOM_FILTER_USEFUL), 0);
 
   DestroyAndReopen(options);
 
   ASSERT_NO_FATALS(CheckOtherFilterPoliciesSupport(
-    &options, kNumKeys, identityPolicyCreator, emptyPolicyCreator, /* should_be_useful =*/ true));
+    &options, kNumKeys, identityPolicyCreator, constPolicyCreator, /* should_be_useful =*/ true));
   ASSERT_GT(TestGetTickerCount(options, BLOOM_FILTER_USEFUL), 0);
+}
+
+TEST_F(DBBloomFilterTest, EmptyFilterKeys) {
+  constexpr auto kNumKeys = 100000;
+
+  // We alternate parity to check empty filter key both as last and first in the filter block.
+  for (int parity = 0; parity < 2; ++parity) {
+    LOG(INFO) << "KeyIdentityAltEmptyTransformer parity: " << parity;
+    Options options = CurrentOptions();
+    options.statistics = rocksdb::CreateDBStatistics();
+    BlockBasedTableOptions table_options;
+    table_options.filter_policy = std::make_unique<TestFilterPolicy>(
+        "KeyIdentityAltEmpty", std::make_unique<KeyIdentityAltEmptyTransformer>(parity));
+    options.table_factory.reset(NewBlockBasedTableFactory(table_options));
+
+    CreateAndReopenWithCF({"test"}, options);
+    const auto kColumnFamilyIndex = 1;
+
+    for (int i = 0; i < kNumKeys; i++) {
+      ASSERT_OK(Put(kColumnFamilyIndex, Key(i), Key(i)));
+    }
+    ASSERT_OK(Flush(kColumnFamilyIndex));
+    size_t num_2nd_file_keys = 0;
+    // Independently of parity we want 2nd SST file to have non-empty filter keys, so we
+    // compensate parity that all these keys are transformed to non-empty filter keys.
+    for (int i = parity ^ 1; i < kNumKeys; i += 100) {
+      ASSERT_OK(Put(1, Key(i), Key(i)));
+      num_2nd_file_keys++;
+    }
+    ASSERT_OK(Flush(kColumnFamilyIndex));
+
+    TablePropertiesCollection props_collection;
+    db_->GetPropertiesOfAllTables(handles_[kColumnFamilyIndex], &props_collection);
+    ASSERT_EQ(props_collection.size(), 2) << "We should have properties for 2 SST files";
+    const auto props = *props_collection.begin();
+    ASSERT_GE(props.second->num_filter_blocks, 2) << yb::Format(
+        "To test rolling over filter block we need at least 2 filter blocks, but got $0 for $1. "
+        "Increase kNumKeys in this test.",
+        props.second->num_filter_blocks, props.first);
+
+    for (int i = 0; i < kNumKeys; i++) {
+      ASSERT_EQ(Key(i), Get(1, Key(i)));
+    }
+
+    // We divide number of keys by 2 here, because half of keys in 1st file are transformed to empty
+    // by KeyIdentityAltEmpty and bloom filter is not checked for them. But for the 2nd file all
+    // keys are transformed into non-empty (because of their parity), so we don't need to divide
+    // num_2nd_file_keys.
+    ASSERT_EQ(
+        TestGetTickerCount(options, BLOOM_FILTER_CHECKED),
+        BloomFilterCheckedCount(kNumKeys / 2, num_2nd_file_keys));
+
+    ASSERT_GT(
+        TestGetTickerCount(options, BLOOM_FILTER_USEFUL),
+        BloomFilterUsefulLowerBound(kNumKeys / 2, num_2nd_file_keys));
+
+    DestroyAndReopen(options);
+  }
 }
 
 namespace {

@@ -105,8 +105,10 @@ public class CreateKubernetesUniverse extends KubernetesTaskBase {
       createSwamperTargetUpdateTask(false);
 
       // Create a simple redis table.
-      createTableTask(Common.TableType.REDIS_TABLE_TYPE, YBClient.REDIS_DEFAULT_TABLE_NAME, null)
-          .setSubTaskGroupType(SubTaskGroupType.ConfigureUniverse);
+      if (taskParams().getPrimaryCluster().userIntent.enableYEDIS) {
+        createTableTask(Common.TableType.REDIS_TABLE_TYPE, YBClient.REDIS_DEFAULT_TABLE_NAME, null)
+            .setSubTaskGroupType(SubTaskGroupType.ConfigureUniverse);
+      }
 
       // Marks the update of this universe as a success only if all the tasks before it succeeded.
       createMarkUniverseUpdateSuccessTasks()

@@ -51,7 +51,7 @@ Use the `CREATE EXTENSION` statement to load an extension into a database.
 
 ## Examples
 
-```postgresql
+```plpgsql
 CREATE SCHEMA myschema;
 CREATE EXTENSION pgcrypto WITH SCHEMA myschema VERSION '1.3';
 ```
@@ -60,7 +60,7 @@ CREATE EXTENSION pgcrypto WITH SCHEMA myschema VERSION '1.3';
 CREATE EXTENSION
 ```
 
-```postgresql
+```plpgsql
 CREATE EXTENSION IF NOT EXISTS earthdistance CASCADE;
 ```
 

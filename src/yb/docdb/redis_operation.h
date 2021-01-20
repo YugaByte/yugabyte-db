@@ -29,7 +29,7 @@ namespace docdb {
 // Redis value data with attached type of this value.
 // Used internally by RedisWriteOperation.
 struct RedisValue {
-  RedisDataType type;
+  RedisDataType type = static_cast<RedisDataType>(0);
   std::string value;
   Expiration exp;
   int64_t internal_index = 0;

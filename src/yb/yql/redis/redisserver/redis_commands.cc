@@ -630,8 +630,8 @@ class RenameData : public std::enable_shared_from_this<RenameData> {
     }
 
     auto table = data_.context()->table();
-    const std::string src_partition_start = table->FindPartitionStart(src_partition_key);
-    const std::string dest_partition_start = table->FindPartitionStart(dest_partition_key);
+    const std::string src_partition_start = *table->FindPartitionStart(src_partition_key);
+    const std::string dest_partition_start = *table->FindPartitionStart(dest_partition_key);
     if (src_partition_start == dest_partition_start) {
       num_tablets_.store(1, std::memory_order_release);
     } else {
@@ -881,7 +881,7 @@ class KeysProcessor : public std::enable_shared_from_this<KeysProcessor> {
  public:
   explicit KeysProcessor(const LocalCommandData& data)
       : data_(data),
-        partitions_(data.table()->GetPartitions()), sessions_(partitions_.size()),
+        partitions_(data.table()->GetPartitionsCopy()), sessions_(partitions_.size()),
         callbacks_(partitions_.size()) {
     resp_.set_code(RedisResponsePB::OK);
   }

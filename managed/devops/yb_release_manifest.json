@@ -5,10 +5,12 @@
     "configure-cluster-server.yml",
     "destroy-instance.yml",
     "python_requirements_frozen.txt",
+    "python3_requirements_frozen.txt",
     "yb_platform_virtualenv.tar.gz",
     "use_custom_ssh_port.yml",
     "yb-server-ctl.yml",
-    "yb-server-provision.yml"
+    "yb-server-provision.yml",
+    "test_connection.yml"
   ],
   "bin": [
     "bin/cluster_health.py",
@@ -23,7 +25,8 @@
     "bin/yb_bulk_load.py",
     "bin/yb_backup.py",
     "bin/yb_platform_backup.sh",
-    "bin/ybcloud.sh"
+    "bin/ybcloud.sh",
+    "bin/edit_universe_details.py"
   ],
   "filter_plugins": [
     "filter_plugins/*"
@@ -41,21 +44,10 @@
     "plugins/*"
   ],
   "roles": [
-    "roles/configure-cluster-server",
-    "roles/create_user",
-    "roles/destroy_instance",
-    "roles/install_mount_ephemeral_drives_script",
-    "roles/install_package",
-    "roles/mount_ephemeral_drives",
-    "roles/provision-cluster-server",
-    "roles/server_base",
-    "roles/swamper"
+    "roles/*"
   ],
   "third-party/roles": [
-    "third-party/roles/ansible-prometheus",
-    "third-party/roles/ansible-sshd",
-    "third-party/roles/ansible-chrony",
-    "third-party/roles/role-install-gcloud"
+    "third-party/roles/*"
   ],
   "vars": [
     "vars/placeholder.yml"

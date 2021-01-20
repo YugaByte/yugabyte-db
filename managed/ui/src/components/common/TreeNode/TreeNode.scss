@@ -1,10 +1,10 @@
 // Copyright (c) 2018 AppJudo Inc.  MIT License.
 
-@import "../../../_style/colors.scss";
+@import '../../../_style/colors.scss';
 
 .TreeNode {
   box-shadow: 0 1px 1px rgba(35, 35, 41, 0.05);
-  
+
   .TreeNode-header {
     cursor: pointer;
     padding: 0;

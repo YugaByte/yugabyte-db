@@ -56,9 +56,8 @@ Status FlushManager::FlushTables(const FlushTablesRequestPB* req,
       TRACE("Locking tablet");
       auto l = tablet->LockForRead();
 
-      TabletInfo::ReplicaMap locs;
-      tablet->GetReplicaLocations(&locs);
-      for (const TabletInfo::ReplicaMap::value_type& replica : locs) {
+      auto locs = tablet->GetReplicaLocations();
+      for (const TabletInfo::ReplicaMap::value_type& replica : *locs) {
         const TabletServerId ts_uuid = replica.second.ts_desc->permanent_uuid();
         ts_tablet_map[ts_uuid].push_back(tablet->id());
       }

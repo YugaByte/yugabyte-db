@@ -1,0 +1,14 @@
+@import '../../../../uikit/common';
+
+.assign-public-ip-field {
+  display: flex;
+  align-items: center;
+
+  &__toggle-on {
+    color: $YB_TEXT_2;
+  }
+
+  &__toggle-off {
+    color: $YB_CTA;
+  }
+}

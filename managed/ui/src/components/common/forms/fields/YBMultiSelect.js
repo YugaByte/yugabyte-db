@@ -34,7 +34,7 @@ export class YBNewMultiSelect extends Component {
     const { input, options, isMulti, isReadOnly, selectValChanged, ...otherProps } = this.props;
     const self = this;
     function onChange(val) {
-      val = isMulti ? val: val.slice(-1);
+      val = isMulti ? val : val.slice(-1);
       if (isFunction(self.props.input.onChange)) {
         self.props.input.onChange(val);
       }
@@ -46,22 +46,22 @@ export class YBNewMultiSelect extends Component {
     const customStyles = {
       option: (provided, state) => ({
         ...provided,
-        padding: 10,
+        padding: 10
       }),
       control: (provided) => ({
         // none of react-select's styles are passed to <Control />
 
         ...provided,
-        width: "auto",
-        borderColor: "#dedee0",
+        width: 'auto',
+        borderColor: '#dedee0',
         borderRadius: 7,
-        boxShadow: "inset 0 1px 1px rgba(0, 0, 0, .075)",
-        fontSize: "14px",
+        boxShadow: 'inset 0 1px 1px rgba(0, 0, 0, .075)',
+        fontSize: '14px',
         height: 42
       }),
       placeholder: (provided) => ({
         ...provided,
-        color: "#999999"
+        color: '#999999'
       }),
       container: (provided) => ({
         ...provided,
@@ -69,38 +69,39 @@ export class YBNewMultiSelect extends Component {
       }),
       dropdownIndicator: (provided) => ({
         ...provided,
-        cursor: "pointer"
+        cursor: 'pointer'
       }),
       clearIndicator: (provided) => ({
         ...provided,
-        cursor: "pointer",
+        cursor: 'pointer'
       }),
       singleValue: (provided, state) => {
         const opacity = state.isDisabled ? 0.5 : 1;
         const transition = 'opacity 300ms';
-    
+
         return { ...provided, opacity, transition };
       }
     };
 
     return (
-      <Select 
+      <Select
         className="Select"
-        styles={customStyles} 
-        {...input} 
-        options={options} 
-        disabled={isReadOnly} 
-        isMulti={true} 
+        styles={customStyles}
+        {...input}
+        options={options}
+        disabled={isReadOnly}
+        isMulti={true}
         onBlur={() => {}}
         onChange={onChange}
-        {...otherProps} />
+        {...otherProps}
+      />
     );
   }
 }
 
 export default class YBMultiSelectWithLabel extends Component {
   render() {
-    const { label, meta, ...otherProps} = this.props;
+    const { label, meta, ...otherProps } = this.props;
     return (
       <YBLabel label={label} meta={meta}>
         <YBNewMultiSelect {...otherProps} />

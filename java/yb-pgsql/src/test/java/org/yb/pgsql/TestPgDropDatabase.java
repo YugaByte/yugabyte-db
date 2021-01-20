@@ -17,7 +17,6 @@ import static org.yb.AssertionWrappers.*;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.List;
-import java.util.TreeMap;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -25,12 +24,9 @@ import org.postgresql.util.PSQLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.yb.client.AsyncYBClient;
 import org.yb.client.TestUtils;
-import org.yb.client.YBClient;
 import org.yb.pgsql.cleaners.ClusterCleaner;
 import org.yb.pgsql.cleaners.DatabaseCleaner;
-import org.yb.pgsql.cleaners.RoleCleaner;
 import org.yb.util.YBTestRunnerNonTsanOnly;
 
 import com.google.common.net.HostAndPort;
@@ -155,56 +151,55 @@ public class TestPgDropDatabase extends BasePgSQLTest {
 
   @Test
   public void testCreateDatabaseWithFailures() throws Exception {
-    String dbname = "basic_db";
+    String dbname = "basic_db_with_failures";
 
     // Toggle a GFLAG on the Master at runtime to cause periodic low-level IO failures.
-    try (AsyncYBClient client = new AsyncYBClient.AsyncYBClientBuilder(masterAddresses).build();
-        YBClient syncClient = new YBClient(client)) {
-      HostAndPort leaderMaster = syncClient.getLeaderMasterHostAndPort();
-      // Don't set to 100% to test a couple write locations in the control path.
-      setWriteRejection(leaderMaster, 50);
+    HostAndPort leaderMaster = miniCluster.getClient().getLeaderMasterHostAndPort();
+    // Don't set to 100% to test a couple write locations in the control path.
+    setWriteRejection(leaderMaster, 50);
 
-      // Try to create a database, expecting failures.
-      try (Connection connection0 = getConnectionBuilder().withTServer(0).connect()) {
-        int failures = 0;
-        int tries = 0;
-        do {
-          try (Statement statement0 = connection0.createStatement()) {
-            statement0.execute(String.format("CREATE DATABASE %s", dbname));
-          } catch (PSQLException ex) {
-            LOG.info("Expected error: " + ex.getMessage());
-            ++failures;
-          }
-          if (failures == 0) {
-            LOG.warn("No failure occurred (uncommon). Cleaning up for the next loop.");
-            setWriteRejection(leaderMaster, 0);
-            try (Statement statement0 = connection0.createStatement()) {
-              statement0.execute(String.format("DROP DATABASE %s", dbname));
-            }
-            setWriteRejection(leaderMaster, 100); // Guarantee failure on the next loop.
-          }
-        } while (Math.max(tries++, failures) == 0);
-        assertNotEquals(0, failures);
-
-        // Toggle a GFLAG on the Master at runtime to disable low-level IO failures.
-        setWriteRejection(leaderMaster, 0);
-
-        // Create the same database name. NOW expecting success.
-        failures = 0;
+    // Try to create a database, expecting failures.
+    try (Connection connection0 = getConnectionBuilder().withTServer(0).connect()) {
+      int failures = 0;
+      int tries = 0;
+      do {
         try (Statement statement0 = connection0.createStatement()) {
           statement0.execute(String.format("CREATE DATABASE %s", dbname));
         } catch (PSQLException ex) {
-          LOG.info("Unexpected error: " + ex.getMessage());
+          LOG.info("Expected error: " + ex.getMessage());
           ++failures;
         }
-        assertEquals(0, failures);
+        if (failures == 0) {
+          LOG.warn("No failure occurred (uncommon). Cleaning up for the next loop.");
+          setWriteRejection(leaderMaster, 0);
+          try (Statement statement0 = connection0.createStatement()) {
+            statement0.execute(String.format("DROP DATABASE %s", dbname));
+          }
+          setWriteRejection(leaderMaster, 100); // Guarantee failure on the next loop.
+        }
+      } while (Math.max(tries++, failures) == 0);
+      assertNotEquals(0, failures);
+
+      // Toggle a GFLAG on the Master at runtime to disable low-level IO failures.
+      setWriteRejection(leaderMaster, 0);
+
+      // Create the same database name. NOW expecting success.
+      failures = 0;
+      try (Statement statement0 = connection0.createStatement()) {
+        statement0.execute(String.format("CREATE DATABASE %s", dbname));
+      } catch (PSQLException ex) {
+        LOG.info("Unexpected error: " + ex.getMessage());
+        ++failures;
       }
+      assertEquals(0, failures);
+    } finally {
+      setWriteRejection(leaderMaster, 0);
     }
   }
 
   @Test
   public void testDropDatabaseNotFoundOnMaster() throws Exception {
-    String dbname = "basic_db";
+    String dbname = "basic_db_missing_on_master";
 
     // Create database.
     try (Connection connection0 = getConnectionBuilder().withTServer(0).connect();

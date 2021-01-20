@@ -608,6 +608,7 @@ void Reactor::DropWithRemoteAddress(const IpAddress& address) {
   DropIncomingWithRemoteAddress(address);
   DropOutgoingWithRemoteAddress(address);
 }
+
 void Reactor::DropIncomingWithRemoteAddress(const IpAddress& address) {
   DCHECK(IsCurrentThread());
 

@@ -21,13 +21,14 @@
 #include "yb/consensus/consensus.pb.h"
 #include "yb/consensus/consensus.proxy.h"
 #include "yb/gutil/strings/join.h"
-#include "yb/integration-tests/mini_cluster.h"
-#include "yb/integration-tests/external_mini_cluster.h"
 #include "yb/integration-tests/cluster_verifier.h"
+#include "yb/integration-tests/external_mini_cluster.h"
+#include "yb/integration-tests/load_balancer_test_util.h"
+#include "yb/integration-tests/mini_cluster.h"
 #include "yb/master/master.h"
+#include "yb/master/master.proxy.h"
 #include "yb/master/master-test-util.h"
 #include "yb/master/sys_catalog.h"
-#include "yb/master/master.proxy.h"
 #include "yb/rpc/messenger.h"
 #include "yb/rpc/rpc_controller.h"
 #include "yb/tools/yb-admin_client.h"
@@ -45,14 +46,7 @@ constexpr int kMovesPerTable = 1;
 // We need multiple tables in order to test load_balancer_max_concurrent_moves_per_table.
 class LoadBalancerMultiTableTest : public YBTableTestBase {
  protected:
-  void SetUp() override {
-    YBTableTestBase::SetUp();
-
-    yb_admin_client_ = std::make_unique<tools::enterprise::ClusterAdminClient>(
-        external_mini_cluster()->GetMasterAddresses(), kDefaultTimeout);
-
-    ASSERT_OK(yb_admin_client_->Init());
-  }
+  bool use_yb_admin_client() override { return true; }
 
   bool use_external_mini_cluster() override { return true; }
 
@@ -62,7 +56,7 @@ class LoadBalancerMultiTableTest : public YBTableTestBase {
   }
 
   int num_tablets() override {
-    return 8;
+    return 5;
   }
 
   client::YBTableName table_name() override {
@@ -77,6 +71,7 @@ class LoadBalancerMultiTableTest : public YBTableTestBase {
     opts->extra_master_flags.push_back("--load_balancer_max_concurrent_moves=10");
     opts->extra_master_flags.push_back("--load_balancer_max_concurrent_moves_per_table="
                                        + std::to_string(kMovesPerTable));
+    opts->extra_master_flags.push_back("--enable_global_load_balancing=true");
   }
 
   void CreateTables() {
@@ -118,37 +113,21 @@ class LoadBalancerMultiTableTest : public YBTableTestBase {
       table_exists_ = false;
     }
   }
-
-  Result<bool> AreLeadersOnPreferredOnly() {
-    master::AreLeadersOnPreferredOnlyRequestPB req;
-    master::AreLeadersOnPreferredOnlyResponsePB resp;
-    rpc::RpcController rpc;
-    rpc.set_timeout(kDefaultTimeout);
-    auto proxy = VERIFY_RESULT(GetMasterLeaderProxy());
-    RETURN_NOT_OK(proxy->AreLeadersOnPreferredOnly(req, &resp, &rpc));
-    return !resp.has_error();
-  }
-
-  Result<std::shared_ptr<master::MasterServiceProxy>> GetMasterLeaderProxy() {
-    int idx;
-    RETURN_NOT_OK(external_mini_cluster()->GetLeaderMasterIndex(&idx));
-    return external_mini_cluster()->master_proxy(idx);
-  }
-
-  std::unique_ptr<tools::enterprise::ClusterAdminClient> yb_admin_client_;
-  vector<client::YBTableName> table_names_;
 };
 
 TEST_F(LoadBalancerMultiTableTest, MultipleLeaderTabletMovesPerTable) {
   const int test_bg_task_wait_ms = 5000;
 
-  // Start with 3 tables each with 8 tablets on 3 servers.
+  // Start with 3 tables each with 5 tablets on 3 servers.
   ASSERT_OK(yb_admin_client_->ModifyPlacementInfo("c.r.z0,c.r.z1,c.r.z2", 3, ""));
 
   // Disable leader balancing.
   for (int i = 0; i < num_masters(); ++i) {
-    ASSERT_OK(external_mini_cluster_->SetFlag(external_mini_cluster_->master(i),
-                                              "load_balancer_max_concurrent_moves", "0"));
+    ASSERT_OK(external_mini_cluster_->SetFlag(
+      external_mini_cluster_->master(i), "load_balancer_max_concurrent_moves", "0"));
+    // Don't remove leaders to ensure that we still have a leader move for each table later on.
+    ASSERT_OK(external_mini_cluster_->SetFlag(
+      external_mini_cluster_->master(i), "load_balancer_skip_leader_as_remove_victim", "true"));
   }
 
   // Add new tserver.
@@ -161,14 +140,7 @@ TEST_F(LoadBalancerMultiTableTest, MultipleLeaderTabletMovesPerTable) {
       kDefaultTimeout));
 
   // Wait for load balancing to complete.
-  ASSERT_OK(WaitFor([&]() -> Result<bool> {
-    bool is_idle = VERIFY_RESULT(client_->IsLoadBalancerIdle());
-    return !is_idle;
-  },  kDefaultTimeout * 2, "IsLoadBalancerActive"));
-
-  ASSERT_OK(WaitFor([&]() -> Result<bool> {
-    return client_->IsLoadBalancerIdle();
-  },  kDefaultTimeout * 2, "IsLoadBalancerIdle"));
+  WaitForLoadBalanceCompletion();
 
   // Get current leader counts.
   unordered_map<string, unordered_map<string, int>> initial_leader_counts;
@@ -199,9 +171,147 @@ TEST_F(LoadBalancerMultiTableTest, MultipleLeaderTabletMovesPerTable) {
     }
   }
 
-  // Ensure that we moved one run's worth of leaders.
+  // Ensure that we moved one run's worth of leaders (should be one leader move per table).
   LOG(INFO) << "Moved " << num_leader_moves << " leaders in total.";
   ASSERT_EQ(num_leader_moves, kMovesPerTable * kNumTables);
+}
+
+TEST_F(LoadBalancerMultiTableTest, GlobalLoadBalancing) {
+  const int rf = 3;
+  std::vector<uint32_t> z0_tserver_loads;
+  // Start with 3 tables with 5 tablets.
+  ASSERT_OK(yb_admin_client_->ModifyPlacementInfo("c.r.z0,c.r.z1,c.r.z2", rf, ""));
+
+  // Disable global load balancing.
+  for (int i = 0; i < num_masters(); ++i) {
+    ASSERT_OK(external_mini_cluster_->SetFlag(external_mini_cluster_->master(i),
+                                              "enable_global_load_balancing", "false"));
+  }
+
+  //// Two tservers:
+  // Add a new tserver to c.r.z0.
+  // This zone will then have 15 tablets on the old ts and 0 on the new one.
+  std::vector<std::string> extra_opts;
+  extra_opts.push_back("--placement_cloud=c");
+  extra_opts.push_back("--placement_region=r");
+  extra_opts.push_back("--placement_zone=z0");
+  ASSERT_OK(external_mini_cluster()->AddTabletServer(true, extra_opts));
+  ASSERT_OK(external_mini_cluster()->WaitForTabletServerCount(num_tablet_servers() + 1,
+      kDefaultTimeout));
+
+  // Wait for load balancing to complete.
+  WaitForLoadBalanceCompletion();
+
+  // Zone 0 should have 9 tablets on the old ts and 6 on the new ts, since each table will be
+  // balanced with 3 tablets on the old ts and 2 on the new one. This results in each table having
+  // a balanced load, but that the global load is skewed.
+
+  // Assert that each table is balanced, but we are not globally balanced.
+  ASSERT_OK(client_->IsLoadBalanced(kNumTables * num_tablets() * rf));
+  z0_tserver_loads = ASSERT_RESULT(GetTserverLoads({ 0, 3 }));
+  ASSERT_FALSE(AreLoadsBalanced(z0_tserver_loads));
+
+  // Enable global load balancing.
+  for (int i = 0; i < num_masters(); ++i) {
+    ASSERT_OK(external_mini_cluster_->SetFlag(external_mini_cluster_->master(i),
+                                              "enable_global_load_balancing", "true"));
+  }
+
+  // Wait for load balancing to complete.
+  WaitForLoadBalanceCompletion();
+
+  // Assert that each table is balanced, and that we are now globally balanced.
+  ASSERT_OK(client_->IsLoadBalanced(kNumTables * num_tablets() * rf));
+  z0_tserver_loads = ASSERT_RESULT(GetTserverLoads({ 0, 3 }));
+  ASSERT_TRUE(AreLoadsBalanced(z0_tserver_loads));
+
+
+  //// Three tservers:
+  // Disable global load balancing.
+  for (int i = 0; i < num_masters(); ++i) {
+    ASSERT_OK(external_mini_cluster_->SetFlag(external_mini_cluster_->master(i),
+                                              "enable_global_load_balancing", "false"));
+  }
+
+  // Add in a third tserver to zone 0.
+  ASSERT_OK(external_mini_cluster()->AddTabletServer(true, extra_opts));
+  ASSERT_OK(external_mini_cluster()->WaitForTabletServerCount(num_tablet_servers() + 2,
+      kDefaultTimeout));
+
+  // Wait for load balancing to complete.
+  WaitForLoadBalanceCompletion();
+
+  // Load will not be evenly spread across these tservers, each table will be (2, 2, 1), leading to
+  // a global load of (6, 6, 3) in zone 0.
+
+  // Assert that each table is balanced, and that we are not globally balanced.
+  ASSERT_OK(client_->IsLoadBalanced(kNumTables * num_tablets() * rf));
+  z0_tserver_loads = ASSERT_RESULT(GetTserverLoads({ 0, 3, 4 }));
+  ASSERT_FALSE(AreLoadsBalanced(z0_tserver_loads));
+
+  // Enable global load balancing.
+  for (int i = 0; i < num_masters(); ++i) {
+    ASSERT_OK(external_mini_cluster_->SetFlag(external_mini_cluster_->master(i),
+                                              "enable_global_load_balancing", "true"));
+  }
+
+  // Wait for load balancing to complete.
+  WaitForLoadBalanceCompletion();
+
+  // Assert that each table is balanced, and that we are now globally balanced.
+  ASSERT_OK(client_->IsLoadBalanced(kNumTables * num_tablets() * rf));
+  z0_tserver_loads = ASSERT_RESULT(GetTserverLoads({ 0, 3, 4 }));
+  ASSERT_TRUE(AreLoadsBalanced(z0_tserver_loads));
+  // Each node should have exactly 5 tablets on it.
+  ASSERT_EQ(z0_tserver_loads[0], 5);
+  ASSERT_EQ(z0_tserver_loads[1], 5);
+  ASSERT_EQ(z0_tserver_loads[2], 5);
+}
+
+TEST_F(LoadBalancerMultiTableTest, GlobalLoadBalancingWithBlacklist) {
+  const int rf = 3;
+  std::vector<uint32_t> z0_tserver_loads;
+  // Start with 3 tables with 5 tablets.
+  ASSERT_OK(yb_admin_client_->ModifyPlacementInfo("c.r.z0,c.r.z1,c.r.z2", rf, ""));
+
+  // Add two tservers to z0 and wait for everything to be balanced (globally and per table).
+  std::vector<std::string> extra_opts;
+  extra_opts.push_back("--placement_cloud=c");
+  extra_opts.push_back("--placement_region=r");
+  extra_opts.push_back("--placement_zone=z0");
+  ASSERT_OK(external_mini_cluster()->AddTabletServer(true, extra_opts));
+  ASSERT_OK(external_mini_cluster()->AddTabletServer(true, extra_opts));
+  ASSERT_OK(external_mini_cluster()->WaitForTabletServerCount(num_tablet_servers() + 2,
+      kDefaultTimeout));
+
+  // Wait for load balancing to complete.
+  WaitForLoadBalanceCompletion();
+
+  // Assert that each table is balanced, and that we are globally balanced.
+  ASSERT_OK(client_->IsLoadBalanced(kNumTables * num_tablets() * rf));
+  z0_tserver_loads = ASSERT_RESULT(GetTserverLoads({ 0, 3, 4 }));
+  ASSERT_TRUE(AreLoadsBalanced(z0_tserver_loads));
+  // Each node should have exactly 5 tablets on it.
+  ASSERT_EQ(z0_tserver_loads[0], 5);
+  ASSERT_EQ(z0_tserver_loads[1], 5);
+  ASSERT_EQ(z0_tserver_loads[2], 5);
+
+  // Blacklist one tserver in z0.
+  ASSERT_OK(external_mini_cluster()->AddTServerToBlacklist(
+      external_mini_cluster()->master(),
+      external_mini_cluster()->tablet_server(0)));
+
+  // Wait for load balancing to complete.
+  WaitForLoadBalanceCompletion();
+
+  // Assert that the blacklisted tserver has no load.
+  z0_tserver_loads = ASSERT_RESULT(GetTserverLoads({ 0 }));
+  ASSERT_EQ(z0_tserver_loads[0], 0);
+
+  // Assert that each table is balanced, and that we are globally balanced amongst the other nodes.
+  ASSERT_OK(client_->IsLoadBalanced(kNumTables * num_tablets() * rf));
+  z0_tserver_loads = ASSERT_RESULT(GetTserverLoads({ 3, 4 }));
+  ASSERT_TRUE(AreLoadsBalanced(z0_tserver_loads));
 }
 
 } // namespace integration_tests

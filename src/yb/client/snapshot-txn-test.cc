@@ -37,12 +37,14 @@
 using namespace std::literals;
 
 DECLARE_bool(ycql_consistent_transactional_paging);
+DECLARE_bool(fail_on_out_of_range_clock_skew);
 DECLARE_uint64(max_clock_skew_usec);
 DECLARE_int32(TEST_inject_load_transaction_delay_ms);
 DECLARE_int32(TEST_inject_status_resolver_delay_ms);
 DECLARE_int32(log_min_seconds_to_retain);
 DECLARE_int32(txn_max_apply_batch_records);
 DECLARE_uint64(max_transactions_in_status_request);
+DECLARE_bool(TEST_disallow_lmp_failures);
 
 namespace yb {
 namespace client {
@@ -50,7 +52,8 @@ namespace client {
 YB_DEFINE_ENUM(BankAccountsOption, (kTimeStrobe)(kStepDown)(kTimeJump));
 typedef EnumBitSet<BankAccountsOption> BankAccountsOptions;
 
-class SnapshotTxnTest : public TransactionCustomLogSegmentSizeTest<0, TransactionTestBase> {
+class SnapshotTxnTest
+    : public TransactionCustomLogSegmentSizeTest<0, TransactionTestBase<MiniCluster>> {
  protected:
   void SetUp() override {
     SetIsolationLevel(IsolationLevel::SNAPSHOT_ISOLATION);
@@ -161,6 +164,7 @@ std::thread RandomClockSkewWalkThread(MiniCluster* cluster, std::atomic<bool>* s
 
         time_deltas[i] += change;
         time_deltas[i] = std::max(std::min(time_deltas[i], upperbound), lowerbound);
+        LOG(INFO) << "Set delta " << i << ": " << time_deltas[i].count();
         skewed_clock->SetDelta(time_deltas[i]);
 
         std::this_thread::sleep_for(100ms);
@@ -292,16 +296,21 @@ void SnapshotTxnTest::TestBankAccounts(BankAccountsOptions options, CoarseDurati
 }
 
 TEST_F(SnapshotTxnTest, BankAccounts) {
+  FLAGS_TEST_disallow_lmp_failures = true;
   TestBankAccounts({}, 30s, RegularBuildVsSanitizers(10, 1) /* minimal_updates_per_second */);
 }
 
 TEST_F(SnapshotTxnTest, BankAccountsWithTimeStrobe) {
+  FLAGS_fail_on_out_of_range_clock_skew = false;
+
   TestBankAccounts(
       BankAccountsOptions{BankAccountsOption::kTimeStrobe}, 300s,
       RegularBuildVsSanitizers(10, 1) /* minimal_updates_per_second */);
 }
 
 TEST_F(SnapshotTxnTest, BankAccountsWithTimeJump) {
+  FLAGS_fail_on_out_of_range_clock_skew = false;
+
   TestBankAccounts(
       BankAccountsOptions{BankAccountsOption::kTimeJump, BankAccountsOption::kStepDown}, 30s,
       RegularBuildVsSanitizers(3, 1) /* minimal_updates_per_second */);
@@ -543,7 +552,7 @@ TEST_F(SnapshotTxnTest, HotRow) {
     auto txn = ASSERT_RESULT(pool.TakeAndInit(GetIsolationLevel()));
     session->SetTransaction(txn);
 
-    ASSERT_OK(Increment(&table_, session, kKey));
+    ASSERT_OK(kv_table_test::Increment(&table_, session, kKey));
     ASSERT_OK(session->FlushFuture().get());
     ASSERT_OK(txn->CommitFuture().get());
     if (i % kBlockSize == 0) {
@@ -589,6 +598,7 @@ bool IntermittentTxnFailure(const Status& status) {
     "Transaction expired"s,
     "Transaction metadata missing"s,
     "Unknown transaction, could be recently aborted"s,
+    "Transaction was recently aborted"s,
   };
   auto msg = status.ToString();
   for (const auto& allowed : kAllowedMessages) {
@@ -643,7 +653,7 @@ void SnapshotTxnTest::TestMultiWriteWithRestart() {
           if (j > 1) {
             std::this_thread::sleep_for(100ms);
           }
-          auto write_result = WriteRow(&table_, session, k, j);
+          auto write_result = WriteRow(session, k, j);
           if (!write_result.ok()) {
             ASSERT_TRUE(IntermittentTxnFailure(write_result.status())) << write_result.status();
             good = false;
@@ -685,10 +695,14 @@ void SnapshotTxnTest::TestMultiWriteWithRestart() {
         op = ReadRow(session, key->value);
         auto flush_result = session->Flush();
         if (flush_result.ok()) {
-          break;
+          if (op->succeeded()) {
+            break;
+          }
+          if (op->response().error_message().find("timed out after") == std::string::npos) {
+            ASSERT_TRUE(op->succeeded()) << "Read failed: " << op->response().ShortDebugString();
+          }
         }
       }
-      ASSERT_TRUE(op->succeeded()) << "Read failed: " << op->response().ShortDebugString();
       auto rowblock = yb::ql::RowsResult(op.get()).GetRowBlock();
       ASSERT_EQ(rowblock->row_count(), 1);
       const auto& first_column = rowblock->row(0).column(0);

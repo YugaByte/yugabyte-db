@@ -3165,7 +3165,7 @@ DisplayXidCache(void)
 
 
 /* ----------------------------------------------
- *		KnownAssignedTransactions sub-module
+ *		KnownAssignedTransactionIds sub-module
  * ----------------------------------------------
  */
 

@@ -48,8 +48,8 @@ static bool parse_tables(
     const std::string& text,
     std::vector<QualifiedTable>* tables) {
   auto raw_tables = yb::StringSplit(text, ';');
-  std::remove_if(raw_tables.begin(), raw_tables.end(),
-      [](const std::string& s) { return s.length() == 0; });
+  raw_tables.erase(std::remove_if(raw_tables.begin(), raw_tables.end(),
+      [](const std::string& s) { return s.length() == 0; }), raw_tables.end());
 
   for (const auto& raw : raw_tables) {
     auto table_pair = yb::StringSplit(raw, '.');
@@ -99,6 +99,9 @@ const char* SYSTEM_QUERIES[] = {
   "SELECT * FROM system.peers",
   "SELECT peer, rpc_address, schema_version FROM system.peers",
   "SELECT peer, data_center, rack, release_version, rpc_address FROM system.peers",
+  "SELECT peer, data_center, rack, release_version, rpc_address, tokens FROM system.peers",
+  "SELECT data_center, rack, release_version FROM system.local WHERE key='local'",
+  "SELECT data_center, rack, release_version, partitioner, tokens FROM system.local WHERE key='local'",
   "SELECT keyspace_name, table_name, start_key, end_key, replica_addresses FROM system.partitions",
 
   "SELECT * FROM system.local WHERE key='local'",
@@ -213,7 +216,7 @@ void SystemQueryCache::RefreshCache() {
         LOG(INFO) << "Skipping empty result for statement: " << query;
       }
     } else {
-      LOG(WARNING) << "Could not execute statement: " << query;
+      LOG(WARNING) << "Could not execute statement: " << query << "; status: " << status.ToString();
       // We don't want to update the cache with no data; instead we'll let the
       // stale cache persist.
       ScheduleRefreshCache(false /* now */);

@@ -423,7 +423,7 @@ expand_targetlist(List *tlist, int command_type,
 						}
 						break;
 					}
-					/* FALLTHROUGH */
+					switch_fallthrough();
 				default:
 					elog(ERROR, "unrecognized command_type: %d",
 						 (int) command_type);

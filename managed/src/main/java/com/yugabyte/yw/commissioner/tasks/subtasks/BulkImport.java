@@ -12,6 +12,7 @@ package com.yugabyte.yw.commissioner.tasks.subtasks;
 
 import com.yugabyte.yw.commissioner.AbstractTaskBase;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.common.TableManager;
 import com.yugabyte.yw.forms.BulkImportParams;
 import com.yugabyte.yw.forms.ITaskParams;
@@ -40,6 +41,6 @@ public class BulkImport extends AbstractTaskBase {
   @Override
   public void run() {
     // Execute the ansible command and log its result.
-    logShellResponse(tableManager.bulkImport(taskParams()));
+    processShellResponse(tableManager.bulkImport(taskParams()));
   }
 }

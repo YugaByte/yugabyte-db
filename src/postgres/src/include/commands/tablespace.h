@@ -42,6 +42,13 @@ typedef struct TableSpaceOpts
 	int			effective_io_concurrency;
 } TableSpaceOpts;
 
+typedef struct YBTableSpaceOpts
+{
+	int32   vl_len_;    /* varlena header (do not touch directly!) */
+	int    placement_offset;
+} YBTableSpaceOpts;
+
+extern void validatePlacementConfiguration(const char *value);
 extern Oid	CreateTableSpace(CreateTableSpaceStmt *stmt);
 extern void DropTableSpace(DropTableSpaceStmt *stmt);
 extern ObjectAddress RenameTableSpace(const char *oldname, const char *newname);

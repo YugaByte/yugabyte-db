@@ -2,7 +2,8 @@
   "universe": {
     "import": "disabled",
     "create": "disabled",
-    "defaultYSQL": "enabled"
+    "defaultYSQL": "enabled",
+    "defaultYEDIS": "disabled"
   },
   "config": {
     "infra": "hidden",
@@ -35,6 +36,7 @@
         "editGFlags": "disabled",
         "readReplica": "disabled",
         "manageEncryption": "disabled",
+        "restartUniverse": "disabled",
         "metricsInterval": 15000,
         "editUniverse": "hidden",
         "deleteUniverse": "disabled"

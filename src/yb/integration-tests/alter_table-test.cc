@@ -889,7 +889,7 @@ TEST_P(AlterTableTest, TestInsertAfterAlterTable) {
   Status s = session->Flush();
   if (!s.ok()) {
     ASSERT_EQ(1, session->CountPendingErrors());
-    client::CollectedErrors errors = session->GetPendingErrors();
+    client::CollectedErrors errors = session->GetAndClearPendingErrors();
     ASSERT_EQ(1, errors.size());
     ASSERT_OK(errors[0]->status()); // will fail
   }

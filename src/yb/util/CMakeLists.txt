@@ -165,7 +165,9 @@ set(UTIL_SRCS
   encrypted_file.cc
   encrypted_file_factory.cc
   encryption_util.cc
-  env.cc env_posix.cc env_util.cc
+  env.cc
+  env_posix.cc
+  env_util.cc
   errno.cc
   ev_util.cc
   failure_detector.cc
@@ -212,7 +214,7 @@ set(UTIL_SRCS
   path_util.cc
   pb_util-internal.cc
   pb_util.cc
-  pg_connstr.cc
+  pg_util.cc
   physical_time.cc
   port_picker.cc
   priority_thread_pool.cc
@@ -248,6 +250,7 @@ set(UTIL_SRCS
   timestamp.cc
   trace.cc
   trilean.cc
+  ulimit.cc
   ulimit_util.cc
   universe_key_manager.cc
   url-coding.cc
@@ -256,7 +259,6 @@ set(UTIL_SRCS
   varint.cc
   version_info.cc
   async_util.cc
-  ${UTIL_SRCS_EXTENSIONS}
   )
 
 set(UTIL_LIBS
@@ -278,8 +280,7 @@ set(UTIL_LIBS
   encryption_proto
   zlib
   ${OPENSSL_CRYPTO_LIBRARY}
-  ${OPENSSL_SSL_LIBRARY}
-  ${UTIL_LIBS_EXTENSIONS})
+  ${OPENSSL_SSL_LIBRARY})
 
 if (NOT APPLE AND NOT USING_LINUXBREW)
   set(UTIL_LIBS ${UTIL_LIBS} atomic)
@@ -292,8 +293,11 @@ if(NOT APPLE)
     libbacktrace)
 endif()
 
-if(${YB_TCMALLOC_AVAILABLE})
+if("${YB_TCMALLOC_ENABLED}" STREQUAL "1")
+  message("Adding tcmalloc as a dependency of yb_util")
   list(APPEND UTIL_LIBS tcmalloc)
+else()
+  message("Not adding tcmalloc as a dependency of yb_util")
 endif()
 
 # We need libdl for accessing library load addresses.
@@ -302,8 +306,6 @@ list(APPEND UTIL_LIBS curl dl)
 ADD_YB_LIBRARY(yb_util
   SRCS ${UTIL_SRCS}
   DEPS ${UTIL_LIBS})
-
-cotire(yb_util)
 
 add_dependencies(yb_util gen_version_info)
 
@@ -368,6 +370,7 @@ ADD_YB_TEST(hdr_histogram-test)
 ADD_YB_TEST(inline_slice-test)
 ADD_YB_TEST(jsonreader-test)
 ADD_YB_TEST(lockfree-test)
+ADD_YB_TEST(lru_cache-test)
 ADD_YB_TEST(map-util-test)
 ADD_YB_TEST(memcmpable_varint-test LABELS no_tsan)
 ADD_YB_TEST(memenv/memenv-test)
@@ -399,7 +402,7 @@ ADD_YB_TEST(rolling_log-test)
 ADD_YB_TEST(rw_mutex-test)
 ADD_YB_TEST(rw_semaphore-test)
 ADD_YB_TEST(rwc_lock-test)
-if (NOT YB_USE_UBSAN)
+if (NOT "${YB_BUILD_TYPE}" STREQUAL "asan")
   # We disable this test when Undefined Behavior Sanitizer turned on (which is enabled in ASAN
   # builds). This test involves some integer overflows.
   ADD_YB_TEST(safe_math-test)

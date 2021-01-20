@@ -92,7 +92,7 @@ const std::string kValueColumn = "v";
 
 }
 
-class QLStressTest : public QLDmlTestBase {
+class QLStressTest : public QLDmlTestBase<MiniCluster> {
  public:
   QLStressTest() {
   }
@@ -388,7 +388,7 @@ void QLStressTest::TestRetryWrites(bool restarts) {
   }
 
   size_t total_entries = 0;
-  size_t expected_leaders = table_.table()->GetPartitions().size();
+  size_t expected_leaders = table_.table()->GetPartitionCount();
   ASSERT_OK(WaitFor(
       std::bind(&QLStressTest::CheckRetryableRequestsCountsAndLeaders, this,
                 expected_leaders, &total_entries),
@@ -573,9 +573,9 @@ TEST_F_EX(QLStressTest, ShortTimeLeaderDoesNotReplicateNoOp, QLStressTestSingleT
   // Give new leader some time to request lease.
   // TODO wait for specific event.
   std::this_thread::sleep_for(3s);
-  auto temp_leader_safe_time = temp_leader->tablet()->SafeTime(tablet::RequireLease::kTrue);
+  auto temp_leader_safe_time = ASSERT_RESULT(
+      temp_leader->tablet()->SafeTime(tablet::RequireLease::kTrue));
   LOG(INFO) << "Safe time: " << temp_leader_safe_time;
-  ASSERT_FALSE(temp_leader_safe_time.is_valid());
 
   LOG(INFO) << "Transferring leadership from " << temp_leader->permanent_uuid()
             << " back to " << old_leader->permanent_uuid();
@@ -680,6 +680,8 @@ TEST_F_EX(QLStressTest, OldLeaderCatchUpAfterNetworkPartition, QLStressTestSingl
 
     AddWriter("value_", &key, &thread_holder);
 
+    std::this_thread::sleep_for(5s * yb::kTimeMultiplier);
+
     tserver::MiniTabletServer* leader = nullptr;
     for (int i = 0; i != cluster_->num_tablet_servers(); ++i) {
       auto current = cluster_->mini_tablet_server(i);
@@ -694,21 +696,19 @@ TEST_F_EX(QLStressTest, OldLeaderCatchUpAfterNetworkPartition, QLStressTestSingl
 
     ASSERT_NE(leader, nullptr);
 
-    std::this_thread::sleep_for(5s * yb::kTimeMultiplier);
-
     auto pre_isolate_op_id = leader_peer->GetLatestLogEntryOpId();
     LOG(INFO) << "Isolate, last op id: " << pre_isolate_op_id << ", key: " << key;
-    ASSERT_EQ(pre_isolate_op_id.term, 1);
+    ASSERT_GE(pre_isolate_op_id.term, 1);
     ASSERT_GT(pre_isolate_op_id.index, key);
-    leader->SetIsolated(true);
+    leader->Isolate();
     std::this_thread::sleep_for(10s * yb::kTimeMultiplier);
 
     auto pre_restore_op_id = leader_peer->GetLatestLogEntryOpId();
     LOG(INFO) << "Restore, last op id: " << pre_restore_op_id << ", key: " << key;
-    ASSERT_EQ(pre_restore_op_id.term, 1);
+    ASSERT_EQ(pre_restore_op_id.term, pre_isolate_op_id.term);
     ASSERT_GE(pre_restore_op_id.index, pre_isolate_op_id.index);
     ASSERT_LE(pre_restore_op_id.index, pre_isolate_op_id.index + 10);
-    leader->SetIsolated(false);
+    ASSERT_OK(leader->Reconnect());
 
     thread_holder.WaitAndStop(5s * yb::kTimeMultiplier);
   }
@@ -811,7 +811,7 @@ void QLStressTest::AddWriter(
 }
 
 void QLStressTest::TestWriteRejection() {
-  constexpr int kWriters = 10;
+  constexpr int kWriters = IsDebug() ? 10 : 20;
   constexpr int kKeyBase = 10000;
 
   std::array<std::atomic<int>, kWriters> keys;
@@ -884,6 +884,8 @@ void QLStressTest::TestWriteRejection() {
       break;
     }
   }
+
+  thread_holder.Stop();
 
   ASSERT_OK(WaitFor([cluster = cluster_.get()] {
     auto peers = ListTabletPeers(cluster, ListPeersFilter::kAll);

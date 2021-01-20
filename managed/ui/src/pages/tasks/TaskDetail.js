@@ -7,7 +7,7 @@ export default class TaskDetail extends Component {
   render() {
     return (
       <div>
-        <TaskDetailContainer/>
+        <TaskDetailContainer />
       </div>
     );
   }

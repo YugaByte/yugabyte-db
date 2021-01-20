@@ -59,7 +59,7 @@ If `DO` is executed in a transaction block, then the procedure code cannot execu
 
 ## Examples
 
-```postgresql
+```plpgsql
 DO $$DECLARE r record;
 BEGIN
     FOR r IN SELECT table_schema, table_name FROM information_schema.tables

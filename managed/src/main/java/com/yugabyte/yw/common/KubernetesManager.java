@@ -28,14 +28,14 @@ public class KubernetesManager {
   private static String SERVICE_INFO_JSONPATH="{.spec.clusterIP}|" +
       "{.status.*.ingress[0].ip}|{.status.*.ingress[0].hostname}";
 
-  public ShellProcessHandler.ShellResponse createNamespace(Map<String, String> config,
+  public ShellResponse createNamespace(Map<String, String> config,
                                                            String universePrefix) {
     List<String> commandList = ImmutableList.of("kubectl",  "create",
         "namespace", universePrefix);
     return execCommand(config, commandList);
   }
 
-  public ShellProcessHandler.ShellResponse applySecret(Map<String, String> config,
+  public ShellResponse applySecret(Map<String, String> config,
                                                        String universePrefix, String pullSecret) {
     List<String> commandList = ImmutableList.of("kubectl",  "create",
         "-f", pullSecret, "--namespace", universePrefix);
@@ -50,7 +50,7 @@ public class KubernetesManager {
     return String.valueOf(timeout) + "s";
   }
 
-  public ShellProcessHandler.ShellResponse helmInstall(Map<String, String> config,
+  public ShellResponse helmInstall(Map<String, String> config,
                                                        UUID providerUUID, String universePrefix,
                                                        String overridesFile) {
     String helmPackagePath = appConfig.getString("yb.helm.package");
@@ -66,14 +66,14 @@ public class KubernetesManager {
     return execCommand(config, commandList);
   }
 
-  public ShellProcessHandler.ShellResponse getPodInfos(Map<String, String> config,
+  public ShellResponse getPodInfos(Map<String, String> config,
                                                        String universePrefix) {
     List<String> commandList = ImmutableList.of("kubectl",  "get", "pods", "--namespace",
         universePrefix, "-o", "json", "-l", "release=" + universePrefix);
     return execCommand(config, commandList);
   }
 
-  public ShellProcessHandler.ShellResponse getServices(Map<String, String> config,
+  public ShellResponse getServices(Map<String, String> config,
                                                        String universePrefix) {
     List<String> commandList = ImmutableList.of("kubectl",  "get", "services", "--namespace",
         universePrefix, "-o", "json", "-l", "release=" + universePrefix);
@@ -81,14 +81,14 @@ public class KubernetesManager {
     return execCommand(config, commandList);
   }
 
-  public ShellProcessHandler.ShellResponse getPodStatus(Map<String, String> config,
+  public ShellResponse getPodStatus(Map<String, String> config,
                                                         String universePrefix, String podName) {
     List<String> commandList = ImmutableList.of("kubectl",  "get", "pod", "--namespace",
         universePrefix, "-o", "json", podName);
     return execCommand(config, commandList);
   }
 
-  public ShellProcessHandler.ShellResponse getServiceIPs(Map<String, String> config,
+  public ShellResponse getServiceIPs(Map<String, String> config,
                                                          String universePrefix, boolean isMaster) {
     String serviceName = isMaster ? "yb-master-service" : "yb-tserver-service";
     List<String> commandList = ImmutableList.of("kubectl",  "get", "svc", serviceName,
@@ -96,7 +96,7 @@ public class KubernetesManager {
     return execCommand(config, commandList);
   }
 
-  public ShellProcessHandler.ShellResponse helmUpgrade(Map<String, String> config,
+  public ShellResponse helmUpgrade(Map<String, String> config,
                                                        String universePrefix,
                                                        String overridesFile) {
     String helmPackagePath = appConfig.getString("yb.helm.package");
@@ -104,19 +104,20 @@ public class KubernetesManager {
       throw new RuntimeException("Helm Package path not provided.");
     }
     List<String> commandList = ImmutableList.of("helm",  "upgrade",  universePrefix,
-        helmPackagePath, "-f", overridesFile, "--namespace", universePrefix);
+        helmPackagePath, "-f", overridesFile, "--namespace", universePrefix,
+        "--timeout", getTimeout(), "--wait");
     LOG.info(String.join(" ", commandList));
     return execCommand(config, commandList);
   }
 
-  public ShellProcessHandler.ShellResponse updateNumNodes(Map<String, String> config,
+  public ShellResponse updateNumNodes(Map<String, String> config,
                                                           String universePrefix, int numNodes) {
     List<String> commandList = ImmutableList.of("kubectl",  "--namespace", universePrefix, "scale",
         "statefulset", "yb-tserver", "--replicas=" + numNodes);
     return execCommand(config, commandList);
   }
 
-  public ShellProcessHandler.ShellResponse helmDelete(Map<String, String> config,
+  public ShellResponse helmDelete(Map<String, String> config,
                                                       String universePrefix) {
     List<String> commandList = ImmutableList.of("helm",  "delete", universePrefix,
         "-n", universePrefix);
@@ -142,8 +143,9 @@ public class KubernetesManager {
     execCommand(config, masterCommandList);
   }
 
-  private ShellProcessHandler.ShellResponse execCommand(Map<String, String> config,
+  private ShellResponse execCommand(Map<String, String> config,
                                                         List<String> command) {
-    return shellProcessHandler.run(command, config);
+    String description = String.join(" ", command);
+    return shellProcessHandler.run(command, config, description);
   }
 }

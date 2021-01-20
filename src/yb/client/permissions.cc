@@ -116,6 +116,7 @@ void PermissionsCache::ScheduleGetPermissionsFromMaster(bool now) {
 
 void PermissionsCache::UpdateRolesPermissions(const GetPermissionsResponsePB& resp) {
   auto new_roles_permissions_map = std::make_shared<RolesPermissionsMap>();
+  auto new_roles_auth_info_map = std::make_shared<RolesAuthInfoMap>();
 
   // Populate the cache.
   // Get all the roles in the response. They should have at least one piece of information:
@@ -125,6 +126,14 @@ void PermissionsCache::UpdateRolesPermissions(const GetPermissionsResponsePB& re
                                                      RolePermissions(role_permissions));
     LOG_IF(DFATAL, !result.second) << "Error inserting permissions for role "
                                    << role_permissions.role();
+
+    RoleAuthInfo role_auth_info;
+    role_auth_info.salted_hash = role_permissions.salted_hash();
+    role_auth_info.can_login = role_permissions.can_login();
+    auto result2 = new_roles_auth_info_map->emplace(role_permissions.role(),
+                                                    std::move(role_auth_info));
+    LOG_IF(DFATAL, !result2.second) << "Error inserting authentication info for role "
+                                   << role_permissions.role();
   }
 
   {
@@ -132,6 +141,8 @@ void PermissionsCache::UpdateRolesPermissions(const GetPermissionsResponsePB& re
     // It's possible that another thread already updated the cache with a more recent version.
     if (version_ < resp.version()) {
       std::atomic_store_explicit(&roles_permissions_map_, std::move(new_roles_permissions_map),
+          std::memory_order_release);
+      std::atomic_store_explicit(&roles_auth_info_map_, std::move(new_roles_auth_info_map),
           std::memory_order_release);
       // Set the permissions cache's version.
       version_ = resp.version();
@@ -160,6 +171,28 @@ void PermissionsCache::GetPermissionsFromMaster() {
     // users to specify the max staleness that they are willing to tolerate.
     // For now it's safe to ignore the error since we always check
   }
+}
+
+Result<std::string> PermissionsCache::salted_hash(const RoleName& role_name) {
+  std::shared_ptr<RolesAuthInfoMap> roles_auth_info_map;
+  roles_auth_info_map = std::atomic_load_explicit(&roles_auth_info_map_,
+    std::memory_order_acquire);
+  auto it = roles_auth_info_map->find(role_name);
+  if (it == roles_auth_info_map->end()) {
+    return STATUS(NotFound, "Role not found");
+  }
+  return it->second.salted_hash;
+}
+
+Result<bool> PermissionsCache::can_login(const RoleName& role_name) {
+  std::shared_ptr<RolesAuthInfoMap> roles_auth_info_map;
+  roles_auth_info_map = std::atomic_load_explicit(&roles_auth_info_map_,
+    std::memory_order_acquire);
+  auto it = roles_auth_info_map->find(role_name);
+  if (it == roles_auth_info_map->end()) {
+    return STATUS(NotFound, "Role not found");
+  }
+  return it->second.can_login;
 }
 
 bool PermissionsCache::HasCanonicalResourcePermission(const std::string& canonical_resource,

@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 import com.yugabyte.yw.commissioner.tasks.UniverseTaskBase;
 import com.yugabyte.yw.common.DnsManager;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.forms.ITaskParams;
 import com.yugabyte.yw.forms.UniverseTaskParams;
 import com.yugabyte.yw.models.Universe;
@@ -58,16 +59,19 @@ public class ManipulateDnsRecordTask extends UniverseTaskBase {
           .map(nd -> nd.cloudInfo.private_ip)
           .collect(Collectors.joining(","));
       // Create the process to fetch information about the node from the cloud provider.
-      ShellProcessHandler.ShellResponse response = dnsManager.manipulateDnsRecord(
+      ShellResponse response = dnsManager.manipulateDnsRecord(
           taskParams().type,
           taskParams().providerUUID,
           taskParams().hostedZoneId,
           taskParams().domainNamePrefix,
           nodeIpCsv);
-      logShellResponse(response);
+      processShellResponse(response);
     } catch (Exception e) {
       if (taskParams().type != DnsManager.DnsCommandType.Delete || !taskParams().isForceDelete) {
         throw e;
+      } else {
+        LOG.info("Ignoring error in dns record deletion for {} due to isForceDelete being set.",
+                taskParams().domainNamePrefix, e);
       }
     }
   }

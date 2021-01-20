@@ -15,3 +15,18 @@
   tasks:
     - name: Call the ctl script with appropriate args
       shell: "{{ script_to_run }} {{ process }} {{ command }}"
+      when: process != "thirdparty"
+
+- name: Stopping thirdparty services
+  hosts: "{{ instance_search_pattern }}"
+  vars_files:
+    - "{{ vars_file | default(placeholder_vars_file) }}"
+  tasks:
+    - name: Stop node exporter service
+      service:
+        enabled: no
+        name: node_exporter
+        state: stopped
+      become: yes
+      become_method: sudo
+      when: process == "thirdparty"

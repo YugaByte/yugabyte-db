@@ -2,7 +2,12 @@
 
 import { connect } from 'react-redux';
 import { Importer } from '../importer';
-import { importUniverse, importUniverseResponse, importUniverseReset, importUniverseInit } from '../../actions/universe';
+import {
+  importUniverse,
+  importUniverseResponse,
+  importUniverseReset,
+  importUniverseInit
+} from '../../actions/universe';
 
 const mapDispatchToProps = (dispatch) => {
   return {
@@ -18,11 +23,10 @@ const mapDispatchToProps = (dispatch) => {
   };
 };
 
-
 function mapStateToProps(state) {
   return {
     universeImport: state.universe.universeImport,
-    customer: state.customer,
+    customer: state.customer
   };
 }
 

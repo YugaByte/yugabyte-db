@@ -7,12 +7,12 @@ import { getLogs, getLogsSuccess, getLogsFailure } from '../../actions/customers
 
 const mapDispatchToProps = (dispatch) => {
   return {
-    getLogs : () => {
+    getLogs: () => {
       return dispatch(getLogs()).then((response) => {
         if (response.payload.status !== 200) {
           dispatch(getLogsFailure(response.payload));
           const payload = response.payload;
-          const error  = payload.data ? payload.data.error : payload;
+          const error = payload.data ? payload.data.error : payload;
           console.error(error);
         } else {
           dispatch(getLogsSuccess(response.payload));
@@ -39,6 +39,5 @@ const getYugawareLogs = reduxForm({
   fields: [],
   validate
 });
-
 
 export default connect(mapStateToProps, mapDispatchToProps)(getYugawareLogs(YugawareLogs));

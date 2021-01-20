@@ -33,7 +33,7 @@ const std::vector<std::string> kAllColumns = {"k", "c1", "c2", "c3", "c4"};
 
 }
 
-class QLDmlTTLTest : public QLDmlTestBase {
+class QLDmlTTLTest : public QLDmlTestBase<MiniCluster> {
  public:
   void SetUp() override {
     QLDmlTestBase::SetUp();

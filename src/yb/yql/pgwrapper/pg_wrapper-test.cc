@@ -138,7 +138,7 @@ TEST_F(PgWrapperTestAuth, YB_DISABLE_TEST_IN_TSAN(TestConnectionAuth)) {
   ));
 }
 
-TEST_F(PgWrapperTestSecure, YB_DISABLE_TEST_IN_TSAN(TestConnectionTSL)) {
+TEST_F(PgWrapperTestSecure, YB_DISABLE_TEST_IN_TSAN(TestConnectionTLS)) {
   ASSERT_NO_FATALS(RunPsqlCommand(
       "SELECT clientdn FROM pg_stat_ssl WHERE ssl=true",
       R"#(

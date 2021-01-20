@@ -1,0 +1,10 @@
+# src/test/regress/yb_feature_partition_serial_schedule
+#
+####################################################################################################
+# YB Feature Partition Testsuite: Used for reporting supported and unsupported features.
+#   This testsuite does some basic check for partitioning features.
+####################################################################################################
+test: yb_feature_hash_types
+test: yb_feature_range_types
+test: yb_feature_pk_split
+test: yb_feature_pk_split_desc

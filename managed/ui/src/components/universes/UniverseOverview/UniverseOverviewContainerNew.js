@@ -7,14 +7,14 @@ import { openDialog, closeDialog } from '../../../actions/modal';
 const mapDispatchToProps = (dispatch) => {
   return {
     showUniverseOverviewMapModal: () => {
-      dispatch(openDialog("universeOverviewMapModal"));
+      dispatch(openDialog('universeOverviewMapModal'));
     },
     showDemoCommandModal: () => {
-      dispatch(openDialog("universeOverviewDemoModal"));
+      dispatch(openDialog('universeOverviewDemoModal'));
     },
     closeModal: () => {
       dispatch(closeDialog());
-    },
+    }
   };
 };
 

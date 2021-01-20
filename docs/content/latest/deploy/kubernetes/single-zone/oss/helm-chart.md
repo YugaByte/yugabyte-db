@@ -143,6 +143,16 @@ resource.tserver.requests.cpu=0.5,resource.tserver.requests.memory=0.5Gi,\
 enableLoadBalancer=False --namespace yb-demo
 ```
 
+{{< note title="Important" >}}
+
+On some environments like macOS, minikube may run inside a virtual machine. Make sure to configure the vm with at least 4 cpus and 5GB memory so 
+the cluster has room to startup. Example command:
+```
+minikube start --cpus 4 --memory 5120
+```
+
+{{< /note >}}
+
 ## Check the cluster status
 
 You can check the status of the cluster using various commands noted below.

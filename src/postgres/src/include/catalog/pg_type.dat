@@ -457,6 +457,12 @@
   typinput => 'jsonb_in', typoutput => 'jsonb_out', typreceive => 'jsonb_recv',
   typsend => 'jsonb_send', typalign => 'i', typstorage => 'x' },
 
+{ oid =>  '8003', array_type_oid => '8004', descr => 'JSON path',
+  typname => 'jsonpath', typlen => '-1', typbyval => 'f', typcategory => 'U',
+  typinput => 'jsonpath_in',
+  typoutput => 'jsonpath_out', typreceive => 'jsonpath_recv', typsend => 'jsonpath_send',
+  typalign => 'i', typstorage => 'x' },
+
 { oid => '2970', array_type_oid => '2949', descr => 'txid snapshot',
   typname => 'txid_snapshot', typlen => '-1', typbyval => 'f',
   typcategory => 'U', typinput => 'txid_snapshot_in',

@@ -68,25 +68,25 @@ Specify a `SELECT` or `VALUES` statement that will provide the columns and rows 
 
 Create a sample table.
 
-```postgresql
+```plpgsql
 CREATE TABLE sample(k1 int, k2 int, v1 int, v2 text, PRIMARY KEY (k1, k2));
 ```
 
 Insert some rows.
 
-```postgresql
+```plpgsql
 INSERT INTO sample(k1, k2, v1, v2) VALUES (1, 2.0, 3, 'a'), (2, 3.0, 4, 'b'), (3, 4.0, 5, 'c');
 ```
 
 Create a view on the `sample` table.
 
-```postgresql
+```plpgsql
 CREATE VIEW sample_view AS SELECT * FROM sample WHERE v2 != 'b' ORDER BY k1 DESC;
 ```
 
 Select from the view.
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT * FROM sample_view;
 ```
 

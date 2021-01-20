@@ -127,7 +127,7 @@ Type "help" for help.
 yugabyte=#
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT count(*) FROM users;
 ```
 
@@ -138,7 +138,7 @@ yugabyte=# SELECT count(*) FROM users;
 (1 row)
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT count(*) FROM products;
 ```
 
@@ -149,7 +149,7 @@ yugabyte=# SELECT count(*) FROM products;
 (1 row)
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT count(*) FROM orders;
 ```
 

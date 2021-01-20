@@ -1,0 +1,36 @@
+@import '../../../../uikit/common';
+
+.cloud-config {
+  @include wizard-step-form();
+  @include wizard-form-section-title();
+  @include wizard-form-row();
+  @include wizard-form-text-label();
+  @include wizard-form-footer();
+
+  &__line {
+    border-top: 1px solid $YB_BORDER_1;
+    width: 100%;
+    margin-left: 20px;
+    margin-right: 20px;
+  }
+
+  &__reset {
+    color: $YB_CTA;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 400;
+    user-select: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  &__label--right {
+    text-align: right;
+  }
+
+  &__number-input {
+    width: 120px;
+  }
+}

@@ -63,6 +63,7 @@ DEFINE_int32(num_election_test_loops, 3,
              "Number of random EmulateElection() loops to execute in "
              "TestReportNewLeaderOnLeaderChange");
 DECLARE_bool(enable_ysql);
+DECLARE_bool(use_create_table_leader_hint);
 
 namespace yb {
 namespace tserver {
@@ -134,6 +135,7 @@ TEST_F(TsTabletManagerITest, TestReportNewLeaderOnLeaderChange) {
   // EmulateElection() with a distributed consensus configuration.
   FLAGS_enable_leader_failure_detection = false;
   FLAGS_catalog_manager_wait_for_new_tablets_to_elect_leader = false;
+  FLAGS_use_create_table_leader_hint = false;
 
   // Run a few more iters in slow-test mode.
   OverrideFlagForSlowTests("num_election_test_loops", "10");
@@ -201,7 +203,7 @@ TEST_F(TsTabletManagerITest, TestReportNewLeaderOnLeaderChange) {
 
       // Ensure that our tablet reports are consistent.
       TabletReportPB report;
-      tablet_manager->GenerateIncrementalTabletReport(&report);
+      tablet_manager->GenerateTabletReport(&report);
       ASSERT_EQ(1, report.updated_tablets_size()) << "Wrong report size:\n" << report.DebugString();
       ReportedTabletPB reported_tablet = report.updated_tablets(0);
       ASSERT_TRUE(reported_tablet.has_committed_consensus_state());

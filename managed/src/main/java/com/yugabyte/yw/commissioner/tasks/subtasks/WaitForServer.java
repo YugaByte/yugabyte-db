@@ -16,19 +16,13 @@ import org.yb.client.YBClient;
 
 import com.google.common.net.HostAndPort;
 import com.yugabyte.yw.commissioner.tasks.params.ServerSubTaskParams;
-import com.yugabyte.yw.commissioner.tasks.subtasks.ServerSubTaskBase;
-
-import play.api.Play;
 
 public class WaitForServer extends ServerSubTaskBase {
   public static final Logger LOG = LoggerFactory.getLogger(WaitForServer.class);
 
-  // Timeout for failing to respond to pings.
-  private static final long TIMEOUT_SERVER_WAIT_MS = 120000;
-
   public static class Params extends ServerSubTaskParams {
     // Timeout for the RPC call.
-    public long serverWaitTimeoutMs = TIMEOUT_SERVER_WAIT_MS;
+    public long serverWaitTimeoutMs;
   }
 
   @Override
@@ -41,8 +35,9 @@ public class WaitForServer extends ServerSubTaskBase {
 
     checkParams();
 
-    boolean ret = false;
+    boolean ret;
     YBClient client = null;
+    long startMs = System.currentTimeMillis();
     try {
       HostAndPort hp = getHostPort();
       client = getClient();
@@ -57,5 +52,10 @@ public class WaitForServer extends ServerSubTaskBase {
     if (!ret) {
       throw new RuntimeException(getName() + " did not respond to pings in the set time.");
     }
+    LOG.info(
+      "Server {} responded to RPC calls in {} ms",
+      (taskParams().nodeName != null) ? taskParams().nodeName : "unknown",
+      (System.currentTimeMillis() - startMs)
+    );
   }
 }

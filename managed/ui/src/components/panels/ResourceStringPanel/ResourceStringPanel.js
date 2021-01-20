@@ -9,10 +9,16 @@ import { isNonEmptyArray, isNonEmptyObject } from '../../../utils/ObjectUtils';
 export default class ResourceStringPanel extends Component {
   static propTypes = {
     type: PropTypes.oneOf(['primary', 'read-replica']).isRequired
-  }
+  };
 
   render() {
-    const { type, universeInfo: {universeDetails: {clusters}}, providers } = this.props;
+    const {
+      type,
+      universeInfo: {
+        universeDetails: { clusters }
+      },
+      providers
+    } = this.props;
     let cluster = null;
     if (type === 'primary') {
       cluster = getPrimaryCluster(clusters);
@@ -23,18 +29,18 @@ export default class ResourceStringPanel extends Component {
     let provider = null;
     if (isNonEmptyObject(userIntent) && isNonEmptyArray(providers.data)) {
       if (userIntent.provider) {
-        provider = providers.data.find(item => item.uuid === userIntent.provider);
+        provider = providers.data.find((item) => item.uuid === userIntent.provider);
       } else {
-        provider = providers.data.find(item => item.code === userIntent.providerType);
+        provider = providers.data.find((item) => item.code === userIntent.providerType);
       }
     }
-    const regionList = cluster.regions && cluster.regions.map((region) => region.name).join(", ");
+    const regionList = cluster.regions && cluster.regions.map((region) => region.name).join(', ');
     const connectStringPanelItems = [
-      {name: "Provider", data: provider && provider.name},
-      {name: "Regions", data: regionList},
-      {name: "Instance Type", data: userIntent && userIntent.instanceType},
-      {name: "Replication Factor", data: userIntent.replicationFactor},
-      {name: "SSH Key", data: userIntent.accessKeyCode}
+      { name: 'Provider', data: provider && provider.name },
+      { name: 'Regions', data: regionList },
+      { name: 'Instance Type', data: userIntent && userIntent.instanceType },
+      { name: 'Replication Factor', data: userIntent.replicationFactor },
+      { name: 'SSH Key', data: userIntent.accessKeyCode }
     ];
     return <DescriptionList listItems={connectStringPanelItems} />;
   }

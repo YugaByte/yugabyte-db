@@ -11,15 +11,14 @@ class AuthenticatedComponent extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      prevPath: "",
-      fetchScheduled: false,
+      prevPath: '',
+      fetchScheduled: false
     };
   }
 
   getChildContext() {
-    return {prevPath: this.state.prevPath};
+    return { prevPath: this.state.prevPath };
   }
-
 
   componentDidMount() {
     this.props.fetchSoftwareVersions();
@@ -40,9 +39,14 @@ class AuthenticatedComponent extends Component {
     this.props.resetUniverseList();
   }
 
-  hasPendingCustomerTasks = taskList => {
-    return isNonEmptyArray(taskList) ? taskList.some((task) => ((task.status === "Running" ||
-    task.status === "Initializing") && (Number(task.percentComplete) !== 100))) : false;
+  hasPendingCustomerTasks = (taskList) => {
+    return isNonEmptyArray(taskList)
+      ? taskList.some(
+        (task) =>
+          (task.status === 'Running' || task.status === 'Initializing') &&
+          Number(task.percentComplete) !== 100
+      )
+      : false;
   };
 
   componentDidUpdate(prevProps) {
@@ -52,11 +56,14 @@ class AuthenticatedComponent extends Component {
       this.props.fetchUniverseList();
       this.props.getSupportedRegionList();
     }
-    if (prevProps.fetchUniverseMetadata !== this.props.fetchUniverseMetadata && this.props.fetchUniverseMetadata) {
+    if (
+      prevProps.fetchUniverseMetadata !== this.props.fetchUniverseMetadata &&
+      this.props.fetchUniverseMetadata
+    ) {
       this.props.fetchUniverseList();
     }
     if (prevProps.location !== this.props.location) {
-      this.setState({prevPath: prevProps.location.pathname});
+      this.setState({ prevPath: prevProps.location.pathname });
     }
     // Check if there are pending customer tasks and no existing recursive fetch calls
     if (this.hasPendingCustomerTasks(tasks.customerTaskList) && !this.state.fetchScheduled) {
@@ -72,7 +79,7 @@ class AuthenticatedComponent extends Component {
 
       // Check if there are still customer tasks in progress or if list is empty
       if (!self.hasPendingCustomerTasks(taskList) && isNonEmptyArray(taskList)) {
-        self.setState({fetchScheduled: false});
+        self.setState({ fetchScheduled: false });
       } else {
         self.props.fetchCustomerTasks().then(() => {
           setTimeout(queryTasks, 6000);
@@ -80,14 +87,18 @@ class AuthenticatedComponent extends Component {
       }
     }
     queryTasks();
-    this.setState({fetchScheduled: true});
+    this.setState({ fetchScheduled: true });
   };
 
   render() {
     const { currentCustomer } = this.props;
-    const sidebarHidden = getPromiseState(currentCustomer).isSuccess() && isHidden(currentCustomer.data.features, "menu.sidebar");
+    const sidebarHidden =
+      getPromiseState(currentCustomer).isSuccess() &&
+      isHidden(currentCustomer.data.features, 'menu.sidebar');
     return (
-      <div className={sidebarHidden ? 'full-height-container sidebar-hidden' : 'full-height-container'}>
+      <div
+        className={sidebarHidden ? 'full-height-container sidebar-hidden' : 'full-height-container'}
+      >
         {this.props.children}
       </div>
     );

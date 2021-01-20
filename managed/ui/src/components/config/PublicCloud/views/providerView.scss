@@ -1,41 +1,40 @@
 .create-provider-label-text {
-    font-size: 26px;
-    font-weight: 500;
+  font-size: 26px;
+  font-weight: 500;
 }
 
 .zone-header-container {
-    padding-left: 15px;
-    padding-right: 15px;
+  padding-left: 15px;
+  padding-right: 15px;
 
-    .create-zone-header {
-        font-size: 11px;
-        font-weight: 500;
-    }
+  .create-zone-header {
+    font-size: 11px;
+    font-weight: 500;
+  }
 }
 
 .input-feedback {
-    color: #a94442;
-    margin-bottom: 1rem;
+  color: #a94442;
+  margin-bottom: 1rem;
 }
 
 .add-zone-row {
-    padding: 10px;
+  padding: 10px;
 
-    .add-zone-col {
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    .zone-label {
-        margin-left: 5px;
-    }
-    
-    .zone-storage {
-        margin-left: 10px;
-    }
+  .add-zone-col {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-    .zone-config-file {
-        margin-left: 17px;
-    }
+  .zone-label {
+    margin-left: 5px;
+  }
+
+  .zone-storage {
+    margin-left: 10px;
+  }
+
+  .zone-config-file {
+    margin-left: 17px;
+  }
 }
-

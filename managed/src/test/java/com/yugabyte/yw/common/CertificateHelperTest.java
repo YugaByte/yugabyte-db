@@ -157,9 +157,10 @@ public class CertificateHelperTest extends FakeDBApplication{
     cal.add(Calendar.YEAR, 1);
     Date certExpiry = cal.getTime();
     UUID rootCA = null;
+    CertificateInfo.Type type = CertificateInfo.Type.SelfSigned;
     try {
       rootCA = CertificateHelper.uploadRootCA("test", c.uuid, "/tmp", "test_cert", "test_key",
-          certStart, certExpiry);
+          certStart, certExpiry, type, null);
     } catch (Exception e) {
       fail(e.getMessage());
     }

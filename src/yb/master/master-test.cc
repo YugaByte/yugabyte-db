@@ -52,6 +52,7 @@
 #include "yb/rpc/messenger.h"
 #include "yb/server/rpc_server.h"
 #include "yb/server/server_base.proxy.h"
+#include "yb/util/capabilities.h"
 #include "yb/util/jsonreader.h"
 #include "yb/util/random_util.h"
 #include "yb/util/status.h"
@@ -217,6 +218,7 @@ TEST_F(MasterTest, TestRegisterAndHeartbeat) {
 
     ASSERT_FALSE(resp.needs_reregister());
     ASSERT_TRUE(resp.needs_full_tablet_report());
+    ASSERT_FALSE(resp.has_tablet_report_limit()); // No limit unless capability registered.
   }
 
   descs.clear();
@@ -227,6 +229,11 @@ TEST_F(MasterTest, TestRegisterAndHeartbeat) {
 
   ASSERT_TRUE(mini_master_->master()->ts_manager()->LookupTSByUUID(kTsUUID, &ts_desc));
   ASSERT_EQ(ts_desc, descs[0]);
+
+  // Add capabilities in next registration.
+  auto cap = Capabilities();
+  *fake_reg.mutable_capabilities() =
+      google::protobuf::RepeatedField<CapabilityId>(cap.begin(), cap.end());
 
   // If the tablet server somehow lost the response to its registration RPC, it would
   // attempt to register again. In that case, we shouldn't reject it -- we should
@@ -240,9 +247,10 @@ TEST_F(MasterTest, TestRegisterAndHeartbeat) {
 
     ASSERT_FALSE(resp.needs_reregister());
     ASSERT_TRUE(resp.needs_full_tablet_report());
+    ASSERT_TRUE(resp.has_tablet_report_limit()); // Limit given, since TS capability registered.
   }
 
-  // Now send a tablet report
+  // Now begin sending full tablet report
   {
     TSHeartbeatRequestPB req;
     TSHeartbeatResponsePB resp;
@@ -250,6 +258,22 @@ TEST_F(MasterTest, TestRegisterAndHeartbeat) {
     TabletReportPB* tr = req.mutable_tablet_report();
     tr->set_is_incremental(false);
     tr->set_sequence_number(0);
+    tr->set_remaining_tablet_count(1);
+    ASSERT_OK(proxy_->TSHeartbeat(req, &resp, ResetAndGetController()));
+
+    ASSERT_FALSE(resp.needs_reregister());
+    ASSERT_FALSE(resp.needs_full_tablet_report());
+  }
+
+  // ...and finish the full tablet report.
+  {
+    TSHeartbeatRequestPB req;
+    TSHeartbeatResponsePB resp;
+    req.mutable_common()->CopyFrom(common);
+    TabletReportPB* tr = req.mutable_tablet_report();
+    tr->set_is_incremental(false);
+    tr->set_sequence_number(0);
+    tr->set_remaining_tablet_count(0);
     ASSERT_OK(proxy_->TSHeartbeat(req, &resp, ResetAndGetController()));
 
     ASSERT_FALSE(resp.needs_reregister());
@@ -1750,7 +1774,6 @@ TEST_F(MasterTest, TestGetTableSchema) {
     ASSERT_EQ(1, resp.schema().columns(0).sorting_type());
     // PartitionSchemaPB partition_schema.
     ASSERT_TRUE(resp.has_partition_schema());
-    ASSERT_TRUE(resp.partition_schema().has_range_schema());
     ASSERT_EQ(resp.partition_schema().hash_schema(), PartitionSchemaPB::MULTI_COLUMN_HASH_SCHEMA);
     // TableIdentifierPB identifier.
     ASSERT_TRUE(resp.has_identifier());

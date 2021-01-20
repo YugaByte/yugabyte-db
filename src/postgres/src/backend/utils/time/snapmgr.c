@@ -832,6 +832,12 @@ PopActiveSnapshot(void)
 	SnapshotResetXmin();
 }
 
+void
+PopAllActiveSnapshots() {
+	while (ActiveSnapshot)
+		PopActiveSnapshot();
+}
+
 /*
  * GetActiveSnapshot
  *		Return the topmost snapshot in the Active stack.
@@ -1092,7 +1098,7 @@ AtEOXact_Snapshot(bool isCommit, bool resetXmin)
 		 * prevent a warning below.
 		 *
 		 * As with the FirstXactSnapshot, we don't need to free resources of
-		 * the snapshot iself as it will go away with the memory context.
+		 * the snapshot itself as it will go away with the memory context.
 		 */
 		foreach(lc, exportedSnapshots)
 		{

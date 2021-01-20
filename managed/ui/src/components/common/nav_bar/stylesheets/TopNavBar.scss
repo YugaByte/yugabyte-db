@@ -1,7 +1,6 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../../_style/colors.scss";
-
+@import '../../../../_style/colors.scss';
 
 .navbar .container {
   display: flex;
@@ -10,7 +9,7 @@
   justify-content: space-between;
   width: 100%;
   min-height: 60px;
-  
+
   .navbar-header {
     margin: 0;
   }
@@ -56,7 +55,7 @@
 /* From gentelella.css need to cleanup */
 
 .navbar {
-  margin-bottom: 0
+  margin-bottom: 0;
 }
 
 .main-container .navbar-right {
@@ -79,7 +78,8 @@
   .dropdown {
     float: left;
 
-    .dropdown-toggle i, .task-list-heading i {
+    .dropdown-toggle i,
+    .task-list-heading i {
       color: $YB_VIOLET_TEXT;
       vertical-align: middle;
       margin-top: -2px;
@@ -94,7 +94,8 @@
       border: 0;
 
       li {
-        a, div {
+        a,
+        div {
           padding: 10px 20px;
           height: 42px;
           font-weight: 300;
@@ -119,54 +120,59 @@
   }
 }
 
-
 .dropdown-menu {
-  > li {
-    > a {
-      &:hover, &:focus {
+  li {
+    a {
+      &:hover,
+      &:focus {
         color: $YB_TEXT_COLOR;
         text-decoration: none;
         background-color: $YB_BACKGROUND !important;
       }
     }
 
-    > div {
-      &, &:hover, &:focus {
+    div {
+      &,
+      &:hover,
+      &:focus {
         cursor: not-allowed;
         background-color: $YB_BACKGROUND !important;
       }
     }
   }
 
-  > li.disabled {
+  li.disabled {
     i {
-        color: $YB_GRAY_HOVER !important;
+      color: $YB_GRAY_HOVER !important;
     }
   }
 
-  > .active {
-    > a {
+  .active {
+    a {
       background-color: inherit;
       color: $YB_TEXT_COLOR;
-      &:hover, &:focus {
+      &:hover,
+      &:focus {
         background-color: inherit;
         color: $YB_TEXT_COLOR;
       }
     }
   }
-  > .divider {
+  .divider {
     margin-top: 0;
     margin-bottom: 0;
   }
 }
 
-.navbar-nav > li > a, .navbar-brand {
+.navbar-nav > li > a,
+.navbar-brand {
   color: #fff !important;
 }
 
-.navbar-brand, .navbar-nav > li > a {
+.navbar-brand,
+.navbar-nav > li > a {
   font-weight: 500;
-  color: #ECF0F1 !important;
+  color: #ecf0f1 !important;
   margin-left: 0 !important;
   height: 60px;
   padding-top: 20px;
@@ -176,7 +182,7 @@
   }
 }
 
-.nav.navbar-nav>li>a {
+.nav.navbar-nav > li > a {
   color: #515356 !important;
   @media (max-width: 767px) {
     span {
@@ -199,13 +205,13 @@
   background: #fff;
   margin-top: 0;
   border: none;
-  border-top: 1px solid rgba(#656A70, 0.2);
+  border-top: 1px solid rgba(#656a70, 0.2);
   background-color: #fbfbfa;
   -webkit-box-shadow: none;
   right: 0;
   left: auto;
   width: 220px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2),;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
 }
 .navbar-nav .open .dropdown-menu.msg_list {
   width: 300px;

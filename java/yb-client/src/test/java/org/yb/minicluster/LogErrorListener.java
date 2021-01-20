@@ -27,7 +27,7 @@ public interface LogErrorListener {
   /**
    * This is called when a {@link LogPrinter} is begin initialized that has been given this instance
    * of a {@link LogErrorListener}. This allows us to detect cases when the same log listener
-   * is being associated with multiple log printers, which is not allowed.pg
+   * is being associated with multiple log printers, which is not allowed.
    * @param printer log printer instance
    */
   void associateWithLogPrinter(LogPrinter printer);

@@ -25,14 +25,16 @@
         "(^java/pom[.]xml$)",
         "(^.*[.]patch$)",
         "(java/yb-cdc/pom.xml)",
-        "(java/yb-cdc/README.md)"
+        "(java/yb-cdc/README.md)",
+        "(^docs/.*[.]md$)"
       ]
     },
     "pycodestyle": {
       "type": "pep8",
       "include": "(\\.py$)",
       "exclude": "(^thirdparty/|^[.]ycm_extra_conf[.]py$)",
-      "bin": "pycodestyle"
+      "bin": "pycodestyle",
+      "flags": ["--max-line-length=100"]
     },
     "googlecpplint": {
       "type": "googlecpplint",

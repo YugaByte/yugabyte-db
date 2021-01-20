@@ -210,6 +210,11 @@ cp -r snapshot/tablet-b0de9bc6a4cb46d4aaacf4a03bcaf6be.snapshots/0d4b4935-2c95-4
 ```sh
 cp -r snapshot/tablet-27ce76cade8e4894a4f7ffa154b33c3b.snapshots/0d4b4935-2c95-4523-95ab-9ead1e95e794 ~/yugabyte-data-restore/node-1/disk-1/yb-data/tserver/data/rocksdb/table-00004000000030008000000000004001/tablet-111ab9d046d449d995ee9759bf32e028.snapshots/6beb9c0e-52ea-4f61-89bd-c160ec02c729
 ```
+{{< note title="Note" >}}
+
+For each tablet, you need to copy the snapshots folder on all tablet peers and in any configured read replica cluster. 
+
+{{< /note >}}
 
 4. Restore the snapshot.
 
@@ -254,7 +259,7 @@ ysqlsh (11.2-YB-2.2.1.0-b0)
 Type "help" for help.
 ```
 
-```postgresql
+```plpgsql
 test=# \d
 ```
 
@@ -267,7 +272,7 @@ test=# \d
 (2 rows)
 ```
 
-```postgresql
+```plpgsql
 test=# \d t
 ```
 
@@ -281,7 +286,7 @@ Indexes:
     "t_pkey" PRIMARY KEY, lsm (a HASH)
 ```
 
-```postgresql
+```plpgsql
 test=# SELECT * from t;
 ```
 

@@ -48,10 +48,10 @@ struct TableFileCreationInfo {
   // the path to the created file.
   std::string file_path;
   // the size of the file.
-  uint64_t file_size;
+  uint64_t file_size = 0;
   // the id of the job (which could be flush or compaction) that
   // created the file.
-  int job_id;
+  int job_id = 0;
   // Detailed properties of the created file.
   TableProperties table_properties;
 };
@@ -126,13 +126,13 @@ struct CompactionJobInfo {
   // the status indicating whether the compaction was successful or not.
   Status status;
   // the id of the thread that completed this compaction job.
-  uint64_t thread_id;
+  uint64_t thread_id = 0;
   // the job id, which is unique in the same thread.
-  int job_id;
+  int job_id = 0;
   // the smallest input level of the compaction.
-  int base_input_level;
+  int base_input_level = 0;
   // the output level of the compaction.
-  int output_level;
+  int output_level = 0;
   // the names of the compaction input files.
   std::vector<std::string> input_files;
 
@@ -143,9 +143,9 @@ struct CompactionJobInfo {
   TablePropertiesCollection table_properties;
 
   // Reason to run the compaction
-  CompactionReason compaction_reason;
+  CompactionReason compaction_reason = CompactionReason::kUnknown;
 
-  bool is_full_compaction;
+  bool is_full_compaction = false;
 
   // If non-null, this variable stores detailed information
   // about this compaction.

@@ -11,3 +11,4 @@ test: yb_large_copy_abort
 test: yb_select_large_abort
 test: yb_large_copy_ddl
 test: yb_select_large_ddl
+test: yb_update_large

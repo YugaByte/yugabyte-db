@@ -90,7 +90,7 @@ It gives ownership of the sequence to the specified column (if any). This means 
 
 Create a simple sequence.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE SEQUENCE s;
 ```
 
@@ -100,7 +100,7 @@ CEATE SEQUENCE
 
 Modify the increment value.
 
-```postgresql
+```plpgsql
 yugabyte=# ALTER SEQUENCE s INCREMENT BY 5;
 ```
 
@@ -108,7 +108,7 @@ yugabyte=# ALTER SEQUENCE s INCREMENT BY 5;
 ALTER SEQUENCE
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT nextval('s');
 ```
 
@@ -119,7 +119,7 @@ yugabyte=# SELECT nextval('s');
 (1 row)
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT nextval('s');
 ```
 
@@ -132,7 +132,7 @@ yugabyte=# SELECT nextval('s');
 
 Modify the starting value.
 
-```postgresql
+```plpgsql
 yugabyte=# ALTER SEQUENCE s RESTART WITH 2;
 ```
 
@@ -140,7 +140,7 @@ yugabyte=# ALTER SEQUENCE s RESTART WITH 2;
 ALTER SEQUENCE
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT nextval('s');
 ```
 
@@ -151,7 +151,7 @@ yugabyte=# SELECT nextval('s');
 (1 row)
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT nextval('s');
 ```
 

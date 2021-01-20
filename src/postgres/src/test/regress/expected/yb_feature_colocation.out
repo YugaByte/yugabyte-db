@@ -178,11 +178,11 @@ SELECT * FROM tab_range_nonkey2;
 -- colocated table with non-colocated index
 CREATE TABLE tab_range_nonkey3 (a INT, b INT, PRIMARY KEY (a ASC));
 CREATE INDEX idx_range_colo ON tab_range_nonkey3 (a) WITH (colocated = true);
-ERROR:  cannot set option "colocated" on index
+ERROR:  unrecognized parameter "colocated"
 -- colocated table with colocated index
 CREATE TABLE tab_range_nonkey4 (a INT, b INT, PRIMARY KEY (a ASC));
 CREATE INDEX idx_range_noco ON tab_range_nonkey4 (a) WITH (colocated = false);
-ERROR:  cannot set option "colocated" on index
+ERROR:  unrecognized parameter "colocated"
 -- non-colocated table with index
 CREATE TABLE tab_range_nonkey_noco (a INT, b INT, PRIMARY KEY (a ASC)) WITH (colocated = false);
 CREATE INDEX idx_range2 ON tab_range_nonkey_noco (a);

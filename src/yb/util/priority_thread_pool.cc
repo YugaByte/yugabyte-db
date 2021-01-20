@@ -595,7 +595,7 @@ class PriorityThreadPool::Impl : public PriorityThreadPoolWorkerContext {
     workers_.emplace_back(this);
     auto worker = &workers_.back();
     auto thread = yb::Thread::Make(
-        "priority_thread_pool", "worker",
+        "priority_thread_pool", "priority-worker",
         std::bind(&PriorityThreadPoolWorker::Run, worker));
     if (!thread.ok()) {
       LOG(WARNING) << "Failed to launch new worker: " << thread.status();

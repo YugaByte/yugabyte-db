@@ -48,7 +48,7 @@ isTocNested: true
 To build your Scala application using the YugabyteDB Spark Connector for YCQL, add the following sbt dependency to your application:
 
 ```
-libraryDependencies += "com.yugabyte.spark" %% "spark-cassandra-connector" % "2.4-yb-2"
+libraryDependencies += "com.yugabyte.spark" %% "spark-cassandra-connector" % "2.4-yb-3"
 ```
 
 ## Build a sample application
@@ -78,7 +78,7 @@ scalacOptions := Seq("-unchecked", "-deprecation")
 val sparkVersion = "2.4.4"
 
 // maven repo at https://mvnrepository.com/artifact/com.yugabyte.spark/spark-cassandra-connector
-libraryDependencies += "com.yugabyte.spark" %% "spark-cassandra-connector" % "2.4-yb-2"
+libraryDependencies += "com.yugabyte.spark" %% "spark-cassandra-connector" % "2.4-yb-3"
 
 // maven repo at https://mvnrepository.com/artifact/org.apache.spark/spark-core
 libraryDependencies += "org.apache.spark" %% "spark-core" % sparkVersion % Provided

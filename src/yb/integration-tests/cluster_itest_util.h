@@ -140,7 +140,8 @@ vector<TServerDetails*> TServerDetailsVector(const TabletServerMap& tablet_serve
 vector<TServerDetails*> TServerDetailsVector(const TabletServerMapUnowned& tablet_servers);
 
 // Creates copy of tablet server map, which does not own TServerDetails.
-TabletServerMapUnowned CreateTabletServerMapUnowned(const TabletServerMap& tablet_servers);
+TabletServerMapUnowned CreateTabletServerMapUnowned(const TabletServerMap& tablet_servers,
+                                                    const std::set<std::string>& exclude = {});
 
 // Wait until all of the servers have converged on the same log index.
 // The converged index must be at least equal to 'minimum_index'.

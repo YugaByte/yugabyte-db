@@ -3,7 +3,7 @@
 body {
   color: #333;
   background: #fff;
-  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
   font-size: 13px;
   font-weight: 400;
   line-height: 1.471;
@@ -15,7 +15,7 @@ html {
     height: 10000%;
     margin-top: -100%;
     background-color: $YB_VIOLET;
-    content: "";
+    content: '';
     z-index: -1;
   }
 }

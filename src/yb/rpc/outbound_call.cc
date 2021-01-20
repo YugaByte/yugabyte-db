@@ -170,6 +170,7 @@ void InvokeCallbackTask::Done(const Status& status) {
     LOG(WARNING) << Format(
         "Failed to schedule invoking callback on response for request $0 to $1: $2",
         call_->remote_method(), call_->hostname(), status);
+    call_->SetThreadPoolFailure(status);
     call_->InvokeCallbackSync();
   }
   // Clear the call, since it holds OutboundCall object.

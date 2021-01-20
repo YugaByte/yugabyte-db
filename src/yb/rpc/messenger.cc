@@ -663,6 +663,7 @@ ScheduledTaskId Messenger::ScheduleOnReactor(
   for (const auto& r : reactors_) {
     if (r->IsCurrentThread()) {
       chosen = r.get();
+      break;
     }
   }
   if (chosen == nullptr) {

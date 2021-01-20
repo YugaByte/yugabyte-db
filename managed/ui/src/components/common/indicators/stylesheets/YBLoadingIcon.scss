@@ -1,10 +1,10 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../../_style/colors.scss";
-@import "../../../../_style/mixins.scss";
+@import '../../../../_style/colors.scss';
+@import '../../../../_style/mixins.scss';
 
-
-.dashboard-container, .container-body {
+.dashboard-container,
+.container-body {
   .loading-icon-container {
     position: absolute;
     top: 50%;
@@ -12,7 +12,8 @@
     margin: -45px 0 0 -25px;
   }
 }
-.loading-icon-container, .panel-body .loading-icon-container {
+.loading-icon-container,
+.panel-body .loading-icon-container {
   position: static;
   font-size: 16px;
   font-weight: 300;
@@ -47,37 +48,37 @@
   background-color: $YB_ORANGE;
   border-radius: 100%;
   -webkit-animation: circleBounceDelay 1.2s infinite ease-in-out both;
-          animation: circleBounceDelay 1.2s infinite ease-in-out both;
+  animation: circleBounceDelay 1.2s infinite ease-in-out both;
 }
 .yb-loader-circle .yb-loader-circle2 {
-  @include spinner-transform(30deg); 
+  @include spinner-transform(30deg);
 }
 .yb-loader-circle .yb-loader-circle3 {
-  @include spinner-transform(60deg); 
+  @include spinner-transform(60deg);
 }
 .yb-loader-circle .yb-loader-circle4 {
-  @include spinner-transform(90deg); 
+  @include spinner-transform(90deg);
 }
 .yb-loader-circle .yb-loader-circle5 {
-  @include spinner-transform(120deg); 
+  @include spinner-transform(120deg);
 }
 .yb-loader-circle .yb-loader-circle6 {
-  @include spinner-transform(150deg); 
+  @include spinner-transform(150deg);
 }
 .yb-loader-circle .yb-loader-circle7 {
-  @include spinner-transform(180deg); 
- }
+  @include spinner-transform(180deg);
+}
 .yb-loader-circle .yb-loader-circle8 {
-  @include spinner-transform(210deg); 
+  @include spinner-transform(210deg);
 }
 .yb-loader-circle .yb-loader-circle9 {
-  @include spinner-transform(240deg); 
+  @include spinner-transform(240deg);
 }
 .yb-loader-circle .yb-loader-circle10 {
-  @include spinner-transform(270deg); 
+  @include spinner-transform(270deg);
 }
 .yb-loader-circle .yb-loader-circle11 {
-  @include spinner-transform(300deg); 
+  @include spinner-transform(300deg);
 }
 .yb-loader-circle .yb-loader-circle12 {
   @include spinner-transform(330deg);
@@ -117,32 +118,34 @@
 }
 
 .yb-loader-circle.yb-loader-circle-small .yb-loader-circle2 {
-  @include spinner-transform(45deg); 
+  @include spinner-transform(45deg);
 }
 .yb-loader-circle.yb-loader-circle-small .yb-loader-circle3 {
-  @include spinner-transform(90deg); 
+  @include spinner-transform(90deg);
 }
 .yb-loader-circle.yb-loader-circle-small .yb-loader-circle4 {
-  @include spinner-transform(135deg); 
+  @include spinner-transform(135deg);
 }
 .yb-loader-circle.yb-loader-circle-small .yb-loader-circle5 {
-  @include spinner-transform(180deg); 
+  @include spinner-transform(180deg);
 }
 .yb-loader-circle.yb-loader-circle-small .yb-loader-circle6 {
-  @include spinner-transform(225deg); 
+  @include spinner-transform(225deg);
 }
 .yb-loader-circle.yb-loader-circle-small .yb-loader-circle7 {
-  @include spinner-transform(270deg); 
+  @include spinner-transform(270deg);
 }
 .yb-loader-circle.yb-loader-circle-small .yb-loader-circle8 {
-  @include spinner-transform(315deg); 
+  @include spinner-transform(315deg);
 }
 .yb-loader-circle.yb-loader-circle-small {
-  .yb-loader-circle9, .yb-loader-circle10, .yb-loader-circle11, .yb-loader-circle12 {
-    display: none; 
+  .yb-loader-circle9,
+  .yb-loader-circle10,
+  .yb-loader-circle11,
+  .yb-loader-circle12 {
+    display: none;
   }
 }
-
 
 .yb-loader-circle.yb-loader-circle-small .yb-child:before {
   content: '';
@@ -153,7 +156,7 @@
   background-color: $YB_ORANGE;
   border-radius: 100%;
   -webkit-animation: circleBounceDelay 1.2s infinite ease-in-out both;
-          animation: circleBounceDelay 1.2s infinite ease-in-out both;
+  animation: circleBounceDelay 1.2s infinite ease-in-out both;
 }
 .yb-loader-circle.yb-loader-circle-small .yb-loader-circle2:before {
   @include spinner-animation-delay(-1.05s);
@@ -184,35 +187,35 @@
   position: relative;
 }
 
-
-
 .yb-loader-circle.yb-loader-circle-xsmall .yb-loader-circle2 {
-  @include spinner-transform(45deg); 
+  @include spinner-transform(45deg);
 }
 .yb-loader-circle.yb-loader-circle-xsmall .yb-loader-circle3 {
-  @include spinner-transform(90deg); 
+  @include spinner-transform(90deg);
 }
 .yb-loader-circle.yb-loader-circle-xsmall .yb-loader-circle4 {
-  @include spinner-transform(135deg); 
+  @include spinner-transform(135deg);
 }
 .yb-loader-circle.yb-loader-circle-xsmall .yb-loader-circle5 {
-  @include spinner-transform(180deg); 
+  @include spinner-transform(180deg);
 }
 .yb-loader-circle.yb-loader-circle-xsmall .yb-loader-circle6 {
-  @include spinner-transform(225deg); 
+  @include spinner-transform(225deg);
 }
 .yb-loader-circle.yb-loader-circle-xsmall .yb-loader-circle7 {
-  @include spinner-transform(270deg); 
+  @include spinner-transform(270deg);
 }
 .yb-loader-circle.yb-loader-circle-xsmall .yb-loader-circle8 {
-  @include spinner-transform(315deg); 
+  @include spinner-transform(315deg);
 }
 .yb-loader-circle.yb-loader-circle-xsmall {
-  .yb-loader-circle9, .yb-loader-circle10, .yb-loader-circle11, .yb-loader-circle12 {
-    display: none; 
+  .yb-loader-circle9,
+  .yb-loader-circle10,
+  .yb-loader-circle11,
+  .yb-loader-circle12 {
+    display: none;
   }
 }
-
 
 .yb-loader-circle.yb-loader-circle-xsmall .yb-child:before {
   content: '';
@@ -223,7 +226,7 @@
   background-color: $YB_ORANGE;
   border-radius: 100%;
   -webkit-animation: circleBounceDelay 1.2s infinite ease-in-out both;
-          animation: circleBounceDelay 1.2s infinite ease-in-out both;
+  animation: circleBounceDelay 1.2s infinite ease-in-out both;
 }
 .yb-loader-circle.yb-loader-circle-xsmall .yb-loader-circle2:before {
   @include spinner-animation-delay(-1.05s);
@@ -254,34 +257,35 @@
   position: relative;
 }
 
-
 .yb-loader-circle.yb-loader-circle-inline .yb-loader-circle2 {
-  @include spinner-transform(45deg); 
+  @include spinner-transform(45deg);
 }
 .yb-loader-circle.yb-loader-circle-inline .yb-loader-circle3 {
-  @include spinner-transform(90deg); 
+  @include spinner-transform(90deg);
 }
 .yb-loader-circle.yb-loader-circle-inline .yb-loader-circle4 {
-  @include spinner-transform(135deg); 
+  @include spinner-transform(135deg);
 }
 .yb-loader-circle.yb-loader-circle-inline .yb-loader-circle5 {
-  @include spinner-transform(180deg); 
+  @include spinner-transform(180deg);
 }
 .yb-loader-circle.yb-loader-circle-inline .yb-loader-circle6 {
-  @include spinner-transform(225deg); 
+  @include spinner-transform(225deg);
 }
 .yb-loader-circle.yb-loader-circle-inline .yb-loader-circle7 {
-  @include spinner-transform(270deg); 
+  @include spinner-transform(270deg);
 }
 .yb-loader-circle.yb-loader-circle-inline .yb-loader-circle8 {
-  @include spinner-transform(315deg); 
+  @include spinner-transform(315deg);
 }
 .yb-loader-circle.yb-loader-circle-inline {
-  .yb-loader-circle9, .yb-loader-circle10, .yb-loader-circle11, .yb-loader-circle12 {
-    display: none; 
+  .yb-loader-circle9,
+  .yb-loader-circle10,
+  .yb-loader-circle11,
+  .yb-loader-circle12 {
+    display: none;
   }
 }
-
 
 .yb-loader-circle.yb-loader-circle-inline .yb-child:before {
   content: '';
@@ -292,7 +296,7 @@
   background-color: $YB_ORANGE;
   border-radius: 100%;
   -webkit-animation: circleBounceDelay 1.2s infinite ease-in-out both;
-          animation: circleBounceDelay 1.2s infinite ease-in-out both;
+  animation: circleBounceDelay 1.2s infinite ease-in-out both;
 }
 .yb-loader-circle.yb-loader-circle-inline .yb-loader-circle2:before {
   @include spinner-animation-delay(-1.05s);
@@ -327,24 +331,29 @@
   top: 2px;
 }
 
-
 @-webkit-keyframes circleBounceDelay {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     -webkit-transform: scale(0);
-            transform: scale(0);
-  } 40% {
+    transform: scale(0);
+  }
+  40% {
     -webkit-transform: scale(1);
-            transform: scale(1);
+    transform: scale(1);
   }
 }
 
 @keyframes circleBounceDelay {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     -webkit-transform: scale(0);
-            transform: scale(0);
-  } 40% {
+    transform: scale(0);
+  }
+  40% {
     -webkit-transform: scale(1);
-            transform: scale(1);
+    transform: scale(1);
   }
 }
 
@@ -353,7 +362,9 @@
   display: block;
 
   div {
-    &, &:before, &:after {
+    &,
+    &:before,
+    &:after {
       border-radius: 50%;
       width: 2.5em;
       height: 2.5em;
@@ -378,7 +389,8 @@
       animation-delay: -0.14s;
     }
 
-    &:before, &:after {
+    &:before,
+    &:after {
       content: '';
       position: absolute;
       top: 0;

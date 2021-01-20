@@ -11,6 +11,7 @@ import com.yugabyte.yw.common.ModelFactory;
 import com.yugabyte.yw.common.RegexMatcher;
 import com.yugabyte.yw.common.PlacementInfoUtil;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import com.yugabyte.yw.models.AvailabilityZone;
 import com.yugabyte.yw.models.CertificateInfo;
@@ -235,6 +236,15 @@ public class KubernetesCommandExecutorTest extends SubTaskBaseTest {
       tlsInfo.put("rootCA", rootCA);
       expectedOverrides.put("tls", tlsInfo);
     }
+    if (defaultUserIntent.enableIPV6) {
+      expectedOverrides.put("ip_version_support", "v6_only");
+    }
+
+    Map<String, Object> partition = new HashMap<>();
+    partition.put("tserver", 0);
+    partition.put("master", 0);
+    expectedOverrides.put("partition", partition);
+
     // All flags as overrides.
     Map<String, Object> gflagOverrides = new HashMap<>();
     // Master flags.
@@ -320,6 +330,36 @@ public class KubernetesCommandExecutorTest extends SubTaskBaseTest {
 
     // TODO implement exposeAll false case
     assertEquals(hackPlacementUUID, defaultUniverse.getUniverseDetails().getPrimaryCluster().uuid);
+    assertEquals(getExpectedOverrides(true), overrides);
+  }
+
+    @Test
+  public void testHelmInstallIPV6() throws IOException {
+    defaultUserIntent.enableIPV6 = true;
+    Universe u = Universe.saveDetails(defaultUniverse.universeUUID,
+        ApiUtils.mockUniverseUpdater(defaultUserIntent, "host", true));
+    hackPlacementUUID = u.getUniverseDetails().getPrimaryCluster().uuid;
+
+    KubernetesCommandExecutor kubernetesCommandExecutor =
+        createExecutor(KubernetesCommandExecutor.CommandType.HELM_INSTALL);
+    kubernetesCommandExecutor.run();
+
+    ArgumentCaptor<UUID> expectedProviderUUID = ArgumentCaptor.forClass(UUID.class);
+    ArgumentCaptor<String> expectedNodePrefix = ArgumentCaptor.forClass(String.class);
+    ArgumentCaptor<String> expectedOverrideFile = ArgumentCaptor.forClass(String.class);
+    ArgumentCaptor<HashMap> expectedConfig = ArgumentCaptor.forClass(HashMap.class);
+    verify(kubernetesManager, times(1))
+        .helmInstall(expectedConfig.capture(), expectedProviderUUID.capture(),
+                     expectedNodePrefix.capture(), expectedOverrideFile.capture());
+    assertEquals(config, expectedConfig.getValue());
+    assertEquals(defaultProvider.uuid, expectedProviderUUID.getValue());
+    assertEquals(defaultUniverse.getUniverseDetails().nodePrefix, expectedNodePrefix.getValue());
+    String overrideFileRegex = "(.*)" + defaultUniverse.universeUUID + "(.*).yml";
+    assertThat(expectedOverrideFile.getValue(), RegexMatcher.matchesRegex(overrideFileRegex));
+    Yaml yaml = new Yaml();
+    InputStream is = new FileInputStream(new File(expectedOverrideFile.getValue()));
+    Map<String, Object> overrides = yaml.loadAs(is, Map.class);
+
     assertEquals(getExpectedOverrides(true), overrides);
   }
 
@@ -414,11 +454,11 @@ public class KubernetesCommandExecutorTest extends SubTaskBaseTest {
     Map<String, Object> overrides = yaml.loadAs(is, Map.class);
     Map<String, Object> resourceOverrides = (Map<String, Object>) overrides.get("resource");
     if (instanceType.equals("dev")) {
-      assertTrue(resourceOverrides.containsKey("master"));  
+      assertTrue(resourceOverrides.containsKey("master"));
     } else {
-      assertFalse(resourceOverrides.containsKey("master"));  
+      assertFalse(resourceOverrides.containsKey("master"));
     }
-    
+
     assertTrue(resourceOverrides.containsKey("tserver"));
     assertEquals(getExpectedOverrides(true), overrides);
   }
@@ -613,7 +653,7 @@ public class KubernetesCommandExecutorTest extends SubTaskBaseTest {
 
   @Test
   public void testPodInfo() {
-    ShellProcessHandler.ShellResponse shellResponse = new ShellProcessHandler.ShellResponse();
+    ShellResponse shellResponse = new ShellResponse();
     shellResponse.message =
         "{\"items\": [{\"status\": {\"startTime\": \"1234\", \"phase\": \"Running\"," +
             " \"podIP\": \"123.456.78.90\"}, \"spec\": {\"hostname\": \"yb-master-0\"}}," +
@@ -657,7 +697,7 @@ public class KubernetesCommandExecutorTest extends SubTaskBaseTest {
   @Test
   public void testPodInfoMultiAZ() {
 
-    ShellProcessHandler.ShellResponse shellResponse = new ShellProcessHandler.ShellResponse();
+    ShellResponse shellResponse = new ShellResponse();
     shellResponse.message =
         "{\"items\": [{\"status\": {\"startTime\": \"1234\", \"phase\": \"Running\"," +
             " \"podIP\": \"123.456.78.90\"}, \"spec\": {\"hostname\": \"yb-master-0\"}}," +
@@ -671,9 +711,9 @@ public class KubernetesCommandExecutorTest extends SubTaskBaseTest {
     AvailabilityZone az2 = AvailabilityZone.create(r1, "az-" + 2, "az-" + 2, "subnet-" + 2);
     AvailabilityZone az3 = AvailabilityZone.create(r2, "az-" + 3, "az-" + 3, "subnet-" + 3);
     PlacementInfo pi = new PlacementInfo();
-    PlacementInfoUtil.addPlacementZoneHelper(az1.uuid, pi);
-    PlacementInfoUtil.addPlacementZoneHelper(az2.uuid, pi);
-    PlacementInfoUtil.addPlacementZoneHelper(az3.uuid, pi);
+    PlacementInfoUtil.addPlacementZone(az1.uuid, pi);
+    PlacementInfoUtil.addPlacementZone(az2.uuid, pi);
+    PlacementInfoUtil.addPlacementZone(az3.uuid, pi);
 
     KubernetesCommandExecutor kubernetesCommandExecutor =
         createExecutor(KubernetesCommandExecutor.CommandType.POD_INFO, pi);
@@ -702,9 +742,9 @@ public class KubernetesCommandExecutorTest extends SubTaskBaseTest {
       NodeDetails node = defaultUniverse.getNode(podName);
       assertNotNull(node);
       String serviceName = podName.contains("master") ? "yb-masters" : "yb-tservers";
-      
+
       assertTrue(podName.contains("master") ? node.isMaster: node.isTserver);
-      
+
       String az = podName.split("_")[1];
       String podK8sName = podName.split("_")[0];
       assertEquals(node.cloudInfo.private_ip, String.format("%s.%s.%s.%s", podK8sName, serviceName,
@@ -717,7 +757,7 @@ public class KubernetesCommandExecutorTest extends SubTaskBaseTest {
 
   @Test
   public void testHelmInstallLegacy() throws IOException {
-    ShellProcessHandler.ShellResponse shellResponse = new ShellProcessHandler.ShellResponse();
+    ShellResponse shellResponse = new ShellResponse();
     shellResponse.message =
         "{\"items\": [{\"metadata\": {\"name\": \"test\"}, \"spec\": {\"clusterIP\": \"None\"," +
         "\"type\":\"clusterIP\"}}]}";

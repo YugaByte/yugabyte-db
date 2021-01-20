@@ -1,0 +1,9 @@
+@import '../../../../uikit/common';
+
+.instance-config {
+  @include wizard-step-form();
+  @include wizard-form-section-title();
+  @include wizard-form-row();
+  @include wizard-form-text-label();
+  @include wizard-form-footer();
+}

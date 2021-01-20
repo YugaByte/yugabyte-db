@@ -113,8 +113,14 @@
 
 #include "yb/tserver/remote_bootstrap_client.h"
 
+DEFINE_int32(ysql_index_backfill_rpc_timeout_ms, 30 * 60 * 1000, // 30 min.
+             "Timeout used by the master when attempting to backfill a YSQL tablet during index "
+             "creation.");
+TAG_FLAG(ysql_index_backfill_rpc_timeout_ms, advanced);
+TAG_FLAG(ysql_index_backfill_rpc_timeout_ms, runtime);
+
 DEFINE_int32(index_backfill_rpc_timeout_ms, 1 * 30 * 1000, // 30 sec.
-             "Timeout used by the master when attempting to backfilll a tablet "
+             "Timeout used by the master when attempting to backfill a tablet "
              "during index creation.");
 TAG_FLAG(index_backfill_rpc_timeout_ms, advanced);
 TAG_FLAG(index_backfill_rpc_timeout_ms, runtime);
@@ -281,14 +287,14 @@ Result<bool> MultiStageAlterTable::UpdateIndexPermission(
     const scoped_refptr<TableInfo>& indexed_table,
     const std::unordered_map<TableId, IndexPermissions>& perm_mapping,
     boost::optional<uint32_t> current_version) {
-  DVLOG(3) << __PRETTY_FUNCTION__ << yb::ToString(*indexed_table);
+  DVLOG(3) << __PRETTY_FUNCTION__ << " " << yb::ToString(*indexed_table);
   if (FLAGS_TEST_slowdown_backfill_alter_table_rpcs_ms > 0) {
-    TRACE("Sleeping for  $0 ms", FLAGS_TEST_slowdown_backfill_alter_table_rpcs_ms);
-    DVLOG(3) << __PRETTY_FUNCTION__ << yb::ToString(*indexed_table) << " sleeping for "
+    TRACE("Sleeping for $0 ms", FLAGS_TEST_slowdown_backfill_alter_table_rpcs_ms);
+    DVLOG(3) << __PRETTY_FUNCTION__ << " " << yb::ToString(*indexed_table) << " sleeping for "
              << FLAGS_TEST_slowdown_backfill_alter_table_rpcs_ms
              << "ms BEFORE updating the index permission to " << ToString(perm_mapping);
     SleepFor(MonoDelta::FromMilliseconds(FLAGS_TEST_slowdown_backfill_alter_table_rpcs_ms));
-    DVLOG(3) << __PRETTY_FUNCTION__ << "Done Sleeping";
+    DVLOG(3) << __PRETTY_FUNCTION__ << " Done Sleeping";
     TRACE("Done Sleeping");
   }
 
@@ -349,11 +355,11 @@ Result<bool> MultiStageAlterTable::UpdateIndexPermission(
   if (PREDICT_FALSE(FLAGS_TEST_slowdown_backfill_alter_table_rpcs_ms > 0)) {
     TRACE("Sleeping for $0 ms",
           FLAGS_TEST_slowdown_backfill_alter_table_rpcs_ms);
-    DVLOG(3) << __PRETTY_FUNCTION__ << yb::ToString(*indexed_table) << " sleeping for "
+    DVLOG(3) << __PRETTY_FUNCTION__ << " " << yb::ToString(*indexed_table) << " sleeping for "
              << FLAGS_TEST_slowdown_backfill_alter_table_rpcs_ms
              << "ms AFTER updating the index permission to " << ToString(perm_mapping);
     SleepFor(MonoDelta::FromMilliseconds(FLAGS_TEST_slowdown_backfill_alter_table_rpcs_ms));
-    DVLOG(3) << __PRETTY_FUNCTION__ << "Done Sleeping";
+    DVLOG(3) << __PRETTY_FUNCTION__ << " Done Sleeping";
     TRACE("Done Sleeping");
   }
   return permissions_updated;
@@ -364,7 +370,7 @@ Status MultiStageAlterTable::StartBackfillingData(
     const scoped_refptr<TableInfo> &indexed_table, const IndexInfoPB index_pb) {
   if (indexed_table->IsBackfilling()) {
     LOG(WARNING) << __func__ << " Not starting backfill for "
-                 << indexed_table->ToString() << " one is already in progress ";
+                 << indexed_table->ToString() << ": one is already in progress";
     return STATUS(AlreadyPresent, "Backfill already in progress");
   }
 
@@ -375,6 +381,13 @@ Status MultiStageAlterTable::StartBackfillingData(
     auto l = indexed_table->LockForWrite();
     auto &indexed_table_data = *l->mutable_data();
     CopySchemaDetailsToFullyApplied(&indexed_table_data.pb);
+    if (indexed_table->GetTableType() == TableType::PGSQL_TABLE_TYPE) {
+      auto& indexed_table_pb = indexed_table_data.pb;
+      indexed_table_data.set_state(SysTablesEntryPB::ALTERING,
+                                   Substitute("Alter table version=$0 ts=$1",
+                                              indexed_table_pb.version(),
+                                              LocalTimeAsString()));
+    }
     // Update sys-catalog with the new indexed table info.
     TRACE("Updating indexed table metadata on disk");
     RETURN_NOT_OK_PREPEND(
@@ -394,7 +407,7 @@ Status MultiStageAlterTable::StartBackfillingData(
     ns_identifier.set_id(indexed_table->namespace_id());
     RETURN_NOT_OK_PREPEND(
         catalog_manager->FindNamespace(ns_identifier, &ns_info),
-        "Getting namespace info for backfill");
+        "Unable to get namespace info for backfill");
   }
   auto backfill_table = std::make_shared<BackfillTable>(
       catalog_manager->master_, catalog_manager->AsyncTaskPool(),
@@ -438,7 +451,9 @@ IndexPermissions NextPermission(IndexPermissions perm) {
 Status MultiStageAlterTable::LaunchNextTableInfoVersionIfNecessary(
     CatalogManager* catalog_manager, const scoped_refptr<TableInfo>& indexed_table,
     uint32_t current_version) {
-  DVLOG(3) << __PRETTY_FUNCTION__ << yb::ToString(*indexed_table);
+  DVLOG(3) << __PRETTY_FUNCTION__ << " " << yb::ToString(*indexed_table);
+
+  const bool is_ysql_table = (indexed_table->GetTableType() == TableType::PGSQL_TABLE_TYPE);
 
   std::unordered_map<TableId, IndexPermissions> indexes_to_update;
   vector<IndexInfoPB> indexes_to_backfill;
@@ -462,7 +477,9 @@ Status MultiStageAlterTable::LaunchNextTableInfoVersionIfNecessary(
         indexes_to_backfill.emplace_back(idx_pb);
       } else if (idx_pb.index_permissions() == INDEX_PERM_INDEX_UNUSED) {
         indexes_to_delete.emplace_back(idx_pb);
-      } else if (idx_pb.index_permissions() != INDEX_PERM_READ_WRITE_AND_DELETE) {
+      // For YSQL, there should never be indexes to update from master side because postgres drives
+      // permission changes.
+      } else if (idx_pb.index_permissions() != INDEX_PERM_READ_WRITE_AND_DELETE && !is_ysql_table) {
         indexes_to_update.emplace(idx_pb.table_id(), NextPermission(idx_pb.index_permissions()));
       }
     }
@@ -471,11 +488,30 @@ Status MultiStageAlterTable::LaunchNextTableInfoVersionIfNecessary(
   if (indexes_to_update.empty() &&
       indexes_to_delete.empty() &&
       indexes_to_backfill.empty()) {
-
     TRACE("Not necessary to launch next version");
     VLOG(1) << "Not necessary to launch next version";
     return ClearAlteringState(catalog_manager, indexed_table, current_version);
   }
+
+  // For YSQL online schema migration of indexes, instead of master driving the schema changes,
+  // postgres will drive it.  Postgres will use three of the DocDB index permissions:
+  //
+  // - INDEX_PERM_WRITE_AND_DELETE (set from the start)
+  // - INDEX_PERM_READ_WRITE_AND_DELETE (set by master)
+  // - INDEX_PERM_WRITE_AND_DELETE_WHILE_REMOVING (set by master)
+  //
+  // This changes how we treat indexes_to_foo:
+  //
+  // - indexes_to_update should always be empty because we never want master to set index
+  //   permissions.
+  // - indexes_to_delete is impossible to be nonempty, and, in the future, when we do use
+  //   INDEX_PERM_INDEX_UNUSED, we want to use some other delete trigger that makes sure no
+  //   transactions are left using the index.  Prepare for that by doing nothing when nonempty.
+  // - indexes_to_backfill is impossible to be nonempty, but, in the future, we want to set
+  //   INDEX_PERM_DO_BACKFILL so that backfill resumes on master leader changes.  Prepare for that
+  //   by handling indexes_to_backfill like for YCQL.
+  //
+  // TODO(jason): when using INDEX_PERM_DO_BACKFILL, update this comment (issue #6218).
 
   if (!indexes_to_update.empty()) {
     Result<bool> permissions_updated =
@@ -499,7 +535,7 @@ Status MultiStageAlterTable::LaunchNextTableInfoVersionIfNecessary(
   if (!indexes_to_delete.empty()) {
     index_info_to_update = indexes_to_delete[0];
     VLOG(3) << "Deleting the index and the entry in the indexed table for "
-        << yb::ToString(index_info_to_update);
+            << yb::ToString(index_info_to_update);
     DeleteTableRequestPB req;
     DeleteTableResponsePB resp;
     req.mutable_table()->set_table_id(index_info_to_update.table_id());
@@ -513,7 +549,7 @@ Status MultiStageAlterTable::LaunchNextTableInfoVersionIfNecessary(
     index_info_to_update = indexes_to_backfill[0];
     VLOG(3) << "Start backfilling for " << yb::ToString(index_info_to_update);
     TRACE("Starting backfill process");
-    VLOG(1) << ("Starting backfill process");
+    VLOG(1) << "Starting backfill process";
     WARN_NOT_OK(
         StartBackfillingData(catalog_manager, indexed_table.get(), index_info_to_update),
         "Could not launch Backfill");
@@ -654,7 +690,7 @@ Status BackfillTable::UpdateSafeTime(const Status& s, HybridTime ht) {
     // Move on to ABORTED permission.
     LOG_WITH_PREFIX(ERROR)
         << "Failed backfill. Could not compute safe time for "
-        << yb::ToString(indexed_table_) << s;
+        << yb::ToString(indexed_table_) << " " << s;
     if (!timestamp_chosen_.exchange(true)) {
       RETURN_NOT_OK_PREPEND(AlterTableStateToAbort(),
                             "Failed to mark backfill as failed. Abandoning.");
@@ -666,7 +702,7 @@ Status BackfillTable::UpdateSafeTime(const Status& s, HybridTime ht) {
   HybridTime read_timestamp;
   {
     std::lock_guard<simple_spinlock> l(mutex_);
-    VLOG(2) << " Updating read_time_for_backfill_ to max{ "
+    VLOG(2) << "Updating read_time_for_backfill_ to max{ "
             << read_time_for_backfill_.ToString() << ", " << ht.ToString()
             << " }.";
     read_time_for_backfill_.MakeAtLeast(ht);
@@ -715,8 +751,27 @@ void BackfillTable::LaunchBackfill() {
 void BackfillTable::Done(const Status& s) {
   if (!s.ok()) {
     // Move on to ABORTED permission.
-    LOG_WITH_PREFIX(ERROR) << "Failed to backfill the index " << s;
+    LOG_WITH_PREFIX(ERROR) << "failed to backfill the index: " << s;
     if (!done_.exchange(true)) {
+      // Set error message.
+      {
+        auto l = indexed_table_->LockForWrite();
+        auto& indexed_table_data = *l->mutable_data();
+        auto& indexed_table_pb = indexed_table_data.pb;
+        for (int i = 0; i < indexed_table_pb.indexes_size(); i++) {
+          IndexInfoPB* idx_pb = indexed_table_pb.mutable_indexes(i);
+          // TODO(jason): fix this when we start batching indexes (issue #4785).
+          if (idx_pb->table_id() == indexes()[0].table_id()) {
+            idx_pb->set_backfill_error_message(s.message().ToBuffer());
+            break;
+          }
+        }
+        WARN_NOT_OK(master_->catalog_manager()->sys_catalog_->UpdateItem(
+                        indexed_table_.get(), leader_term()),
+                    "Could not add error message.");
+        l->Commit();
+      }
+      // Now start aborting.
       WARN_NOT_OK(AlterTableStateToAbort(),
                   "Failed to mark backfill as failed.");
     } else {
@@ -846,7 +901,8 @@ Status BackfillTable::AllowCompactionsToGCDeleteMarkers(
     VLOG(2) << __func__ << ": Trying to lock index table for Write";
     auto l = index_table_info->LockForWrite();
     VLOG(2) << __func__ << ": locked index table for Write";
-    l->mutable_data()->pb.mutable_schema()->mutable_table_properties()->set_is_backfilling(false);
+    l->mutable_data()->pb.mutable_schema()->mutable_table_properties()
+        ->set_retain_delete_markers(false);
 
     // Update sys-catalog with the new indexed table info.
     TRACE("Updating index table metadata on disk");
@@ -884,7 +940,8 @@ Status BackfillTable::SendRpcToAllowCompactionsToGCDeleteMarkers(
   auto call = std::make_shared<AsyncBackfillDone>(master_, callback_pool_, tablet);
   tablet->table()->AddTask(call);
   RETURN_NOT_OK_PREPEND(
-      master_->catalog_manager()->ScheduleTask(call), "Failed to send backfill done request");
+      master_->catalog_manager()->ScheduleTask(call),
+      "Failed to send backfill done request");
   return Status::OK();
 }
 
@@ -911,7 +968,7 @@ BackfillTablet::BackfillTablet(
   } else if (done()) {
     VLOG(1) << tablet_->ToString() << " backfill already done";
   } else {
-    VLOG(1) << tablet_->ToString() << " begining backfill from "
+    VLOG(1) << tablet_->ToString() << " beginning backfill from "
             << "<start-of-the-tablet>";
   }
 }
@@ -928,7 +985,7 @@ void BackfillTablet::LaunchNextChunkOrDone() {
 
 void BackfillTablet::Done(const Status& status, const string& next_row_key) {
   if (!status.ok()) {
-    LOG(INFO) << "Failed to backfill the tablet " << yb::ToString(tablet_) << status;
+    LOG(INFO) << "Failed to backfill the tablet " << yb::ToString(tablet_) << ": " << status;
     backfill_table_->Done(status);
     return;
   }
@@ -1010,7 +1067,7 @@ void GetSafeTimeForTablet::HandleResponse(int attempt) {
         break;
       default:
         LOG(WARNING) << "TS " << permanent_uuid() << ": GetSafeTime failed for tablet "
-                     << tablet_->ToString() << ": " << status << " code "<< resp_.error().code();
+                     << tablet_->ToString() << ": " << status << " code " << resp_.error().code();
         break;
     }
   } else {
@@ -1064,7 +1121,12 @@ void BackfillChunk::Launch() {
 
 MonoTime BackfillChunk::ComputeDeadline() {
   MonoTime timeout = MonoTime::Now();
-  timeout.AddDelta(MonoDelta::FromMilliseconds(FLAGS_index_backfill_rpc_timeout_ms));
+  if (GetTableType() == TableType::PGSQL_TABLE_TYPE) {
+    timeout.AddDelta(MonoDelta::FromMilliseconds(FLAGS_ysql_index_backfill_rpc_timeout_ms));
+  } else {
+    DCHECK(GetTableType() == TableType::YQL_TABLE_TYPE);
+    timeout.AddDelta(MonoDelta::FromMilliseconds(FLAGS_index_backfill_rpc_timeout_ms));
+  }
   return MonoTime::Earliest(timeout, deadline_);
 }
 
@@ -1084,7 +1146,7 @@ bool BackfillChunk::SendRequest(int attempt) {
   req.set_read_at_hybrid_time(backfill_tablet_->read_time_for_backfill().ToUint64());
   req.set_schema_version(backfill_tablet_->schema_version());
   req.set_start_key(start_key_);
-  if (backfill_tablet_->tablet()->table()->GetTableType() == TableType::PGSQL_TABLE_TYPE) {
+  if (GetTableType() == TableType::PGSQL_TABLE_TYPE) {
     req.set_namespace_name(backfill_tablet_->GetNamespaceName());
   }
   for (const IndexInfoPB& idx_info : backfill_tablet_->indexes()) {
@@ -1107,10 +1169,10 @@ void BackfillChunk::HandleResponse(int attempt) {
 
     // Do not retry on a fatal error
     switch (resp_.error().code()) {
-      case TabletServerErrorPB::TABLET_NOT_FOUND:
       case TabletServerErrorPB::MISMATCHED_SCHEMA:
-      case TabletServerErrorPB::TABLET_HAS_A_NEWER_SCHEMA:
       case TabletServerErrorPB::OPERATION_NOT_SUPPORTED:
+      case TabletServerErrorPB::TABLET_HAS_A_NEWER_SCHEMA:
+      case TabletServerErrorPB::TABLET_NOT_FOUND:
         LOG(WARNING) << "TS " << permanent_uuid() << ": backfill failed for tablet "
                      << backfill_tablet_->tablet()->ToString()
                      << " no further retry: " << status;

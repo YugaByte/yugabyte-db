@@ -2,38 +2,21 @@
 
 package com.yugabyte.yw.models;
 
-import java.util.Date;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
-import java.util.List;
-import java.util.Arrays;
-import java.util.stream.Collectors;
-
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.SequenceGenerator;
-
-import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
-
-import org.joda.time.DateTime;
-import org.mindrot.jbcrypt.BCrypt;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import io.ebean.annotation.DbJson;
-import io.ebean.*;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.base.Joiner;
-
+import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
+import io.ebean.Finder;
+import io.ebean.Model;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import play.data.validation.Constraints;
 import play.libs.Json;
+
+import javax.persistence.*;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.yugabyte.yw.models.helpers.CommonUtils.deepMerge;
 
@@ -45,13 +28,16 @@ public class Customer extends Model {
   @Column(nullable = false, unique = true)
   public UUID uuid = UUID.randomUUID();
   public void setUuid(UUID uuid) { this.uuid = uuid;}
+  public UUID getUuid() { return uuid; }
 
   // An auto incrementing, user-friendly id for the customer. Used to compose a db prefix. Currently
   // it is assumed that there is a single instance of the db. The id space for this field may have
   // to be partitioned in case the db is being sharded.
+  // Use IDENTITY strategy because `customer.id` is a `bigserial` type; not a sequence.
   @Id
-  @SequenceGenerator(name="customer_id_seq", sequenceName="customer_id_seq", allocationSize=1)
-  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator="customer_id_seq")  private Long id;
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
+
   public Long getCustomerId() { return id; }
 
   @Column(length = 15, nullable = false)
@@ -77,14 +63,14 @@ public class Customer extends Model {
     Set<UUID> universes = getUniverseUUIDs();
     universes.add(universeUUID);
     universeUUIDs = Joiner.on(",").join(universes);
-    LOG.debug("New universe list for customer [" + name + "] : " + universeUUIDs);
+    LOG.trace("New universe list for customer [" + name + "] : " + universeUUIDs);
   }
 
   public synchronized void removeUniverseUUID(UUID universeUUID) {
     Set<UUID> universes = getUniverseUUIDs();
     universes.remove(universeUUID);
     universeUUIDs = Joiner.on(",").join(universes);
-    LOG.debug("New universe list for customer [" + name + "] : " + universeUUIDs);
+    LOG.trace("New universe list for customer [" + name + "] : " + universeUUIDs);
   }
 
   public Set<UUID> getUniverseUUIDs() {
@@ -144,11 +130,6 @@ public class Customer extends Model {
 
   /**
    * Create new customer, we encrypt the password before we store it in the DB
-   *
-   * @param name
-   * @param email
-   * @param password
-   * @return Newly Created Customer
    */
   public static Customer create(String code, String name) {
     Customer cust = new Customer();
@@ -179,5 +160,10 @@ public class Customer extends Model {
       deepMerge(features, input);
     }
     save();
+  }
+
+  @JsonIgnore
+  public String getTag() {
+    return String.format("[%s][%s]", name, code);
   }
 }

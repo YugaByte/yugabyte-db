@@ -20,6 +20,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static junit.framework.TestCase.assertTrue;
@@ -36,6 +37,12 @@ import org.junit.runner.RunWith;
 
 @RunWith(value=YBTestRunner.class)
 public class TestSystemTables extends BaseCQLTest {
+
+  protected Map<String, String> getTServerFlags() {
+      Map<String, String> flagMap = super.getTServerFlags();
+      flagMap.put("cql_update_system_query_cache_msecs", "0");
+      return flagMap;
+  }
 
   @Test
   public void testSystemTables() throws Exception {

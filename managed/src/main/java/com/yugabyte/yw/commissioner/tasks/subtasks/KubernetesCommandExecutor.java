@@ -18,13 +18,16 @@ import com.google.inject.Inject;
 import com.yugabyte.yw.commissioner.AbstractTaskBase;
 import com.yugabyte.yw.commissioner.UserTaskDetails;
 import com.yugabyte.yw.commissioner.tasks.UniverseDefinitionTaskBase.ServerType;
+import com.yugabyte.yw.commissioner.tasks.UniverseTaskBase;
 import com.yugabyte.yw.common.CertificateHelper;
 import com.yugabyte.yw.common.KubernetesManager;
 import com.yugabyte.yw.common.PlacementInfoUtil;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.forms.AbstractTaskParams;
 import com.yugabyte.yw.forms.ITaskParams;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
+import com.yugabyte.yw.forms.UniverseTaskParams;
 import com.yugabyte.yw.models.AvailabilityZone;
 import com.yugabyte.yw.models.InstanceType;
 import com.yugabyte.yw.models.Provider;
@@ -54,7 +57,7 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class KubernetesCommandExecutor extends AbstractTaskBase {
+public class KubernetesCommandExecutor extends UniverseTaskBase {
   public enum CommandType {
     CREATE_NAMESPACE,
     APPLY_SECRET,
@@ -120,20 +123,19 @@ public class KubernetesCommandExecutor extends AbstractTaskBase {
     super.initialize(params);
   }
 
-  public static class Params extends AbstractTaskParams {
+  public static class Params extends UniverseTaskParams {
     public UUID providerUUID;
     public CommandType commandType;
-    public UUID universeUUID;
     // We use the nodePrefix as Helm Chart's release name,
     // so we would need that for any sort helm operations.
     public String nodePrefix;
     public String ybSoftwareVersion = null;
-    public String encryptionKeyFilePath = null;
     public boolean enableNodeToNodeEncrypt = false;
     public boolean enableClientToNodeEncrypt = false;
     public UUID rootCA = null;
     public ServerType serverType = ServerType.EITHER;
-    public int rollingUpgradePartition = 0;
+    public int tserverPartition = 0;
+    public int masterPartition = 0;
 
     // Master addresses in multi-az case (to have control over different deployments).
     public String masterAddresses = null;
@@ -163,7 +165,7 @@ public class KubernetesCommandExecutor extends AbstractTaskBase {
       config = Provider.get(taskParams().providerUUID).getConfig();
     }
     // TODO: add checks for the shell process handler return values.
-    ShellProcessHandler.ShellResponse response = null;
+    ShellResponse response = null;
     switch (taskParams().commandType) {
       case CREATE_NAMESPACE:
         response = kubernetesManager.createNamespace(config, taskParams().nodePrefix);
@@ -207,14 +209,14 @@ public class KubernetesCommandExecutor extends AbstractTaskBase {
       if (response.code != 0 && flag) {
         response = getPodError(config);
       }
-      logShellResponse(response);
+      processShellResponse(response);
     }
   }
 
-  private ShellProcessHandler.ShellResponse getPodError(Map<String, String> config) {
-    ShellProcessHandler.ShellResponse response = new ShellProcessHandler.ShellResponse();
+  private ShellResponse getPodError(Map<String, String> config) {
+    ShellResponse response = new ShellResponse();
     response.code = -1;
-    ShellProcessHandler.ShellResponse podResponse = kubernetesManager.getPodInfos(config, taskParams().nodePrefix);
+    ShellResponse podResponse = kubernetesManager.getPodInfos(config, taskParams().nodePrefix);
     JsonNode podInfos = parseShellResponseAsJson(podResponse);
     boolean flag = false;
     for (JsonNode podInfo: podInfos.path("items")) {
@@ -263,7 +265,7 @@ public class KubernetesCommandExecutor extends AbstractTaskBase {
 
       String namespace = taskParams().nodePrefix;
 
-      ShellProcessHandler.ShellResponse svcResponse =
+      ShellResponse svcResponse =
           kubernetesManager.getServices(config, namespace);
       JsonNode svcInfos = parseShellResponseAsJson(svcResponse);
 
@@ -297,7 +299,7 @@ public class KubernetesCommandExecutor extends AbstractTaskBase {
       String namespace = isMultiAz ?
           String.format("%s-%s", taskParams().nodePrefix, azName) : taskParams().nodePrefix;
 
-      ShellProcessHandler.ShellResponse podResponse =
+      ShellResponse podResponse =
           kubernetesManager.getPodInfos(config, namespace);
       JsonNode podInfos = parseShellResponseAsJson(podResponse);
 
@@ -363,7 +365,7 @@ public class KubernetesCommandExecutor extends AbstractTaskBase {
       universeDetails.nodeDetailsSet = nodeDetailsSet;
       universe.setUniverseDetails(universeDetails);
     };
-    Universe.saveDetails(taskParams().universeUUID, updater);
+    saveUniverseDetails(updater);
   }
 
   private String nodeNameToPodName(String nodeName, boolean isMaster) {
@@ -577,18 +579,14 @@ public class KubernetesCommandExecutor extends AbstractTaskBase {
       tlsInfo.put("rootCA", rootCA);
       overrides.put("tls", tlsInfo);
     }
+    if (userIntent.enableIPV6) {
+      overrides.put("ip_version_support", "v6_only");
+    }
+
     Map<String, Object> partition = new HashMap<>();
-    if (taskParams().serverType == ServerType.TSERVER) {
-      partition.put("tserver", taskParams().rollingUpgradePartition);
-      partition.put("master", replicationFactorZone);
-    }
-    else if (taskParams().serverType == ServerType.MASTER) {
-      partition.put("tserver", numNodes);
-      partition.put("master", taskParams().rollingUpgradePartition);
-    }
-    if (!partition.isEmpty()) {
-      overrides.put("partition", partition);
-    }
+    partition.put("tserver", taskParams().tserverPartition);
+    partition.put("master", taskParams().masterPartition);
+    overrides.put("partition", partition);
 
     UUID placementUuid = u.getUniverseDetails().getPrimaryCluster().uuid;
     Map<String, Object> gflagOverrides = new HashMap<>();

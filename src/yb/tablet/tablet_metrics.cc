@@ -134,6 +134,16 @@ METRIC_DEFINE_counter(tablet, restart_read_requests,
   yb::MetricUnit::kRequests,
   "Number of read requests that require restart.");
 
+METRIC_DEFINE_counter(tablet, consistent_prefix_read_requests,
+    "Consistent Prefix Read Requests",
+    yb::MetricUnit::kRequests,
+    "Number of consistent prefix read requests");
+
+METRIC_DEFINE_counter(tablet, pgsql_consistent_prefix_read_rows,
+                      "Consistent Prefix Read Requests",
+                      yb::MetricUnit::kRequests,
+                      "Number of pgsql rows read as part of a consistent prefix request");
+
 using strings::Substitute;
 
 namespace yb {
@@ -152,6 +162,8 @@ TabletMetrics::TabletMetrics(const scoped_refptr<MetricEntity>& entity)
     MINIT(transaction_conflicts),
     MINIT(expired_transactions),
     MINIT(restart_read_requests),
+    MINIT(consistent_prefix_read_requests),
+    MINIT(pgsql_consistent_prefix_read_rows),
     MINIT(rows_inserted) {
 }
 #undef MINIT

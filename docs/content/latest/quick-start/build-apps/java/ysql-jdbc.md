@@ -77,7 +77,7 @@ Create a file, named `pom.xml`, and then copy the following content into it. The
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
-      <version>4.2.2.14</version>
+      <version>42.2.14</version>
     </dependency>
   </dependencies>
 
@@ -137,26 +137,28 @@ import java.sql.Statement;
 
 public class YBSqlHelloWorld {
 
-  public static void main(String[] args) throws ClassNotFoundException, SQLException {
-    Class.forName("org.postgresql.Driver");
-    try (Connection conn = DriverManager.getConnection("jdbc:postgresql://localhost:5433/postgres", "postgres", "");
-        Statement stmt = conn.createStatement();) {
-      System.out.println("Connected to the PostgreSQL server successfully.");
+    public static void main(String[] args) throws ClassNotFoundException, SQLException {
+        Class.forName("org.postgresql.Driver");
+        try (Connection conn = DriverManager.getConnection("jdbc:postgresql://localhost:5433/yugabyte", "yugabyte", "yugabyte");
+            Statement stmt = conn.createStatement();) {
+            System.out.println("Connected to the PostgreSQL server successfully.");
 
-      String createTableQuery = "CREATE TABLE IF NOT EXISTS emp(employid int primary key,first_name varchar, last_name varchar) ";
-      stmt.executeUpdate(createTableQuery);
+            String createTableQuery = "CREATE TABLE IF NOT EXISTS employee(id int primary key, name varchar, age int, language text) ";
+            stmt.executeUpdate(createTableQuery);
+            System.out.println("Created table employee");
 
-      String insertQuery = "INSERT INTO emp(employid ,first_name, last_name) values (1,'Siddharth','Jamadari') ";
-      stmt.executeUpdate(insertQuery);
+            String insertQuery = "INSERT INTO employee (id, name, age, language) VALUES (1, 'John', 35, 'Java');";
+            stmt.executeUpdate(insertQuery);
+            System.out.println("Inserted data: INSERT INTO employee (id, name, age, language) VALUES (1, 'John', 35, 'Java');");
 
-      ResultSet rs = stmt.executeQuery("select * from emp");
-      while (rs.next())
-        System.out.println(rs.getInt(1) + "  " + rs.getString(2) + "  " + rs.getString(3));
-    } catch (SQLException e) {
-      System.err.println(e.getMessage());
+            ResultSet rs = stmt.executeQuery("select * from employee");
+            while (rs.next())
+                System.out.println("Query returned: "+ "name=" + rs.getString(2) + ", age=" + rs.getString(3) + ", language=" + rs.getString(4));
+        } catch (SQLException e) {
+            System.err.println(e.getMessage());
 
+        }
     }
-  }
 }
 
 ```

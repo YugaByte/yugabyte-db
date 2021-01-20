@@ -87,6 +87,9 @@ const T& RandomElementOf(const std::vector<T>& v, RandomNumberGenerator* rng) {
   return v[(*rng)() % v.size()];
 }
 
+// Represents a full logical snapshot of a RocksDB instance. An instance of this class will record
+// the state of a RocksDB instance via Capture, which can then be written to a new RocksDB instance
+// via RestoreTo.
 class LogicalRocksDBDebugSnapshot {
  public:
   LogicalRocksDBDebugSnapshot() {}

@@ -1,12 +1,20 @@
 // Copyright (c) YugaByte, Inc.
 
 import { connect } from 'react-redux';
-import {destroy} from 'redux-form';
+import { destroy } from 'redux-form';
 import { OnPremSuccess } from '../../config';
-import { deleteProvider, deleteProviderSuccess, deleteProviderFailure, fetchCloudMetadata,
-  setOnPremConfigData, getNodeInstancesForProvider, getNodesInstancesForProviderResponse,
-  getInstanceTypeList, getInstanceTypeListResponse, } from '../../../actions/cloud';
-import {openDialog, closeDialog} from '../../../actions/modal';
+import {
+  deleteProvider,
+  deleteProviderSuccess,
+  deleteProviderFailure,
+  fetchCloudMetadata,
+  setOnPremConfigData,
+  getNodeInstancesForProvider,
+  getNodesInstancesForProviderResponse,
+  getInstanceTypeList,
+  getInstanceTypeListResponse
+} from '../../../actions/cloud';
+import { openDialog, closeDialog } from '../../../actions/modal';
 
 const mapStateToProps = (state, ownProps) => {
   return {
@@ -16,7 +24,7 @@ const mapStateToProps = (state, ownProps) => {
     accessKeys: state.cloud.accessKeys,
     cloudBootstrap: state.cloud.bootstrap,
     visibleModal: state.modal.visibleModal,
-    cloud: state.cloud,
+    cloud: state.cloud
   };
 };
 
@@ -33,7 +41,7 @@ const mapDispatchToProps = (dispatch) => {
     },
 
     showDeleteProviderModal: () => {
-      dispatch(openDialog("deleteOnPremProvider"));
+      dispatch(openDialog('deleteOnPremProvider'));
     },
 
     hideDeleteProviderModal: () => {
@@ -45,7 +53,7 @@ const mapDispatchToProps = (dispatch) => {
     },
 
     resetConfigForm: () => {
-      dispatch(destroy("onPremConfigForm"));
+      dispatch(destroy('onPremConfigForm'));
     },
     fetchConfiguredNodeList: (pUUID) => {
       dispatch(getNodeInstancesForProvider(pUUID)).then((response) => {
@@ -59,7 +67,7 @@ const mapDispatchToProps = (dispatch) => {
       dispatch(getInstanceTypeList(pUUID)).then((response) => {
         dispatch(getInstanceTypeListResponse(response.payload));
       });
-    },
+    }
   };
 };
 

@@ -104,12 +104,12 @@ Data Base Updated
 
 ### Copy required certificate files to .yugabytedb directory
 
-Now, copy the required certificate files to the `/tmp/yugabyte` directory.
+Now, copy the required certificate files to the `~/.yugabytedb` directory.
 
 ```sh
-$ mkdir /tmp/yugabyte
-$ cp secure-data/ca.crt /tmp/yugabyte/
-$ cp client-certs-temp/yugabyte.* /tmp/yugabyte/
+$ mkdir ~/.yugabytedb
+$ cp secure-data/ca.crt ~/.yugabytedb/
+$ cp client-certs-temp/yugabyte.* ~/.yugabytedb/
 ```
 
 ### Generate client private key and certificate

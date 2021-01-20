@@ -1,13 +1,20 @@
 ---
 title: Yugabyte documentation
 description: Yugabyte documentation is the best source to learn the most in-depth information about YugabyteDB, Yugabyte Cloud, and Yugabyte Platform.
-headcontent: v2.3 — the latest version
+headcontent: v2.5 — the latest release series
 type: list
 image: /images/ybsymbol_original.png
 weight: 1
 ---
 
+{{< note title="New release versioning" >}}
+
+Starting with v2.2.0, Yugabyte release versions follow a [new release versioning convention](/latest/releases/versioning). The latest release series, denoted by `MAJOR.ODD`, incrementally introduces new features and changes and is intended for development and testing only. Patch releases, denoted by `MAJOR.ODD.PATCH` versioning, can include new features and changes that might break backwards compatibility. For more information, see [Releases overview](/latest/releases/releases-overview).
+
+{{< /note >}}
+
 <div class="row">
+
   <div class="col-12 col-md-6">
     <a class="section-link icon-offset" href="quick-start/">
       <div class="head">
@@ -125,10 +132,21 @@ weight: 1
     </a>
   </div>
 
-
+   <div class="col-12 col-md-6">
+    <a class="section-link icon-offset" href="yugabyte-platform/overview">
+      <div class="head">
+        <img class="icon" src="/images/section_icons/index/deploy.png" aria-hidden="true" />
+        <div class="articles">3 chapters</div>
+        <div class="title">Yugabyte Platform</div>
+      </div>
+      <div class="body">
+          Deploy multi-node clusters on any public or private cloud. Includes manual, automated and orchestrated (using Kubernetes &amp; Docker Swarm) deployments.
+      </div>
+    </a>
+  </div>
 
    <div class="col-12 col-md-6">
-    <a class="section-link icon-offset" href="yugabyte-platform/">
+    <a class="section-link icon-offset" href="yugabyte-platform/configure-yugabyte-platform">
       <div class="head">
         <img class="icon" src="/images/section_icons/index/deploy.png" aria-hidden="true" />
         <div class="articles">3 chapters</div>
@@ -193,7 +211,7 @@ weight: 1
   </div>
 
  <div class="col-12 col-md-6">
-    <a class="section-link icon-offset" href="/latest/reference/configuration">
+    <a class="section-link icon-offset" href="/reference/configuration">
       <div class="head">
         <img class="icon" src="/images/section_icons/reference/configuration/sample_apps.png" aria-hidden="true" />
         <div class="articles">3 chapters</div>
@@ -256,13 +274,13 @@ weight: 1
   </div>
 
   <div class="col-12 col-md-6">
-    <a class="section-link icon-offset" href="releases/whats-new/">
+    <a class="section-link icon-offset" href="releases/whats-new">
       <div class="head">
         <img class="icon" src="/images/section_icons/quick_start/install.png" aria-hidden="true" />
-        <div class="title">What's new</div>
+        <div class="title">Releases</div>
       </div>
       <div class="body">
-        Release notes for current and earlier releases.
+        What's new in the latest and current stable releases.
       </div>
     </a>
   </div>
@@ -305,7 +323,6 @@ weight: 1
     </a>
   </div>
 
-
   <div class="col-12 col-md-6">
     <a class="section-link icon-offset" href="/latest/contribute/">
       <div class="head">
@@ -329,4 +346,5 @@ weight: 1
       </div>
     </a>
   </div>
+
 </div>

@@ -90,26 +90,6 @@
     become: yes
     when: ansible_os_family == "RedHat" and update_yum_cache
 
-  - name: Set Backup packages to Install
-    set_fact:
-      linux_packages: "{{ linux_packages + backup_packages }}"
-    when: install_backup_packages
-
-  - name: Set Dev packages to Install
-    set_fact:
-      linux_packages: "{{ linux_packages + dev_packages }}"
-    when: install_dev_packages
-
-  - name: Set Debian packages to Install
-    set_fact:
-      linux_packages: "{{ linux_packages + debian_packages }}"
-    when: install_dev_packages and ansible_os_family == "Debian"
-
-  - name: Set RedHat packages to Install
-    set_fact:
-      linux_packages: "{{ linux_packages + redhat_packages }}"
-    when: install_dev_packages and ansible_os_family == "RedHat"
-
   - name: Set Azure packages to Install
     set_fact:
       linux_packages: "{{ linux_packages + azure_packages }}"
@@ -144,22 +124,6 @@
 
     when: ansible_os_family == "RedHat" and (cloud_type is not defined or cloud_type != "onprem")
 
-  - name: Install epel-release if RedHat.
-    become: yes
-    become_method: sudo
-    yum:
-      name: epel-release
-      state: latest
-      update_cache: yes
-    register: result
-    until: result is succeeded
-    retries: "{{ yum_retry_count }}"
-    when: ansible_os_family == "RedHat" and ansible_distribution != "Amazon"
-
-  - name: Install epel-release if Amazon
-    command: sudo amazon-linux-extras install -y epel
-    when: ansible_distribution == "Amazon"
-
   - name: Install linux packages we need on our YugaByte clusters on CentOS
     become: yes
     become_method: sudo
@@ -186,29 +150,5 @@
     until: result is succeeded
     retries: "{{ yum_retry_count }}"
     when: ansible_os_family != "RedHat"
-
-  - name: Install backup roles - gsutil
-    become: yes
-    become_method: sudo
-    include_role:
-      name: role-install-gcloud
-    vars:
-      gcloud_archive_name: "{{ backup_gcloud_package }}"
-      gcloud_override_components: "{{ backup_gcloud_components }}"
-      gcloud_install_path: "/usr"
-    when: install_backup_packages and cloud_type != "gcp"
-
-  - name: Download and install azcopy
-    become: yes
-    become_method: sudo
-    unarchive:
-      src: "{{ backup_azcopy_src }}"
-      dest: /usr/bin
-      remote_src: yes
-      mode: 0755
-      exclude:
-        - ThirdPartyNotice.txt
-      extra_opts: [--strip-components=1] # Remove tarball directory from extracted path.
-    when: install_backup_packages
 
   when: not air_gap

@@ -29,41 +29,42 @@
   ignore_errors: True
   failed_when: False
 
-# Check if home_dir already exists, i.e. when it's specified for onprem.
-- name: Check if home directory exists
-  stat:
-    path: "{{ create_user.home_dir }}"
-  register: home_stat
+- block:
+  # Check if home_dir already exists, i.e. when it's specified for onprem.
+  - name: Check if home directory exists
+    stat:
+      path: "{{ create_user.home_dir }}"
+    register: home_stat
 
-- name: Create the group
-  group:
-    name: "{{ create_user.group }}"
-    gid: "{{ create_user.gid | default(omit) }}"
-    system: yes
-  become: yes
-  when: create_user.group is defined
+  - name: Create the group
+    group:
+      name: "{{ create_user.group }}"
+      gid: "{{ create_user.gid | default(omit) }}"
+      system: yes
+    become: yes
+    when: create_user.group is defined
 
-- name: Create the user
-  user:
-    comment: "{{ create_user.comment | default(omit) }}"
-    createhome: yes
-    group: "{{ create_user.group | default(omit) }}"
-    home: "{{ create_user.home_dir | default(omit) }}"
-    name: "{{ create_user.name }}"
-    shell: "{{ create_user.shell | default(omit) }}"
-    system: "{{ use_system_user }}"
-    uid: "{{ create_user.uid | default(omit) }}"
+  - name: Create the user
+    user:
+      comment: "{{ create_user.comment | default(omit) }}"
+      createhome: yes
+      group: "{{ create_user.group | default(omit) }}"
+      home: "{{ create_user.home_dir | default(omit) }}"
+      name: "{{ create_user.name }}"
+      shell: "{{ create_user.shell | default(omit) }}"
+      system: "{{ use_system_user }}"
+      uid: "{{ create_user.uid | default(omit) }}"
+    become: yes
+
+  - name: Set home dir ownership
+    file:
+      path: "{{ create_user.home_dir }}"
+      state: directory
+      recurse: yes
+      owner: "{{ create_user.name }}"
+      group: "{{ create_user.group | default(omit) }}"
+    when: home_stat.stat.isdir is defined
   when: user_existence_check_result.rc != 0
-  become: yes
-
-- name: Set home dir ownership
-  file:
-    path: "{{ create_user.home_dir }}"
-    state: directory
-    recurse: yes
-    owner: "{{ create_user.name }}"
-    group: "{{ create_user.group | default(omit) }}"
-  when: home_stat.stat.isdir is defined
 
 - name: "Setup {{ create_user.name }} ssh"
   include: setup-ssh.yml

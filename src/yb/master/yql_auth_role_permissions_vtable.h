@@ -22,7 +22,9 @@ namespace master {
 // VTable implementation of system_auth.role_permissions
 class YQLAuthRolePermissionsVTable : public YQLVirtualTable {
  public:
-  explicit YQLAuthRolePermissionsVTable(const Master* const master);
+  explicit YQLAuthRolePermissionsVTable(const TableName& table_name,
+                                        const NamespaceName& namespace_name,
+                                        yb::master::Master * const master);
 
   Result<std::shared_ptr<QLRowBlock>> RetrieveData(const QLReadRequestPB& request) const override;
 

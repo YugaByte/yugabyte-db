@@ -362,4 +362,12 @@ SELECT * FROM temptest WHERE k IN (1, 4) ORDER BY k;
  1 |  0 |  3
 (1 row)
 
+-- test temp table primary key duplicate error.
+INSERT INTO temptest VALUES (100, 200, 300);
+INSERT INTO temptest VALUES (100, 200, 300);
+ERROR:  duplicate key value violates unique constraint "temptest_pkey"
+DETAIL:  Key (k)=(100) already exists.
+INSERT INTO temptest VALUES (101, 201, 301), (101, 201, 301);
+ERROR:  duplicate key value violates unique constraint "temptest_pkey"
+DETAIL:  Key (k)=(101) already exists.
 DROP TABLE temptest;

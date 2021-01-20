@@ -54,7 +54,7 @@ static constexpr size_t kCacheKeyBufferSize =
 
 struct CacheKeyPrefixBuffer {
   char data[kMaxCacheKeyPrefixSize];
-  size_t size;
+  size_t size = 0;
 };
 
 inline Slice GetCacheKey(const CacheKeyPrefixBuffer& cache_key_prefix, const BlockHandle& handle,

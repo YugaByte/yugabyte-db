@@ -1,27 +1,26 @@
 /* Copyright (c) YugaByte, Inc. */
 
 .universe-table-header-action {
-    margin-bottom: 0;
-    text-align: right;
+  margin-bottom: 0;
+  text-align: right;
 }
 
 .universe-table-header-action .universe-button {
-    width: auto;
-    font-size: 14px;
-    padding: 11px 12px;
+  width: auto;
+  font-size: 14px;
+  padding: 11px 12px;
 }
 
 .universe-table-header-action.dashboard-universe-actions {
-    padding-right: 15px;
+  padding-right: 15px;
 }
 
 .universe-button {
-    
-    &.btn-orange {
-        margin-left: 15px;
-    }
+  &.btn-orange {
+    margin-left: 15px;
+  }
 
-    .fa-mail-forward {
-        transform: rotate(90deg) translateX(3px);
-    }
+  .fa-mail-forward {
+    transform: rotate(90deg) translateX(3px);
+  }
 }

@@ -24,7 +24,9 @@ namespace master {
 // VTable implementation of system.peers.
 class PeersVTable : public YQLVirtualTable {
  public:
-  explicit PeersVTable(const Master* const master_);
+  explicit PeersVTable(const TableName& table_name,
+                       const NamespaceName& namespace_name,
+                       Master * const master);
   Result<std::shared_ptr<QLRowBlock>> RetrieveData(const QLReadRequestPB& request) const override;
 
  private:

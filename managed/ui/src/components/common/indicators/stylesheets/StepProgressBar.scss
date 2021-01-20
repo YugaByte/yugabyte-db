@@ -1,6 +1,6 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../../_style/colors.scss";
+@import '../../../../_style/colors.scss';
 
 .progressbar {
   display: flex;
@@ -14,8 +14,8 @@
   height: 120px;
 
   &:before {
-    width: calc( 100% - 30px );
-    content: "";
+    width: calc(100% - 30px);
+    content: '';
     height: 8px;
     position: absolute;
     top: 21px;
@@ -29,7 +29,7 @@
     top: 21px;
     left: 0;
 
-    &.finished:after  {
+    &.finished:after {
       content: none;
     }
 
@@ -37,7 +37,7 @@
       left: 100%;
       top: 50%;
       border: solid transparent;
-      content: " ";
+      content: ' ';
       height: 0;
       width: 0;
       position: absolute;
@@ -48,7 +48,8 @@
       margin-top: -4px;
     }
 
-    &.running, &.pending {
+    &.running,
+    &.pending {
       background-color: $YB_ORANGE;
       animation-duration: 3s;
       animation-name: bouncing;
@@ -64,7 +65,7 @@
       from {
         transform: translateX(0px);
       }
-    
+
       to {
         transform: translateX(20px);
       }
@@ -129,11 +130,10 @@
     }
 
     &:last-child {
-      
       &:after {
         content: none;
       }
-      
+
       span {
         right: 0;
         left: auto;
@@ -144,11 +144,8 @@
   }
 }
 
-
-
-
 .progressbar li.running {
-  color:  $YB_ORANGE;
+  color: $YB_ORANGE;
 }
 
 .progressbar li.running:before {
@@ -166,7 +163,7 @@
 
 .progressbar li.finished {
   color: $YB_SUCCESS_COLOR;
-  
+
   &:before {
     background-color: $YB_SUCCESS_COLOR;
     color: white;
@@ -183,7 +180,6 @@
 }
 
 .progressbar li.to-be-failed {
-
   &:before {
     border: 6px solid $YB_FAIL_COLOR;
     line-height: 36px;
@@ -191,7 +187,6 @@
 }
 
 .progressbar li.to-be-succeed {
-
   &:before {
     border: 6px solid $YB_ORANGE;
     line-height: 36px;

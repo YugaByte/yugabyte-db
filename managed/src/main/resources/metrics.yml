@@ -290,6 +290,21 @@ disk_bytes_per_second_per_node:
         "node_disk_bytes_read": "Read"
         "node_disk_bytes_written": "Write"
 
+node_clock_skew:
+  metric: "hybrid_clock_skew"
+  range : true
+  function: "max_over_time|max"
+  group_by: "saved_name"
+  filters:
+    export_type: "(tserver_export|master_export)"
+  layout:
+    title: "Clock Skew"
+    xaxis:
+      type: "date"
+    yaxis:
+      alias:
+        "hybrid_clock_skew": "Max clock skew (us)"
+
 redis_rpcs_per_sec_all:
   metric: "rpc_latency_count"
   function: "rate|sum"
@@ -1928,6 +1943,7 @@ tserver_async_replication_lag_micros:
     xaxis:
       type: "date"
     yaxis:
+      ticksuffix: "&nbsp;ms"
       alias:
         "async_replication_sent_lag_micros": "Sent Lag (Microseconds)"
         "async_replication_committed_lag_micros": "Committed Lag (Microseconds)"

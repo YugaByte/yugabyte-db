@@ -68,16 +68,22 @@ class MetricsTest : public YBTest {
  protected:
   template <class LagType>
   void DoLagTest(const MillisLagPrototype& metric) {
-    auto lag = new LagType(&metric);
+    scoped_refptr<LagType> lag = new LagType(&metric);
     ASSERT_EQ(metric.description(), lag->prototype()->description());
+    SleepFor(MonoDelta::FromMilliseconds(500));
+    // Internal timestamp is set to the time when the metric was created.
+    // So this lag is measure of the time elapsed since the metric was
+    // created and the check time.
+    ASSERT_GE(lag->lag_ms(), 500);
     auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
-    SleepFor(MonoDelta::FromMilliseconds(100));
-    ASSERT_LT(now_ms, lag->lag_ms());
     lag->UpdateTimestampInMilliseconds(now_ms);
-    ASSERT_GT(10000, lag->lag_ms());
-    // Set the timestamp to some time in the future to verify that the metric can correctly deal
-    // with this case.
+    // Verify that the update happened correctly. The lag time should
+    // be close to 0, but giving it extra time to account for slow
+    // tests.
+    ASSERT_LT(lag->lag_ms(), 200);
+    // Set the timestamp to some time in the future to verify that the
+    // metric can correctly deal with this case.
     lag->UpdateTimestampInMilliseconds(now_ms * 2);
     ASSERT_EQ(0, lag->lag_ms());
   }

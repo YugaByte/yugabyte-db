@@ -14,6 +14,7 @@
 #include "yb/tablet/remove_intents_task.h"
 
 #include "yb/tablet/running_transaction.h"
+#include "yb/util/logging.h"
 
 namespace yb {
 namespace tablet {
@@ -49,7 +50,9 @@ void RemoveIntentsTask::Run() {
 }
 
 void RemoveIntentsTask::Done(const Status& status) {
-  WARN_NOT_OK(status, "Remove intents task failed");
+  if (!status.ok()) {
+    YB_LOG_EVERY_N_SECS(WARNING, 1) << "Remove intents task failed: " << status;
+  }
   transaction_.reset();
 }
 

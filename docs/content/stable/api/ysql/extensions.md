@@ -26,7 +26,7 @@ The `fuzzystrmatch` extension provides several functions to determine similariti
 
 #### Example
 
-```postgresql
+```plpgsql
 CREATE EXTENSION fuzzystrmatch;
 SELECT levenshtein('Yugabyte', 'yugabyte'), metaphone('yugabyte', 8);
  levenshtein | metaphone
@@ -43,7 +43,7 @@ The `pgcrypto` extension provides various cryptographic functions.
 
 #### Example
 
-```postgresql
+```plpgsql
 CREATE EXTENSION pgcrypto;
 CREATE TABLE pgcrypto_example(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), content text, digest text);
 INSERT INTO pgcrypto_example (content, digest) values ('abc', digest('abc', 'sha1'));
@@ -60,7 +60,7 @@ For more information see [`pgcrypto`](https://www.postgresql.org/docs/current/pg
 
 The [`pg_stat_statements`](https://www.postgresql.org/docs/11/pgstatstatements.html) extension module is installed by default, but must be enabled before the `pg_stat_statements` view can be queried. 
 
-```postgresql
+```plpgsql
 CREATE EXTENSION pg_stat_statements;
 SELECT query, calls, total_time, min_time, max_time, mean_time, stddev_time, rows FROM pg_stat_statements;
 ```
@@ -83,7 +83,7 @@ The `spi` module lets developers use the [Server Programming Interface (SPI)](ht
 1. Set up a table with triggers for tracking modification time and user (role).
     Connect with `ysqlsh` and run the commands below.
 
-```postgresql
+```plpgsql
 CREATE EXTENSION insert_username;
 CREATE EXTENSION moddatetime;
 
@@ -107,7 +107,7 @@ CREATE TRIGGER update_moddatetime
 
 2. Insert some rows. Each insert should add the current role as `username` and the current timestamp as `moddate`.
 
-```postgresql
+```plpgsql
 SET ROLE yugabyte;
 INSERT INTO spi_test VALUES(1, 'desc1');
 
@@ -136,7 +136,7 @@ YSQL should have users `yugabyte` and (for compatibility) `postgres`, which are 
 
 3. Update some rows. Should update both `username`  and `moddate` accordingly.
 
-```postgresql
+```plpgsql
 UPDATE spi_test SET content = 'desc1_updated' WHERE id = 1;
 UPDATE spi_test SET content = 'desc3_updated' WHERE id = 3;
 SELECT * FROM spi_test ORDER BY id;
@@ -157,7 +157,7 @@ The `tablefunc` extension provides several table functions. For example, `normal
 
 #### Example
 
-```postgresql
+```plpgsql
 CREATE EXTENSION tablefunc;
 
 CREATE TABLE T(k int primary key, v double precision);
@@ -169,7 +169,7 @@ SELECT
   normal_rand($1, 1000.0, 10.0);
 ```
 Test it like this
-```postgresql
+```plpgsql
 DELETE FROM t;
 EXECUTE insert_k_v_pairs(10);
 SELECT k, to_char(v, '9999.99') AS v
@@ -328,7 +328,7 @@ $ ./bin/ysqlsh -a -f edmonton.sql
 
 5. Run some sample queries. Connect with `ysqlsh` and run:
 
-```postgresql
+```plpgsql
 SELECT name, area_km2, ST_Area(geom), ST_Area(geom)/area_km2 AS area_ratio FROM "geo_export" LIMIT 10;
             name            |     area_km2      |       st_area        |      area_ratio
 ----------------------------+-------------------+----------------------+----------------------
@@ -391,7 +391,7 @@ $ cp -v "$(pg_config --pkglibdir)"/*hll*.so "$(yb_pg_config --pkglibdir)" &&
 You can run a quick example for the [postgresql-hll](https://github.com/citusdata/postgresql-hll#usage) repository.
 Connect with `ysqlsh` and run:
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE helloworld (id integer, set hll);
 CREATE TABLE
 --- Insert an empty HLL
@@ -429,7 +429,7 @@ $ cp -v "$(pg_config --pkglibdir)"/*uuid-ossp*.so "$(yb_pg_config --pkglibdir)" 
 
 Connect with `ysqlsh` and run:
 
-```postgresql
+```plpgsql
 SELECT uuid_generate_v1(), uuid_generate_v4(), uuid_nil();
            uuid_generate_v1           |           uuid_generate_v4           |               uuid_nil
 --------------------------------------+--------------------------------------+--------------------------------------

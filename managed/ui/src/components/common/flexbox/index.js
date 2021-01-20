@@ -6,4 +6,3 @@ export { default as RollingUpgradeForm } from './RollingUpgradeForm/RollingUpgra
 export { default as LoginFormContainer } from './LoginForm/LoginFormContainer';
 export { default as RegisterFormContainer } from './RegisterForm/RegisterFormContainer';
 export { default as RollingUpgradeFormContainer } from './RollingUpgradeForm/RollingUpgradeFormContainer';
-

@@ -188,7 +188,7 @@ Status TabletPeer::InitTabletPeer(
     ThreadPool* raft_pool,
     ThreadPool* tablet_prepare_pool,
     consensus::RetryableRequests* retryable_requests,
-    const yb::OpId& split_op_id) {
+    const consensus::SplitOpInfo& split_op_info) {
   DCHECK(tablet) << "A TabletPeer must be provided with a Tablet";
   DCHECK(log) << "A TabletPeer must be provided with a Log";
 
@@ -210,6 +210,7 @@ Status TabletPeer::InitTabletPeer(
     log_atomic_ = log.get();
     service_thread_pool_ = &messenger->ThreadPool();
     strand_.reset(new rpc::Strand(&messenger->ThreadPool()));
+    messenger_ = messenger;
 
     tablet->SetMemTableFlushFilterFactory([log] {
       auto index = log->GetLatestEntryOpId().index;
@@ -268,7 +269,7 @@ Status TabletPeer::InitTabletPeer(
         tablet_->table_type(),
         raft_pool,
         retryable_requests,
-        split_op_id);
+        split_op_info);
     has_consensus_.store(true, std::memory_order_release);
 
     tablet_->SetHybridTimeLeaseProvider(std::bind(&TabletPeer::HybridTimeLease, this, _1, _2));
@@ -304,27 +305,25 @@ Status TabletPeer::InitTabletPeer(
   return Status::OK();
 }
 
-FixedHybridTimeLease TabletPeer::HybridTimeLease(MicrosTime min_allowed, CoarseTimePoint deadline) {
-  auto time = clock_->Now();
-  MicrosTime lease_micros {
-      consensus_->MajorityReplicatedHtLeaseExpiration(min_allowed, deadline) };
-  if (!lease_micros) {
-    return {
-      .time = HybridTime::kInvalid,
-      .lease = HybridTime::kInvalid,
-    };
-  }
+Result<FixedHybridTimeLease> TabletPeer::HybridTimeLease(
+    HybridTime min_allowed, CoarseTimePoint deadline) {
+  auto time = VERIFY_RESULT(WaitUntil(clock_.get(), min_allowed, deadline));
+  // min_allowed could contain non zero logical part, so we add one microsecond to be sure that
+  // the resulting ht_lease is at least min_allowed.
+  auto min_allowed_micros = min_allowed.CeilPhysicalValueMicros();
+  MicrosTime lease_micros = VERIFY_RESULT(consensus_->MajorityReplicatedHtLeaseExpiration(
+      min_allowed_micros, deadline));
   if (lease_micros >= kMaxHybridTimePhysicalMicros) {
     // This could happen when leader leases are disabled.
     return FixedHybridTimeLease();
   }
-  return {
+  return FixedHybridTimeLease {
     .time = time,
     .lease = HybridTime(lease_micros, /* logical */ 0)
   };
 }
 
-HybridTime TabletPeer::PreparePeerRequest() {
+Result<HybridTime> TabletPeer::PreparePeerRequest() {
   auto leader_term = consensus_->GetLeaderState(/* allow_stale= */ true).term;
   if (leader_term >= 0) {
     auto last_write_ht = tablet_->mvcc_manager()->LastReplicatedHybridTime();
@@ -348,18 +347,20 @@ HybridTime TabletPeer::PreparePeerRequest() {
   }
 
   // Get the current majority-replicated HT leader lease without any waiting.
-  auto ht_lease = HybridTimeLease(/* min_allowed */ 0, /* deadline */ CoarseTimePoint::max());
-  if (!ht_lease.lease) {
-    return HybridTime::kInvalid;
-  }
+  auto ht_lease = VERIFY_RESULT(HybridTimeLease(
+      /* min_allowed= */ HybridTime::kMin, /* deadline */ CoarseTimePoint::max()));
   return tablet_->mvcc_manager()->SafeTime(ht_lease);
 }
 
 void TabletPeer::MajorityReplicated() {
-  auto ht_lease = HybridTimeLease(/* min_allowed */ 0, /* deadline */ CoarseTimePoint::max());
-  if (ht_lease.lease) {
-    tablet_->mvcc_manager()->UpdatePropagatedSafeTimeOnLeader(ht_lease);
+  auto ht_lease = HybridTimeLease(
+      /* min_allowed= */ HybridTime::kMin, /* deadline */ CoarseTimePoint::max());
+  if (!ht_lease.ok()) {
+    LOG_WITH_PREFIX(DFATAL) << "Failed to get current lease: " << ht_lease.status();
+    return;
   }
+
+  tablet_->mvcc_manager()->UpdatePropagatedSafeTimeOnLeader(*ht_lease);
 }
 
 void TabletPeer::ChangeConfigReplicated(const RaftConfigPB& config) {
@@ -533,9 +534,13 @@ void TabletPeer::Shutdown(IsDropTable is_drop_table) {
 }
 
 Status TabletPeer::CheckRunning() const {
-  if (state_.load(std::memory_order_acquire) != RaftGroupStatePB::RUNNING) {
-    return STATUS(IllegalState, Substitute("The tablet is not in a running state: $0",
-                                           RaftGroupStatePB_Name(state_)));
+  auto state = state_.load(std::memory_order_acquire);
+  if (state != RaftGroupStatePB::RUNNING) {
+    if (state == RaftGroupStatePB::QUIESCING) {
+      return STATUS(ShutdownInProgress, "The tablet is shutting down");
+    }
+    return STATUS_FORMAT(IllegalState, "The tablet is not in a running state: $0",
+                         RaftGroupStatePB_Name(state));
   }
 
   return Status::OK();
@@ -598,7 +603,7 @@ void TabletPeer::WriteAsync(
   tablet_->AcquireLocksAndPerformDocOperations(std::move(operation));
 }
 
-HybridTime TabletPeer::ReportReadRestart() {
+Result<HybridTime> TabletPeer::ReportReadRestart() {
   tablet_->metrics()->restart_read_requests->Increment();
   return tablet_->SafeTime(RequireLease::kTrue);
 }
@@ -636,10 +641,6 @@ HybridTime TabletPeer::SafeTimeForTransactionParticipant() {
 void TabletPeer::GetLastReplicatedData(RemoveIntentsData* data) {
   consensus_->GetLastCommittedOpId().ToPB(&data->op_id);
   data->log_ht = tablet_->mvcc_manager()->LastReplicatedHybridTime();
-}
-
-HybridTime TabletPeer::Now() {
-  return clock_->Now();
 }
 
 void TabletPeer::UpdateClock(HybridTime hybrid_time) {
@@ -874,8 +875,11 @@ Result<int64_t> TabletPeer::GetEarliestNeededLogIndex(std::string* details) cons
     // it is used during bootstrap to initialize ReplicaState::split_op_id_ which in its turn
     // is used to prevent already split tablet from serving new ops.
     auto split_op_id = consensus()->GetSplitOpId();
-    if (split_op_id) {
+    if (!split_op_id.empty()) {
       min_index = std::min(min_index, split_op_id.index);
+      if (details) {
+        *details += Format("split_op_id: $0\n", split_op_id.index);
+      }
     }
   }
 
@@ -1172,7 +1176,8 @@ consensus::LeaderStatus TabletPeer::LeaderStatus(bool allow_stale) const {
 }
 
 HybridTime TabletPeer::HtLeaseExpiration() const {
-  HybridTime result(consensus_->MajorityReplicatedHtLeaseExpiration(0, CoarseTimePoint::max()), 0);
+  HybridTime result(
+      CHECK_RESULT(consensus_->MajorityReplicatedHtLeaseExpiration(0, CoarseTimePoint::max())), 0);
   return std::max(result, tablet_->mvcc_manager()->LastReplicatedHybridTime());
 }
 
@@ -1227,6 +1232,44 @@ void TabletPeer::StrandEnqueue(rpc::StrandTask* task) {
   }
 
   strand->Enqueue(task);
+}
+
+bool TabletPeer::CanBeDeleted() {
+  if (!IsLeader()) {
+    return false;
+  }
+  if (can_be_deleted_) {
+    return can_be_deleted_;
+  }
+
+  const auto split_op_id = consensus_->GetSplitOpId();
+  const auto all_applied_op_id = consensus_->GetAllAppliedOpId();
+  VLOG_WITH_PREFIX_AND_FUNC(4) << "split_op_id: " << split_op_id
+                               << " all_applied_op_id: " << all_applied_op_id;
+  if (split_op_id.empty() || all_applied_op_id < split_op_id) {
+    return can_be_deleted_;
+  }
+  const auto tablet_data_state = tablet()->metadata()->tablet_data_state();
+  if (tablet_data_state != TABLET_DATA_SPLIT_COMPLETED) {
+    YB_LOG_WITH_PREFIX_EVERY_N_SECS(DFATAL, 5) << Format(
+        "Expected tablet $0 data state to be TABLET_DATA_SPLIT_COMPLETED, but got: $1. "
+        "all_applied_op_id: $2, split_op_id: $3",
+        tablet_id(), TabletDataState_Name(tablet_data_state), all_applied_op_id,
+        consensus_->GetSplitOpId());
+    return can_be_deleted_;
+  }
+
+  can_be_deleted_ = true;
+  LOG_WITH_PREFIX(INFO) << Format(
+      "Marked tablet $0 as requiring cleanup due to all replicas have been split (all applied op "
+      "ID: $1, split op ID: $2)",
+      tablet_id(), all_applied_op_id, split_op_id);
+
+  return can_be_deleted_;
+}
+
+rpc::Scheduler& TabletPeer::scheduler() const {
+  return messenger_->scheduler();
 }
 
 }  // namespace tablet

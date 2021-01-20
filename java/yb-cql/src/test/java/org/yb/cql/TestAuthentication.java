@@ -21,33 +21,20 @@ import org.junit.Test;
 import static org.yb.AssertionWrappers.*;
 
 import org.yb.YBTestRunner;
+import org.yb.minicluster.BaseMiniClusterTest;
 
+import org.junit.BeforeClass;
 import org.junit.runner.RunWith;
 
 @RunWith(value=YBTestRunner.class)
-public class TestAuthentication extends BaseAuthenticationCQLTest {
+public class TestAuthentication extends BaseAuthenticationCommonCQLTest {
+
   @Test(timeout = 100000)
   public void testCreateRoles() throws Exception {
     testCreateRoleHelper("role1", "$!@$q1<>?", false, false);
     testCreateRoleHelper("role4", "$!@$q1<>?", false, true);
     testCreateRoleHelper("role2", "$!@$q1<>?", true, false);
     testCreateRoleHelper("role3", "$!@$q1<>?", true, true);
-  }
-
-  @Test(timeout = 100000)
-  public void testDeleteExistingRole() throws Exception {
-    // Create the role.
-    String roleName = "role_test";
-    String password = "adsfQ%T!qaewfa";
-    testCreateRoleHelper(roleName, password, true, false);
-
-    Session s = getDefaultSession();
-    // Delete the role.
-    String deleteStmt = String.format("DROP ROLE %s", roleName);
-    s.execute(deleteStmt);
-
-    // Verify that we cannot connect using the deleted role.
-    checkConnectivity(true, roleName, password, true);
   }
 
   @Test(timeout = 100000)
@@ -85,91 +72,6 @@ public class TestAuthentication extends BaseAuthenticationCQLTest {
     s2.execute(String.format("DROP ROLE %s", superuser));
   }
 
-  @Test
-  public void testSuperuserCanDeleteAnotherSuperuserRole() throws Exception {
-    String superuser1 = "superuser_1";
-    String superuser2 = "superuser_2";
-    String pwd = "password";
-
-    testCreateRoleHelper(superuser1, pwd, true, true);
-
-    Session s2 = getSession(superuser1, pwd);
-
-    // Create a new role using superuser1's session. This should grant all the permissions on role
-    // superuser2 to superuser1.
-    testCreateRoleHelperWithSession(superuser2, pwd, true, true, true, s2);
-
-    // Verify that superuser1 can delete superuser2.
-    s2.execute(String.format("DROP ROLE %s", superuser2));
-
-    // Verify that we can't connect using the deleted role.
-    checkConnectivity(true, superuser2, pwd, true);
-  }
-
-  @Test(timeout = 100000)
-  public void testAlterPasswordForExistingRole() throws Exception {
-    Session s = getDefaultSession();
-
-    String roleName = "alter_test_1";
-    String oldPassword = "!%^()(*~`";
-    testCreateRoleHelper(roleName, oldPassword, true, false);
-
-    // Change the role's password.
-    String newPassword = "%#^$%@$@";
-    String alterStmt = String.format("ALTER ROLE %s with PASSWORD = '%s'", roleName, newPassword);
-    s.execute(alterStmt);
-
-
-    // During the first iteration we check tha the changes were applied correctly to the
-    // in-memory structures. Then we restart the cluster to verify that the changes were saved
-    // to disk and are loaded correctly.
-    for (int i = 0; i < 2; i++) {
-      verifyRole(roleName, true, false);
-
-      // Verify that we cannot connect using the old password.
-      checkConnectivity(true, roleName, oldPassword, true);
-
-      // Verify that we can connect using the new password.
-      checkConnectivity(true, roleName, newPassword, false);
-
-      if (i == 0) {
-        miniCluster.restart();
-      }
-    }
-
-  }
-
-  @Test(timeout = 100000)
-  public void testAlterLoginForExistingRole() throws Exception {
-    Session s = getDefaultSession();
-
-    String roleName = "alter_test_2";
-    String password = "!%^()(*~`";
-    testCreateRoleHelper(roleName, password, true, false);
-
-    // Verify that we can login.
-    checkConnectivity(true, roleName, password, false);
-
-    // Change the role LOGIN from true to false.
-    String alterStmt = String.format("ALTER ROLE %s with LOGIN = false", roleName);
-    s.execute(alterStmt);
-
-    // During the first iteration we check tha the changes were applied correctly to the
-    // in-memory structures. Then we restart the cluster to verify that the changes were saved
-    // to disk and are loaded correctly.
-    for (int i = 0; i < 2; i++) {
-
-      verifyRole(roleName, false, false);
-
-      // Verify that we cannot longer login.
-      checkConnectivity(true, roleName, password, true);
-
-      if (i == 0) {
-        miniCluster.restart();
-      }
-    }
-  }
-
   @Test(timeout = 100000)
   public void testAlterSuperuserForExistingRole() throws Exception {
     Session s = getDefaultSession();
@@ -193,39 +95,6 @@ public class TestAuthentication extends BaseAuthenticationCQLTest {
 
       // Verify that we can still login. Making a role a super user shouldn't affect connectivity.
       checkConnectivity(true, roleName, password, false);
-
-      if (i == 0) {
-        miniCluster.restart();
-      }
-    }
-  }
-
-  @Test(timeout = 100000)
-  public void testAlterPasswordAndLoginAndSuperuserExistingRole() throws Exception {
-    Session s = getDefaultSession();
-
-    String roleName = "alter_test_4";
-    String oldPassword = "sdf$hgfaY13";
-    testCreateRoleHelper(roleName, oldPassword, false, false);
-
-    // Verify that we cannot login because the role was created with LOGIN = false.
-    checkConnectivity(true, roleName, oldPassword, true);
-
-    // Change the role's password, LOGIN from false to true, and SUPERUSER from false to true.
-    String newPassword = "*&oi2jr8OI";
-    String alterStmt = String.format(
-        "ALTER ROLE %s with PASSWORD = '%s' AND LOGIN = true AND SUPERUSER = true",
-        roleName, newPassword);
-    s.execute(alterStmt);
-
-    // During the first iteration we check tha the changes were applied correctly to the
-    // in-memory structures. Then we restart the cluster to verify that the changes were saved
-    // to disk and are loaded correctly.
-    for (int i = 0; i < 2; i++) {
-      verifyRole(roleName, true, true);
-
-      // Verify that we can login.
-      checkConnectivity(true, roleName, newPassword, false);
 
       if (i == 0) {
         miniCluster.restart();

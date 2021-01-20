@@ -43,8 +43,17 @@
 #include "yb/master/master.pb.h"
 #include "yb/tserver/tserver_admin.proxy.h"
 #include "yb/tserver/tserver_service.proxy.h"
+#include "yb/util/flag_tags.h"
 #include "yb/util/net/net_util.h"
 #include "yb/util/shared_lock.h"
+
+
+DEFINE_int32(tserver_unresponsive_timeout_ms, 60 * 1000,
+             "The period of time that a Master can go without receiving a heartbeat from a "
+             "tablet server before considering it unresponsive. Unresponsive servers are not "
+             "selected when assigning replicas during table creation or re-replication.");
+TAG_FLAG(tserver_unresponsive_timeout_ms, advanced);
+
 
 namespace yb {
 namespace master {
@@ -129,6 +138,9 @@ Status TSDescriptor::RegisterUnlocked(
   }
   local_cloud_info_ = std::move(local_cloud_info);
   proxy_cache_ = proxy_cache;
+
+  capabilities_.clear();
+  capabilities_.insert(registration.capabilities().begin(), registration.capabilities().end());
 
   return Status::OK();
 }
@@ -311,6 +323,11 @@ void TSDescriptor::ClearPendingTabletDelete(const std::string& tablet_id) {
 std::size_t TSDescriptor::NumTasks() const {
   SharedLock<decltype(lock_)> l(lock_);
   return tablets_pending_delete_.size();
+}
+
+bool TSDescriptor::IsLive() const {
+  return TimeSinceHeartbeat().ToMilliseconds() <
+         GetAtomicFlag(&FLAGS_tserver_unresponsive_timeout_ms) && !IsRemoved();
 }
 
 std::string TSDescriptor::ToString() const {

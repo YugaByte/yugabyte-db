@@ -1,9 +1,9 @@
-#!/bin/python
+#!/bin/python3
 
 from unittest import TestCase
 
 from ybops.utils import ReleasePackage
-from ybops.common.exceptions import YBOpsRuntimeError
+from ybops.common.exceptions import YBOpsRuntimeError, get_exception_message
 
 
 class TestReleasePackage(TestCase):
@@ -45,4 +45,5 @@ class TestReleasePackage(TestCase):
             # This will throw exceptions on failure.
             with self.assertRaises(Exception) as context:
                 ReleasePackage.from_package_name(release, official)
-            self.assertTrue('Invalid package name format' in context.exception.message)
+            self.assertTrue(
+                'Invalid package name format' in get_exception_message(context.exception))

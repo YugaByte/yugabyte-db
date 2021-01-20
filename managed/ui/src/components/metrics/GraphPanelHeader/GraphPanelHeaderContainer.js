@@ -9,10 +9,9 @@ import { fetchUniverseList, fetchUniverseListResponse } from '../../../actions/u
 const mapDispatchToProps = (dispatch) => {
   return {
     fetchUniverseList: () => {
-      dispatch(fetchUniverseList())
-        .then((response) => {
-          dispatch(fetchUniverseListResponse(response.payload));
-        });
+      dispatch(fetchUniverseList()).then((response) => {
+        dispatch(fetchUniverseListResponse(response.payload));
+      });
     },
     changeGraphQueryFilters: (filterParams) => {
       dispatch(changeGraphQueryPeriod(filterParams));
@@ -30,11 +29,9 @@ function mapStateToProps(state, ownProps) {
   };
 }
 
-
 const graphPanelFilter = reduxForm({
   form: 'GraphPanelFilterForm',
-  fields: ["timeSelect", "universeSelect"]
+  fields: ['timeSelect', 'universeSelect']
 });
 
-
-export default connect( mapStateToProps, mapDispatchToProps)(graphPanelFilter(GraphPanelHeader));
+export default connect(mapStateToProps, mapDispatchToProps)(graphPanelFilter(GraphPanelHeader));

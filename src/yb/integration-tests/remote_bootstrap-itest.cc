@@ -380,9 +380,13 @@ void RemoteBootstrapITest::RejectRogueLeader(YBTableType table_type) {
     return;
   }
 
-  vector<string> ts_flags, master_flags;
-  ts_flags.push_back("--enable_leader_failure_detection=false");
-  master_flags.push_back("--catalog_manager_wait_for_new_tablets_to_elect_leader=false");
+  std::vector<std::string> ts_flags = {
+    "--enable_leader_failure_detection=false"s,
+  };
+  std::vector<std::string> master_flags = {
+    "--catalog_manager_wait_for_new_tablets_to_elect_leader=false"s,
+    "--use_create_table_leader_hint=false"s,
+  };
   ASSERT_NO_FATALS(StartCluster(ts_flags, master_flags));
 
   const MonoDelta timeout = MonoDelta::FromSeconds(30);
@@ -566,7 +570,8 @@ void RemoteBootstrapITest::DeleteTabletDuringRemoteBootstrap(YBTableType table_t
 TEST_F(RemoteBootstrapITest, IncompleteWALDownloadDoesntCauseCrash) {
   std::vector<std::string> master_flags = {
       "--catalog_manager_wait_for_new_tablets_to_elect_leader=false"s,
-      "--enable_load_balancing=false"s
+      "--enable_load_balancing=false"s,
+      "--use_create_table_leader_hint=false"s,
   };
 
   int constexpr kBootstrapIdleTimeoutMs = 5000;
@@ -680,7 +685,8 @@ void RemoteBootstrapITest::RemoteBootstrapFollowerWithHigherTerm(YBTableType tab
 
   std::vector<std::string> master_flags = {
     "--catalog_manager_wait_for_new_tablets_to_elect_leader=false"s,
-    "--replication_factor=2"s
+    "--replication_factor=2"s,
+    "--use_create_table_leader_hint=false"s,
   };
 
   const int kNumTabletServers = 2;
@@ -817,15 +823,19 @@ void RemoteBootstrapITest::ConcurrentRemoteBootstraps(YBTableType table_type) {
     return;
   }
 
-  vector<string> ts_flags, master_flags;
-  ts_flags.push_back("--enable_leader_failure_detection=false");
-  ts_flags.push_back("--log_cache_size_limit_mb=1");
-  ts_flags.push_back("--log_segment_size_mb=1");
-  ts_flags.push_back("--log_async_preallocate_segments=false");
-  ts_flags.push_back("--log_min_segments_to_retain=100");
-  ts_flags.push_back("--maintenance_manager_polling_interval_ms=10");
-  master_flags.push_back("--catalog_manager_wait_for_new_tablets_to_elect_leader=false");
-  master_flags.push_back("--enable_load_balancing=false");  // disable load balancing moves.
+  std::vector<std::string> ts_flags = {
+    "--enable_leader_failure_detection=false"s,
+    "--log_cache_size_limit_mb=1"s,
+    "--log_segment_size_mb=1"s,
+    "--log_async_preallocate_segments=false"s,
+    "--log_min_segments_to_retain=100"s,
+    "--maintenance_manager_polling_interval_ms=10"s,
+  };
+  std::vector<std::string> master_flags = {
+    "--catalog_manager_wait_for_new_tablets_to_elect_leader=false"s,
+    "--enable_load_balancing=false"s,
+    "--use_create_table_leader_hint=false"s,
+  };
   ASSERT_NO_FATALS(StartCluster(ts_flags, master_flags));
 
   const int kNumTablets = 10;
@@ -880,7 +890,7 @@ TEST_F(RemoteBootstrapITest, TestLimitNumberOfConcurrentRemoteBootstraps) {
   constexpr int kMaxConcurrentTabletRemoteBootstrapSessions = 5;
   constexpr int kMaxConcurrentTabletRemoteBootstrapSessionsPerTable = 2;
 
-  vector<string> ts_flags, master_flags;
+  vector<string> ts_flags;
   int follower_considered_failed_sec;
   follower_considered_failed_sec = 10;
   ts_flags.push_back("--follower_unavailable_considered_failed_sec="+
@@ -893,14 +903,17 @@ TEST_F(RemoteBootstrapITest, TestLimitNumberOfConcurrentRemoteBootstraps) {
       std::to_string(kMaxConcurrentTabletRemoteBootstrapSessionsPerTable + 1));
   ts_flags.push_back("--TEST_simulate_long_remote_bootstrap_sec=5");
 
-  master_flags.push_back("--TEST_load_balancer_handle_under_replicated_tablets_only=true");
-  master_flags.push_back("--load_balancer_max_concurrent_tablet_remote_bootstraps=" +
-      std::to_string(kMaxConcurrentTabletRemoteBootstrapSessions));
-  master_flags.push_back("--load_balancer_max_concurrent_tablet_remote_bootstraps_per_table=" +
-      std::to_string(kMaxConcurrentTabletRemoteBootstrapSessionsPerTable));
-  master_flags.push_back("--catalog_manager_wait_for_new_tablets_to_elect_leader=false");
-  // This value has to be less than follower_considered_failed_sec.
-  master_flags.push_back("--tserver_unresponsive_timeout_ms=8000");
+  std::vector<std::string> master_flags = {
+    "--TEST_load_balancer_handle_under_replicated_tablets_only=true"s,
+    "--load_balancer_max_concurrent_tablet_remote_bootstraps=" +
+        std::to_string(kMaxConcurrentTabletRemoteBootstrapSessions),
+    "--load_balancer_max_concurrent_tablet_remote_bootstraps_per_table=" +
+        std::to_string(kMaxConcurrentTabletRemoteBootstrapSessionsPerTable),
+    "--catalog_manager_wait_for_new_tablets_to_elect_leader=false"s,
+    // This value has to be less than follower_considered_failed_sec.
+    "--tserver_unresponsive_timeout_ms=8000"s,
+    "--use_create_table_leader_hint=false"s,
+  };
 
   ASSERT_NO_FATALS(StartCluster(ts_flags, master_flags));
 
@@ -1089,11 +1102,15 @@ void RemoteBootstrapITest::DisableRemoteBootstrap_NoTightLoopWhenTabletDeleted(
     YBTableType table_type) {
 
   MonoDelta timeout = MonoDelta::FromSeconds(10);
-  vector<string> ts_flags, master_flags;
-  ts_flags.push_back("--enable_leader_failure_detection=false");
-  ts_flags.push_back("--TEST_enable_remote_bootstrap=false");
-  ts_flags.push_back("--rpc_slow_query_threshold_ms=10000000");
-  master_flags.push_back("--catalog_manager_wait_for_new_tablets_to_elect_leader=false");
+  std::vector<string> ts_flags = {
+    "--enable_leader_failure_detection=false"s,
+    "--TEST_enable_remote_bootstrap=false"s,
+    "--rpc_slow_query_threshold_ms=10000000"s,
+  };
+  std::vector<std::string> master_flags = {
+    "--catalog_manager_wait_for_new_tablets_to_elect_leader=false"s,
+    "--use_create_table_leader_hint=false"s,
+  };
   ASSERT_NO_FATALS(StartCluster(ts_flags, master_flags));
 
   TestWorkload workload(cluster_.get());

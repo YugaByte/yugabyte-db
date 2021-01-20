@@ -2970,12 +2970,10 @@ f1 int;
 c1 cursor (f1 int) for select 1;
 begin
 end$$ language plpgsql;
-ERROR:  Declare Cursor Variable not supported yet
+WARNING:  variable "f1" shadows a previously defined variable
 LINE 5: c1 cursor (f1 int) for select 1;
-        ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
+                   ^
 drop function shadowtest();
-ERROR:  function shadowtest() does not exist
 -- test errors when shadowing a variable
 set plpgsql.extra_errors to 'shadowed_variables';
 create or replace function shadowtest(f1 int)
@@ -3015,15 +3013,12 @@ begin
   close c;
 end;
 $$ language plpgsql;
-ERROR:  Declare Cursor Variable not supported yet
-LINE 3:   c scroll cursor for select f1 from int4_tbl;
-          ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
 select * from sc_test();
-ERROR:  function sc_test() does not exist
-LINE 1: select * from sc_test();
-                      ^
-HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+ERROR:  relation "int4_tbl" does not exist
+LINE 1: select f1 from int4_tbl
+                       ^
+QUERY:  select f1 from int4_tbl
+CONTEXT:  PL/pgSQL function sc_test() line 6 at OPEN
 create or replace function sc_test() returns setof integer as $$
 declare
   c no scroll cursor for select f1 from int4_tbl;
@@ -3038,15 +3033,12 @@ begin
   close c;
 end;
 $$ language plpgsql;
-ERROR:  Declare Cursor Variable not supported yet
-LINE 3:   c no scroll cursor for select f1 from int4_tbl;
-          ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
 select * from sc_test();  -- fails because of NO SCROLL specification
-ERROR:  function sc_test() does not exist
-LINE 1: select * from sc_test();
-                      ^
-HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+ERROR:  relation "int4_tbl" does not exist
+LINE 1: select f1 from int4_tbl
+                       ^
+QUERY:  select f1 from int4_tbl
+CONTEXT:  PL/pgSQL function sc_test() line 6 at OPEN
 create or replace function sc_test() returns setof integer as $$
 declare
   c refcursor;
@@ -3061,15 +3053,12 @@ begin
   close c;
 end;
 $$ language plpgsql;
-ERROR:  Declare Cursor Variable not supported yet
-LINE 3:   c refcursor;
-          ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
 select * from sc_test();
-ERROR:  function sc_test() does not exist
-LINE 1: select * from sc_test();
-                      ^
-HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+ERROR:  relation "int4_tbl" does not exist
+LINE 1: select f1 from int4_tbl
+                       ^
+QUERY:  select f1 from int4_tbl
+CONTEXT:  PL/pgSQL function sc_test() line 6 at OPEN
 create or replace function sc_test() returns setof integer as $$
 declare
   c refcursor;
@@ -3084,15 +3073,12 @@ begin
   close c;
 end;
 $$ language plpgsql;
-ERROR:  Declare Cursor Variable not supported yet
-LINE 3:   c refcursor;
-          ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
 select * from sc_test();
-ERROR:  function sc_test() does not exist
-LINE 1: select * from sc_test();
-                      ^
-HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+ERROR:  relation "int4_tbl" does not exist
+LINE 1: select f1 from int4_tbl
+                       ^
+QUERY:  select f1 from int4_tbl
+CONTEXT:  PL/pgSQL function sc_test() line 6 at OPEN
 create or replace function sc_test() returns setof integer as $$
 declare
   c refcursor;
@@ -3108,15 +3094,16 @@ begin
   close c;
 end;
 $$ language plpgsql;
-ERROR:  Declare Cursor Variable not supported yet
-LINE 3:   c refcursor;
-          ^
+ERROR:  MOVE not supported yet
+LINE 10:     move backward 2 from c;
+             ^
 HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
 select * from sc_test();
-ERROR:  function sc_test() does not exist
-LINE 1: select * from sc_test();
-                      ^
-HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+ERROR:  relation "int4_tbl" does not exist
+LINE 1: select f1 from int4_tbl
+                       ^
+QUERY:  select f1 from int4_tbl
+CONTEXT:  PL/pgSQL function sc_test() line 6 at OPEN
 create or replace function sc_test() returns setof integer as $$
 declare
   c cursor for select * from generate_series(1, 10);
@@ -3136,15 +3123,16 @@ begin
   close c;
 end;
 $$ language plpgsql;
-ERROR:  Declare Cursor Variable not supported yet
-LINE 3:   c cursor for select * from generate_series(1, 10);
-          ^
+ERROR:  MOVE not supported yet
+LINE 8:       move relative 2 in c;
+              ^
 HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
 select * from sc_test();
-ERROR:  function sc_test() does not exist
-LINE 1: select * from sc_test();
-                      ^
-HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+ERROR:  relation "int4_tbl" does not exist
+LINE 1: select f1 from int4_tbl
+                       ^
+QUERY:  select f1 from int4_tbl
+CONTEXT:  PL/pgSQL function sc_test() line 6 at OPEN
 create or replace function sc_test() returns setof integer as $$
 declare
   c cursor for select * from generate_series(1, 10);
@@ -3159,17 +3147,17 @@ begin
   close c;
 end;
 $$ language plpgsql;
-ERROR:  Declare Cursor Variable not supported yet
-LINE 3:   c cursor for select * from generate_series(1, 10);
+ERROR:  MOVE not supported yet
+LINE 7:   move forward all in c;
           ^
 HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
 select * from sc_test();
-ERROR:  function sc_test() does not exist
-LINE 1: select * from sc_test();
-                      ^
-HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+ERROR:  relation "int4_tbl" does not exist
+LINE 1: select f1 from int4_tbl
+                       ^
+QUERY:  select f1 from int4_tbl
+CONTEXT:  PL/pgSQL function sc_test() line 6 at OPEN
 drop function sc_test();
-ERROR:  function sc_test() does not exist
 -- test qualified variable names
 create function pl_qual_names (param1 int) returns void as $$
 <<outerblock>>
@@ -3286,17 +3274,19 @@ begin
   return;
 end;
 $$ language plpgsql;
-ERROR:  Declare Cursor Variable not supported yet
-LINE 3:   c refcursor;
-          ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
 select exc_using(5);
-ERROR:  function exc_using(integer) does not exist
-LINE 1: select exc_using(5);
-               ^
-HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+NOTICE:  1
+NOTICE:  2
+NOTICE:  3
+NOTICE:  4
+NOTICE:  5
+NOTICE:  6
+ exc_using
+-----------
+
+(1 row)
+
 drop function exc_using(int);
-ERROR:  function exc_using(integer) does not exist
 -- test FOR-over-cursor
 create or replace function forc01() returns void as $$
 declare
@@ -3333,15 +3323,29 @@ begin
   return;
 end;
 $$ language plpgsql;
-ERROR:  Declare Cursor Variable not supported yet
-LINE 3:   c cursor(r1 integer, r2 integer)
-          ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
 select forc01();
-ERROR:  function forc01() does not exist
-LINE 1: select forc01();
-               ^
-HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+NOTICE:  5 from c
+NOTICE:  6 from c
+NOTICE:  7 from c
+NOTICE:  9 from c
+NOTICE:  10 from c
+NOTICE:  41 from c2
+NOTICE:  42 from c2
+NOTICE:  43 from c2
+NOTICE:  after loop, c2 = c2
+NOTICE:  41 from special_name
+NOTICE:  42 from special_name
+NOTICE:  43 from special_name
+NOTICE:  after loop, c2 = special_name
+NOTICE:  41
+NOTICE:  42
+NOTICE:  43
+NOTICE:  after loop, c2 = <NULL>
+ forc01
+--------
+
+(1 row)
+
 -- try updating the cursor's current row
 create table forc_test as
   select n as i, n as j from generate_series(1,10) n;
@@ -3355,15 +3359,33 @@ begin
   end loop;
 end;
 $$ language plpgsql;
-ERROR:  Declare Cursor Variable not supported yet
-LINE 3:   c cursor for select * from forc_test order by i;
-          ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
+ERROR:  WHERE CURRENT OF not supported yet
+LINE 7:     update forc_test set i = i * 100, j = r.j * 2 where curr...
+                                                          ^
+HINT:  See https://github.com/YugaByte/yugabyte-db/issues/737. Click '+' on the description to raise its priority
 select forc01();
-ERROR:  function forc01() does not exist
-LINE 1: select forc01();
-               ^
-HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+NOTICE:  5 from c
+NOTICE:  6 from c
+NOTICE:  7 from c
+NOTICE:  9 from c
+NOTICE:  10 from c
+NOTICE:  41 from c2
+NOTICE:  42 from c2
+NOTICE:  43 from c2
+NOTICE:  after loop, c2 = c2
+NOTICE:  41 from special_name
+NOTICE:  42 from special_name
+NOTICE:  43 from special_name
+NOTICE:  after loop, c2 = special_name
+NOTICE:  41
+NOTICE:  42
+NOTICE:  43
+NOTICE:  after loop, c2 = <NULL>
+ forc01
+--------
+
+(1 row)
+
 select * from forc_test order by i;
  i  | j
 ----+----
@@ -3394,15 +3416,33 @@ begin
   end loop;
 end;
 $$ language plpgsql;
-ERROR:  Declare Cursor Variable not supported yet
-LINE 3:   c refcursor := 'fooled_ya';
-          ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
+ERROR:  WHERE CURRENT OF not supported yet
+LINE 11:     update forc_test set i = i * 100, j = r.j * 2 where curr...
+                                                           ^
+HINT:  See https://github.com/YugaByte/yugabyte-db/issues/737. Click '+' on the description to raise its priority
 select forc01();
-ERROR:  function forc01() does not exist
-LINE 1: select forc01();
-               ^
-HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+NOTICE:  5 from c
+NOTICE:  6 from c
+NOTICE:  7 from c
+NOTICE:  9 from c
+NOTICE:  10 from c
+NOTICE:  41 from c2
+NOTICE:  42 from c2
+NOTICE:  43 from c2
+NOTICE:  after loop, c2 = c2
+NOTICE:  41 from special_name
+NOTICE:  42 from special_name
+NOTICE:  43 from special_name
+NOTICE:  after loop, c2 = special_name
+NOTICE:  41
+NOTICE:  42
+NOTICE:  43
+NOTICE:  after loop, c2 = <NULL>
+ forc01
+--------
+
+(1 row)
+
 select * from forc_test order by i;
  i  | j
 ----+----
@@ -3419,7 +3459,6 @@ select * from forc_test order by i;
 (10 rows)
 
 drop function forc01();
-ERROR:  function forc01() does not exist
 -- fail because cursor has no query bound to it
 create or replace function forc_bad() returns void as $$
 declare
@@ -3430,10 +3469,9 @@ begin
   end loop;
 end;
 $$ language plpgsql;
-ERROR:  Declare Cursor Variable not supported yet
-LINE 3:   c refcursor;
-          ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
+ERROR:  cursor FOR loop must use a bound cursor variable
+LINE 5:   for r in c loop
+                   ^
 -- test RETURN QUERY EXECUTE
 create or replace function return_dquery()
 returns setof int as $$

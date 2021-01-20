@@ -59,6 +59,7 @@ import static play.test.Helpers.*;
 import static org.junit.Assert.*;
 import static play.mvc.Http.Status.OK;
 import static play.mvc.Http.Status.FORBIDDEN;
+import static play.mvc.Http.Status.BAD_REQUEST;
 import static play.test.Helpers.fakeRequest;
 
 public class UsersControllerTest extends FakeDBApplication {
@@ -153,6 +154,18 @@ public class UsersControllerTest extends FakeDBApplication {
     testUser1 = Users.get(testUser1.uuid);
     assertEquals(testUser1.getRole(), Role.ReadOnly);
     assertAuditEntry(1, customer1.uuid);
+  }
+
+  @Test
+  public void testRoleChangeSuperAdmin() throws IOException {
+    Users testUser1 = ModelFactory.testUser(customer1, "tc3@test.com", Role.SuperAdmin);
+    assertEquals(testUser1.getRole(), Role.SuperAdmin);
+    Http.Cookie validCookie = Http.Cookie.builder("authToken", authToken1).build();
+    Result result = route(fakeRequest("PUT",
+        String.format("%s/%s?role=ReadOnly",
+        String.format(baseRoute, customer1.uuid), testUser1.uuid))
+        .cookie(validCookie));
+    assertEquals(result.status(), BAD_REQUEST);
   }
 
   @Test

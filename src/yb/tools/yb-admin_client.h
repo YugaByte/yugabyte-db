@@ -193,9 +193,16 @@ class ClusterAdminClient {
                                  int timeout_secs,
                                  bool is_compaction);
 
+  CHECKED_STATUS ModifyTablePlacementInfo(const client::YBTableName& table_name,
+                                          const std::string& placement_info,
+                                          int replication_factor,
+                                          const std::string& optional_uuid);
+
   CHECKED_STATUS ModifyPlacementInfo(std::string placement_infos,
                                      int replication_factor,
                                      const std::string& optional_uuid);
+
+  CHECKED_STATUS ClearPlacementInfo();
 
   CHECKED_STATUS AddReadReplicaPlacementInfo(const std::string& placement_info,
                                              int replication_factor,

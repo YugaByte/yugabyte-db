@@ -11,26 +11,18 @@ export default class YugawareLogs extends Component {
 
   render() {
     const { currentCustomer, yugawareLogs, logError } = this.props;
-    showOrRedirect(currentCustomer.data.features, "main.logs");
+    showOrRedirect(currentCustomer.data.features, 'main.logs');
 
     let logContent = <span />;
     if (isDefinedNotNull(yugawareLogs) && isNonEmptyObject(yugawareLogs)) {
-      logContent = (
-        <pre style={{"whiteSpace": "pre-wrap"}}>
-          { yugawareLogs.join('\n') }
-        </pre>
-      );
+      logContent = <pre style={{ whiteSpace: 'pre-wrap' }}>{yugawareLogs.join('\n')}</pre>;
     }
     return (
       <div>
-        <h2><b>YugaWare logs</b></h2>
-        <div>
-          {logError ? (
-            <div>Something went wrong fetching logs.</div>
-          ) : (
-            logContent
-          )}
-        </div>
+        <h2>
+          <b>YugaWare logs</b>
+        </h2>
+        <div>{logError ? <div>Something went wrong fetching logs.</div> : logContent}</div>
       </div>
     );
   }

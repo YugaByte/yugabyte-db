@@ -11,7 +11,7 @@ menu:
     identifier: benchmark
     weight: 685
 aliases:
- - /latest/benchmark/performance/
+  - /latest/benchmark/performance/
 
 ---
 

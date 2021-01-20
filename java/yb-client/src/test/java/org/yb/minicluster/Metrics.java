@@ -119,6 +119,7 @@ public class Metrics {
    public static class YSQLMetric extends Metric {
      public final int count;
      public final int sum;
+     public final int rows;
 
      /**
       * Constructs a {@code YSQLMetric} metric.
@@ -130,6 +131,7 @@ public class Metrics {
       super(metric);
       count = metric.get("count").getAsInt();
       sum = metric.get("sum").getAsInt();
+      rows = metric.get("rows").getAsInt();
      }
 
    }
@@ -226,7 +228,9 @@ public class Metrics {
       } else if (metric.has("total_count")) {
         Histogram histogram = new Histogram(metric);
         map.put(histogram.name, histogram);
-      } else if (metric.has("count") && metric.has("sum")) {
+      } else if (metric.has("count") &&
+                 metric.has("sum") &&
+                 metric.has("rows")) {
         YSQLMetric ysqlmetric = new YSQLMetric(metric);
         map.put(ysqlmetric.name, ysqlmetric);
       }

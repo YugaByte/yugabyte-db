@@ -52,7 +52,7 @@ For airgapped hosts, a supported version of docker-engine (currently 1.7.1 to 17
 
 - Following ports should be open on the YugaWare host: `8800` (replicated ui), `80` (http for YugabyteDB Admin Console), `22` (ssh)
 - Attached disk storage (such as persistent EBS volumes on AWS): 100 GB minimum
-- A Yugabyte Platform license file (attached to your welcome email from Yugabyte Support)
+- A Yugabyte Platform license file from [Yugabyte](https://www.yugabyte.com/platform/#request-trial-form)
 - Ability to connect from the Yugabyte Platform host to all YugabyteDB data nodes. If this is not set up, [setup passwordless ssh](#step-5-troubleshoot-yugaware).
 
 ## What are the OS requirements and permissions to run the YugabyteDB data nodes?

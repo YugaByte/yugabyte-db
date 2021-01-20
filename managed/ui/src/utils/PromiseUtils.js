@@ -4,18 +4,28 @@ import _ from 'lodash';
 import { Enum } from 'enumify';
 
 class PromiseState extends Enum {
-  isSuccess() { return this === PromiseState.SUCCESS; }
-  isError() { return this === PromiseState.ERROR; }
-  isEmpty() { return this === PromiseState.EMPTY; }
-  isLoading() { return this === PromiseState.LOADING; }
-  isInit() { return this === PromiseState.INIT; }
+  isSuccess() {
+    return this === PromiseState.SUCCESS;
+  }
+  isError() {
+    return this === PromiseState.ERROR;
+  }
+  isEmpty() {
+    return this === PromiseState.EMPTY;
+  }
+  isLoading() {
+    return this === PromiseState.LOADING;
+  }
+  isInit() {
+    return this === PromiseState.INIT;
+  }
 }
 
 PromiseState.initEnum(['INIT', 'SUCCESS', 'LOADING', 'ERROR', 'EMPTY']);
 
 function setPromiseState(state, object, promiseState, data = null, error = null) {
   return Object.assign({}, state, {
-    [object]: { data: data, promiseState: promiseState, error: error}
+    [object]: { data: data, promiseState: promiseState, error: error }
   });
 }
 
@@ -48,8 +58,10 @@ export function setInitialState(state, object, data = {}, error = null) {
 }
 
 export function getPromiseState(dataObject) {
-  if (isDefinedNotNull(dataObject.data) &&
-    (isNonEmptyArray(dataObject.data) || !isNullOrEmpty(dataObject.data))) {
+  if (
+    isDefinedNotNull(dataObject.data) &&
+    (isNonEmptyArray(dataObject.data) || !isNullOrEmpty(dataObject.data))
+  ) {
     if (dataObject.promiseState === PromiseState.LOADING) return PromiseState.LOADING;
     return PromiseState.SUCCESS;
   } else if (isDefinedNotNull(dataObject.promiseState) && dataObject.promiseState.isSuccess()) {
@@ -60,12 +72,20 @@ export function getPromiseState(dataObject) {
 }
 
 export function setPromiseResponse(state, object, response) {
-  const { payload, payload: { data, status, isAxiosError }} = response;
+  const {
+    payload,
+    payload: { data, status, isAxiosError }
+  } = response;
   const objectState = _.omit(response, ['payload', 'type']);
   if (status !== 200 || isAxiosError || (isDefinedNotNull(data) && isDefinedNotNull(data.error))) {
-    _.merge(objectState, { data: null, error: isDefinedNotNull(payload.response) && payload.response.data && payload.response.data.error, promiseState: PromiseState.ERROR });
+    _.merge(objectState, {
+      data: null,
+      error:
+        isDefinedNotNull(payload.response) && payload.response.data && payload.response.data.error,
+      promiseState: PromiseState.ERROR
+    });
   } else {
-    _.merge(objectState, {data: data, error: null, promiseState: PromiseState.SUCCESS});
+    _.merge(objectState, { data: data, error: null, promiseState: PromiseState.SUCCESS });
   }
   return Object.assign({}, state, { [object]: objectState });
 }

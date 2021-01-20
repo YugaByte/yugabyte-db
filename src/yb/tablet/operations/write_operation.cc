@@ -163,7 +163,12 @@ void WriteOperation::DoStartSynchronization(const Status& status) {
     auto restart_time = state()->response()->mutable_restart_read_time();
     restart_time->set_read_ht(restart_read_ht_.ToUint64());
     auto local_limit = context_->ReportReadRestart();
-    restart_time->set_local_limit_ht(local_limit.ToUint64());
+    if (!local_limit.ok()) {
+      state()->CompleteWithStatus(local_limit.status());
+      return;
+    }
+    restart_time->set_deprecated_max_of_read_time_and_local_limit_ht(local_limit->ToUint64());
+    restart_time->set_local_limit_ht(local_limit->ToUint64());
     // Global limit is ignored by caller, so we don't set it.
     state()->CompleteWithStatus(Status::OK());
     return;

@@ -1,0 +1,46 @@
+@import '../../../../uikit/common';
+
+.availability-zones {
+  @include wizard-form-row();
+  @include wizard-form-text-label();
+
+  &__nodes-col {
+    position: relative;
+  }
+
+  &__number-input {
+    width: 120px;
+  }
+
+  &__spinner {
+    position: absolute;
+    left: 150px;
+    top: -2px;
+  }
+
+  &__placements-label {
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+
+    & > svg {
+      margin-right: 5px;
+    }
+
+    &--success {
+      color: $YB_TEXT_SUCCESS;
+      fill: $YB_TEXT_SUCCESS;
+    }
+
+    &--warning {
+      color: $YB_WARNING;
+      fill: $YB_WARNING;
+    }
+
+    &--error {
+      color: $YB_ERROR;
+      fill: $YB_ERROR;
+    }
+  }
+}

@@ -1,7 +1,7 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../_style/colors.scss";
-@import "../../../_style/mixins.scss";
+@import '../../../_style/colors.scss';
+@import '../../../_style/mixins.scss';
 
 .list-group {
   margin-bottom: 0;
@@ -74,8 +74,8 @@ a:hover .universe-name-cell {
 }
 
 .detail-item-cell {
-  border-right:1px solid grey;
-  height: 70px ;
+  border-right: 1px solid grey;
+  height: 70px;
 }
 
 .cell-num-nodes {
@@ -131,7 +131,7 @@ a:hover .universe-name-cell {
   float: none;
 
   .progress {
-      width: 100%;
+    width: 100%;
   }
 }
 
@@ -192,7 +192,6 @@ a:hover .universe-name-cell {
 }
 
 .status-pending-display-container {
-
   .fa-spin {
     font-weight: 500;
     font-size: 18px;
@@ -280,7 +279,7 @@ a:hover .universe-name-cell {
   div {
     font-weight: 500;
     font-size: 12px;
-    opacity: .5;
-    color: $YB_DARK_GRAY;    
+    opacity: 0.5;
+    color: $YB_DARK_GRAY;
   }
 }

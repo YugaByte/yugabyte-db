@@ -22,7 +22,7 @@ A YugabyteDB cluster consists of two distributed services - the [YB-TServer](../
 
 - YugabyteDB works on a variety of operating systems. For production workloads, the recommended operating systems are CentOS 7.x and RHEL 7.x.
 - Set the appropriate [system limits using `ulimit`](../manual-deployment/system-config/#ulimits) on each node running a YugabyteDB server.
-- Use [ntp](../manual-deployment/system-config/#ntp) to synchronize time among the machines.
+- Use [ntp or chrony](../manual-deployment/system-config/#ntp) to synchronize time among the machines.
 
 ## Replication
 
@@ -68,6 +68,16 @@ For typical OLTP workloads, YugabyteDB performance improves with more aggregate 
 Memory depends on your application query pattern. Writes require memory but only up to a certain point (say 4GB, but if you have a write-heavy workload you may need a little more). Beyond that, more memory generally helps improve the read throughput and latencies by caching data in the internal cache. If you do not have enough memory to fit the read working set, then you will typically experience higher read latencies because data has to be read from disk. Having a faster disk could help in some of these cases.
 
 YugabyteDB explicitly manages a block cache, and doesn't need the entire data set to fit in memory. It does not rely on OS to keep data in its buffers. If you give YugabyteDB sufficient memory data accessed and present in block cache will stay in memory.
+
+### Verify support for SSE2
+
+YugabyteDB requires SSE2 instruction set support, which was introduced into Intel chips with the Pentium 4 in 2001 and AMD processors in 2003. Most systems produced in the last several years are equipped with SSE2. YugabyteDB requires this instruction set.
+
+To verify that your system supports SSE2, run the following command:
+
+```sh
+$ cat /proc/cpuinfo | grep sse2
+```
 
 ### Disks
 
@@ -121,7 +131,7 @@ For Yugabyte Platform, the SSH port is changed for added security.
 
 ## Clock synchronization
 
-For YugabyteDB to preserve data consistency, the clock drift and clock skew across different nodes must be bounded. This can be achieved by running clock synchronization software, such as [NTP](http://www.ntp.org/). Below are some recommendations on how to configure clock synchronization.
+For YugabyteDB to preserve data consistency, the clock drift and clock skew across different nodes must be bounded. This can be achieved by running clock synchronization software, such as [NTP](http://www.ntp.org/) or [chrony](https://chrony.tuxfamily.org/). Below are some recommendations on how to configure clock synchronization.
 
 ### Clock skew
 

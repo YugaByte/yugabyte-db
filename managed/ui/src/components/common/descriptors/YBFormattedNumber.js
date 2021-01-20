@@ -9,8 +9,6 @@ export default class YBFormattedNumber extends Component {
     if (!isFinite(this.props.value)) {
       return <span>n/a</span>;
     }
-    return (
-      <FormattedNumber {...this.props} style={this.props.formattedNumberStyle}/>
-    );
+    return <FormattedNumber {...this.props} style={this.props.formattedNumberStyle} />;
   }
 }

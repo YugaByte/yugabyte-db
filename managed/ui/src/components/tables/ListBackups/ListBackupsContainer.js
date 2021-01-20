@@ -2,21 +2,23 @@
 
 import { connect } from 'react-redux';
 import { ListBackups } from '../../tables';
-import { fetchUniverseList, fetchUniverseListResponse,
-  fetchUniverseBackups, fetchUniverseBackupsResponse,
-  resetUniverseBackups } from '../../../actions/universe';
+import {
+  fetchUniverseList,
+  fetchUniverseListResponse,
+  fetchUniverseBackups,
+  fetchUniverseBackupsResponse,
+  resetUniverseBackups
+} from '../../../actions/universe';
 
 const mapDispatchToProps = (dispatch) => {
   return {
     fetchUniverseBackups: (universeUUID) => {
-      dispatch(fetchUniverseBackups(universeUUID))
-      .then((response) => {
+      dispatch(fetchUniverseBackups(universeUUID)).then((response) => {
         dispatch(fetchUniverseBackupsResponse(response.payload));
       });
     },
     fetchUniverseList: () => {
-      dispatch(fetchUniverseList())
-      .then((response) => {
+      dispatch(fetchUniverseList()).then((response) => {
         dispatch(fetchUniverseListResponse(response.payload));
       });
     },
@@ -29,7 +31,13 @@ const mapDispatchToProps = (dispatch) => {
 function mapStateToProps(state, ownProps) {
   const tableTypes = {};
   state.tables.universeTablesList.forEach((t) => {
-    tableTypes[t.tableUUID] = t.tableType;
+    if (t.tableType === 'YQL_TABLE_TYPE') {
+      tableTypes[t.tableUUID] = 'YCQL';
+    } else if (t.tableType === 'PGSQL_TABLE_TYPE') {
+      tableTypes[t.tableUUID] = 'YSQL';
+    } else {
+      tableTypes[t.tableUUID] = 'YEDIS';
+    }
   });
   return {
     universeBackupList: state.universe.universeBackupList,

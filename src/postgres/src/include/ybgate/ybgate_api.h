@@ -81,6 +81,8 @@ YbgStatus YbgPrepareMemoryContext();
 
 YbgStatus YbgResetMemoryContext();
 
+YbgStatus YbgDeleteMemoryContext();
+
 //-----------------------------------------------------------------------------
 // Types
 //-----------------------------------------------------------------------------

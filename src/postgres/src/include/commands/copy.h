@@ -19,9 +19,18 @@
 #include "parser/parse_node.h"
 #include "tcop/dest.h"
 
+#define DEFAULT_BATCH_ROWS_PER_TRANSACTION  1000
+
 /* CopyStateData is private in commands/copy.c */
 typedef struct CopyStateData *CopyState;
 typedef int (*copy_data_source_cb) (void *outbuf, int minread, int maxread);
+
+/**
+ * YSQL guc variables that can be used to set rows per transaciton for batch copy from.
+ * e.g. 'SET yb_default_copy_from_rows_per_transaction=1000'
+ * See also the corresponding entries in guc.c.
+ */
+extern int yb_default_copy_from_rows_per_transaction;
 
 extern void DoCopy(ParseState *state, const CopyStmt *stmt,
 	   int stmt_location, int stmt_len,

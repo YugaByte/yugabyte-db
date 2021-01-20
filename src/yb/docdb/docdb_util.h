@@ -24,6 +24,12 @@
 
 namespace yb {
 namespace docdb {
+
+struct ExternalIntent {
+  DocPath doc_path;
+  Value value;
+};
+
 // A wrapper around a RocksDB instance and provides utility functions on top of it, such as
 // compacting the history until a certain point. This is used in the bulk load tool. This is also
 // convenient base class for GTest test classes, because it exposes member functions such as
@@ -109,6 +115,12 @@ class DocDBRocksDBUtil {
       const PrimitiveValue& value,
       HybridTime hybrid_time,
       const ReadHybridTime& read_ht = ReadHybridTime::Max());
+
+  CHECKED_STATUS AddExternalIntents(
+      const TransactionId& txn_id,
+      const std::vector<ExternalIntent>& intents,
+      const Uuid& involved_tablet,
+      HybridTime hybrid_time);
 
   CHECKED_STATUS InsertSubDocument(
       const DocPath& doc_path,

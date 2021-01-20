@@ -30,10 +30,6 @@ namespace pggate {
 
 class PgSelect : public PgDmlRead {
  public:
-  // Public types.
-  typedef scoped_refptr<PgSelect> ScopedRefPtr;
-
-  // Constructors.
   PgSelect(PgSession::ScopedRefPtr pg_session, const PgObjectId& table_id,
            const PgObjectId& index_id, const PgPrepareParameters *prepare_params);
   virtual ~PgSelect();

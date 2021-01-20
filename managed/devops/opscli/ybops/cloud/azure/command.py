@@ -14,7 +14,7 @@ from ybops.cloud.azure.method import AzureNetworkBootstrapMethod, AzureProvision
     AzureQueryInstanceTypesMethod, AzureQueryVnetMethod, AzureAccessDeleteKeyMethod, \
     AzureNetworkCleanupMethod, AzureQueryUltraMethod
 from ybops.cloud.common.method import AccessCreateVaultMethod, ConfigureInstancesMethod, \
-    ListInstancesMethod, InitYSQLMethod, UpdateDiskMethod
+    ListInstancesMethod, InitYSQLMethod, UpdateDiskMethod, CronCheckMethod
 
 
 class AzureNetworkCommand(NetworkCommand):
@@ -38,6 +38,7 @@ class AzureInstanceCommand(InstanceCommand):
         self.add_method(ListInstancesMethod(self))
         self.add_method(InitYSQLMethod(self))
         self.add_method(UpdateDiskMethod(self))
+        self.add_method(CronCheckMethod(self))
 
 
 class AzureAccessCommand(AccessCommand):

@@ -7,11 +7,10 @@ import { fetchUniverseList, fetchUniverseListResponse } from '../../actions/univ
 const mapDispatchToProps = (dispatch) => {
   return {
     fetchUniverseList: () => {
-      dispatch(fetchUniverseList())
-        .then((response) => {
-          dispatch(fetchUniverseListResponse(response.payload));
-        });
-    },
+      dispatch(fetchUniverseList()).then((response) => {
+        dispatch(fetchUniverseListResponse(response.payload));
+      });
+    }
   };
 };
 

@@ -2,28 +2,38 @@
   "provider": {
     "name": ""
   },
-  "instanceTypes": [{
-    "instanceTypeCode": "",
-    "numCores": 0,
-    "memSizeGB": 0,
-    "volumeDetailsList": [{
-      "volumeSizeGB": 0,
-      "volumeType": "",
-      "mountPath": ""
-    }]
-  }],
-  "regions": [{
-    "code": "",
-    "zones": [{
-      "code": ""
-    }]
-  }],
-  "nodes": [{
-    "ip": "",
-    "region": "",
-    "zone": "",
-    "instanceType": ""
-  }],
+  "instanceTypes": [
+    {
+      "instanceTypeCode": "",
+      "numCores": 0,
+      "memSizeGB": 0,
+      "volumeDetailsList": [
+        {
+          "volumeSizeGB": 0,
+          "volumeType": "",
+          "mountPath": ""
+        }
+      ]
+    }
+  ],
+  "regions": [
+    {
+      "code": "",
+      "zones": [
+        {
+          "code": ""
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "ip": "",
+      "region": "",
+      "zone": "",
+      "instanceType": ""
+    }
+  ],
   "key": {
     "code": "",
     "sshUser": "",

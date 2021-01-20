@@ -33,8 +33,10 @@
 #include "yb/tserver/tablet_server.h"
 
 #include <algorithm>
+#include <limits>
 #include <list>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <glog/logging.h>
@@ -58,6 +60,7 @@
 #include "yb/util/flag_tags.h"
 #include "yb/util/net/net_util.h"
 #include "yb/util/net/sockaddr.h"
+#include "yb/util/random_util.h"
 #include "yb/util/size_literals.h"
 #include "yb/util/status.h"
 #include "yb/util/env.h"
@@ -256,6 +259,7 @@ Status TabletServer::Init() {
 
   // 5433 is kDefaultPort in src/yb/yql/pgwrapper/pg_wrapper.h.
   RETURN_NOT_OK(pgsql_proxy_bind_address_.ParseString(FLAGS_pgsql_proxy_bind_address, 5433));
+  shared_object_->SetPostgresAuthKey(RandomUniformInt<uint64_t>());
 
   return Status::OK();
 }
@@ -435,7 +439,6 @@ Status GetDynamicUrlTile(
 }
 
 Status TabletServer::DisplayRpcIcons(std::stringstream* output) {
-
   ServerRegistrationPB reg;
   RETURN_NOT_OK(GetRegistration(&reg));
   string http_addr_host = reg.http_addresses(0).host();
@@ -484,11 +487,17 @@ int TabletServer::GetSharedMemoryFd() {
   return shared_object_.GetFd();
 }
 
-void TabletServer::SetYSQLCatalogVersion(uint64_t new_version) {
+uint64_t TabletServer::GetSharedMemoryPostgresAuthKey() {
+  return shared_object_->postgres_auth_key();
+}
+
+void TabletServer::SetYSQLCatalogVersion(uint64_t new_version, uint64_t new_breaking_version) {
   std::lock_guard<simple_spinlock> l(lock_);
+
   if (new_version > ysql_catalog_version_) {
     ysql_catalog_version_ = new_version;
     shared_object_->SetYSQLCatalogVersion(new_version);
+    ysql_last_breaking_catalog_version_ = new_breaking_version;
   } else if (new_version < ysql_catalog_version_) {
     LOG(DFATAL) << "Ignoring ysql catalog version update: new version too old. "
                  << "New: " << new_version << ", Old: " << ysql_catalog_version_;

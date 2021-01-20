@@ -20,8 +20,9 @@ namespace client {
 // In-memory representation of a remote tablet server.
 class YBTabletServer {
  public:
-  YBTabletServer(std::string uuid, std::string hostname)
-      : uuid_(std::move(uuid)), hostname_(std::move(hostname)) {}
+  YBTabletServer(std::string uuid, std::string hostname, std::string placement_uuid = "")
+      : uuid_(std::move(uuid)), hostname_(std::move(hostname)),
+        placement_uuid_(std::move(placement_uuid)) {}
 
   YBTabletServer(const YBTabletServer&) = delete;
   void operator=(const YBTabletServer&) = delete;
@@ -40,9 +41,14 @@ class YBTabletServer {
     return hostname_;
   }
 
+  const std::string& placement_uuid() const {
+    return placement_uuid_;
+  }
+
  private:
   const std::string uuid_;
   const std::string hostname_;
+  const std::string placement_uuid_;
 };
 
 } // namespace client

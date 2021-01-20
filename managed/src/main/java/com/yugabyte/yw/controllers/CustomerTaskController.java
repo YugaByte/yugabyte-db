@@ -11,8 +11,12 @@ import java.util.HashMap;
 
 import io.ebean.Query;
 import com.yugabyte.yw.forms.SubTaskFormData;
+import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
+import com.yugabyte.yw.models.Audit;
 import com.yugabyte.yw.models.TaskInfo;
 import com.yugabyte.yw.models.Universe;
+import com.yugabyte.yw.models.helpers.TaskType;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,7 +91,7 @@ public class CustomerTaskController extends AuthenticatedController {
           taskData.createTime = task.getCreateTime();
           taskData.completionTime = task.getCompletionTime();
           taskData.target = task.getTarget().name();
-          taskData.type = task.getType().name();
+          taskData.type = task.getType().getFriendlyName();
           taskData.targetUUID = task.getTargetUUID();
 
           List<CustomerTaskFormData> taskList = taskListMap.getOrDefault(task.getTargetUUID(),
@@ -171,5 +175,63 @@ public class CustomerTaskController extends AuthenticatedController {
     ObjectNode responseJson = Json.newObject();
     responseJson.put("failedSubTasks", Json.toJson(failedSubTasks));
     return ok(responseJson);
+  }
+
+  public Result retryTask(UUID customerUUID, UUID taskUUID) {
+    Customer customer = Customer.get(customerUUID);
+    if (customer == null) {
+      return ApiResponse.error(BAD_REQUEST, "Invalid Customer UUID: " + customerUUID);
+    }
+
+    CustomerTask customerTask = CustomerTask.get(customer.uuid, taskUUID);
+
+    if (customerTask == null) {
+      return ApiResponse.error(BAD_REQUEST, "Invalid Customer Task UUID: " + taskUUID);
+    }
+
+    TaskInfo taskInfo = TaskInfo.get(taskUUID);
+
+    if (taskInfo == null) {
+      return ApiResponse.error(BAD_REQUEST, "Invalid Customer Task UUID: " + taskUUID);
+    } else if (taskInfo.getTaskType() != TaskType.CreateUniverse) {
+      String errMsg = String.format(
+        "Invalid task type: %s. Only 'Create Universe' task retries are supported.",
+        taskInfo.getTaskType().toString());
+      return ApiResponse.error(BAD_REQUEST, errMsg);
+    }
+
+    JsonNode oldTaskParams = commissioner.getTaskDetails(taskUUID);
+    if (oldTaskParams == null) {
+      return ApiResponse.error(
+        BAD_REQUEST, "Failed to retrieve task params for Task UUID: " + taskUUID);
+    }
+
+    UniverseDefinitionTaskParams params = Json.fromJson(
+      oldTaskParams, UniverseDefinitionTaskParams.class);
+    params.firstTry = false;
+    Universe universe = Universe.get(params.universeUUID);
+    if (universe == null) {
+      return ApiResponse.error(
+        BAD_REQUEST, "Did not find failed universe with uuid: " + params.universeUUID);
+    }
+
+    UUID newTaskUUID = commissioner.submit(taskInfo.getTaskType(), params);
+    LOG.info("Submitted retry task to create universe for {}:{}, task uuid = {}.",
+      universe.universeUUID, universe.name, newTaskUUID);
+
+    // Add this task uuid to the user universe.
+    CustomerTask.create(customer,
+                        universe.universeUUID,
+                        newTaskUUID,
+                        CustomerTask.TargetType.Universe,
+                        CustomerTask.TaskType.Create,
+                        universe.name);
+    LOG.info("Saved task uuid " + newTaskUUID + " in customer tasks table for universe " +
+      universe.universeUUID + ":" + universe.name);
+
+    ObjectNode resultNode = (ObjectNode) universe.toJson();
+    resultNode.put("taskUUID", newTaskUUID.toString());
+    Audit.createAuditEntry(ctx(), request(), Json.toJson(params), newTaskUUID);
+    return ok(resultNode);
   }
 }

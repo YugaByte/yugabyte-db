@@ -374,7 +374,11 @@ public class TestPgUniqueConstraint extends BasePgSQLTest {
       stmt.executeUpdate("INSERT INTO test VALUES (1, 1)");
       stmt.executeUpdate("INSERT INTO test VALUES (2, 1)");
 
-      runInvalidQuery(stmt, "CREATE UNIQUE INDEX test_v on test(v)", "duplicate key");
+      runInvalidQuery(
+          stmt,
+          "CREATE UNIQUE INDEX NONCONCURRENTLY test_v on test(v)",
+          "duplicate key"
+      );
 
       // Make sure index has no leftovers
       runInvalidQuery(stmt, "DROP INDEX test_v", "does not exist");

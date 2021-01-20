@@ -4,9 +4,7 @@ import { connect } from 'react-redux';
 import HelpItems from './HelpItems';
 
 const mapDispatchToProps = (dispatch) => {
-  return {
-
-  };
+  return {};
 };
 
 function mapStateToProps(state, ownProps) {

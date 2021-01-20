@@ -67,7 +67,7 @@ void SplitOperation::DoStart() {
 
 Status SplitOperation::DoAborted(const Status& status) {
   VLOG_WITH_PREFIX(2) << "DoAborted";
-  return state()->raft_consensus()->ResetSplitOpId();
+  return status;
 }
 
 Status SplitOperation::DoReplicated(int64_t leader_term, Status* complete_status) {

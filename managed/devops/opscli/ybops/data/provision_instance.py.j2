@@ -9,38 +9,58 @@
 # https://github.com/YugaByte/yugabyte-db/blob/master/licenses/POLYFORM-FREE-TRIAL-LICENSE-1.0.0.txt
 
 import argparse
+import json
 import os
 import subprocess
+import sys
 
 
-def construct_command(args):
-    return '{{devops_home}}/bin/ybcloud.sh {{cloud}} '\
-        '--node_metadata '\
-        '\'{"ip":"%s","sshPort":{{custom_ssh_port}},"sshUser":"{{ssh_user}}","nodeName":"@@DEFAULT_NODE_NAME@@"}\' '\
-        'instance provision '\
-        '--vars_file {{vars_file}} ' \
-        '--vault_password_file {{vault_password_file}} '\
-        '--private_key_file {{private_key_file}} '\
-        '--ssh_user {{ssh_user}} '\
-        '--mount_points %s '\
-        {%- if not passwordless_sudo %}
-        '--ask_sudo_pass ' \
-        {%- endif %}
+def construct_command(args, is_preflight=False):
+    cmd = [
+        '{{devops_home}}/bin/ybcloud.sh', '{{cloud}}',
+        '--node_metadata',
+        '{"ip":"%s","sshPort":{{custom_ssh_port}},"sshUser":"{{ssh_user}}","nodeName":"@@DEFAULT_NODE_NAME@@"}' % (args.ip),
+        'instance', 'provision' if not is_preflight else 'precheck',
+        '--vars_file', '{{vars_file}}',
+        '--vault_password_file', '{{vault_password_file}}',
+        '--private_key_file', '{{private_key_file}}',
+        '--ssh_user', '{{ssh_user}}',
+        '--mount_points', args.mount_points,
         {%- if air_gap %}
-        '--air_gap ' \
+        '--air_gap',
         {%- endif %}
-        '--local_package_path {{local_package_path}} '\
-        '@@DEFAULT_NODE_NAME@@' % (args.ip, args.mount_points)
+        {%- if install_node_exporter %}
+        '--install_node_exporter',
+        {%- endif %}
+    ]
+
+    if is_preflight:
+        cmd.extend([
+            '--precheck_type', 'provision'
+        ])
+    else:
+        cmd.extend([
+            '--local_package_path', '{{local_package_path}}',
+            {%- if install_node_exporter %}
+            '--node_exporter_user', '{{ node_exporter_user }}',
+            '--node_exporter_port', '{{ node_exporter_port }}',
+            {%- endif %}
+        ])
+
+    cmd.append('@@DEFAULT_NODE_NAME@@')
+    return cmd
 
 
 def execute_command(cmd):
-    try:
-        new_env = dict(os.environ, YB_HOME_DIR="{{ yb_home_dir }}")
-        subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True, env=new_env)
-        print "Success!"
-    except subprocess.CalledProcessError as e:
-        print "Failed!"
-        print e.output
+    new_env = dict(os.environ, YB_HOME_DIR="{{ yb_home_dir }}")
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=new_env)
+    stdout, stderr = p.communicate()
+    if p.returncode != 0:
+        print("Failed!")
+        print(stderr)
+        sys.exit(1)
+    else:
+        return stdout
 
 
 if __name__ == '__main__':
@@ -49,6 +69,14 @@ if __name__ == '__main__':
                         help='Private IP of the instance to provision.')
     parser.add_argument('-m', '--mount_points', required=True,
                         help='The comma-separated locations of each mounted hard drive.')
+    parser.add_argument('--ask_password', action='store_true',
+                        help='Specify this flag if a password is required for sudo access.')
     args = parser.parse_args()
-    print 'Executing provision now for instance with IP %s...' % (args.ip)
-    execute_command(construct_command(args))
+    print('Executing provision now for instance with IP {}...'.format(args.ip))
+    output = execute_command(construct_command(args, True))
+    if all(json.loads(output).values()):
+        print("Preflight checks passed!")
+        execute_command(construct_command(args))
+    else:
+        print("Failed preflight checks!")
+        print(output)

@@ -7,7 +7,7 @@
  *
  *     https://github.com/YugaByte/yugabyte-db/blob/master/licenses/POLYFORM-FREE-TRIAL-LICENSE-1.0.0.txt
  */
-  
+
 package com.yugabyte.yw.commissioner.tasks.subtasks.nodes;
 
 import com.yugabyte.yw.commissioner.tasks.UniverseDefinitionTaskBase;
@@ -58,7 +58,7 @@ public class UpdateNodeProcess extends NodeTaskBase {
       };
       // Perform the update. If unsuccessful, this will throw a runtime exception which we do not
       // catch as we want to fail.
-      Universe.saveDetails(taskParams().universeUUID, updater);
+      saveUniverseDetails(updater);
     } catch (Exception e) {
       String msg = getName() + " failed with exception "  + e.getMessage();
       LOG.warn(msg, e.getMessage());

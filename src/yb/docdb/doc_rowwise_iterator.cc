@@ -44,7 +44,7 @@ class ScanChoices {
   explicit ScanChoices(bool is_forward_scan) : is_forward_scan_(is_forward_scan) {}
   virtual ~ScanChoices() {}
 
-  bool CurrentIteratorPositionMatchesCurrentTarget(const Slice& curr) {
+  bool CurrentTargetMatchesKey(const Slice& curr) {
     VLOG(3) << __PRETTY_FUNCTION__ << " checking if acceptable ? "
             << (curr == current_scan_target_ ? "YEP" : "NOPE")
             << ": " << DocKey::DebugSliceToString(curr)
@@ -352,14 +352,14 @@ Status RangeBasedScanChoices::SkipTargetsUpTo(const Slice& new_target) {
     l_c < C < u_c
      4        6
 
-    a b  0 d  -> a  b l_c  l_d
+    a b  0 d  -> a  b l_c  d
 
-    a b  5 d  -> a  b  5    d
-                  [ Will subsequently week out of document on reading the subdoc]
+    a b  5 d  -> a  b  5   d
+                  [ Will subsequently seek out of document on reading the subdoc]
 
     a b  7 d  -> a <b> MAX
                 [ This will seek to <b_next> and on the next invocation update:
-                   a <b_next> ? ? -> a <b_next> l_c l_d ]
+                   a <b_next> ? ? -> a <b_next> l_c d ]
   */
   DocKeyDecoder decoder(new_target);
   RETURN_NOT_OK(decoder.DecodeToRangeGroup());
@@ -597,7 +597,7 @@ Status DocRowwiseIterator::Init(const common::PgsqlScanSpec& spec) {
 Status DocRowwiseIterator::AdvanceIteratorToNextDesiredRow() const {
   if (scan_choices_) {
     if (!IsNextStaticColumn()
-        && !scan_choices_->CurrentIteratorPositionMatchesCurrentTarget(row_key_)) {
+        && !scan_choices_->CurrentTargetMatchesKey(row_key_)) {
       return scan_choices_->SeekToCurrentTarget(db_iter_.get());
     }
   } else {
@@ -663,7 +663,7 @@ Result<bool> DocRowwiseIterator::HasNext() const {
     row_hash_key_ = iter_key_.AsSlice().Prefix(dockey_sizes->first);
     row_key_ = iter_key_.AsSlice().Prefix(dockey_sizes->second);
 
-    if (!DocKeyBelongsTo(row_key_, schema_) ||
+    if (!DocKeyBelongsTo(row_key_, schema_) || // e.g in cotable, row may point outside table bounds
         (has_bound_key_ && is_forward_scan_ == (row_key_.compare(bound_key_) >= 0))) {
       done_ = true;
       return false;
@@ -675,7 +675,7 @@ Result<bool> DocRowwiseIterator::HasNext() const {
 
     bool is_static_column = IsNextStaticColumn();
     if (scan_choices_ && !is_static_column) {
-      if (!scan_choices_->CurrentIteratorPositionMatchesCurrentTarget(row_key_)) {
+      if (!scan_choices_->CurrentTargetMatchesKey(row_key_)) {
         // We must have seeked past the target key we are looking for (no result) so we can safely
         // skip all scan targets between the current target and row key (excluding row_key_ itself).
         // Update the target key and iterator and call HasNext again to try the next target.
@@ -683,7 +683,7 @@ Result<bool> DocRowwiseIterator::HasNext() const {
 
         // We updated scan target above, if it goes past the row_key_ we will seek again, and
         // process the found key in the next loop.
-        if (!scan_choices_->CurrentIteratorPositionMatchesCurrentTarget(row_key_)) {
+        if (!scan_choices_->CurrentTargetMatchesKey(row_key_)) {
           RETURN_NOT_OK(scan_choices_->SeekToCurrentTarget(db_iter_.get()));
           continue;
         }
@@ -705,6 +705,11 @@ Result<bool> DocRowwiseIterator::HasNext() const {
     // After this, the iter should be positioned right after the subdocument.
 
     if (!doc_found) {
+      // TODO -- Add some metrics to understand:
+      // (a) how often we scan back
+      // (b) how often it's useful
+      // Also maybe in debug mode add some every-n logging of the rocksdb values for which it is
+      // useful
       SubDocument full_row;
       // If doc is not found, decide if some non-projection column exists.
       // Currently we read the whole doc here,

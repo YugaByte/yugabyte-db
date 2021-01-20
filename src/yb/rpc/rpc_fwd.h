@@ -45,6 +45,7 @@ class RpcContext;
 class RpcController;
 class RpcService;
 class Rpcs;
+class Poller;
 class Protocol;
 class Scheduler;
 class SecureContext;

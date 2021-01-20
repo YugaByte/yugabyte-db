@@ -6,6 +6,7 @@ import com.yugabyte.yw.commissioner.Commissioner;
 import com.yugabyte.yw.commissioner.tasks.MultiTableBackup;
 import com.yugabyte.yw.common.ModelFactory;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.models.Backup;
 import com.yugabyte.yw.models.CustomerTask;
 import com.yugabyte.yw.models.TaskInfo;
@@ -23,6 +24,8 @@ import org.yb.client.ListTablesResponse;
 import org.yb.client.YBClient;
 import org.yb.master.Master;
 import org.yb.master.Master.ListTablesResponsePB.TableInfo;
+import org.yb.client.ChangeMasterClusterConfigResponse;
+import org.yb.client.GetMasterClusterConfigResponse;
 import org.yb.Common.TableType;
 
 import java.util.ArrayList;
@@ -114,6 +117,16 @@ public class MultiTableBackupTest extends CommissionerBaseTest {
     mockSchemaResponse2 = mock(GetTableSchemaResponse.class);
     mockSchemaResponse3 = mock(GetTableSchemaResponse.class);
     mockSchemaResponse4 = mock(GetTableSchemaResponse.class);
+    Master.SysClusterConfigEntryPB.Builder configBuilder =
+      Master.SysClusterConfigEntryPB.newBuilder().setVersion(1);
+    GetMasterClusterConfigResponse mockConfigResponse =
+      new GetMasterClusterConfigResponse(1111, "", configBuilder.build(), null);
+    ChangeMasterClusterConfigResponse ccr = new ChangeMasterClusterConfigResponse(1111, "", null);
+    mockClient = mock(YBClient.class);
+    try {
+      when(mockClient.getMasterClusterConfig()).thenReturn(mockConfigResponse);
+      when(mockClient.changeMasterClusterConfig(any())).thenReturn(ccr);
+    } catch (Exception e) {}
     when(mockYBClient.getClient(any(), any())).thenReturn(mockClient);
     try {
       when(mockClient.getTablesList(null, true, null)).thenReturn(mockListTablesResponse);
@@ -127,8 +140,6 @@ public class MultiTableBackupTest extends CommissionerBaseTest {
       // Do nothing.
     }
     when(mockListTablesResponse.getTableInfoList()).thenReturn(tableInfoList);
-    when(mockSchemaResponse1.getTableName()).thenReturn("Table1");
-    when(mockSchemaResponse1.getNamespace()).thenReturn("$$$Default0");
     when(mockSchemaResponse1.getTableType()).thenReturn(TableType.REDIS_TABLE_TYPE);
     when(mockSchemaResponse2.getTableName()).thenReturn("Table2");
     when(mockSchemaResponse2.getNamespace()).thenReturn("$$$Default1");
@@ -136,11 +147,13 @@ public class MultiTableBackupTest extends CommissionerBaseTest {
     when(mockSchemaResponse3.getTableType()).thenReturn(TableType.PGSQL_TABLE_TYPE);
   }
 
-  private TaskInfo submitTask(String keyspace, List<UUID> tableUUIDs, boolean transactional) {
+  private TaskInfo submitTask(String keyspace, List<UUID> tableUUIDs,
+                              boolean transactional, TableType backupType) {
     MultiTableBackup.Params backupTableParams = new MultiTableBackup.Params();
     backupTableParams.universeUUID = defaultUniverse.universeUUID;
     backupTableParams.customerUUID = defaultCustomer.uuid;
     backupTableParams.keyspace = keyspace;
+    backupTableParams.backupType = backupType;
     backupTableParams.storageConfigUUID = UUID.randomUUID();
     backupTableParams.tableUUIDList = tableUUIDs;
     backupTableParams.transactionalBackup = transactional;
@@ -157,7 +170,7 @@ public class MultiTableBackupTest extends CommissionerBaseTest {
   }
 
   private TaskInfo submitTask(String keyspace, List<UUID> tableUUIDs) {
-    return submitTask(keyspace, tableUUIDs, false);
+    return submitTask(keyspace, tableUUIDs, false, TableType.YQL_TABLE_TYPE);
   }
 
   @Test
@@ -165,14 +178,14 @@ public class MultiTableBackupTest extends CommissionerBaseTest {
     Map<String, String> config = new HashMap<>();
     config.put(Universe.TAKE_BACKUPS, "true");
     defaultUniverse.setConfig(config);
-    ShellProcessHandler.ShellResponse shellResponse =  new ShellProcessHandler.ShellResponse();
+    ShellResponse shellResponse =  new ShellResponse();
     shellResponse.message = "{\"success\": true}";
     shellResponse.code = 0;
     when(mockTableManager.createBackup(any())).thenReturn(shellResponse);
 
-    // Entire universe backup, including YEDIS, YSQL, YCQL
+    // Entire universe backup, only YCQL tables
     TaskInfo taskInfo = submitTask(null, new ArrayList<UUID>());
-    verify(mockTableManager, times(3)).createBackup(any());
+    verify(mockTableManager, times(1)).createBackup(any());
     assertEquals(TaskInfo.State.Success, taskInfo.getTaskState());
   }
 
@@ -181,12 +194,12 @@ public class MultiTableBackupTest extends CommissionerBaseTest {
     Map<String, String> config = new HashMap<>();
     config.put(Universe.TAKE_BACKUPS, "true");
     defaultUniverse.setConfig(config);
-    ShellProcessHandler.ShellResponse shellResponse =  new ShellProcessHandler.ShellResponse();
+    ShellResponse shellResponse =  new ShellResponse();
     shellResponse.message = "{\"success\": true}";
     shellResponse.code = 0;
     when(mockTableManager.createBackup(any())).thenReturn(shellResponse);
 
-    TaskInfo taskInfo = submitTask("$$$Default0", new ArrayList<UUID>());
+    TaskInfo taskInfo = submitTask("$$$Default1", new ArrayList<UUID>());
     verify(mockTableManager, times(1)).createBackup(any());
     assertEquals(TaskInfo.State.Success, taskInfo.getTaskState());
   }
@@ -196,13 +209,16 @@ public class MultiTableBackupTest extends CommissionerBaseTest {
     Map<String, String> config = new HashMap<>();
     config.put(Universe.TAKE_BACKUPS, "true");
     defaultUniverse.setConfig(config);
-    ShellProcessHandler.ShellResponse shellResponse =  new ShellProcessHandler.ShellResponse();
+    ShellResponse shellResponse =  new ShellResponse();
     shellResponse.message = "{\"success\": true}";
     shellResponse.code = 0;
     when(mockTableManager.createBackup(any())).thenReturn(shellResponse);
 
-    TaskInfo taskInfo = submitTask(null, new ArrayList<UUID>(), true);
-    verify(mockTableManager, times(3)).createBackup(any());
+    TaskInfo taskInfo = submitTask(null,
+                                    new ArrayList<UUID>(),
+                                    true,
+                                    TableType.YQL_TABLE_TYPE);
+    verify(mockTableManager, times(1)).createBackup(any());
     assertEquals(TaskInfo.State.Success, taskInfo.getTaskState());
   }
 
@@ -211,7 +227,7 @@ public class MultiTableBackupTest extends CommissionerBaseTest {
     Map<String, String> config = new HashMap<>();
     config.put(Universe.TAKE_BACKUPS, "true");
     defaultUniverse.setConfig(config);
-    ShellProcessHandler.ShellResponse shellResponse =  new ShellProcessHandler.ShellResponse();
+    ShellResponse shellResponse =  new ShellResponse();
     shellResponse.message = "{\"success\": true}";
     shellResponse.code = 0;
     when(mockTableManager.createBackup(any())).thenReturn(shellResponse);
@@ -219,8 +235,8 @@ public class MultiTableBackupTest extends CommissionerBaseTest {
     tableUUIDs.add(table1UUID);
     tableUUIDs.add(table2UUID);
     tableUUIDs.add(table3UUID);
-    TaskInfo taskInfo = submitTask(null, tableUUIDs);
-    verify(mockTableManager, times(2)).createBackup(any());
+    TaskInfo taskInfo = submitTask("bar", tableUUIDs);
+    verify(mockTableManager, times(1)).createBackup(any());
     assertEquals(TaskInfo.State.Success, taskInfo.getTaskState());
   }
 
@@ -229,7 +245,7 @@ public class MultiTableBackupTest extends CommissionerBaseTest {
     Map<String, String> config = new HashMap<>();
     config.put(Universe.TAKE_BACKUPS, "true");
     defaultUniverse.setConfig(config);
-    ShellProcessHandler.ShellResponse shellResponse =  new ShellProcessHandler.ShellResponse();
+    ShellResponse shellResponse =  new ShellResponse();
     shellResponse.message = "{\"success\": true}";
     shellResponse.code = 0;
     when(mockTableManager.createBackup(any())).thenReturn(shellResponse);
@@ -239,7 +255,10 @@ public class MultiTableBackupTest extends CommissionerBaseTest {
     tableUUIDs.add(table3UUID);
     // Adding random keyspace here because the number of keyspace keys and tables
     // must be equal in CREATE mode.
-    TaskInfo taskInfo = submitTask("bar", tableUUIDs, true);
+    TaskInfo taskInfo = submitTask("bar",
+                                    tableUUIDs,
+                                    true,
+                                    TableType.YQL_TABLE_TYPE);
     // Note that since we don't backup YSQL tables directly, there will only be
     // two tables backed up (YEDIS and YCQL). Non-universe backups can only be for
     // a single keyspace so we expect the two tables to be backed up together.
@@ -252,11 +271,14 @@ public class MultiTableBackupTest extends CommissionerBaseTest {
     Map<String, String> config = new HashMap<>();
     config.put(Universe.TAKE_BACKUPS, "true");
     defaultUniverse.setConfig(config);
-    ShellProcessHandler.ShellResponse shellResponse =  new ShellProcessHandler.ShellResponse();
+    ShellResponse shellResponse =  new ShellResponse();
     shellResponse.message = "{\"success\": true}";
     shellResponse.code = 0;
     when(mockTableManager.createBackup(any())).thenReturn(shellResponse);
-    TaskInfo taskInfo = submitTask("$$$Default2", new ArrayList<UUID>(), true);
+    TaskInfo taskInfo = submitTask("$$$Default2",
+                                    new ArrayList<UUID>(),
+                                    true,
+                                    TableType.PGSQL_TABLE_TYPE);
     verify(mockTableManager, times(1)).createBackup(any());
     assertEquals(TaskInfo.State.Success, taskInfo.getTaskState());
   }
@@ -266,7 +288,7 @@ public class MultiTableBackupTest extends CommissionerBaseTest {
     Map<String, String> config = new HashMap<>();
     config.put(Universe.TAKE_BACKUPS, "false");
     defaultUniverse.setConfig(config);
-    TaskInfo taskInfo = submitTask(null, new ArrayList<UUID>());
+    TaskInfo taskInfo = submitTask(null, new ArrayList<>());
     verify(mockTableManager, times(0)).createBackup(any());
     assertEquals(TaskInfo.State.Success, taskInfo.getTaskState());
   }

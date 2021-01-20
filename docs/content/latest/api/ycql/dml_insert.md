@@ -63,6 +63,8 @@ Where
 - The columns list must include all primary key columns.
 - The `USING TIMESTAMP` clause indicates you would like to perform the INSERT as if it was done at the
   timestamp provided by the user. The timestamp is the number of microseconds since epoch.
+- By default `INSERT` has `upsert` semantics, that is, if the row already exists, it behaves like an `UPDATE`. If pure
+ `INSERT` semantics is desired then the `IF NOT EXISTS` clause can be used to make sure an existing row is not overwritten by the `INSERT`.
 - **NOTE**: You should either use the `USING TIMESTAMP` clause in all of your statements or none of
   them. Using a mix of statements where some have `USING TIMESTAMP` and others do not will lead to
   very confusing results.

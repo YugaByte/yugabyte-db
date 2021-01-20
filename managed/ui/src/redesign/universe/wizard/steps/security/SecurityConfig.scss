@@ -1,0 +1,24 @@
+@import '../../../../uikit/common';
+
+.security-config {
+  @include wizard-step-form();
+  @include wizard-form-section-title();
+  @include wizard-form-row();
+  @include wizard-form-text-label();
+  @include wizard-form-footer();
+
+  &__label-line {
+    display: flex;
+    align-items: center;
+  }
+
+  &__line {
+    margin-left: 10px;
+    border-top: 1px solid $YB_BORDER_1;
+    width: 405px;
+  }
+
+  &__padded {
+    padding-left: 50px;
+  }
+}

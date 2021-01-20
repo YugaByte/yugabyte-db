@@ -17,7 +17,9 @@
 
 #include <vector>
 #include <unordered_map>
-#include "yb/yql/pggate/pg_statement.h"
+
+#include <boost/intrusive/list.hpp>
+
 #include "yb/yql/pggate/pg_tabledesc.h"
 
 namespace yb {
@@ -36,6 +38,14 @@ namespace pggate {
 class PgMemctx {
  public:
   typedef std::shared_ptr<PgMemctx> SharedPtr;
+
+  class Registrable : public boost::intrusive::list_base_hook<> {
+   public:
+    virtual ~Registrable() = default;
+   private:
+    PgMemctx* memctx_ = nullptr;
+    friend class PgMemctx;
+  };
 
   // Constructor and destructor.
   PgMemctx();
@@ -61,8 +71,8 @@ class PgMemctx {
   // keeps all the allocated memory for the child contexts.
   static CHECKED_STATUS Reset(PgMemctx *handle);
 
-  // Cache the statement in the memory context to be destroyed later on.
-  void Cache(const PgStatement::ScopedRefPtr &stmt);
+  void Register(Registrable *obj);
+  static void Destroy(Registrable *obj);
 
   // Cache the table descriptor in the memory context to be destroyed later on.
   void Cache(size_t hash_id, const PgTableDesc::ScopedRefPtr &table_desc);
@@ -80,11 +90,12 @@ class PgMemctx {
   //   memctx, we can delay the PgStatement objects' destruction.
   void Clear();
 
-  // All statements that are allocated with this memory context.
-  std::vector<PgStatement::ScopedRefPtr> stmts_;
-
   // All talbe descriptors that are allocated with this memory context.
   std::unordered_map<size_t, PgTableDesc::ScopedRefPtr> tabledesc_map_;
+
+  boost::intrusive::list<Registrable> registered_objects_;
+
+  DISALLOW_COPY_AND_ASSIGN(PgMemctx);
 };
 
 }  // namespace pggate

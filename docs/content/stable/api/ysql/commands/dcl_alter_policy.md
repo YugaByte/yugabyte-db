@@ -63,13 +63,13 @@ Where
 
 - Rename a policy.
 
-```postgresql
+```plpgsql
 yugabyte=# ALTER POLICY p1 ON table_foo RENAME TO p2;
 ```
 
 - Apply policy to all roles.
 
-```postgresql
+```plpgsql
 yugabyte=# ALTER POLICY p1 ON table_foo TO PUBLIC;
 ```
 

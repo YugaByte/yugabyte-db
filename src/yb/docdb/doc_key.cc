@@ -123,13 +123,18 @@ Status ConsumePrimitiveValuesFromKey(Slice* slice, std::vector<PrimitiveValue>* 
 // DocKey
 // ------------------------------------------------------------------------------------------------
 
-DocKey::DocKey() : cotable_id_(boost::uuids::nil_uuid()), pgtable_id_(0), hash_present_(false) {
+DocKey::DocKey()
+    : cotable_id_(boost::uuids::nil_uuid()),
+      pgtable_id_(0),
+      hash_present_(false),
+      hash_(0) {
 }
 
 DocKey::DocKey(std::vector<PrimitiveValue> range_components)
     : cotable_id_(boost::uuids::nil_uuid()),
       pgtable_id_(0),
       hash_present_(false),
+      hash_(0),
       range_group_(std::move(range_components)) {
 }
 
@@ -185,7 +190,8 @@ DocKey::DocKey(const PgTableOid pgtable_id)
 DocKey::DocKey(const Schema& schema)
     : cotable_id_(schema.cotable_id()),
       pgtable_id_(schema.pgtable_id()),
-      hash_present_(false) {
+      hash_present_(false),
+      hash_(0) {
 }
 
 DocKey::DocKey(const Schema& schema, DocKeyHash hash)
@@ -199,6 +205,7 @@ DocKey::DocKey(const Schema& schema, std::vector<PrimitiveValue> range_component
     : cotable_id_(schema.cotable_id()),
       pgtable_id_(schema.pgtable_id()),
       hash_present_(false),
+      hash_(0),
       range_group_(std::move(range_components)) {
 }
 
@@ -1072,6 +1079,13 @@ DocDbAwareHashedComponentsFilterPolicy::GetKeyTransformer() const {
 
 const rocksdb::FilterPolicy::KeyTransformer*
 DocDbAwareV2FilterPolicy::GetKeyTransformer() const {
+  // We want for DocDbAwareV2FilterPolicy to disable bloom filtering during read path for
+  // range-partitioned tablets (see https://github.com/yugabyte/yugabyte-db/issues/6435).
+  return &DocKeyComponentsExtractor<DocKeyPart::kUpToHash>::GetInstance();
+}
+
+const rocksdb::FilterPolicy::KeyTransformer*
+DocDbAwareV3FilterPolicy::GetKeyTransformer() const {
   return &DocKeyComponentsExtractor<DocKeyPart::kUpToHashOrFirstRange>::GetInstance();
 }
 
@@ -1183,11 +1197,11 @@ Result<bool> DocKeyDecoder::DecodeHashCode(uint16_t* out, AllowSpecial allow_spe
 }
 
 Status DocKeyDecoder::DecodePrimitiveValue(PrimitiveValue* out, AllowSpecial allow_special) {
-  if (allow_special && !input_.empty()) {
-    if (input_[0] == ValueTypeAsChar::kLowest && input_[0] == ValueTypeAsChar::kHighest) {
-      input_.consume_byte();
-      return Status::OK();
-    }
+  if (allow_special &&
+      !input_.empty() &&
+      (input_[0] == ValueTypeAsChar::kLowest || input_[0] == ValueTypeAsChar::kHighest)) {
+    input_.consume_byte();
+    return Status::OK();
   }
   return PrimitiveValue::DecodeKey(&input_, out);
 }

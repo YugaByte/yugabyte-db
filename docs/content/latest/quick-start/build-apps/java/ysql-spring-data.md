@@ -142,7 +142,7 @@ yugabyte=#
 
 List the tables created by the app.
 
-```postgresql
+```plpgsql
 yugabyte=# \d
 ```
 
@@ -162,7 +162,7 @@ List of relations
 
 Note the 4 tables and 3 sequences in the list above.
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT count(*) FROM users;
 ```
 
@@ -173,7 +173,7 @@ yugabyte=# SELECT count(*) FROM users;
 (1 row)
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT count(*) FROM products;
 ```
 
@@ -184,7 +184,7 @@ yugabyte=# SELECT count(*) FROM products;
 (1 row)
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT count(*) FROM orders;
 ```
 
@@ -195,7 +195,7 @@ yugabyte=# SELECT count(*) FROM orders;
 (1 row)
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT * FROM orderline;
 ```
 

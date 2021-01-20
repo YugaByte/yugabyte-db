@@ -422,7 +422,7 @@ bool YBSingleThreadedWriter::Write(
   }
   Status flush_status = session_->Flush();
   if (!flush_status.ok()) {
-    for (const auto& error : session_->GetPendingErrors()) {
+    for (const auto& error : session_->GetAndClearPendingErrors()) {
       // It means that key was actually written successfully, but our retry failed because
       // it was detected as duplicate request.
       if (error->status().IsAlreadyPresent()) {
@@ -450,7 +450,7 @@ bool YBSingleThreadedWriter::Write(
 
 void YBSingleThreadedWriter::HandleInsertionFailure(int64_t key_index, const string& key_str) {
   if (session_ != nullptr) {
-    for (const auto& error : session_->GetPendingErrors()) {
+    for (const auto& error : session_->GetAndClearPendingErrors()) {
       LOG(WARNING) << "Explicit error while inserting: " << error->status().ToString();
     }
   }
@@ -578,7 +578,7 @@ void YBSingleThreadedReader::ConfigureSession() {
 
 bool NoopSingleThreadedWriter::Write(
     int64_t key_index, const string& key_str, const string& value_str) {
-  YBNoOp noop(table_->get());
+  YBNoOp noop(table_->table());
   gscoped_ptr<YBPartialRow> row(table_->schema().NewRow());
   CHECK_OK(row->SetBinary("k", key_str));
   Status s = noop.Execute(*row);

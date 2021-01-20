@@ -245,7 +245,7 @@ int MetricsSnapshotter::Thread::GetMillisUntilNextMetricsSnapshot() const {
 
 void MetricsSnapshotter::Thread::LogSessionErrors(const std::shared_ptr<YBSession>& session,
                             const Status& s) {
-  auto errors = session->GetPendingErrors();
+  auto errors = session->GetAndClearPendingErrors();
 
   int num_errors_to_log = 10;
 

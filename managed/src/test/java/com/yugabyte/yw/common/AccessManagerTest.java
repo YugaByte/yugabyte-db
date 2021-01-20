@@ -39,6 +39,7 @@ import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.*;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyMap;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
@@ -64,9 +65,11 @@ import static org.mockito.Mockito.when;
   final static String TMP_STORAGE_PATH = "/tmp/yugaware_tests";
   final static String TMP_KEYS_PATH = TMP_STORAGE_PATH + "/keys";
   final static String TEST_KEY_CODE = "test-key";
+  final static String TEST_KEY_CODE_WITH_PATH = "../../test-key";
   final static String TEST_KEY_PEM = TEST_KEY_CODE + ".pem";
   final static String PEM_PERMISSIONS = "r--------";
   final static Integer SSH_PORT = 12345;
+
 
   @Before
   public void beforeTest() {
@@ -84,32 +87,32 @@ import static org.mockito.Mockito.when;
     FileUtils.deleteDirectory(new File(TMP_STORAGE_PATH));
   }
 
-  private JsonNode uploadKeyCommand(UUID regionUUID, boolean mimicError) {
-    ShellProcessHandler.ShellResponse response = new ShellProcessHandler.ShellResponse();
+  private JsonNode uploadKeyCommand(UUID regionUUID, String keyCode, boolean mimicError) {
+    ShellResponse response = new ShellResponse();
     if (mimicError) {
       response.message = "{\"error\": \"Unknown Error\"}";
       response.code = 99;
       return Json.toJson(accessManager.uploadKeyFile(regionUUID,
-          new File("foo"), TEST_KEY_CODE, AccessManager.KeyType.PRIVATE, "some-user",
-          SSH_PORT, false));
+          new File("foo"), keyCode, AccessManager.KeyType.PRIVATE, "some-user",
+          SSH_PORT, false, false));
     } else {
       response.code = 0;
       response.message = "{\"vault_file\": \"/path/to/vault_file\"," +
           "\"vault_password\": \"/path/to/vault_password\"}";
-      when(shellProcessHandler.run(anyList(), anyMap())).thenReturn(response);
+      when(shellProcessHandler.run(anyList(), anyMap(), anyString())).thenReturn(response);
       String tmpFile = createTempFile("SOME DATA");
       return Json.toJson(accessManager.uploadKeyFile(regionUUID,
-          new File(tmpFile), TEST_KEY_CODE, AccessManager.KeyType.PRIVATE, "some-user",
-          SSH_PORT, false));
+          new File(tmpFile), keyCode, AccessManager.KeyType.PRIVATE, "some-user",
+          SSH_PORT, false, false));
     }
   }
 
   private JsonNode runCommand(UUID regionUUID, String commandType, boolean mimicError) {
-    ShellProcessHandler.ShellResponse response = new ShellProcessHandler.ShellResponse();
+    ShellResponse response = new ShellResponse();
     if (mimicError) {
       response.message = "{\"error\": \"Unknown Error\"}";
       response.code = 99;
-      when(shellProcessHandler.run(anyList(), anyMap())).thenReturn(response);
+      when(shellProcessHandler.run(anyList(), anyMap(), anyString())).thenReturn(response);
     } else {
       response.code = 0;
       if (commandType.equals("add-key")) {
@@ -120,11 +123,11 @@ import static org.mockito.Mockito.when;
             "\"private_key\": \"" + tmpPrivateFile + "\"}";
         // In case of add-key we make two calls via shellProcessHandler one to add the key,
         // and other call to create a vault file for the keys generated.
-        ShellProcessHandler.ShellResponse response2 = new ShellProcessHandler.ShellResponse();
+        ShellResponse response2 = new ShellResponse();
         response2.code = 0;
         response2.message = "{\"vault_file\": \"/path/to/vault_file\"," +
             "\"vault_password\": \"/path/to/vault_password\"}";
-        when(shellProcessHandler.run(anyList(), anyMap())).thenReturn(response).thenReturn(response2);
+        when(shellProcessHandler.run(anyList(), anyMap(), anyString())).thenReturn(response).thenReturn(response2);
       } else {
         if (commandType.equals("create-vault")) {
           response.message = "{\"vault_file\": \"/path/to/vault_file\"," +
@@ -132,12 +135,12 @@ import static org.mockito.Mockito.when;
         } else {
           response.message = "{\"foo\": \"bar\"}";
         }
-        when(shellProcessHandler.run(anyList(), anyMap())).thenReturn(response);
+        when(shellProcessHandler.run(anyList(), anyMap(), anyString())).thenReturn(response);
       }
     }
 
     if (commandType.equals("add-key")) {
-      return Json.toJson(accessManager.addKey(regionUUID, "foo", SSH_PORT, false));
+      return Json.toJson(accessManager.addKey(regionUUID, "foo", SSH_PORT, false, false));
     } else if (commandType.equals("list-keys")) {
       return accessManager.listKeys(regionUUID);
     } else if (commandType.equals("create-vault")) {
@@ -157,8 +160,8 @@ import static org.mockito.Mockito.when;
   @Test
   public void testManageAddKeyCommandWithoutProviderConfig() {
     JsonNode json = runCommand(defaultRegion.uuid, "add-key", false);
-    Mockito.verify(shellProcessHandler, times(2)).run((List<String>) command.capture(),
-        (Map<String, String>) cloudCredentials.capture());
+    Mockito.verify(shellProcessHandler, times(2)).run(command.capture(),
+        cloudCredentials.capture(), anyString());
 
     List<String> expectedCommands = new ArrayList<>();
     expectedCommands.add(getBaseCommand(defaultRegion, "add-key") +
@@ -186,8 +189,8 @@ import static org.mockito.Mockito.when;
     defaultProvider.save();
 
     JsonNode json = runCommand(defaultRegion.uuid, "add-key", false);
-    Mockito.verify(shellProcessHandler, times(2)).run((List<String>) command.capture(),
-        (Map<String, String>) cloudCredentials.capture());
+    Mockito.verify(shellProcessHandler, times(2)).run(command.capture(),
+        cloudCredentials.capture(), anyString());
     List<String> expectedCommands = new ArrayList<>();
     expectedCommands.add(getBaseCommand(defaultRegion, "add-key") +
         " --key_pair_name foo --key_file_path " + TMP_KEYS_PATH + "/" + defaultProvider.uuid);
@@ -215,7 +218,8 @@ import static org.mockito.Mockito.when;
       assertThat(re.getMessage(), allOf(notNullValue(),
           equalTo("YBCloud command access (add-key) failed to execute.")));
     }
-    Mockito.verify(shellProcessHandler, times(1)).run(anyList(), anyMap());
+    Mockito.verify(shellProcessHandler, times(1)).run(
+      anyList(), anyMap(), anyString());
   }
 
   @Test
@@ -224,8 +228,8 @@ import static org.mockito.Mockito.when;
     keyInfo.privateKey = TMP_KEYS_PATH + "/private.key";
     AccessKey.create(defaultProvider.uuid, "foo", keyInfo);
     runCommand(defaultRegion.uuid, "add-key", false);
-    Mockito.verify(shellProcessHandler, times(1)).run((List<String>) command.capture(),
-        (Map<String, String>) cloudCredentials.capture());
+    Mockito.verify(shellProcessHandler, times(1)).run(command.capture(),
+        cloudCredentials.capture(), anyString());
     String expectedCommand = getBaseCommand(defaultRegion, "add-key") +
         " --key_pair_name foo --key_file_path " + TMP_KEYS_PATH + "/" +
         defaultProvider.uuid + " --private_key_file " + keyInfo.privateKey;
@@ -250,7 +254,7 @@ import static org.mockito.Mockito.when;
   public void testManageListKeysCommand() {
     JsonNode result = runCommand(defaultRegion.uuid, "list-keys", false);
     Mockito.verify(shellProcessHandler, times(1)).run(command.capture(),
-        cloudCredentials.capture());
+        cloudCredentials.capture(), anyString());
 
     String commandStr = String.join(" ", command.getValue());
     String expectedCmd = getBaseCommand(defaultRegion, "list-keys");
@@ -262,7 +266,8 @@ import static org.mockito.Mockito.when;
   @Test
   public void testManageListKeysCommandWithErrorResponse() {
     JsonNode result = runCommand(defaultRegion.uuid, "list-keys", true);
-    Mockito.verify(shellProcessHandler, times(1)).run(command.capture(), anyMap());
+    Mockito.verify(shellProcessHandler, times(1)).run(
+      command.capture(), anyMap(), anyString());
 
     String commandStr = String.join(" ", command.getValue());
     String expectedCmd = getBaseCommand(defaultRegion, "list-keys");
@@ -271,16 +276,27 @@ import static org.mockito.Mockito.when;
   }
 
   @Test
-  public void testManageUploadKeyFile() throws IOException {
-    JsonNode result = uploadKeyCommand(defaultRegion.uuid, false);
+  public void testManageUploadKeyFile_PureKeyCode() throws IOException {
+    doTestManageUploadKeyFile(TEST_KEY_CODE, TEST_KEY_PEM);
+  }
+
+  @Test
+  public void testManageUploadKeyFile_KeyCodeWithPath() throws IOException {
+    doTestManageUploadKeyFile(TEST_KEY_CODE_WITH_PATH, TEST_KEY_PEM);
+  }
+
+  private void doTestManageUploadKeyFile(String keyCode, String expectedFilename)
+      throws IOException {
+    JsonNode result = uploadKeyCommand(defaultRegion.uuid, keyCode, false);
     JsonNode idKey = result.get("idKey");
     assertNotNull(idKey);
     AccessKey accessKey = AccessKey.get(
         UUID.fromString(idKey.get("providerUUID").asText()),
         idKey.get("keyCode").asText());
     assertNotNull(accessKey);
+    assertEquals(accessKey.getKeyCode() + ".pem", expectedFilename);
     String expectedPath = String.join("/", TMP_KEYS_PATH, idKey.get("providerUUID").asText(),
-        TEST_KEY_PEM);
+        expectedFilename);
     assertEquals(expectedPath, accessKey.getKeyInfo().privateKey);
     assertEquals("some-user", accessKey.getKeyInfo().sshUser);
     Path keyFile = Paths.get(expectedPath);
@@ -291,7 +307,7 @@ import static org.mockito.Mockito.when;
   @Test
   public void testManageUploadKeyFileError() {
     try {
-      uploadKeyCommand(defaultRegion.uuid, true);
+      uploadKeyCommand(defaultRegion.uuid, TEST_KEY_CODE, true);
     } catch (RuntimeException re) {
       assertThat(re.getMessage(), allOf(notNullValue(),
           equalTo("Key file foo not found.")));
@@ -299,12 +315,21 @@ import static org.mockito.Mockito.when;
   }
 
   @Test
-  public void testManageUploadKeyDuplicateKeyCode() {
+  public void testManageUploadKeyDuplicateKeyCode_PureKeyCode() {
+    doTestManageUploadKeyDuplicateKeyCode(TEST_KEY_CODE);
+  }
+
+  @Test
+  public void testManageUploadKeyDuplicateKeyCode_KeyCodeWithPath() {
+    doTestManageUploadKeyDuplicateKeyCode(TEST_KEY_CODE_WITH_PATH);
+  }
+
+  private void doTestManageUploadKeyDuplicateKeyCode(String keyCode) {
     AccessKey.KeyInfo keyInfo =  new AccessKey.KeyInfo();
     keyInfo.privateKey = TMP_KEYS_PATH + "/private.key";
     AccessKey.create(defaultProvider.uuid, TEST_KEY_CODE, keyInfo);
     try {
-      uploadKeyCommand(defaultRegion.uuid, false);
+      uploadKeyCommand(defaultRegion.uuid, TEST_KEY_CODE, false);
     } catch (RuntimeException re) {
       assertThat(re.getMessage(), allOf(notNullValue(),
           equalTo("Duplicate Access KeyCode: " + TEST_KEY_CODE)));
@@ -312,16 +337,26 @@ import static org.mockito.Mockito.when;
   }
 
   @Test
-  public void testManageUploadKeyExistingKeyFile() throws IOException {
+  public void testManageUploadKeyExistingKeyFile_PureKeyCode() throws IOException {
+    doTestManageUploadKeyExistingKeyFile(TEST_KEY_CODE, TEST_KEY_PEM);
+  }
+
+  @Test
+  public void testManageUploadKeyExistingKeyFile_KeyCodeWithPath() throws IOException {
+    doTestManageUploadKeyExistingKeyFile(TEST_KEY_CODE_WITH_PATH, TEST_KEY_PEM);
+  }
+
+  private void doTestManageUploadKeyExistingKeyFile(String keyCode, String expectedFilename)
+      throws IOException {
     String providerKeysPath = "keys/"  + defaultProvider.uuid;
     new File(TMP_KEYS_PATH, providerKeysPath).mkdirs();
-    createTempFile(providerKeysPath + "/" + TEST_KEY_PEM, "PRIVATE_KEY_FILE");
+    createTempFile(providerKeysPath + "/" + expectedFilename, "PRIVATE_KEY_FILE");
 
     try {
-      uploadKeyCommand(defaultRegion.uuid, false);
+      uploadKeyCommand(defaultRegion.uuid, keyCode, false);
     } catch (RuntimeException re) {
       assertThat(re.getMessage(), allOf(notNullValue(),
-          equalTo("File " + TEST_KEY_PEM + " already exists.")));
+          equalTo("File " + expectedFilename + " already exists.")));
     }
   }
 
@@ -342,7 +377,7 @@ import static org.mockito.Mockito.when;
     createTempFile("keys/vault-private.key", "PRIVATE_KEY_FILE");
     JsonNode result = runCommand(defaultRegion.uuid, "create-vault", false);
     Mockito.verify(shellProcessHandler, times(1)).run(command.capture(),
-        cloudCredentials.capture());
+        cloudCredentials.capture(), anyString());
 
     String commandStr = String.join(" ", command.getValue());
     String expectedCmd = getBaseCommand(defaultRegion, "create-vault") +
@@ -392,7 +427,7 @@ import static org.mockito.Mockito.when;
   public void testDeleteKeyWithValidRegion() {
     JsonNode result = runCommand(defaultRegion.uuid, "delete-key", false);
     Mockito.verify(shellProcessHandler, times(1)).run(command.capture(),
-        cloudCredentials.capture());
+        cloudCredentials.capture(), anyString());
     String expectedCmd = getBaseCommand(defaultRegion, "delete-key") +
         " --key_pair_name foo --key_file_path " + TMP_KEYS_PATH + "/" +
         defaultProvider.uuid;
@@ -423,13 +458,25 @@ import static org.mockito.Mockito.when;
   }
 
   @Test
-  public void testCreateKubernetesConfig() {
+  public void testCreateKubernetesConfig_PureConfigName() {
+    doTestCreateKubernetesConfig("demo.cnf");
+  }
+
+  @Test
+  public void testCreateKubernetesConfig_ConfigNameWithPath() {
+    doTestCreateKubernetesConfig("../../demo.cnf");
+  }
+
+  void doTestCreateKubernetesConfig(String configName) {
     try {
       Map<String, String> config = new HashMap<>();
-      config.put("KUBECONFIG_NAME", "demo.conf");
+      config.put("KUBECONFIG_NAME", configName);
       config.put("KUBECONFIG_CONTENT", "hello world");
-      String configFile = accessManager.createKubernetesConfig(defaultProvider.uuid.toString(), config, false);
-      assertEquals("/tmp/yugaware_tests/keys/" + defaultProvider.uuid + "/demo.conf", configFile);
+      String configFile = accessManager.createKubernetesConfig(defaultProvider.uuid.toString(),
+          config, false);
+      assertEquals(
+          "/tmp/yugaware_tests/keys/" + defaultProvider.uuid + "/" + Util.getFileName(configName),
+          configFile);
       List<String> lines = Files.readAllLines(Paths.get(configFile));
       assertEquals("hello world", lines.get(0));
       assertNull(config.get("KUBECONFIG_NAME"));

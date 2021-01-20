@@ -11,7 +11,10 @@ class YBRadioButtonGroupDefault extends Component {
   render() {
     const { field, name, segmented, options, ...props } = this.props;
     return (
-      <div className={"btn-group btn-group-radio"+ (segmented ? " btn-group-segmented" : "")} data-toggle="buttons">
+      <div
+        className={'btn-group btn-group-radio' + (segmented ? ' btn-group-segmented' : '')}
+        data-toggle="buttons"
+      >
         {options.map((option) => {
           let value, label;
           if (isNonEmptyArray(option)) {
@@ -22,8 +25,18 @@ class YBRadioButtonGroupDefault extends Component {
           } else {
             value = label = option;
           }
-          const key = name + "_" + value;
-          return <Field component={YBFormRadioButton} key={key} id={value} name={name} label={label} segmented={segmented} {...props} />;
+          const key = name + '_' + value;
+          return (
+            <Field
+              component={YBFormRadioButton}
+              key={key}
+              id={value}
+              name={name}
+              label={label}
+              segmented={segmented}
+              {...props}
+            />
+          );
         })}
       </div>
     );
@@ -32,7 +45,7 @@ class YBRadioButtonGroupDefault extends Component {
 
 export default class YBRadioButtonGroup extends Component {
   render() {
-    const { label, meta, type, ...otherProps} = this.props;
+    const { label, meta, type, ...otherProps } = this.props;
     if (isDefinedNotNull(label)) {
       return (
         <YBLabel label={label} meta={meta}>
@@ -47,7 +60,7 @@ export default class YBRadioButtonGroup extends Component {
 
 export class YBSegmentedButtonGroup extends Component {
   render() {
-    const { label, meta, type, ...otherProps} = this.props;
+    const { label, meta, type, ...otherProps } = this.props;
     if (isDefinedNotNull(label)) {
       return (
         <YBLabel label={label} meta={meta}>
@@ -78,7 +91,7 @@ export class YBRadioButtonLine extends Component {
     if (onSelect) {
       onSelect(options[index]);
     }
-  }
+  };
 
   render() {
     const { label, meta, options, ...otherProps } = this.props;
@@ -100,7 +113,7 @@ export class YBRadioButtonLine extends Component {
       }
       lineStyle = {
         left: `${left}px`,
-        width: `${width}px`,
+        width: `${width}px`
       };
     }
     return (
@@ -108,15 +121,21 @@ export class YBRadioButtonLine extends Component {
         <ul className="yb-form-radio" ref={this.radioList}>
           {options.map((value, index) => (
             <li key={`option-${index}`}>
-              <input type="radio" id={`radio-option-${index}`} name="selector"
-                checked={this.state.selectedOption === index} onChange={() => this.handleSelect(index)}
+              <input
+                type="radio"
+                id={`radio-option-${index}`}
+                name="selector"
+                checked={this.state.selectedOption === index}
+                onChange={() => this.handleSelect(index)}
               />
               <div className="check"></div>
-              <label htmlFor={`radio-options-${index}`} onClick={() => this.handleSelect(index)}>{value}</label>
+              <label htmlFor={`radio-options-${index}`} onClick={() => this.handleSelect(index)}>
+                {value}
+              </label>
             </li>
           ))}
         </ul>
-        <div className={"connecting-line"} style={lineStyle}></div>
+        <div className={'connecting-line'} style={lineStyle}></div>
       </YBLabel>
     );
   }

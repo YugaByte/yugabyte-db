@@ -76,6 +76,7 @@ IndexInfo::IndexInfo(const IndexInfoPB& pb)
       indexed_hash_column_ids_(ColumnIdsFromPB(pb.indexed_hash_column_ids())),
       indexed_range_column_ids_(ColumnIdsFromPB(pb.indexed_range_column_ids())),
       index_permissions_(pb.index_permissions()),
+      backfill_error_message_(pb.backfill_error_message()),
       use_mangled_column_name_(pb.use_mangled_column_name()) {
   for (const IndexInfo::IndexColumn &index_col : columns_) {
     // Mark column as covered if the index column is the column itself.
@@ -109,8 +110,9 @@ void IndexInfo::ToPB(IndexInfoPB* pb) const {
   for (const auto& id : indexed_range_column_ids_) {
     pb->add_indexed_range_column_ids(id);
   }
-  pb->set_use_mangled_column_name(use_mangled_column_name_);
   pb->set_index_permissions(index_permissions_);
+  pb->set_backfill_error_message(backfill_error_message_);
+  pb->set_use_mangled_column_name(use_mangled_column_name_);
 }
 
 vector<ColumnId> IndexInfo::index_key_column_ids() const {

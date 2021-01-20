@@ -797,6 +797,9 @@ void CompactionJob::ProcessKeyValueCompaction(
   sub_compact->c_iter.reset();
   input.reset();
   sub_compact->status = status;
+  if (compaction_filter) {
+    compaction_filter->CompactionFinished();
+  }
 }
 
 void CompactionJob::RecordDroppedKeys(

@@ -2,7 +2,7 @@
 
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import { isNonEmptyString } from "../../../utils/ObjectUtils";
+import { isNonEmptyString } from '../../../utils/ObjectUtils';
 
 import './stylesheets/DescriptionList.css';
 
@@ -13,19 +13,19 @@ export default class DescriptionList extends Component {
   };
 
   static defaultProps = {
-    type: "normal"
+    type: 'normal'
   };
 
   render() {
     const { listItems, type, className } = this.props;
 
-    const classNameResult = "dl-" + type + (className ? " " + className : "");
+    const classNameResult = 'dl-' + type + (className ? ' ' + className : '');
 
-    const descriptionListItems = listItems.map(function(item, idx) {
+    const descriptionListItems = listItems.map(function (item, idx) {
       let itemData = item.data;
 
       if (Array.isArray(item.data)) {
-        const arrData = item.data.map(function(data, dataIdx) {
+        const arrData = item.data.map(function (data, dataIdx) {
           return (
             <span key={dataIdx}>
               <dd key={dataIdx}>{data.name}</dd>
@@ -38,12 +38,10 @@ export default class DescriptionList extends Component {
         <span key={idx}>
           {isNonEmptyString(item.name) && <dt className={item.nameClass}>{item.name}:</dt>}
           <dd className={item.dataClass}>{itemData}</dd>
-        </span>);
+        </span>
+      );
     });
 
-    return (
-      <dl className={classNameResult}>
-        {descriptionListItems}
-      </dl>);
+    return <dl className={classNameResult}>{descriptionListItems}</dl>;
   }
 }

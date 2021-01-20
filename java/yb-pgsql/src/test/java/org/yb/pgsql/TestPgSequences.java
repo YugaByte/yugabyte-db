@@ -34,6 +34,15 @@ import static org.yb.AssertionWrappers.*;
 public class TestPgSequences extends BasePgSQLTest {
   private static final Logger LOG = LoggerFactory.getLogger(TestPgSequences.class);
 
+  private static final int TURN_OFF_SEQUENCE_CACHE_FLAG = 0;
+
+  @Override
+  protected Map<String, String> getTServerFlags() {
+    Map<String, String> flagMap = super.getTServerFlags();
+    flagMap.put("ysql_sequence_cache_minval", Integer.toString(TURN_OFF_SEQUENCE_CACHE_FLAG));
+    return flagMap;
+  }
+
   @After
   public void deleteSequences() throws Exception {
     if (connection == null) {

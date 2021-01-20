@@ -65,7 +65,7 @@ $ sudo apt install default-jre
 The [YugabyteDB workload generator](https://github.com/yugabyte/yb-sample-apps) was downloaded on to these machines as shown below.
 
 ```sh
-$ wget -P target https://github.com/YugaByte/yb-sample-apps/releases/download/v1.3.0/yb-sample-apps.jar
+$ wget -P target https://github.com/YugaByte/yb-sample-apps/releases/download/1.3.1/yb-sample-apps.jar
 ```
 
 This benchmark program can take a list of servers in the database cluster, and then perform random operations across these servers. In order to do this, we set up an environment variable with the list of comma-separated `host:port` entries of the 100 database servers as shown below.
@@ -100,13 +100,13 @@ java -jar ~/yb-sample-apps-no-table-drop.jar    \
 
 The table on which the benchmark was run had the following simple schema.
 
-```postgresql
+```plpgsql
 CREATE TABLE table_name (k varchar PRIMARY KEY, v varchar);
 ```
 
 This workload performed a number of INSERTs using prepared statements, as shown below.
 
-```postgresql
+```plpgsql
 INSERT INTO table_name (k, v) VALUES (?, ?);
 ```
 
@@ -149,7 +149,7 @@ java -jar ~/yb-sample-apps-no-table-drop.jar \
 
 The SELECT workload looks up random rows on the table that the INSERT workload (described in the previous section) populated. Each SELECT query is performed using prepared statements, as shown below.
 
-```postgresql
+```plpgsql
 SELECT * FROM table_name WHERE k=?;
 ```
 

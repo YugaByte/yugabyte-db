@@ -4,6 +4,7 @@
 # Memory Context API
 YbgPrepareMemoryContext
 YbgResetMemoryContext
+YbgDeleteMemoryContext
 
 # Types API
 YbgGetTypeTable

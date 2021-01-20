@@ -124,12 +124,13 @@ public class CloudBootstrapTest extends CommissionerBaseTest {
         // TODO: might need to add port here.
         verify(mockAccessManager, times(1)).addKey(
             eq(r.uuid), eq(taskParams.keyPairName), any(), eq(taskParams.sshUser),
-            eq(taskParams.sshPort), eq(taskParams.airGapInstall));
+            eq(taskParams.sshPort), eq(taskParams.airGapInstall), eq(false));
       } else {
         String expectedAccessKeyCode = String.format(
             "yb-%s-%s-key", defaultCustomer.code, provider.name.toLowerCase());
         verify(mockAccessManager, times(1)).addKey(eq(r.uuid), eq(expectedAccessKeyCode),
-               any(),eq(taskParams.sshUser), eq(taskParams.sshPort), eq(taskParams.airGapInstall));
+               any(),eq(taskParams.sshUser), eq(taskParams.sshPort), eq(taskParams.airGapInstall),
+               eq(false));
       }
       // Check AZ info.
       Set<AvailabilityZone> zones = r.zones;

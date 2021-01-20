@@ -31,6 +31,9 @@
 DEFINE_uint64(transaction_manager_workers_limit, 50,
               "Max number of workers used by transaction manager");
 
+DEFINE_uint64(transaction_manager_queue_limit, 500,
+              "Max number of tasks used by transaction manager");
+
 namespace yb {
 namespace client {
 
@@ -155,8 +158,6 @@ class InvokeCallbackTask {
   PickStatusTabletCallback callback_;
 };
 
-constexpr size_t kQueueLimit = 150;
-
 } // namespace
 
 class TransactionManager::Impl {
@@ -166,9 +167,11 @@ class TransactionManager::Impl {
       : client_(client),
         clock_(clock),
         table_state_{std::move(local_tablet_filter)},
-        thread_pool_("TransactionManager", kQueueLimit, FLAGS_transaction_manager_workers_limit),
-        tasks_pool_(kQueueLimit),
-        invoke_callback_tasks_(kQueueLimit) {
+        thread_pool_(
+            "TransactionManager", FLAGS_transaction_manager_queue_limit,
+            FLAGS_transaction_manager_workers_limit),
+        tasks_pool_(FLAGS_transaction_manager_queue_limit),
+        invoke_callback_tasks_(FLAGS_transaction_manager_queue_limit) {
     CHECK(clock);
   }
 

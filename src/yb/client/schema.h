@@ -73,6 +73,7 @@ namespace client {
 
 namespace internal {
 class GetTableSchemaRpc;
+class GetColocatedTabletSchemaRpc;
 class LookupRpc;
 class WriteRpc;
 

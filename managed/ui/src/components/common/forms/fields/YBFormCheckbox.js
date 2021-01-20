@@ -3,7 +3,6 @@
 import React, { Component } from 'react';
 
 export default class YBFormCheckbox extends Component {
-
   render() {
     const {
       field: { name, value, onChange, onBlur },
@@ -24,7 +23,7 @@ export default class YBFormCheckbox extends Component {
     if (isReadOnly) {
       labelClass += ' readonly';
     }
-    const key = name + "_" + id;
+    const key = name + '_' + id;
     return (
       <label htmlFor={key} className={labelClass}>
         <input

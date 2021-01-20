@@ -55,13 +55,36 @@ YBCPgExpr YBCNewConstant(YBCPgStatement ybc_stmt, Oid type_id, Datum datum, bool
 	return expr;
 }
 
+YBCPgExpr YBCNewConstantVirtual(YBCPgStatement ybc_stmt, Oid type_id, YBCPgDatumKind kind) {
+	YBCPgExpr expr = NULL;
+	const YBCPgTypeEntity *type_entity = YBCDataTypeFromOidMod(InvalidAttrNumber, type_id);
+	HandleYBStatus(YBCPgNewConstantVirtual(ybc_stmt, type_entity, kind, &expr));
+	return expr;
+}
+
+YBCPgExpr YBCNewEvalSingleParamExprCall(YBCPgStatement ybc_stmt,
+                                        Expr *pg_expr,
+                                        int32_t attno,
+                                        int32_t typid,
+                                        int32_t typmod) {
+	YBExprParamDesc params[1];
+	params[0].attno = attno;
+	params[0].typid = typid;
+	params[0].typmod = typmod;
+	return YBCNewEvalExprCall(ybc_stmt, pg_expr, params, 1);
+}
+
+/*
+ * Assuming the first param is the target column, therefore representing both 
+ * the first argument and return type.
+ */
 YBCPgExpr YBCNewEvalExprCall(YBCPgStatement ybc_stmt,
                              Expr *pg_expr,
-                             int32_t attno,
-                             int32_t typid,
-                             int32_t typmod) {
+                             YBExprParamDesc *params,
+                             int num_params)
+{
 	YBCPgExpr ybc_expr = NULL;
-	const YBCPgTypeEntity *type_ent = YBCDataTypeFromOidMod(InvalidAttrNumber, typid);
+	const YBCPgTypeEntity *type_ent = YBCDataTypeFromOidMod(InvalidAttrNumber, params[0].typid);
 	YBCPgNewOperator(ybc_stmt, "eval_expr_call", type_ent, &ybc_expr);
 
 	Datum expr_datum = CStringGetDatum(nodeToString(pg_expr));
@@ -69,16 +92,22 @@ YBCPgExpr YBCNewEvalExprCall(YBCPgStatement ybc_stmt,
 	YBCPgOperatorAppendArg(ybc_expr, expr);
 
 	/*
-	 * Adding the column type id and mod to the message since we only have the YQL types in the
+	 * Adding the column type ids and mods to the message since we only have the YQL types in the
 	 * DocDB Schema.
 	 * TODO(mihnea): Eventually DocDB should know the full YSQL/PG types and we can remove this.
 	 */
-	YBCPgExpr attno_expr = YBCNewConstant(ybc_stmt, INT4OID, (Datum) attno, /* IsNull */ false);
-	YBCPgOperatorAppendArg(ybc_expr, attno_expr);
-	YBCPgExpr typid_expr = YBCNewConstant(ybc_stmt, INT4OID, (Datum) typid, /* IsNull */ false);
-	YBCPgOperatorAppendArg(ybc_expr, typid_expr);
-	YBCPgExpr typmod_expr = YBCNewConstant(ybc_stmt, INT4OID, (Datum) typmod, /* IsNull */ false);
-	YBCPgOperatorAppendArg(ybc_expr, typmod_expr);
+	for (int i = 0; i < num_params; i++) {
+		Datum attno = Int32GetDatum(params[i].attno);
+		YBCPgExpr attno_expr = YBCNewConstant(ybc_stmt, INT4OID, attno, /* IsNull */ false);
+		YBCPgOperatorAppendArg(ybc_expr, attno_expr);
 
+		Datum typid = Int32GetDatum(params[i].typid);
+		YBCPgExpr typid_expr = YBCNewConstant(ybc_stmt, INT4OID, typid, /* IsNull */ false);
+		YBCPgOperatorAppendArg(ybc_expr, typid_expr);
+		
+		Datum typmod = Int32GetDatum(params[i].typmod);
+		YBCPgExpr typmod_expr = YBCNewConstant(ybc_stmt, INT4OID, typmod, /* IsNull */ false);
+		YBCPgOperatorAppendArg(ybc_expr, typmod_expr);
+	}
 	return ybc_expr;
 }

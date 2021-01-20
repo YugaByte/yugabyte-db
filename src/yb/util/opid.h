@@ -53,10 +53,6 @@ struct OpId {
     return term == 0 && index == 0;
   }
 
-  explicit operator bool() const {
-    return !empty();
-  }
-
   bool operator!() const {
     return empty();
   }

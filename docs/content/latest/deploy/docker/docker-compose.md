@@ -4,8 +4,8 @@ headerTitle: Docker
 linkTitle: Docker
 description: Use Docker Compose to create and manage local YugabyteDB clusters.
 aliases:
- - /admin/docker-compose/
- - /latest/admin/docker-compose/
+  - /admin/docker-compose/
+  - /latest/admin/docker-compose/
 menu:
   latest:
     parent: deploy

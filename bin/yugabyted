@@ -86,6 +86,14 @@ DEFAULT_YSQL_PORT = 5433
 DEFAULT_YCQL_PORT = 9042
 DEFAULT_WEBSERVER_PORT = 7200
 DEFAULT_CALLHOME = True
+DEFAULT_YSQL_USER = "yugabyte"
+DEFAULT_YSQL_PASSWORD = "yugabyte"
+DEFAULT_YSQL_DB = "yugabyte"
+YSQL_PASSWORD_LENGTH_WARNING = "Warning: Your 'YSQL_PASSWORD' length is greater than 99 characters.\
+Please set 'PGPASSWORD' in environment variables to use 'bin/ysqlsh'."
+DEFAULT_YCQL_USER = "cassandra"
+DEFAULT_YCQL_PASSWORD = "cassandra"
+DEFAULT_YCQL_KEYSPACE = None
 VERSION_METADATA_PATH = os.path.join(YUGABYTE_DIR, "version_metadata.json")
 YUGABYTE_API_CLIENT_PROGRAMS = {
     "ysql": "ysqlsh",
@@ -123,6 +131,7 @@ class ControlScript(object):
         self.stop_callhome = False
         self.alerts = []
         self.script = None
+        self.setup_env_init = EnvBasedCredentials()
 
     # Starts YugabyteDB node.
     def start(self):
@@ -228,7 +237,7 @@ class ControlScript(object):
         if self.get_failed_node_processes():
             Output.log_error_and_exit(
                 "{} is not running. Cannot connect to YSQL.".format(SCRIPT_NAME))
-        ysql_proxy = YsqlProxy(self.configs.saved_data.get("ysql_port"))
+        ysql_proxy = YsqlProxy(self.advertise_ip(), self.configs.saved_data.get("ysql_port"))
         ysql_proxy.connect()
 
     # Starts an interactive YCQL shell.
@@ -236,12 +245,9 @@ class ControlScript(object):
         if self.get_failed_node_processes():
             Output.log_error_and_exit(
                 "{} is not running. Cannot connect to YCQL.".format(SCRIPT_NAME))
-        path = os.path.join(BIN_DIR, YUGABYTE_API_CLIENT_PROGRAMS["ycql"])
-        cmd = [
-            path, self.advertise_ip(),
-            str(self.configs.saved_data.get("ycql_port"))
-        ]
-        os.execv(path, cmd)
+        ycql_proxy = YcqlProxy(ip=self.advertise_ip(),
+                        port=self.configs.saved_data.get("ycql_port"))
+        ycql_proxy.connect()
 
     # Creates demo database and starts an interactive shell into it. Destroys the sample database
     # after shell quits.
@@ -252,7 +258,7 @@ class ControlScript(object):
                     SCRIPT_NAME))
 
         db_name = DEMO_DB_PREFIX + self.configs.temp_data.get("demo_db")
-        ysql_proxy = YsqlProxy(self.configs.saved_data.get("ysql_port"))
+        ysql_proxy = YsqlProxy(self.advertise_ip(), self.configs.saved_data.get("ysql_port"))
         if ysql_proxy.db_exists(db_name):
             Output.log_error_and_exit(
                 "Demo is already running. Concurrent demos are currently unsupported.")
@@ -277,7 +283,7 @@ class ControlScript(object):
 
         demo_db = self.configs.temp_data.get("demo_db")
         db_name = DEMO_DB_PREFIX + demo_db
-        ysql_proxy = YsqlProxy(self.configs.saved_data.get("ysql_port"))
+        ysql_proxy = YsqlProxy(self.advertise_ip(), self.configs.saved_data.get("ysql_port"))
         if ysql_proxy.db_exists(db_name):
             Output.print_out("Demo database {} already exists.".format(demo_db))
             return
@@ -286,18 +292,14 @@ class ControlScript(object):
             "Initializing {} demo database. This may take up to a minute...".format(demo_db))
         # Create demo database.
         Output.log("Creating database {}...".format(db_name))
-        _, err = ysql_proxy.create_db(db_name)
-        if err:
-            Output.log_error_and_exit("Failed to create {} database: {}".format(demo_db, err))
+        ysql_proxy.create_db(db_name)
 
         # Populate demo database.
         Output.log("Populating {} with sample data...".format(db_name))
         files = []
         for name in Configs.get_demo_info()[demo_db]["files"]:
             files.append(os.path.join(YUGABYTE_DIR, "share", name))
-        _, err = ysql_proxy.load_files(files, db=db_name)
-        if err:
-            Output.log_error_and_exit("Failed to populate data to {}: {}".format(demo_db, err))
+        ysql_proxy.load_files(files, db=db_name)
 
         msg = "Successfully loaded sample database!"
         Output.print_and_log(msg)
@@ -311,7 +313,7 @@ class ControlScript(object):
 
         demo_db = self.configs.temp_data.get("demo_db")
         db_name = DEMO_DB_PREFIX + demo_db
-        ysql_proxy = YsqlProxy(self.configs.saved_data.get("ysql_port"))
+        ysql_proxy = YsqlProxy(self.advertise_ip(), self.configs.saved_data.get("ysql_port"))
         if not ysql_proxy.db_exists(db_name):
             self.create_demo()
 
@@ -333,11 +335,9 @@ class ControlScript(object):
 
         demo_db = self.configs.temp_data.get("demo_db")
         db_name = DEMO_DB_PREFIX + demo_db
-        ysql_proxy = YsqlProxy(self.configs.saved_data.get("ysql_port"))
+        ysql_proxy = YsqlProxy(self.advertise_ip(), self.configs.saved_data.get("ysql_port"))
         if ysql_proxy.db_exists(db_name):
-            _, err = ysql_proxy.drop_db(db_name)
-            if err:
-                Output.log_error_and_exit("Failed to drop database {}: {}".format(demo_db, err))
+            ysql_proxy.drop_db(db_name)
         msg = "Deleted demo database {}.".format(demo_db)
         Output.print_and_log(msg)
 
@@ -350,7 +350,17 @@ class ControlScript(object):
         tarpath = os.path.join(os.path.expanduser('~'), tmpprefix)
         with tarfile.open(name=tarpath, mode='w:gz', dereference=True) as archive:
             archive.add(logpath)
-        Output.print_and_log("Logs are packaged into {}".format(tarpath))
+
+        if self.configs.temp_data.get("collect_logs_stdout"):
+            Output.log("Logs are packaged into {}".format(tarpath))
+            if tarfile.is_tarfile(tarpath):
+                with open(tarpath, 'rb') as tar_fd:
+                    if sys.version_info[0] == 3:
+                        sys.stdout.buffer.write(tar_fd.read())
+                    else:
+                        sys.stdout.write(tar_fd.read())
+        else:
+            Output.print_and_log("Logs are packaged into {}".format(tarpath))
 
     # Checks yb-master and yb-tserver are running. Returns failed processes.
     # TODO: Check postmaster.pid.
@@ -489,6 +499,13 @@ class ControlScript(object):
                 ["--{}".format(flag) for flag in \
                     self.configs.saved_data.get("tserver_flags").split(",")])
 
+        # Add authentication flags in tserver
+        if self.configs.saved_data.get("ysql_enable_auth"):
+            yb_tserver_cmd.extend(["--ysql_enable_auth=true"])
+
+        if self.configs.saved_data.get("use_cassandra_authentication"):
+            yb_tserver_cmd.extend(["--use_cassandra_authentication=true"])
+
         yw_cmd = [
             os.path.join(YUGAWARE_BIN_DIR, "yugaware"), "-Dconfig.file={}".format(YUGAWARE_CONF),
             "-Dplay.evolutions.db.default.autoApply=true",
@@ -575,6 +592,9 @@ class ControlScript(object):
                 (_, was_started) = self.maybe_start_yw(is_first_run, is_first_install)
                 should_callhome = should_callhome or was_started
 
+            if is_first_install and not join_ip:
+                self.first_install_init_auth()
+
             if is_first_run:
                 status = self.get_status_string() + \
                     "{} {} started successfully! To load a sample dataset, " \
@@ -584,6 +604,10 @@ class ControlScript(object):
                         Output.ROCKET, SCRIPT_NAME, SCRIPT_NAME, Output.PARTY,
                         Output.make_underline(SLACK_LINK), Output.SHIRT,
                         Output.make_underline(COMMUNITY_REWARDS_LINK))
+
+                if len(self.setup_env_init.get_ysql_password()) > 99:
+                    status = status + Output.make_red(YSQL_PASSWORD_LENGTH_WARNING)
+
                 Output.print_out(status)
 
                 if self.configs.temp_data.get("daemon"):
@@ -987,10 +1011,12 @@ class ControlScript(object):
         if advertise_ip != IP_LOCALHOST or ycql_port != DEFAULT_YCQL_PORT:
             cql_hostname_param =  advertise_ip
             cql_port_param = str(ycql_port)
+        ycql_username, ycql_password, ycql_keyspace = self.setup_env_init.get_ycql_credentials()
 
         ysql_hostname_param = "-h {}".format(advertise_ip) if advertise_ip != IP_LOCALHOST else ""
         ysql_port = self.configs.saved_data.get("ysql_port")
         ysql_port_param = "-p {}".format(ysql_port) if ysql_port != DEFAULT_YSQL_PORT else ""
+        ysql_username, ysql_password, ysql_db = self.setup_env_init.get_ysql_credentials()
 
         # Make sure ascii escape characters for color encoding do not count towards char limit.
         if self.get_failed_node_processes():
@@ -1003,8 +1029,12 @@ class ControlScript(object):
             status = "Running"
 
 
-        ysql_flags = " {} {}".format(ysql_hostname_param, ysql_port_param)
-        ycql_flags = " {} {}".format(cql_hostname_param, cql_port_param)
+        ysql_flags = " {} {} -U {} -d {}".format(ysql_hostname_param, ysql_port_param,
+                        ysql_username, ysql_db)
+        ycql_flags = " {} {} -u {}".format(cql_hostname_param, cql_port_param,
+                        ycql_username)
+        if ycql_keyspace is not None:
+            ycql_flags = ycql_flags + " -k {}".format(ycql_keyspace)
 
         # TODO: Check if YW is disabled. This could be from saving --ui flag, checking PID,
         # or some other method. The first is not preferred because it would deviate from how the
@@ -1025,9 +1055,8 @@ class ControlScript(object):
             status_info += [ (Output.make_yellow(console_desc), yb_master_status), ]
 
         status_info += [
-            (Output.make_yellow("JDBC"),
-               "jdbc:postgresql://{}:{}/yugabyte?user=yugabyte&password=yugabyte".format(
-                advertise_ip, ysql_port)),
+            (Output.make_yellow("JDBC"), "jdbc:postgresql://{}:{}/{}?user={}&password={}".
+                format(advertise_ip, ysql_port, ysql_db, ysql_username, ysql_password)),
             (Output.make_yellow("YSQL"), "bin/ysqlsh{}".format(ysql_flags)),
             (Output.make_yellow("YCQL"), "bin/ycqlsh{}".format(ycql_flags)),
             (Output.make_yellow("Data Dir"), self.configs.saved_data.get("data_dir")),
@@ -1093,7 +1122,7 @@ class ControlScript(object):
 
         default_base_dir = os.path.join(YUGABYTE_DIR, "var")
         default_conf_path = os.path.join(default_base_dir, "conf", "{}.conf".format(SCRIPT_NAME))
-        base_dir = args.base_dir or default_base_dir
+        base_dir = os.path.abspath(args.base_dir) if args.base_dir else default_base_dir
         base_dir_conf = ''
         if args.base_dir:
             base_dir_conf = os.path.join(base_dir, "conf", "{}.conf".format(SCRIPT_NAME))
@@ -1114,6 +1143,9 @@ class ControlScript(object):
             path = getattr(args, path_args, None)
             if path:
                 setattr(args, path_args, os.path.abspath(os.path.realpath(path)))
+
+        if args.parser == "collect_logs":
+            self.configs.temp_data["collect_logs_stdout"] = args.stdout
 
         if args.parser == "start":
             if args.data_dir is not None:
@@ -1137,12 +1169,31 @@ class ControlScript(object):
             args.daemon = self.parse_bool(args.daemon)
             args.callhome = self.parse_bool(args.callhome)
 
+            # Set authentication flags same as provided in the command-line flags.
+            if args.ysql_enable_auth:
+                args.ysql_enable_auth = self.parse_bool(args.ysql_enable_auth)
+
+            if args.use_cassandra_authentication:
+                args.use_cassandra_authentication = self.parse_bool(args.use_cassandra_authentication)
+
+            # Set authentication flags to True, if it is first-run and
+            # have required environment variables to enforce the authentication.
+            if not self.is_yb_initialized():
+                if self.setup_env_init.is_exists('YSQL_PASSWORD'):
+                    args.ysql_enable_auth = True
+
+                # Add use_cassandra_authentication flag to enforce authentication for YCQL
+                if self.setup_env_init.is_exists('YCQL_USER') or \
+                        self.setup_env_init.is_exists('YCQL_PASSWORD'):
+                    args.use_cassandra_authentication = True
+
             if args.ui and not self.java_installed():
                 Output.print_out('WARNING: UI disabled - Java 1.8 or higher is required.')
                 args.ui = False
 
             self.configs.temp_data["daemon"] = args.daemon
             self.configs.temp_data["ui"] = args.ui
+            self.configs.temp_data["initial_scripts_dir"] = args.initial_scripts_dir
 
         if has_errors:
             sys.exit(1)
@@ -1228,6 +1279,14 @@ class ControlScript(object):
             subparser.set_defaults(func=func)
             all_parsers[parser_name] = subparser
 
+        # Docker: Redirect the logs.tar.gz to stdout
+        for cmd in ("collect_logs",):
+            cur_parser = all_parsers[cmd]
+            cur_parser.add_argument(
+                "--stdout", help="Redirect the logs.tar.gz file's content to stdout. Ex: \
+                docker exec <container-id> bin/yugabyted collect_logs --stdout > yugabyted.tar.gz",
+                action="store_true", default=False)
+
         # Commands that can alter configuration file.
         for cmd in ("start",):
             cur_parser = all_parsers[cmd]
@@ -1263,6 +1322,14 @@ class ControlScript(object):
             cur_parser.add_argument(
                 "--ui", choices=BOOL_CHOICES, default="false", metavar="BOOL",
                 help="Toggle enabling or disabling webserver UI. Default false.")
+            cur_parser.add_argument(
+                "--ysql_enable_auth", choices=BOOL_CHOICES, metavar="BOOL",
+                help=argparse.SUPPRESS)
+            cur_parser.add_argument(
+                "--use_cassandra_authentication", choices=BOOL_CHOICES, metavar="BOOL",
+                help=argparse.SUPPRESS)
+            cur_parser.add_argument(
+                "--initial_scripts_dir", help="Directory from where yugabyted reads initialization scripts")
 
             # Hidden commands for development/advanced users
             cur_parser.add_argument(
@@ -1310,6 +1377,59 @@ class ControlScript(object):
     def master_port(self):
        self.configs.saved_data.get("master_rpc_port")
 
+    def first_install_init_auth(self):
+        if self.get_failed_node_processes():
+            Output.log_error_and_exit(
+                "{} is not running.".format(SCRIPT_NAME))
+
+        if self.setup_env_init.is_exists('YSQL_USER') or \
+                self.setup_env_init.is_exists('YSQL_PASSWORD') or \
+                self.setup_env_init.is_exists('YSQL_DB'):
+            ysql_proxy = YsqlProxy(ip=self.advertise_ip(),
+                            port=self.configs.saved_data.get("ysql_port"),
+                            get_default_credentials=True)
+            if retry_op(ysql_proxy.is_ysql_up):
+                Output.log("Setting up custom credentials for YSQL...")
+                self.setup_env_init.setup_ysql_credentials(ysql_proxy)
+
+        if self.setup_env_init.is_exists('YCQL_USER') or \
+                self.setup_env_init.is_exists('YCQL_PASSWORD') or \
+                self.setup_env_init.is_exists('YCQL_KEYSPACE'):
+            ycql_proxy = YcqlProxy(ip=self.advertise_ip(),
+                            port=self.configs.saved_data.get("ycql_port"),
+                            get_default_credentials=True)
+            if retry_op(ycql_proxy.is_ycql_up):
+                Output.log("Setting up custom credentials for YCQL...")
+                self.setup_env_init.setup_ycql_credentials(ycql_proxy)
+
+        if self.configs.temp_data.get("initial_scripts_dir"):
+            init_scripts = os.path.abspath(self.configs.temp_data.get("initial_scripts_dir"))
+
+            if os.path.exists(init_scripts):
+                Output.log("Initialization scripts from the {} directory".format(init_scripts))
+
+                sql_files = sorted([sql_file for sql_file in os.listdir(init_scripts) if (
+                                sql_file.endswith('.sql'))])
+                cql_files = sorted([cql_file for cql_file in os.listdir(init_scripts) if (
+                                cql_file.endswith('.cql'))])
+
+                ysql_proxy = YsqlProxy(ip=self.advertise_ip(),
+                                port=self.configs.saved_data.get("ysql_port"))
+                if sql_files and retry_op(ysql_proxy.is_ysql_up):
+                    self.load_init_scripts(ysql_proxy, init_scripts, sql_files)
+
+                ycql_proxy = YcqlProxy(ip=self.advertise_ip(),
+                                port=self.configs.saved_data.get("ycql_port"))
+                if cql_files and retry_op(ycql_proxy.is_ycql_up):
+                    self.load_init_scripts(ycql_proxy, init_scripts, cql_files)
+
+    def load_init_scripts(self, proxy_class, init_scripts_dir, files):
+        files_path = []
+        for name in files:
+            files_path.append(os.path.join(init_scripts_dir, name))
+
+        proxy_class.load_files(files_path)
+
 class Configs(object):
     def __init__(self, config_file, base_dir):
         self.saved_data = {
@@ -1332,12 +1452,16 @@ class Configs(object):
             "master_flags": "",
             "tserver_flags": "",
             "join": "",
+            "ysql_enable_auth": False,
+            "use_cassandra_authentication": False,
         }
         # Used to store data specific to certain functions that we don't want to save.
         self.temp_data = {
             "demo_db": DEFAULT_DEMO_DATABASE,
             "daemon": True,
             "ui": False,
+            "initial_scripts_dir": "",
+            "collect_logs_stdout": False,
         }
         self.config_file = config_file
 
@@ -1780,52 +1904,176 @@ class YBAdminProxy(object):
 
 # Proxy for ysqlsh commands.
 class YsqlProxy(object):
-    def __init__(self, port, path=os.path.join(BIN_DIR, YUGABYTE_API_CLIENT_PROGRAMS["ysql"])):
-        self.port = str(port)
-        self.path = path
+    def __init__(self, ip, port, path=os.path.join(BIN_DIR, YUGABYTE_API_CLIENT_PROGRAMS["ysql"]),
+                    get_default_credentials=False):
+        self.cmd = [path, "-h", str(ip), "-p", str(port)]
+        self.setup_env_init = EnvBasedCredentials()
+        self.username, self.password, self.db = self.setup_env_init.get_ysql_credentials(
+                                                    get_default_credentials)
+        self.env = {"PGUSER": self.username, "PGPASSWORD": self.password, "PGDATABASE": self.db}
 
     # Starts interactive YSQL shell.
     def connect(self, db=None):
-        cmd = [self.path, "-p", self.port]
-        if db:
-            cmd.extend(["-d", db])
-        shell = subprocess.Popen(cmd)
+        if db is None:
+            db = self.db
+        cmd = self.cmd + ["-d", db]
+        shell = subprocess.Popen(cmd, env={"PGUSER": self.username})
         shell.communicate()
 
     # Checks if db exists.
     # Note that this will return false if ysqlsh can't connect, even if db exists.
     def db_exists(self, db):
-        cmd = [self.path, "-p", self.port, "-q", "-c", "\\t", "-c",
+        cmd = self.cmd + ["-q", "-c", "\\t", "-c",
             "select datname from pg_catalog.pg_database where datname='{}'".format(db)]
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = p.communicate()
-        return out.strip() == db
+        return run_process_checked(cmd=cmd, env_vars=self.env).strip() == db
 
     # Creates specified db.
     def create_db(self, db):
-        cmd = [self.path, "-p", self.port, "-c", "create database {}".format(db)]
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = p.communicate()
-        return out, err
+        cmd = self.cmd + ["-c", "create database \"{}\"".format(db)]
+        run_process_checked(cmd=cmd, env_vars=self.env)
 
     # Deletes specified db.
     def drop_db(self, db):
-        cmd = [self.path, "-p", self.port, "-c", "drop database {}".format(db)]
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = p.communicate()
-        return out, err
+        cmd = self.cmd + ["-c", "drop database {}".format(db)]
+        run_process_checked(cmd=cmd, env_vars=self.env)
 
     # Runs ysqlsh with specified files.
     def load_files(self, filepaths, db=None):
-        cmd = [self.path, "-p", self.port]
+        cmd = self.cmd
+        env = self.env
         if db:
-            cmd.extend(["-d", db])
+            env['PGDATABASE'] = db
+        else:
+            env['PGDATABASE'] = self.db
         for path in filepaths:
             cmd.extend(["-f", path])
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = p.communicate()
-        return out, err
+        run_process_checked(cmd=cmd, log_cmd=False, env_vars=env)
 
+    # Check user exists
+    # Note that this will return false if ysqlsh can't connect, even if user exists.
+    def user_exists(self, ysql_username):
+        cmd = self.cmd + ["-c", "select rolname from pg_catalog.pg_roles where rolname='{}'".
+                format(ysql_username)]
+        run_process_checked(cmd=cmd, env_vars=self.env).strip() == ysql_username
+
+    # Create specified superuser
+    def create_user(self, ysql_username, ysql_password):
+        cmd = self.cmd + ["-c", "create role \"{}\" with LOGIN SUPERUSER password '{}';".
+                format(ysql_username, ysql_password)]
+        run_process_checked(cmd=cmd, log_cmd=False, env_vars=self.env)
+
+    # Delete specified user
+    def delete_user(self, username, password, user_to_delete=DEFAULT_YSQL_USER):
+        cmd = self.cmd + ["-c", "drop role {};".format(user_to_delete)]
+        env = self.env
+        env['PGUSER'] = username
+        env['PGPASSWORD'] = password
+        run_process_checked(cmd=cmd, env_vars=env)
+
+    # Update specified user's password
+    def update_password(self, new_password, user_to_update=DEFAULT_YSQL_USER):
+        cmd = self.cmd + ["-c", "alter role {} password '{}';".format(user_to_update, new_password)]
+        run_process_checked(cmd=cmd, log_cmd=False, env_vars=self.env)
+
+    # Change specified DB's owner
+    def db_owner(self, db, new_owner):
+        cmd = self.cmd + ["-c", "alter database \"{}\" owner to \"{}\";".format(db, new_owner)]
+        run_process_checked(cmd=cmd, env_vars=self.env)
+
+    # Check YSQL is UP
+    def is_ysql_up(self):
+        cmd = self.cmd + ["-c", "\\conninfo"]
+        out, err, _ = run_process(cmd=cmd, log_cmd=True, env_vars=self.env)
+        if err:
+            Output.log("Unable to connect using YSQL. Error: {}".format(err))
+            raise RetryableError()
+        else:
+            Output.log("YSQL Connection Info - {}".format(out))
+            return True
+
+# Proxy for ycqlsh commands.
+class YcqlProxy(object):
+    def __init__(self, ip, port, path=os.path.join(BIN_DIR, YUGABYTE_API_CLIENT_PROGRAMS["ycql"]),
+                    get_default_credentials=False):
+        self.cmd = [path, str(ip), str(port)]
+        self.setup_env_init = EnvBasedCredentials()
+        self.username, self.password, self.keyspace = self.setup_env_init.get_ycql_credentials(
+                                                        get_default_credentials)
+
+    # Starts interactive YCQL shell.
+    def connect(self):
+        cmd = self.cmd
+        if self.setup_env_init.is_exists('YCQL_USER') or \
+                    self.setup_env_init.is_exists('YCQL_PASSWORD'):
+            cmd.extend(["-u", self.username])
+        if self.keyspace is not None:
+            cmd.extend(["-k", self.keyspace])
+        shell = subprocess.Popen(cmd)
+        shell.communicate()
+
+    # Check user exists
+    # Note that this will return false if ycqlsh can't connect, even if user exists.
+    def user_exists(self, ycql_username):
+        cmd = self.cmd + ["-u", self.username, "-p", self.password, "-e",
+            "SELECT role FROM system_auth.roles WHERE role='{}';".format(ycql_username)]
+        return run_process_checked(cmd).strip() == ycql_username
+
+    # Create specified superuser
+    def create_user(self, ycql_username, ycql_password):
+        cmd = self.cmd + ["-u", self.username, "-p", self.password, "-e",
+                "CREATE ROLE \"{}\" WITH PASSWORD = '{}' AND LOGIN = true AND SUPERUSER = true;".
+                format(ycql_username, ycql_password)]
+        run_process_checked(cmd, log_cmd=False)
+
+    # Delete specified user
+    def delete_user(self, username, password, user_to_delete=DEFAULT_YCQL_USER):
+        cmd = self.cmd + ["-u", username, "-p", password, "-e",
+                "DROP ROLE IF EXISTS {};".format(user_to_delete)]
+        run_process_checked(cmd)
+
+    # Update specified user's password
+    def update_password(self, new_password, user_to_update=DEFAULT_YCQL_USER):
+        cmd = self.cmd + ["-u", self.username, "-p", self.password, "-e",
+                "ALTER ROLE {} WITH PASSWORD = '{}';".format(user_to_update, new_password)]
+        run_process_checked(cmd, log_cmd=False)
+
+    # Check keyspace exists
+    # Note that this will return false if ycqlsh can't connect, even if keyspace exists.
+    def keyspace_exists(self, keyspace):
+        cmd = self.cmd + ["-u", self.username, "-p", self.password, "-e",
+            "SELECT keyspace_name FROM system_schema.keyspaces WHERE keyspace_name='{}';".
+            format(keyspace)]
+        return run_process_checked(cmd).strip() == keyspace
+
+    # Create specified keyspace
+    def create_keyspace(self, keyspace):
+        cmd = self.cmd + ["-u", self.username, "-p", self.password, "-e",
+                "CREATE KEYSPACE \"{}\";".format(keyspace)]
+        run_process_checked(cmd)
+
+    # Runs ycqlsh with specified files.
+    # Example:
+    # 1. bin/ycqlsh -f directory/a.ycql
+    # 2. If environment variables exists: bin/ycqlsh -u user -p password -f directory/b.ycql
+    def load_files(self, filepaths):
+        cmd = self.cmd
+        if self.setup_env_init.is_exists('YCQL_USER') or \
+                    self.setup_env_init.is_exists('YCQL_PASSWORD'):
+            cmd.extend(["-u", self.username, "-p", self.password])
+        for path in filepaths:
+            cmd.extend(["-f", path])
+        run_process_checked(cmd=cmd, log_cmd=False)
+
+    # Check YCQL is UP
+    def is_ycql_up(self):
+        cmd = self.cmd + ["-u", self.username, "-p", self.password, "-e", "SHOW HOST"]
+        out, err, _ = run_process(cmd, log_cmd=True)
+        if err:
+            Output.log("Unable to connect using YCQL. Error: {}".format(err))
+            raise RetryableError()
+        else:
+            Output.log("YCQL Connection Info - {}".format(out))
+            return True
 
 # Currently unused. Useful for getting diagnostics that are available only through logs.
 class LogAnalyzer(object):
@@ -2242,10 +2490,10 @@ def get_kv(map):
     else:
         return map.items()
 
-def run_process(cmd, timeout=None, log_cmd=False):
+def run_process(cmd, timeout=None, log_cmd=False, env_vars=None):
     if log_cmd:
         Output.log("run_process: cmd: {}".format(str(cmd)))
-    proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE, env=env_vars)
     if PY_VERSION >= 3:
         try:
             out, err = proc.communicate(timeout=timeout)
@@ -2259,6 +2507,12 @@ def run_process(cmd, timeout=None, log_cmd=False):
         Output.log("run_process returned {}: \nOUT >>\n{}\n<< ERR >>\n<<".format(
             retcode, ret_out, ret_err))
     return (ret_out, ret_err, retcode)
+
+def run_process_checked(cmd, timeout=None, log_cmd=True, env_vars=None):
+    out, err, retcode = run_process(cmd=cmd, timeout=timeout, log_cmd=log_cmd, env_vars=env_vars)
+    if retcode:
+        Output.log_error_and_exit("Error: {}".format(err))
+    return out
 
 def rmcontents(dirname, exclude_names=[]):
     for f in os.listdir(dirname):
@@ -2293,6 +2547,87 @@ def retry_op(func, timeout=180):
 
     raise RuntimeError("Failed after retrying operation for {} secs.".format(
         now - start_time))
+
+
+class EnvBasedCredentials(object):
+    def __init__(self):
+        self.ysql_user = os.environ.get('YSQL_USER')
+        self.ysql_password = os.environ.get('YSQL_PASSWORD')
+        self.ysql_db = os.environ.get('YSQL_DB')
+        self.ycql_user = os.environ.get('YCQL_USER')
+        self.ycql_password = os.environ.get('YCQL_PASSWORD')
+        self.ycql_keyspace = os.environ.get('YCQL_KEYSPACE')
+
+    def get_ysql_user(self):
+        return self.ysql_user or DEFAULT_YSQL_USER
+
+    def get_ysql_password(self):
+        return self.ysql_password or (self.ysql_user or DEFAULT_YSQL_PASSWORD)
+
+    def get_ysql_db(self):
+        return self.ysql_db or (self.ysql_user or DEFAULT_YSQL_DB)
+
+    def get_ycql_user(self):
+        return self.ycql_user or DEFAULT_YCQL_USER
+
+    def get_ycql_password(self):
+        return self.ycql_password or (self.ycql_user or DEFAULT_YCQL_PASSWORD)
+
+    def get_ycql_keyspace(self):
+        return self.ycql_keyspace or (self.ycql_user or DEFAULT_YCQL_KEYSPACE)
+
+    def get_ysql_credentials(self, get_default_credentials=False):
+        if get_default_credentials:
+            return DEFAULT_YSQL_USER, DEFAULT_YSQL_PASSWORD, DEFAULT_YSQL_DB
+        else:
+            return self.get_ysql_user(), self.get_ysql_password(), self.get_ysql_db()
+
+    def get_ycql_credentials(self, get_default_credentials=False):
+        if get_default_credentials:
+            return DEFAULT_YCQL_USER, DEFAULT_YCQL_PASSWORD, DEFAULT_YCQL_KEYSPACE
+        else:
+            return self.get_ycql_user(), self.get_ycql_password(), self.get_ycql_keyspace()
+
+    def is_exists(self, var_to_check):
+        return True if var_to_check in os.environ and os.environ.get(var_to_check) else False
+
+    def setup_ysql_credentials(self, proxy_class):
+
+        # Create DB
+        if self.get_ysql_db() != DEFAULT_YSQL_DB and not proxy_class.db_exists(self.get_ysql_db()):
+            proxy_class.create_db(self.get_ysql_db())
+
+        # Update password for default user
+        if self.get_ysql_user() == DEFAULT_YSQL_USER and self.get_ysql_password() != DEFAULT_YSQL_PASSWORD:
+            proxy_class.update_password(self.get_ysql_password())
+
+        # Create User
+        if self.get_ysql_user() != DEFAULT_YSQL_USER and not proxy_class.user_exists(self.get_ysql_user()):
+            proxy_class.create_user(self.get_ysql_user(), self.get_ysql_password())
+
+            if self.get_ysql_db() != DEFAULT_YSQL_DB:
+                proxy_class.db_owner(self.get_ysql_db(), self.get_ysql_user())
+
+            # Note: Following lines will be commented till we can decide on default user deletion.
+            #proxy_class.delete_user(self.get_ysql_user(), self.get_ysql_password())
+
+    def setup_ycql_credentials(self, proxy_class):
+
+        # Create YCQL Keyspace
+        if self.get_ycql_keyspace() and not proxy_class.keyspace_exists(self.get_ycql_keyspace()):
+            proxy_class.create_keyspace(self.get_ycql_keyspace())
+
+        # Update password for default user
+        if self.get_ycql_user() == DEFAULT_YCQL_USER and self.get_ycql_password() != DEFAULT_YCQL_PASSWORD:
+            proxy_class.update_password(self.get_ycql_password())
+
+        # Create user
+        if self.get_ycql_user() != DEFAULT_YCQL_USER and not proxy_class.user_exists(self.get_ycql_user()):
+            proxy_class.create_user(self.get_ycql_user(), self.get_ycql_password())
+
+            # Note: Following lines will be commented till we can decide on default user deletion.
+            #proxy_class.delete_user(self.get_ycql_user(), self.get_ycql_password())
+
 
 if __name__ == '__main__':
     ControlScript().run()

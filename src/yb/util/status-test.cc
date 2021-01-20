@@ -148,6 +148,22 @@ const std::string kErrorDelayCategoryName = "error delay";
 static StatusCategoryRegisterer error_delay_category_registerer(
     StatusCategoryDescription::Make<ErrorDelayTag>(&kErrorDelayCategoryName));
 
+class StringVectorErrorTag : public StringVectorBackedErrorTag {
+ public:
+  static constexpr uint8_t kCategory = kMaxTestError + 2;
+
+  static std::string ToMessage(Value value) {
+    return AsString(value);
+  }
+};
+
+typedef StatusErrorCodeImpl<StringVectorErrorTag> StringVectorError;
+
+const std::string kStringVectorErrorCategoryName = "string vector error";
+
+static StatusCategoryRegisterer string_vector_error_category_registerer(
+    StatusCategoryDescription::Make<StringVectorErrorTag>(&kStringVectorErrorCategoryName));
+
 TEST(StatusTest, TestPosixCode) {
   Status ok = Status::OK();
   ASSERT_EQ(0, Errno(ok));
@@ -274,6 +290,20 @@ TEST(StatusTest, IntegralBackedError) {
   auto status = STATUS(TimedOut, "TEST", ErrorDelay(delay));
   LOG(INFO) << status;
   ASSERT_EQ(ErrorDelay(status), delay);
+}
+
+TEST(StatusTest, StringVectorError) {
+  std::vector<std::string> vector;
+  for (int i = 0; i <= 3; ++i) {
+    auto status = STATUS(TimedOut, "TEST", StringVectorError(vector));
+    LOG(INFO) << status;
+    ASSERT_EQ(StringVectorError(status), vector);
+    std::string str("TEST_");
+    for (int j = 0; j <= i; ++j) {
+      str.append(AsString(j));
+    }
+    vector.push_back(str);
+  }
 }
 
 }  // namespace yb

@@ -1,12 +1,12 @@
 # What Features Does YSQL Support?
 
-YSQL uses the query layer from PostgreSQL v11.2, and intends to support most PostgreSQL functionality on top of a distributed database. This document tracks what features are currently supported, and which ones are in the Roadmap.
+YSQL uses the query layer from **PostgreSQL v11.2**, and intends to support most PostgreSQL functionality on top of a distributed database. This document tracks what features are currently supported, and which ones are in the Roadmap.
 
 > **Note**: This list is updated periodically but not always up-to-date. Please ask in our [community Slack chat](https://www.yugabyte.com/slack) if you have any questions about specifics or the latest state. We release software almost once a week, and features are rapidly getting added.
 
 ## PostgreSQL Feature Support
 
-Here are the features currently supported as of YugabyteDB v2.0, Jan 15 2020. This list also indicates what is planned for YugabyteDB v2.1 coming out around the beginning of February.
+Here are the features currently supported as of YugabyteDB v2.3, Oct 2020. This list also indicates what is planned for YugabyteDB v2.5 coming out around the end of November.
 
 - [ ] All data types
     - [x] Basic types
@@ -36,7 +36,8 @@ Here are the features currently supported as of YugabyteDB v2.0, Jan 15 2020. Th
     - [x] Primary Key
     - [x] Foreign Key
     - [x] CHECK, NOT NULL, other basic constraints
-    - [ ] Deferrable constraints
+    - [x] Deferrable Foreign Key constraints
+    - [ ] Deferrable Primary Key and Unique constraints
     - [ ] Exclusion constraints
 - [ ] Indexes
     - [x] Secondary indexes
@@ -56,12 +57,13 @@ Here are the features currently supported as of YugabyteDB v2.0, Jan 15 2020. Th
         - [ ] Deferrable triggers
         - [ ] Transition tables (REFERENCING clause for triggers)
     - [x] Views
-    - [x] Extensions ![Generic badge](https://img.shields.io/badge/Status-BETA-blue.svg)
+    - [x] Extensions
         - [x] pgcrypto
         - [x] fuzzystrmatch
         - [x] spi module
+        - [x] pg_stat_statement
     - [x] Generic extension framework
-    - [ ] Partitions support
+    - [x] Partitions support
     - [ ] Materialized Views
     - [ ] Foreign data wrappers
 
@@ -72,31 +74,29 @@ Here are the features currently supported as of YugabyteDB v2.0, Jan 15 2020. Th
     - [x] Role based access control
     - [x] Row-level security
     - [x] SSL Support/TLS Encryption 
-    - [x] Encryption at rest ![Generic badge](https://img.shields.io/badge/Target-v2.1-green.svg)
+    - [x] Encryption at rest
 - [ ] Backup and restore
     - [x] Scan based backups using `ysql_dump`
-    - [ ] Distributed backups ![Generic badge](https://img.shields.io/badge/Target-v2.2-green.svg)
+    - [x] Distributed backups ![Generic badge](https://img.shields.io/badge/Target-v2.5-green.svg)
 - [ ] Distributed, dynamic rebuilding of indexes
-    - [ ] Support for simple indexes ![Generic badge](https://img.shields.io/badge/Target-v2.2-green.svg)
-    - [ ] Support for unique constraints ![Generic badge](https://img.shields.io/badge/Target-v2.2-green.svg)
+    - [ ] Support for simple indexes ![Generic badge](https://img.shields.io/badge/Target-v2.5-green.svg)
+    - [ ] Support for unique constraints ![Generic badge](https://img.shields.io/badge/Target-v2.5-green.svg)
 - Sharding and splitting
     - [x] Hash sharding support
     - [x] Range sharding support
-    - [ ] Dynamic tablet splitting ![Generic badge](https://img.shields.io/badge/Target-v2.2-green.svg)
+    - [ ] Dynamic tablet splitting ![Generic badge](https://img.shields.io/badge/Target-v2.5-green.svg)
 - [ ] Change data capture
     - [x] Kafka integration ![Generic badge](https://img.shields.io/badge/Status-BETA-blue.svg)
-    - [ ] Generic client library for consumers ![Generic badge](https://img.shields.io/badge/Target-v2.2-green.svg)
-    - [ ] Elastic search integration ![Generic badge](https://img.shields.io/badge/Target-v2.2-green.svg)
-- [ ] Colocated tables
-    - [x] Most functionality available in beta ![Generic badge](https://img.shields.io/badge/Target-v2.1-green.svg)
-    - [x] Production readiness ![Generic badge](https://img.shields.io/badge/Target-v2.2-green.svg)
+    - [ ] Generic client library for consumers
+    - [ ] Elastic search integration
+- [x] Colocated tables
 - [ ] Geo-distributed deployments
     - [x] Three or more DCs (with sync replication)
     - [x] Master-slave (asynchronous replication)
     - [x] Multi-master (bidirectional replication, last writer wins semantics)
-    - [ ] Follower reads
+    - [ ] Follower reads ![Generic badge](https://img.shields.io/badge/Target-v2.5-green.svg)
     - [ ] Read replica support
-    - [ ] Row level geo-partitioning
+    - [ ] Row level geo-partitioning ![Generic badge](https://img.shields.io/badge/Target-v2.5-green.svg)
 
 
 ## App Development Support
@@ -135,11 +135,11 @@ Here are the features currently supported as of YugabyteDB v2.0, Jan 15 2020. Th
 ## Performance
 - [ ] Parallel queries
 - [ ] YCSB
-    - [ ] Easy to run YCSB package ![Generic badge](https://img.shields.io/badge/Target-v2.1-green.svg)
+    - [x] Easy to run YCSB package
     - [ ] Framework to publish YCSB performance numbers with each release
     - [ ] Available as rpm/deb/container/yum/brew
 - [ ] TPCC
-    - [ ] Easy to run TPCC package ![Generic badge](https://img.shields.io/badge/Target-v2.1-green.svg)
+    - [x] Easy to run TPCC package
     - [ ] Framework to publish TPCC performance numbers with each release
     - [ ] Available as rpm/deb/container/yum/brew
 

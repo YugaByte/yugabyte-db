@@ -10,6 +10,7 @@
 
 package com.yugabyte.yw.commissioner.tasks.subtasks;
 
+import com.typesafe.config.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yb.client.YBClient;
@@ -29,11 +30,9 @@ public class WaitForMasterLeader extends AbstractTaskBase {
   // The YB client.
   public YBClientService ybService = null;
 
-  // Timeout for failing to respond to pings.
-  private static final long TIMEOUT_SERVER_WAIT_MS = 120000;
+  public Config config;
 
-  public static class Params extends UniverseTaskParams {
-  }
+  public static class Params extends UniverseTaskParams {}
 
   @Override
   protected Params taskParams() {
@@ -44,6 +43,7 @@ public class WaitForMasterLeader extends AbstractTaskBase {
   public void initialize(ITaskParams params) {
     super.initialize(params);
     ybService = Play.current().injector().instanceOf(YBClientService.class);
+    config = Play.current().injector().instanceOf(Config.class);
   }
 
   @Override
@@ -60,7 +60,7 @@ public class WaitForMasterLeader extends AbstractTaskBase {
     try {
       LOG.info("Running {}: hostPorts={}.", getName(), hostPorts);
       client = ybService.getClient(hostPorts, certificate);
-      client.waitForMasterLeader(TIMEOUT_SERVER_WAIT_MS);
+      client.waitForMasterLeader(config.getDuration("yb.wait_for_server_timeout").toMillis());
     } catch (Exception e) {
       LOG.error("{} hit error : {}", getName(), e.getMessage());
       throw new RuntimeException(e);

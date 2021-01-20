@@ -100,6 +100,11 @@ YBTableCreator& YBTableCreator::schema(const YBSchema* schema) {
   return *this;
 }
 
+YBTableCreator& YBTableCreator::part_of_transaction(const TransactionMetadata* txn) {
+  txn_ = txn;
+  return *this;
+}
+
 YBTableCreator& YBTableCreator::add_hash_partitions(const std::vector<std::string>& columns,
                                                         int32_t num_buckets) {
   return add_hash_partitions(columns, num_buckets, 0);
@@ -128,7 +133,7 @@ YBTableCreator& YBTableCreator::set_range_partition_columns(
   }
 
   for (const auto& row : split_rows) {
-    range_schema->add_split_rows(row);
+    range_schema->add_splits()->set_column_bounds(row);
   }
   return *this;
 }
@@ -236,6 +241,10 @@ Status YBTableCreator::Create() {
   }
 
   SchemaToPB(internal::GetSchema(*schema_), req.mutable_schema());
+
+  if (txn_) {
+    txn_->ToPB(req.mutable_transaction());
+  }
 
   // Setup the number splits (i.e. number of splits).
   if (num_tablets_ > 0) {

@@ -74,7 +74,7 @@ void ExplicitBatchingExample() {
   {
     // Returns an Error if any insert in the batch had an issue.
     CHECK_OK(session->Flush());
-    // Call session->GetPendingErrors() to get errors.
+    // Call session->GetAndClearPendingErrors() to get errors.
   }
 
   // Async API example:
@@ -115,7 +115,7 @@ void BulkIngestExample() {
     ins->SetInt64("val", i * 2);
     // This will start getting written in the background.
     // If there are any pending errors, it will return a bad Status,
-    // and the user should call GetPendingErrors()
+    // and the user should call GetAndClearPendingErrors()
     // This may block if the buffer is full.
     CHECK_OK(session->Apply(&ins));
     if (session->HasErrors())) {

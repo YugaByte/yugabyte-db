@@ -53,7 +53,7 @@ $ ./bin/ysqlsh
 
 Add a table, named `products`, to the default `yugabyte` database.
 
-```postgresql
+```plpgsql
 CREATE TABLE products(
   id         bigserial PRIMARY KEY,
   created_at timestamp,
@@ -92,7 +92,7 @@ The example above uses the following parameters:
 
 In another terminal shell, write some values to the table and observe the values on your `stdout` output stream.
 
-```postgresql
+```plpgsql
 INSERT INTO products (
   id, 
   category, 

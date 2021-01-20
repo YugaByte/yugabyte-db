@@ -2,24 +2,16 @@ package com.yugabyte.yw.common;
 
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.JdkSSLOptions;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
-import com.datastax.driver.core.SSLOptions;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import com.yugabyte.yw.common.SslHelper;
 import com.yugabyte.yw.forms.RunQueryFormData;
 import com.yugabyte.yw.models.Universe;
 
 import java.net.InetSocketAddress;
-
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
-import java.security.KeyStore;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -84,6 +76,14 @@ public class YcqlQueryExecutor {
     return rows;
   }
 
+  private String getQueryType(String queryString) {
+    String[] queryParts = queryString.split(" ");
+    String command = queryParts[0].toUpperCase();
+    if (command.equals("TRUNCATE") || command.equals("DROP"))
+      return command + " " + queryParts[1].toUpperCase();
+    return command;
+  }
+
   public JsonNode executeQuery(Universe universe, RunQueryFormData queryParams,
                                Boolean authEnabled) {
     return executeQuery(universe, queryParams, authEnabled, DEFAULT_DB_USER, DEFAULT_DB_PASSWORD);
@@ -100,7 +100,10 @@ public class YcqlQueryExecutor {
         List<Map<String, Object>> rows = resultSetToMap(rs);
         response.put("result", toJson(rows));
       } else {
-        response.put("queryType", queryParams.query);
+        // For commands without a result we return only executed command identifier
+        // (SELECT/UPDATE/...). We can't return query itself to avoid logging of
+        // sensitive data.
+        response.put("queryType", getQueryType(queryParams.query));
       }
     } catch (Exception e) {
       response.put("error", e.getMessage());

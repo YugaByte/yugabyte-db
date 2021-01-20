@@ -122,6 +122,8 @@ class DocPgsqlScanSpec : public common::PgsqlScanSpec {
 
   // Scan behavior.
   bool is_forward_scan_;
+
+  DISALLOW_COPY_AND_ASSIGN(DocPgsqlScanSpec);
 };
 
 }  // namespace docdb

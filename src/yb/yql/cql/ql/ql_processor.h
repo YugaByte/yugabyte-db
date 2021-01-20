@@ -103,6 +103,9 @@ class QLProcessor : public Rescheduler {
   // Environment (YBClient) that processor uses to execute statement.
   QLEnv ql_env_;
 
+  // Used for logging audit records.
+  audit::AuditLogger audit_logger_;
+
   // Semantic analysis processor.
   Analyzer analyzer_;
 
@@ -153,8 +156,8 @@ class QLProcessor : public Rescheduler {
     void Done(const Status& status) override {}
 
     QLProcessor* processor_ = nullptr;
-    const std::string* stmt_;
-    const StatementParameters* params_;
+    const std::string* stmt_ = nullptr;
+    const StatementParameters* params_ = nullptr;
     StatementExecutedCallback cb_;
   };
 

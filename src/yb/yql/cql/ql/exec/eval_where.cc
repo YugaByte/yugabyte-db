@@ -301,17 +301,21 @@ Status Executor::WhereKeyToPB(QLReadRequestPB *req,
     *req->add_hashed_column_values()->mutable_value() = key.column(idx).value();
   }
 
-  // Add the range column values to the where clause
-  QLConditionPB *where_pb = req->mutable_where_expr()->mutable_condition();
-  if (!where_pb->has_op()) {
-    where_pb->set_op(QL_OP_AND);
-  }
-  DCHECK_EQ(where_pb->op(), QL_OP_AND);
-  for (size_t idx = schema.num_hash_key_columns(); idx < schema.num_key_columns(); idx++) {
-    QLConditionPB *col_cond_pb = where_pb->add_operands()->mutable_condition();
-    col_cond_pb->set_op(QL_OP_EQUAL);
-    col_cond_pb->add_operands()->set_column_id(schema.column_id(idx));
-    *col_cond_pb->add_operands()->mutable_value() = key.column(idx).value();
+  if (schema.num_key_columns() > schema.num_hash_key_columns()) {
+    // Add the range column values to the where clause
+    QLConditionPB *where_pb = req->mutable_where_expr()->mutable_condition();
+    if (!where_pb->has_op()) {
+      where_pb->set_op(QL_OP_AND);
+    }
+    DCHECK_EQ(where_pb->op(), QL_OP_AND);
+    for (size_t idx = schema.num_hash_key_columns(); idx < schema.num_key_columns(); idx++) {
+      QLConditionPB *col_cond_pb = where_pb->add_operands()->mutable_condition();
+      col_cond_pb->set_op(QL_OP_EQUAL);
+      col_cond_pb->add_operands()->set_column_id(schema.column_id(idx));
+      *col_cond_pb->add_operands()->mutable_value() = key.column(idx).value();
+    }
+  } else {
+    VLOG(3) << "there is no range column for " << schema.ToString();
   }
 
   return Status::OK();

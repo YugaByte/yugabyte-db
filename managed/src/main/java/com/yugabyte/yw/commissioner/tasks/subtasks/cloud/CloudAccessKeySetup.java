@@ -56,7 +56,7 @@ public class CloudAccessKeySetup extends CloudTaskBase {
       String accessKeyCode = String.format(
           "yb-%s-%s-key", Customer.get(getProvider().customerUUID).code, sanitizedProviderName);
       accessManager.addKey(
-          region.uuid, accessKeyCode, null, taskParams().sshUser, sshPort, airGapInstall);
+          region.uuid, accessKeyCode, null, taskParams().sshUser, sshPort, airGapInstall, false);
     } else {
       // Create temp file and fill with content.
       AccessManager.KeyType keyType = AccessManager.KeyType.PRIVATE;
@@ -65,7 +65,7 @@ public class CloudAccessKeySetup extends CloudTaskBase {
         Files.write(tempFile, taskParams().sshPrivateKeyContent.getBytes());
         accessManager.addKey(
             region.uuid, taskParams().keyPairName, tempFile.toFile(), taskParams().sshUser,
-            taskParams().sshPort, airGapInstall);
+            taskParams().sshPort, airGapInstall, false);
       } catch (IOException ioe) {
         ioe.printStackTrace();
         throw new RuntimeException("Could not create AccessKey", ioe);

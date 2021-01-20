@@ -3,7 +3,7 @@ title: Explore change data capture (CDC) on macOS
 headerTitle: Change data capture (CDC)
 linkTitle: Change data capture (CDC)
 description: Use a local YugabyteDB cluster (on macOS) to stream data changes to stdout using the CDC API.
-beta: /latest/faq/general/#what-is-the-definition-of-the-beta-feature-tag
+beta: /stable/faq/general/#what-is-the-definition-of-the-beta-feature-tag
 aliases:
   - /stable/deploy/cdc/cdc-to-stdout/
   - /stable/explore/change-data-capture/
@@ -56,7 +56,7 @@ $ ./bin/ysqlsh
 
 Add a table, named `products`, to the default `yugabyte` database.
 
-```postgresql
+```plpgsql
 CREATE TABLE products(
   id         bigserial PRIMARY KEY,
   created_at timestamp,
@@ -95,7 +95,7 @@ The example above uses the following parameters:
 
 In another terminal shell, write some values to the table and observe the values on your `stdout` output stream.
 
-```postgresql
+```plpgsql
 INSERT INTO products (
   id, 
   category, 

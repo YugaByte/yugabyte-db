@@ -81,6 +81,10 @@ class YBMetaDataCache {
                                        const TableName &table,
                                        const client::internal::CacheCheckMode check_mode);
 
+  CHECKED_STATUS WaitForPermissionCache();
+  Result<bool> RoleCanLogin(const RoleName& role_name);
+  Result<std::string> RoleSaltedHash(const RoleName& role_name);
+
   // Convenience method to check if role has the specified permission on the given keyspace or
   // table.
   // If the role has not the permission on neither the keyspace nor the table, and check_mode is

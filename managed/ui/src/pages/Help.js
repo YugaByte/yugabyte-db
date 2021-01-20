@@ -7,7 +7,7 @@ export default class Help extends Component {
   render() {
     return (
       <div>
-        <HelpItemContainer/>
+        <HelpItemContainer />
       </div>
     );
   }

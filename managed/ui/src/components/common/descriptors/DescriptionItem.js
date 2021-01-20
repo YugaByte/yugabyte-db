@@ -11,12 +11,10 @@ export default class DescriptionItem extends PureComponent {
   };
 
   render() {
-    const {title} = this.props;
+    const { title } = this.props;
     return (
       <div className="description-item clearfix">
-        <div className="description-item-text">
-          {this.props.children}
-        </div>
+        <div className="description-item-text">{this.props.children}</div>
         <small className="description-item-sub-text">{title}</small>
       </div>
     );

@@ -75,19 +75,19 @@ Because MD5-encrypted passwords use the role name as cryptographic salt, renamin
 
 - Change a role's password.
 
-```postgresql
+```plpgsql
 yugabyte=# ALTER ROLE John WITH PASSWORD 'new_password';
 ```
 
 - Rename a role.
 
-```postgresql
+```plpgsql
 yugabyte=# ALTER ROLE John RENAME TO Jane;
 ```
 
 - Change default_transaction_isolation session parameter for a role.
 
-```postgresql
+```plpgsql
 yugabyte=# ALTER ROLE Jane SET default_transaction_isolation='serializable';
 ```
 

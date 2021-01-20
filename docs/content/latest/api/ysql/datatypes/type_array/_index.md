@@ -41,7 +41,7 @@ A value within an array is specified by a tuple of _index_ values, like this (fo
 ```
 arr[13][7][5][17]
 ```
-The index is the cell number along the dimension in question. The index values along each dimension are consecutive—in other words, you cannot delete a cell within an existing array. This reflects the fact that an array is rectilinear. However, a value in a cell can, of course, be `NULL`.
+The index is the cell number along the dimension in question. The index values along each dimension are consecutive—in other words, you cannot delete a cell within a array. This reflects the fact that an array is rectilinear. However, a value in a cell can, of course, be `NULL`.
 
 The leftmost value (`13` in the example) is the index along the first dimension; the rightmost value (`17` in this example) is the index along the Nth dimension—that is, the fourth dimension in this example. The value of the index of the first cell along a particular dimension is known as the _lower bound_ for that dimension. If you take no special steps when you create an array value, then the lower bound of each dimension is `1`. But, if you find it useful, you can specify any positive or negative integer, or zero, as the lower bound of the specified dimension. The lower bounds of an array are fixed at creation time, and so is its dimensionality.
 
@@ -49,7 +49,7 @@ Correspondingly, each dimension has an upper bound. This, too, is fixed at array
 
 If you read a within-array value with a tuple of index values that put it outside of the array bounds, then you silently get `NULL`. But if you attempt to set such an out-of-bounds value, then, because this is an implicit attempt to change the array's bounds, you get the _"array subscript out of range"_ error.
 
-Notice that you can create a new array, using a single assignment, as a so-called "slice" of an existing array, by specifying desired lower and upper index values along each axis of the source array. The new array cannot have a different dimensionality than its source. You should specify the lower and upper index values for the slice, along each dimension of the source array, to lie within (or, maximally, coincide with) the bounds of that dimension. If you specify the slice with a lower bound less than the corresponding lower bound of the source array, then the new lower bound is silently interpreted as the extant corresponding source lower bound. The same is true for the upper bounds. The syntax of this method means that the lower bounds of the new array inevitably all start at `1`. Here is an example (in PL/pgSQL syntax) using a two-dimensional source array:
+Notice that you can create an array, using a single assignment, as a so-called "slice" of an array, by specifying desired lower and upper index values along each axis of the source array. The new array cannot have a different dimensionality than its source. You should specify the lower and upper index values for the slice, along each dimension of the source array, to lie within (or, maximally, coincide with) the bounds of that dimension. If you specify the slice with a lower bound less than the corresponding lower bound of the source array, then the new lower bound is silently interpreted as the extant corresponding source lower bound. The same is true for the upper bounds. The syntax of this method means that the lower bounds of the new array inevitably all start at `1`. Here is an example (in PL/pgSQL syntax) using a two-dimensional source array:
 
 ```
 new_arr := source_arr[3:4][7:9];
@@ -83,7 +83,7 @@ create table t1(k int primary key, arr text array[4]);
 ```
 This syntax conforms to the SQL Standard. Notice that `array` is a reserved word. (You cannot, for example, create a table with that name.) It appears to let you specify just a one-dimensional array and to specify how many values it holds. But both of these apparent declarations of intent are ignored and act, therefore, only as potentially misleading documentation.
 
-The following illustrates PostgreSQL's extension to the Standard that YSQL, therefore, inherits.:
+The following illustrates the PostgreSQL extension to the Standard that YSQL, therefore, inherits.:
 
 ```plpgsql
 create table t2(
@@ -165,7 +165,7 @@ The dimensionality of _"v"_ for this first row has now been irrevocably establis
 
 ## Type construction
 
-Arrays are not YSQL's only example of type construction. So, also, are _"row"_ types and `DOMAIN`s:
+Arrays are not the only example of type construction. So, also, are _"row"_ types and `DOMAIN`s:
 
 ```plpgsql
 create type rec_t as(f1 int, f2 text);
@@ -359,7 +359,7 @@ create table laps(
     references trips(trip_start_ts, userid)
     match full on delete cascade on update restrict);
 ```
-**Note:** In PostgreSQL, the maximum number of values that an array of any dimensionality can hold is `(2^27 - 1)` (about 137 million). If you exceed this limit, then you get a clear _"54000: array size exceeds the maximum allowed (134217727)"_ error. This maps to the PL/pgSQL exception _"program_limit_exceeded"_. In PostgreSQL, array values are stored out of line. However, in YugabyteDB's YSQL subsystem, they are stored in line, just like, for example, a `json` or `jsonb` value. As a consequence, the maximum number of values that a YSQL array can accommodate is smaller than PostgreSQL's limit. Moreover, the actual YSQL limit depends on circumstances—and when it's exceeded you get a "time out" error. Experiment shows that the limit is about 30 million values. You can test this for yourself using [`array_fill()`](./functions-operators/array-fill/)) function.
+**Note:** In PostgreSQL, the maximum number of values that an array of any dimensionality can hold is `(2^27 - 1)` (about 137 million). If you exceed this limit, then you get a clear _"54000: array size exceeds the maximum allowed (134217727)"_ error. This maps to the PL/pgSQL exception _"program_limit_exceeded"_. In PostgreSQL, array values are stored out of line. However, in the YugabyteDB YSQL subsystem, they are stored in line, just like, for example, a `json` or `jsonb` value. As a consequence, the maximum number of values that a YSQL array can accommodate is smaller than the PostgreSQL limit. Moreover, the actual YSQL limit depends on circumstances—and when it's exceeded you get a "time out" error. Experiment shows that the limit is about 30 million values. You can test this for yourself using [`array_fill()`](./functions-operators/array-fill/)) function.
 
 With about 100,000 GPS data points, a 300 km trip is easily accommodated.
 

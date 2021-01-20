@@ -1,0 +1,11 @@
+@import '../../../../uikit/common';
+
+.universe-name-field {
+  position: relative;
+
+  &__validation-spinner {
+    position: absolute;
+    right: -35px;
+    top: -2px;
+  }
+}

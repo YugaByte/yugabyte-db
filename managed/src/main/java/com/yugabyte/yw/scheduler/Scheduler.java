@@ -35,6 +35,7 @@ import java.text.SimpleDateFormat;
 
 import com.yugabyte.yw.commissioner.Commissioner;
 import com.yugabyte.yw.commissioner.tasks.MultiTableBackup;
+import com.yugabyte.yw.commissioner.tasks.DeleteBackup;
 import com.yugabyte.yw.forms.BackupTableParams;
 import com.yugabyte.yw.models.helpers.TaskType;
 import com.yugabyte.yw.models.Backup;
@@ -183,10 +184,13 @@ public class Scheduler {
             this.runMultiTableBackupsTask(schedule);
           }
         }
+        List<Backup> expiredBackups = Backup.getExpiredBackups(schedule.scheduleUUID);
+        for (Backup backup : expiredBackups) {
+          this.runDeleteBackupTask(backup, schedule);
+        }
       }
     } catch (Exception e) {
-      System.out.println(e);
-      LOG.error("Error Running scheduler thread");
+      LOG.error("Error Running scheduler thread" + e);
     } finally {
       running.set(false);
     }
@@ -197,6 +201,7 @@ public class Scheduler {
     Customer customer = Customer.get(customerUUID);
     JsonNode params = schedule.getTaskParams();
     BackupTableParams taskParams = Json.fromJson(params, BackupTableParams.class);
+    taskParams.scheduleUUID = schedule.scheduleUUID;
     Universe universe = null;
     try {
       universe = Universe.get(taskParams.universeUUID);
@@ -232,7 +237,8 @@ public class Scheduler {
     JsonNode params = schedule.getTaskParams();
     MultiTableBackup.Params taskParams = Json.fromJson(params,
         MultiTableBackup.Params.class);
-    Universe universe = null;
+    taskParams.scheduleUUID = schedule.scheduleUUID;
+    Universe universe;
     try {
       universe = Universe.get(taskParams.universeUUID);
     } catch (Exception e) {
@@ -252,13 +258,45 @@ public class Scheduler {
     LOG.info("Submitted backup for universe: {}, task uuid = {}.",
         taskParams.universeUUID, taskUUID);
     CustomerTask.create(customer,
-        customerUUID,
+        taskParams.universeUUID,
         taskUUID,
-        CustomerTask.TargetType.Universe,
-        CustomerTask.TaskType.Backup,
+        CustomerTask.TargetType.Backup,
+        CustomerTask.TaskType.Create,
         universe.name
         );
     LOG.info("Saved task uuid {} in customer tasks table for universe {}:{}", taskUUID,
         taskParams.universeUUID, universe.name);
+  }
+
+  public void runDeleteBackupTask(Backup backup, Schedule schedule) {
+    if (backup.state != Backup.BackupState.Completed) {
+      LOG.warn("Cannot delete backup {} since it is not in completed state.",
+                backup.backupUUID);
+      return;
+    }
+    BackupTableParams backupParams = Json.fromJson(backup.backupInfo, BackupTableParams.class);
+    Universe universe = null;
+    try {
+      universe = Universe.get(backupParams.universeUUID);
+    } catch (Exception e) {
+      schedule.stopSchedule();
+      return;
+    }
+    UUID customerUUID = schedule.getCustomerUUID();
+    Customer customer = Customer.get(customerUUID);
+    JsonNode params = schedule.getTaskParams();
+    DeleteBackup.Params taskParams = new DeleteBackup.Params();
+    taskParams.customerUUID = customerUUID;
+    taskParams.backupUUID = backup.backupUUID;
+    UUID taskUUID = commissioner.submit(TaskType.DeleteBackup, taskParams);
+    ScheduleTask.create(taskUUID, schedule.getScheduleUUID());
+    LOG.info("Submitted task to delete backup {}, task uuid = {}.",
+        backup.backupUUID, taskUUID);
+    CustomerTask.create(customer,
+        backup.backupUUID,
+        taskUUID,
+        CustomerTask.TargetType.Backup,
+        CustomerTask.TaskType.Delete,
+        "Backup");
   }
 }

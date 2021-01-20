@@ -47,72 +47,10 @@ body {
 }
 
 @media (max-width: 839px) {
-  .navbar-header {
-    float: none;
-  }
   .navbar-toggler {
     display: block;
     float: right;
   }
-}
-
-@media screen and (max-width: 839px) {
-  .navbar-fixed-bottom .navbar-collapse,
-  .navbar-fixed-top .navbar-collapse {
-    float: none !important;
-    margin: 0 !important;
-    width: 100%;
-    text-align: center;
-    background: rgba(255,255,255,0.97);
-    max-height: 480px !important;
-    border: 0 !important;
-    border-radius: 12px;
-  }
-}
-
-@media screen and (max-width: 767px) {
-  .navbar-fixed-bottom .navbar-collapse, .navbar-fixed-top .navbar-collapse {
-    margin: 0 !important;
-    width: 100%;
-    text-align: center;
-    background: $YB_TRANSLUCENT_WHITE;
-    max-height: 480px !important;
-    border: 0 !important;
-    border-radius: 12px;
-
-    .navbar-text a {
-      color: $YB_ORANGE !important;
-
-      &.btn {
-        color: #fff !important;
-      }
-    }
-  }
-}
-
-.top-banner {
-  border-bottom: 1px solid #fff;
-  padding: 6px 0;
-  background-color: $YB_ORANGE;
-  font-size: 16px;
-  font-weight: 700;
-  color: white;
-  text-align: center;
-
-  a {
-    color: #fff !important;
-  }
-
-  @media screen and (max-width: 767px) {
-    display: none;
-  }
-}
-.top-banner-close {
-  display: block;
-  float: right;
-  margin: 0 10px;
-  font-size: 24px;
-  line-height: 1;
 }
 
 .navbar {
@@ -284,88 +222,6 @@ body {
       text-align: center;
     }
 
-    .dropdown-row {
-      display: flex;
-      flex-direction: row;
-      align-content: start;
-      margin-top: -5px;
-      padding: 0 10px 5px;
-    }
-
-    .dropdown-column {
-      margin: 0 10px 10px;
-      text-align: left;
-      white-space: nowrap;
-
-      h3 {
-        border-bottom: 1px solid $YB_ORANGE;
-        padding: 0 0 10px;
-        margin: 35px 16px 5px;
-        font-size: 16px;
-        font-weight: 500;
-        font-family: 'Rubik', sans-serif;
-        color: $YB_VIOLET;
-
-        a {
-          display: none;
-        }
-      }
-
-      a {
-        margin: 0 -6px;
-        border-radius: 6px;
-        text-align: left;
-        border: none;
-        padding: 14px 16px 16px !important;
-      }
-    }
-
-    a {
-      cursor: pointer;
-      display: inline-block;
-      padding: 6px 8px 8px;
-      margin-bottom: -4px;
-      font-family: "Inter", sans-serif;
-      font-weight: 300;
-      font-size: 15px;
-      color: #e4e8ec !important;
-      text-decoration: none;
-
-      &:hover {
-        color: $YB_ORANGE !important;
-      }
-
-      &[aria-expanded=true] {
-        color: $YB_ORANGE;
-      }
-
-      &.button {
-        margin: -4px -6px;
-        padding: 4px 12px 6px;
-        background: #c7660c;
-        color: #fff !important;
-        border-radius: 15px;
-
-        &:hover {
-          background: #d66a02;
-        }
-      }
-    }
-
-    & > a, .dropdown > a {
-      cursor: pointer;
-      display: inline-block;
-      padding: 0 8px;
-      line-height: 75px;
-      font-family: "Inter", sans-serif;
-      font-weight: 400;
-      font-size: 15px;
-      margin-bottom: 0;
-      margin-top: -4px;
-      color: $YB_VIOLET;
-      text-decoration: none;
-    }
-
     .dropdown.open > a {
       color: $YB_ORANGE !important;
       border-top-left-radius: 10px;
@@ -477,10 +333,18 @@ body {
       border: 1px solid #cbcdd0;
       color: #202951;
       text-decoration: none;
-      padding: 5px 15px;
+      padding: 10px 15px;
       height: 42px;
       border-radius: 7px;
       margin-right: 15px;
+      font-size: 15px;
+      align-items: center;
+      display: flex;
+
+      i {
+        font-size: 20px;
+        margin-left: 5px;
+      }
     }
 
     .navbar-link-btn:hover {
@@ -492,16 +356,6 @@ body {
       margin-left: -7px;
       margin-right: -8px;
       margin-bottom: 2px;
-    }
-
-    .social-link-icon {
-      margin-left: 5px;
-    }
-
-    @media screen and (max-width: 1100px) {
-      .social-link-text {
-        display: none;
-      }
     }
 
     @media screen and (max-width: 991px) {

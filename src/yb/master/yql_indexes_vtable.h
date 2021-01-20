@@ -22,7 +22,9 @@ namespace master {
 // VTable implementation of system_schema.indexes.
 class YQLIndexesVTable : public YQLVirtualTable {
  public:
-  explicit YQLIndexesVTable(const Master* const master);
+  explicit YQLIndexesVTable(const TableName& table_name,
+                            const NamespaceName& namespace_name,
+                            Master * const master);
   Result<std::shared_ptr<QLRowBlock>> RetrieveData(const QLReadRequestPB& request) const override;
 
  protected:

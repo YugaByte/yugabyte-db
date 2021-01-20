@@ -2,8 +2,7 @@
 
 @font-face {
   font-family: 'Rubik';
-  src: url('fonts/Rubik-Bold.woff2') format('woff2'),
-       url('fonts/Rubik-Bold.woff') format('woff');
+  src: url('fonts/Rubik-Bold.woff2') format('woff2'), url('fonts/Rubik-Bold.woff') format('woff');
   font-weight: 700;
   font-style: normal;
 }
@@ -11,15 +10,14 @@
 @font-face {
   font-family: 'Rubik';
   src: url('fonts/Rubik-Medium.woff2') format('woff2'),
-       url('fonts/Rubik-Medium.woff') format('woff');
+    url('fonts/Rubik-Medium.woff') format('woff');
   font-weight: 500;
   font-style: normal;
 }
 
 @font-face {
   font-family: 'Inter';
-  src: url('fonts/Inter-Light.woff2') format('woff2'),
-       url('fonts/Inter-Light.woff') format('woff');
+  src: url('fonts/Inter-Light.woff2') format('woff2'), url('fonts/Inter-Light.woff') format('woff');
   font-weight: 300;
   font-style: normal;
 }
@@ -27,7 +25,7 @@
 @font-face {
   font-family: 'Inter';
   src: url('fonts/Inter-Regular.woff2') format('woff2'),
-       url('fonts/Inter-Regular.woff') format('woff');
+    url('fonts/Inter-Regular.woff') format('woff');
   font-weight: 400;
   font-style: normal;
 }
@@ -35,15 +33,14 @@
 @font-face {
   font-family: 'Inter';
   src: url('fonts/Inter-Medium.woff2') format('woff2'),
-       url('fonts/Inter-Medium.woff') format('woff');
+    url('fonts/Inter-Medium.woff') format('woff');
   font-weight: 500;
   font-style: normal;
 }
 
 @font-face {
   font-family: 'Inter';
-  src: url('fonts/Inter-Bold.woff2') format('woff2'),
-       url('fonts/Inter-Bold.woff') format('woff');
+  src: url('fonts/Inter-Bold.woff2') format('woff2'), url('fonts/Inter-Bold.woff') format('woff');
   font-weight: 700;
   font-style: normal;
 }

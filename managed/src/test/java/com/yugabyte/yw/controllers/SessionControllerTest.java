@@ -2,11 +2,8 @@
 
 package com.yugabyte.yw.controllers;
 
-import static com.yugabyte.yw.common.AssertHelper.assertBadRequest;
-import static com.yugabyte.yw.common.AssertHelper.assertOk;
-import static com.yugabyte.yw.common.AssertHelper.assertValue;
-import static com.yugabyte.yw.common.AssertHelper.assertUnauthorized;
-import static com.yugabyte.yw.common.AssertHelper.assertAuditEntry;
+import static com.yugabyte.yw.common.ApiUtils.getTestUserIntent;
+import static com.yugabyte.yw.common.AssertHelper.*;
 import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -24,10 +21,14 @@ import static play.test.Helpers.route;
 import com.google.common.collect.ImmutableMap;
 import com.yugabyte.yw.commissioner.CallHome;
 import com.yugabyte.yw.commissioner.HealthChecker;
+import com.yugabyte.yw.commissioner.QueryAlerts;
+import com.yugabyte.yw.common.ApiUtils;
 import com.yugabyte.yw.common.ConfigHelper;
 import com.yugabyte.yw.common.ModelFactory;
-import com.yugabyte.yw.models.Customer;
-import com.yugabyte.yw.models.Users;
+import static com.yugabyte.yw.common.FakeApiHelper.doRequestWithAuthToken;
+import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
+import com.yugabyte.yw.models.*;
+import com.yugabyte.yw.models.helpers.NodeDetails;
 import com.yugabyte.yw.scheduler.Scheduler;
 import org.junit.After;
 import org.junit.Test;
@@ -57,6 +58,7 @@ public class SessionControllerTest {
   CallHome mockCallHome;
   CallbackController mockCallbackController;
   PlayCacheSessionStore mockSessionStore;
+  QueryAlerts mockQueryAlerts;
 
   Application app;
 
@@ -66,6 +68,7 @@ public class SessionControllerTest {
     mockCallHome = mock(CallHome.class);
     mockCallbackController = mock(CallbackController.class);
     mockSessionStore = mock(PlayCacheSessionStore.class);
+    mockQueryAlerts = mock(QueryAlerts.class);
     app = new GuiceApplicationBuilder()
         .configure((Map) Helpers.inMemoryDatabase())
         .configure(ImmutableMap.of("yb.multiTenant", isMultiTenant))
@@ -74,6 +77,7 @@ public class SessionControllerTest {
         .overrides(bind(CallHome.class).toInstance(mockCallHome))
         .overrides(bind(CallbackController.class).toInstance(mockCallbackController))
         .overrides(bind(PlaySessionStore.class).toInstance(mockSessionStore))
+        .overrides(bind(QueryAlerts.class).toInstance(mockQueryAlerts))
         .build();
     Helpers.start(app);
   }
@@ -475,5 +479,126 @@ public class SessionControllerTest {
     json = Json.parse(contentAsString(result));
     assertOk(result);
     assertValue(json, "version", "0.0.1");
+  }
+
+  @Test
+  public void testProxyRequestInvalidFormat() {
+    startApp(false);
+    Customer customer = ModelFactory.testCustomer("Test Customer 1");
+    Users user = ModelFactory.testUser(customer);
+    String authToken = user.createAuthToken();
+    Universe universe = ModelFactory.createUniverse(customer.getCustomerId());
+    Result result = doRequestWithAuthToken(
+      "GET",
+      "/universes/" + universe.universeUUID + "/proxy/www.test.com",
+      authToken
+    );
+    assertBadRequest(result, "Invalid proxy request");
+  }
+
+  @Test
+  public void testProxyRequestInvalidIP() {
+    startApp(false);
+    Customer customer = ModelFactory.testCustomer("Test Customer 1");
+    Users user = ModelFactory.testUser(customer);
+    String authToken = user.createAuthToken();
+    Universe universe = ModelFactory.createUniverse(customer.getCustomerId());
+    Result result = doRequestWithAuthToken(
+      "GET",
+      "/universes/" + universe.universeUUID + "/proxy/" + "127.0.0.1:7000",
+      authToken
+    );
+    assertBadRequest(result, "Invalid proxy request");
+  }
+
+  @Test
+  public void testProxyRequestInvalidPort() {
+    startApp(false);
+    Customer customer = ModelFactory.testCustomer("Test Customer 1");
+    Users user = ModelFactory.testUser(customer);
+    String authToken = user.createAuthToken();
+    Provider provider = ModelFactory.awsProvider(customer);;
+    Region r = Region.create(provider, "region-1", "PlacementRegion-1", "default-image");
+    AvailabilityZone.create(r, "az-1", "PlacementAZ-1", "subnet-1");
+    AvailabilityZone.create(r, "az-2", "PlacementAZ-2", "subnet-2");
+    AvailabilityZone.create(r, "az-3", "PlacementAZ-3", "subnet-3");
+    InstanceType i = InstanceType.upsert(provider.code, "c3.xlarge",
+      10, 5.5, new InstanceType.InstanceTypeDetails());
+    UniverseDefinitionTaskParams.UserIntent userIntent = getTestUserIntent(r, provider, i, 3);
+    Universe universe = ModelFactory.createUniverse(customer.getCustomerId());
+    Universe.saveDetails(universe.universeUUID,
+      ApiUtils.mockUniverseUpdater(userIntent, "test-prefix"));
+    universe = Universe.get(universe.universeUUID);
+    NodeDetails node = universe.getUniverseDetails().nodeDetailsSet.stream().findFirst().get();
+    System.out.println("PRIVATE IP: " + node.cloudInfo.private_ip);
+    Result result = doRequestWithAuthToken(
+      "GET",
+      "/universes/" + universe.universeUUID + "/proxy/" + node.cloudInfo.private_ip + ":7001/",
+      authToken
+    );
+    assertBadRequest(result, "Invalid proxy request");
+  }
+
+  @Test
+  public void testProxyRequestValid() {
+    startApp(false);
+    Customer customer = ModelFactory.testCustomer("Test Customer 1");
+    Users user = ModelFactory.testUser(customer);
+    String authToken = user.createAuthToken();
+    Provider provider = ModelFactory.awsProvider(customer);;
+    Region r = Region.create(provider, "region-1", "PlacementRegion-1", "default-image");
+    AvailabilityZone.create(r, "az-1", "PlacementAZ-1", "subnet-1");
+    AvailabilityZone.create(r, "az-2", "PlacementAZ-2", "subnet-2");
+    AvailabilityZone.create(r, "az-3", "PlacementAZ-3", "subnet-3");
+    InstanceType i = InstanceType.upsert(provider.code, "c3.xlarge",
+      10, 5.5, new InstanceType.InstanceTypeDetails());
+    UniverseDefinitionTaskParams.UserIntent userIntent = getTestUserIntent(r, provider, i, 3);
+    Universe universe = ModelFactory.createUniverse(customer.getCustomerId());
+    Universe.saveDetails(universe.universeUUID,
+      ApiUtils.mockUniverseUpdater(userIntent, "test-prefix"));
+    universe = Universe.get(universe.universeUUID);
+    NodeDetails node = universe.getUniverseDetails().nodeDetailsSet.stream().findFirst().get();
+    String nodeAddr = node.cloudInfo.private_ip + ":" + node.masterHttpPort;
+    Result result = doRequestWithAuthToken(
+      "GET",
+      "/universes/" + universe.universeUUID + "/proxy/" + nodeAddr + "/",
+      authToken
+    );
+    // Expect the request to fail since the hostname isn't real.
+    // This shows that it got past validation though
+    assertInternalServerError(
+      result,
+      "\"java.net.UnknownHostException: " + node.cloudInfo.private_ip + ":"
+    );
+  }
+
+  @Test
+  public void testProxyRequestUnAuthenticated() {
+    startApp(false);
+    Customer customer = ModelFactory.testCustomer("Test Customer 1");
+    Provider provider = ModelFactory.awsProvider(customer);;
+    Region r = Region.create(provider, "region-1", "PlacementRegion-1", "default-image");
+    AvailabilityZone.create(r, "az-1", "PlacementAZ-1", "subnet-1");
+    AvailabilityZone.create(r, "az-2", "PlacementAZ-2", "subnet-2");
+    AvailabilityZone.create(r, "az-3", "PlacementAZ-3", "subnet-3");
+    InstanceType i = InstanceType.upsert(provider.code, "c3.xlarge",
+      10, 5.5, new InstanceType.InstanceTypeDetails());
+    UniverseDefinitionTaskParams.UserIntent userIntent = getTestUserIntent(r, provider, i, 3);
+    Universe universe = ModelFactory.createUniverse(customer.getCustomerId());
+    Universe.saveDetails(universe.universeUUID,
+      ApiUtils.mockUniverseUpdater(userIntent, "test-prefix"));
+    universe = Universe.get(universe.universeUUID);
+    NodeDetails node = universe.getUniverseDetails().nodeDetailsSet.stream().findFirst().get();
+    String nodeAddr = node.cloudInfo.private_ip + ":" + node.masterHttpPort;
+    Result result = route(fakeRequest(
+      "GET",
+      "/universes/" + universe.universeUUID + "/proxy/" + nodeAddr + "/"
+    ));
+    // Expect the request to fail since the hostname isn't real.
+    // This shows that it got past validation though
+    assertForbidden(
+      result,
+      "Unable To Authenticate User"
+    );
   }
 }

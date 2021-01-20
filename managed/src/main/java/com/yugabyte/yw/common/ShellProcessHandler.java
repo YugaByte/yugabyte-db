@@ -11,6 +11,7 @@
 package com.yugabyte.yw.common;
 
 import com.google.inject.Inject;
+import com.google.common.base.Joiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,34 +24,34 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.concurrent.TimeUnit;
+
+import com.yugabyte.yw.common.ShellResponse;
 
 @Singleton
 public class ShellProcessHandler {
     public static final Logger LOG = LoggerFactory.getLogger(ShellProcessHandler.class);
 
-    public static class ShellResponse {
-        public int code;
-        public String message;
-
-        public static ShellResponse create(int code, String message) {
-            ShellResponse response = new ShellResponse();
-            response.code = code;
-            response.message = message;
-            return response;
-        }
-    }
 
     @Inject
     play.Configuration appConfig;
-
 
     public ShellResponse run(
         List<String> command,
         Map<String, String> extraEnvVars,
         boolean logCmdOutput) {
+            return run(command, extraEnvVars, logCmdOutput, null /*description*/);
+        }
+
+    public ShellResponse run(
+        List<String> command,
+        Map<String, String> extraEnvVars,
+        boolean logCmdOutput,
+        String description) {
         ProcessBuilder pb = new ProcessBuilder(command);
         Map envVars = pb.environment();
-        if (!extraEnvVars.isEmpty()) {
+        if (extraEnvVars != null && !extraEnvVars.isEmpty()) {
             envVars.putAll(extraEnvVars);
         }
         String devopsHome = appConfig.getString("yb.devops.home");
@@ -60,23 +61,68 @@ public class ShellProcessHandler {
 
         ShellResponse response = new ShellResponse();
         response.code = -1;
+        if (description == null) {
+            response.setDescription(command);
+        } else {
+            response.description = description;
+        }
 
         File tempOutputFile = null;
         File tempErrorFile = null;
+        long startMs = 0;
         try {
             tempOutputFile = File.createTempFile("shell_process_out", "tmp");
             tempErrorFile = File.createTempFile("shell_process_err", "tmp");
             pb.redirectOutput(tempOutputFile);
             pb.redirectError(tempErrorFile);
+            startMs = System.currentTimeMillis();
+            LOG.info("Starting proc (abbrev cmd) - {}", response.description);
+            String fullCommand = "'" + String.join("' '", command) + "'";
+            if (appConfig.getBoolean("yb.log.logEnvVars", false) && extraEnvVars != null) {
+                fullCommand = Joiner.on(" ").withKeyValueSeparator("=").join(extraEnvVars) +
+                                fullCommand;
+            }
+            LOG.debug("Starting proc (full cmd) - {} - logging stdout={}, stderr={}",
+                fullCommand, tempOutputFile.getAbsolutePath(),
+                tempErrorFile.getAbsolutePath());
             Process process = pb.start();
-            response.code = process.waitFor();
-            String processOutput = fetchStream(new FileInputStream(tempOutputFile), logCmdOutput);
-            String processError = fetchStream(new FileInputStream(tempErrorFile), logCmdOutput);
+            String processOutput = "";
+            String processError = "";
+            StringBuilder outSb = new StringBuilder();
+            StringBuilder errSb = new StringBuilder();
+            BufferedReader outputStream = new BufferedReader(
+                new InputStreamReader(new FileInputStream(tempOutputFile)));
+            BufferedReader errorStream = new BufferedReader(
+                new InputStreamReader(new FileInputStream(tempErrorFile)));
+            while (!process.waitFor(1, TimeUnit.SECONDS)) {
+                appendStream(outputStream, outSb, logCmdOutput);
+                appendStream(errorStream, errSb, logCmdOutput);
+            }
+            appendStream(outputStream, outSb, logCmdOutput);
+            appendStream(errorStream, errSb, logCmdOutput);
+            outputStream.close();
+            errorStream.close();
+            processOutput = outSb.toString().trim();
+            processError = errSb.toString().trim();
+            if (logCmdOutput) {
+                LOG.debug("Proc stdout | " + processOutput);
+                LOG.debug("Proc stderr | " + processError);
+            }
+
+            response.code = process.exitValue();
             response.message = (response.code == 0) ? processOutput : processError;
         } catch (IOException | InterruptedException e) {
-            LOG.error(e.getMessage());
+            response.code = -1;
+            LOG.error("Exception running command", e);
             response.message = e.getMessage();
         } finally {
+            if (startMs > 0) {
+                response.durationMs = System.currentTimeMillis() - startMs;
+            }
+            String status = (0 == response.code) ? "success" :
+                            ("failure code=" + Integer.toString(response.code));
+            LOG.info("Completed proc '{}' status={} [ {} ms ]",
+                    response.description, status, response.durationMs);
             if (tempOutputFile != null && tempOutputFile.exists()) {
                 tempOutputFile.delete();
             }
@@ -92,24 +138,26 @@ public class ShellProcessHandler {
         return run(command, extraEnvVars, true /*logCommandOutput*/);
     }
 
-    private static String fetchStream(
-        InputStream inputStream,
+    public ShellResponse run(
+        List<String> command,
+        Map<String, String> extraEnvVars,
+        String description) {
+        return run(command, extraEnvVars, true /*logCommandOutput*/, description);
+    }
+
+    private static void appendStream(
+        BufferedReader br,
+        StringBuilder sb,
         boolean logCmdOutput) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        BufferedReader br = null;
-        try {
-            br = new BufferedReader(new InputStreamReader(inputStream));
-            String line = null;
-            while ((line = br.readLine()) != null) {
-                sb.append(line + System.lineSeparator());
-                if (logCmdOutput) {
+
+        String line = null;
+        while ((line = br.readLine()) != null) {
+            sb.append(line + System.lineSeparator());
+            if (logCmdOutput) {
+                if (line.contains("[app]")) {
                     LOG.info(line);
                 }
             }
-        } finally {
-            br.close();
-            inputStream.close();
         }
-        return sb.toString().trim();
     }
 }

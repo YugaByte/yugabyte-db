@@ -40,8 +40,8 @@ dd {
   color: $YB_DARK;
 
   h1, h2, h3, h4 {
-    font-family: 'Rubik', sans-serif !important;
     color: $YB_DARK_BLUE !important;
+    font-weight: 600;
     letter-spacing: -.02em;
     line-height: 36px;
     position: relative;
@@ -51,8 +51,7 @@ dd {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
     margin: 26px 0 0;
-    font-size: 40px;
-    font-weight: 500;
+    font-size: 36px;
     letter-spacing: -.02em;
     @media only screen and (max-width: 767px) {
       font-size: 28px;
@@ -61,7 +60,6 @@ dd {
   h2 {
     z-index: 1005;
     font-size: 28px;
-    font-weight: 500;
     letter-spacing: -.02em;
     margin-top: -52px;
     padding-top: 100px !important;
@@ -162,10 +160,9 @@ dd {
     color: #F0F9FF;
     background-color: #35A3FF;
     border-radius: 4px;
-    font-family: 'Inter', sans-serif;
     font-weight: 500;
     text-transform: uppercase;
-    font-size: 14px;
+    font-size: 16px;
     line-height: 30px;
     text-align: center;
     vertical-align: middle;
@@ -186,7 +183,8 @@ dd {
     text-align: left;
 
     a {
-      border-bottom: none !important;
+      padding-bottom: 2px;
+      color: $YB_ORANGE;
     }
   }
 
@@ -221,12 +219,23 @@ dd {
 
   a {
     border-bottom: 1px dashed;
-    color: $YB_ORANGE;
+    color: $YB_DARK_ORANGE_2;
+
+    .link-external-icon {
+      display: none;
+      margin-left: 5px;
+      font-size: 11px;
+      margin-bottom: 2px;
+    }
 
     &:hover {
       color: $YB_ORANGE;
       border-bottom-style: solid;
       text-decoration: none !important;
+
+      .link-external-icon {
+        display: inline-block;
+      }
     }
 
     &.headerlink {
@@ -468,9 +477,8 @@ h1, h2, h3, h4, h5, h6 {
     }
   }
   > ul > li > a {
-    font-family: 'Rubik', sans-serif;
     font-size: 16px;
-    font-weight: 500;
+    font-weight: 600;
   }
   .node-toggle {
     position: relative;
@@ -547,7 +555,7 @@ h1, h2, h3, h4, h5, h6 {
       > a.node-toggle {
         text-transform: uppercase;
         font-size: 15px;
-        font-weight: 500;
+        font-weight: 600;
         line-height: 36px !important;
         display: block;
         margin-left: -35px;
@@ -654,45 +662,83 @@ h1, h2, h3, h4, h5, h6 {
     padding: 0 3px;
     font-size: 16px;
     border-radius: 4px;
-    background: $YB_LIGHT_GRAY;
+    background: $YB_BLUE_GRAY;
     border: 1px solid #DEE0EA;
     line-height: 1;
+    color: $YB_NAVY_BLUE;
   }
 
-  a > code {
-    /* Prevent underscore from being hidden by codeblock */
-    margin-bottom: 2px;
-  }
   h1, h2, h3, h4, h5, h6 {
     code {
       font-size: inherit;
     }
   }
-}
 
-.article pre code {
-  display: block;
-  width: 100% !important;
-  line-height: 1.5;
+  .admonition-title, .admonition .title {
+
+    &::before {
+      position: relative;
+      top: -4px;
+    }
+  }
+  .admonition a {
+    font-weight: 700;
+  }
   
-  border-radius: 7px;
-  padding: 12px 20px;
-  margin: 0;
-  background: $YB_LIGHT_GRAY;
-  border-color: #DEE0EA;
-  white-space: pre !important;
-  word-wrap: normal;
-  word-break: keep-all;
-}
-.article pre code .hljs-comment {
-  color: #afb5c7;
+  table {
+    box-shadow: none;
+    overflow: initial;
+
+    th {
+      color: #FF6E42;
+      font-weight: 600;
+      font-size: 16px;
+      border-bottom: 2px solid #FF6E42;
+      background: unset !important;
+      font-variant-caps: all-small-caps;
+      padding-bottom: 6px;
+    }
+
+    tbody {
+      border-bottom: 1px solid $YB_GRAY;
+      border-right: 1px solid $YB_GRAY;
+      border-left: 1px solid $YB_GRAY;
+    }
+
+    td {
+      border-top: 1px solid $YB_GRAY;
+    }
+  }
+
+  a > code {
+    /* Prevent underscore from being hidden by codeblock */
+    margin: 0 0 2px;
+  }
+
+  pre code {
+    display: block;
+    width: 100% !important;
+    line-height: 1.5;
+
+    border-radius: 7px;
+    padding: 12px 20px;
+    margin: 0;
+    background: $YB_LIGHT_GRAY;
+    border-color: #DEE0EA;
+    white-space: pre !important;
+    word-wrap: normal;
+    word-break: keep-all;
+  }
+  pre code .hljs-comment {
+    color: #afb5c7;
+  }
 }
 
 .article .admonition {
   margin: 20px 0px 0 0;
   padding: 25px 32px 30px;
   border-radius: 7px;
-  background: $YB_GRAY;
+  background: $YB_LIGHT_GRAY_2;
   position: relative;
   overflow: hidden;
   color: inherit;
@@ -742,20 +788,6 @@ h1, h2, h3, h4, h5, h6 {
       content: none;
     }
   }
-}
-.article .admonition-title, .article .admonition .title {
-
-  &::before {
-    position: relative;
-    top: -4px;
-  }
-}
-.article .admonition a {
-  font-weight: 700;
-}
-
-.article table th {
-  background: $YB_DARK_BLUE !important;
 }
 
 .header {
@@ -1179,10 +1211,6 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-.nav-bar.scrolled .navbar-text .download-btn {
-  color: white !important;
-}
-
 .rrdiagram .connector {
   fill:none;
   stroke:#222222;
@@ -1288,8 +1316,7 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .caption {
-    font-family: "Inter", sans-serif;
-    font-size: 14px;
+    font-size: 16px;
     color: $YB_DARK_BLUE;
   }
   .icon {
@@ -1343,9 +1370,6 @@ table code {
   }
   ul {
     margin-top: 0 !important;
-    font-size: 13px;
-    font-weight: 400;
-    font-family: "Inter", sans-serif;
 
     li {
       margin-top: 12px !important;

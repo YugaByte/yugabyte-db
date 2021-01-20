@@ -1277,19 +1277,19 @@ gethms(char const *string, char const *errstring)
 			break;
 		case 8:
 			ok = '0' <= xr && xr <= '9';
-			/* fallthrough */
+			switch_fallthrough();
 		case 7:
 			ok &= ssx == '.';
 			if (ok && noise)
 				warning(_("fractional seconds rejected by"
 						  " pre-2018 versions of zic"));
-			/* fallthrough */
+			switch_fallthrough();
 		case 5:
 			ok &= mmx == ':';
-			/* fallthrough */
+			switch_fallthrough();
 		case 3:
 			ok &= hhx == ':';
-			/* fallthrough */
+			switch_fallthrough();
 		case 1:
 			break;
 	}

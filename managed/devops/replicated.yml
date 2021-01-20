@@ -1,0 +1,366 @@
+# Copyright 2020 YugaByte, Inc. and Contributors
+#
+# Licensed under the Polyform Free Trial License 1.0.0 (the "License"); you
+# may not use this file except in compliance with the License. You
+# may obtain a copy of the License at
+#
+# https://github.com/YugaByte/yugabyte-db/blob/master/licenses/POLYFORM-FREE-TRIAL-LICENSE-1.0.0.txt
+---
+replicated_api_version: "2.8.0"
+name: "yugaware"
+properties:
+  app_url: '{{repl if ConfigOptionEquals "https_enabled" "1"}}https://{{repl else}}http://{{repl end}}{{repl ConfigOption "hostname"}}{{repl if and (ConfigOptionNotEquals "nginx_external_port" "80") (ConfigOptionNotEquals "nginx_external_port" "443")}}:{{repl ConfigOption "nginx_external_port"}}{{repl end}}'
+  logo_url: https://s3-us-west-2.amazonaws.com/assets.yugabyte.com/yb-logo.png
+  console_title: YugaByte Data Platform
+backup:
+  enabled: false
+monitors:
+  cpuacct: []
+  memory: []
+cmds:
+  - name: dbpass_cmd
+    cmd: random
+    args:
+      - "16"
+      - "[A-Za-z0-9]"
+  - name: app_secret
+    cmd: random
+    args:
+      - "64"
+      - "[A-Za-z0-9]"
+  - name: storage_path_cmd
+    cmd: echo
+    args:
+      - "/opt/yugabyte"
+  - name: host_ip
+    cmd: publicip
+
+components:
+  - name: db
+    containers:
+      - source: public
+        image_name: postgres
+        name: postgres
+        version: 9.6
+        env_vars:
+          - name: POSTGRES_DB
+            static_val: 'yugaware'
+          - name: POSTGRES_USER
+            static_val: 'postgres'
+          - name: POSTGRES_PASSWORD
+            static_val: '{{repl ConfigOption "dbpass"}}'
+          - name: PGDATA
+            static_val: '/var/lib/postgresql/data/yugaware'
+        ports:
+          - private_port: "5432"
+            public_port: "5432"
+        volumes:
+          - host_path: '{{repl ConfigOption "storage_path"}}/postgresql'
+            container_path: /var/lib/postgresql/data
+            owner: 999
+        publish_events:
+          - name: Postgres started
+            trigger: exec
+            args: ["psql", "-U", "postgres", "-f", "/home/update_password.sql"]
+            subscriptions:
+              - component: app
+                container: yugabyte/yugaware
+                action: start
+        config_files:
+          - filename: /home/update_password.sql
+            contents: |
+              ALTER USER postgres WITH PASSWORD '{{repl ConfigOption "dbpass"}}';
+
+  - name: prometheus
+    containers:
+      - source: public
+        name: prometheus
+        image_name: prom/prometheus
+        version: v2.2.1
+        volumes:
+          - host_path: '{{repl ConfigOption "storage_path"}}/prometheusv2'
+            container_path: /prometheus
+            permission: "0777"
+          - host_path: '{{repl ConfigOption "storage_path"}}/yugaware/swamper_targets'
+            container_path: /opt/yugabyte/prometheus/targets
+        ports:
+          - private_port: "9090"
+            public_port: "9090"
+        cmd: '["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention={{repl ConfigOption \"prometheus_retention\"}}", "--web.enable-admin-api"]'
+        publish_events:
+          - name: Prometheus started
+            trigger: container-start
+            subscriptions:
+              - component: db
+                container: postgres
+                action: start
+        config_files:
+          - filename: /etc/prometheus/prometheus.yml
+            contents: |
+              global:
+                  scrape_interval:     {{repl ConfigOption "prometheus_scrape_interval"}}
+                  evaluation_interval: {{repl ConfigOption "prometheus_scrape_interval"}}
+                  external_labels:
+                      monitor: 'swamper'
+              scrape_configs:
+                - job_name: 'prometheus'
+                  scrape_interval: {{repl ConfigOption "prometheus_scrape_interval"}}
+                  scrape_timeout:  {{repl ConfigOption "prometheus_scrape_timeout"}}
+                  static_configs:
+                      - targets: ['{{repl HostPrivateIpAddress "prometheus" "prom/prometheus" }}:9090']
+                - job_name: "node"
+                  file_sd_configs:
+                    - files:
+                      - '/opt/yugabyte/prometheus/targets/node.*.json'
+                  metric_relabel_configs:
+                    # Save the name of the metric so we can group_by since we cannot by __name__ directly...
+                    - source_labels: ["__name__"]
+                      regex: "(.*)"
+                      target_label: "saved_name"
+                      replacement: "$1"
+
+                - job_name: "yugabyte"
+                  metrics_path: "/prometheus-metrics"
+                  file_sd_configs:
+                    - files:
+                      - '/opt/yugabyte/prometheus/targets/yugabyte.*.json'
+                  metric_relabel_configs:
+                    # Save the name of the metric so we can group_by since we cannot by __name__ directly...
+                    - source_labels: ["__name__"]
+                      regex: "(.*)"
+                      target_label: "saved_name"
+                      replacement: "$1"
+                    # The following basically retrofit the handler_latency_* metrics to label format.
+                    - source_labels: ["__name__"]
+                      regex: "handler_latency_(yb_[^_]*)_([^_]*)_([^_]*)(.*)"
+                      target_label: "server_type"
+                      replacement: "$1"
+                    - source_labels: ["__name__"]
+                      regex: "handler_latency_(yb_[^_]*)_([^_]*)_([^_]*)(.*)"
+                      target_label: "service_type"
+                      replacement: "$2"
+                    - source_labels: ["__name__"]
+                      regex: "handler_latency_(yb_[^_]*)_([^_]*)_([^_]*)(_sum|_count)?"
+                      target_label: "service_method"
+                      replacement: "$3"
+                    - source_labels: ["__name__"]
+                      regex: "handler_latency_(yb_[^_]*)_([^_]*)_([^_]*)(_sum|_count)?"
+                      target_label: "__name__"
+                      replacement: "rpc_latency$4"
+
+  - name: app
+    containers:
+      - source: yugabyte
+        name: yugaware
+        image_name: yugabyte/yugaware
+        version: "YUGABYTE_RELEASE_VERSION"
+        volumes:
+          - host_path: '{{repl ConfigOption "storage_path"}}/yugaware/swamper_targets'
+            container_path: /opt/yugabyte/prometheus/targets
+          - host_path: '{{repl ConfigOption "storage_path"}}/yugaware/data'
+            container_path: /opt/yugabyte/yugaware/data
+          - host_path: '{{repl ConfigOption "storage_path"}}/releases'
+            container_path: /opt/yugabyte/releases
+          - host_path: '{{repl ConfigOption "storage_path"}}/prometheusv2'
+            container_path: /prometheus
+        env_vars:
+          - name: JAVA_OPTS
+            static_val: '-XX:PermSize=1024m -XX:MaxPermSize=1024m'
+        ports:
+          - private_port: "9000"
+            public_port: "9000"
+        publish_events:
+          - name: YugaWare started
+            trigger: container-start
+            subscriptions:
+              - component: nginx
+                container: nginx
+                action: start
+        config_files:
+          - filename: /opt/yugabyte/yugaware/conf/application.docker.conf
+            contents: |
+              include classpath("application.common.conf")
+              play.crypto.secret="{{repl ConfigOption "app_secret"}}"
+              play.i18n.langs = [ "en" ]
+              pidfile.path = "/dev/null"
+              play.evolutions.enabled = false
+              play.modules.enabled += "org.flywaydb.play.PlayModule"
+
+              db {
+                default.host="{{repl HostPrivateIpAddress "db" "postgres" }}"
+                default.username="postgres"
+                default.password="{{repl ConfigOption "dbpass"}}"
+                default.logStatements=true
+                default.migration.initOnMigrate=true
+                default.migration.auto=true
+              }
+              ebean {
+                default = ["com.yugabyte.yw.models.*"]
+              }
+
+              play.modules.enabled += "org.flywaydb.play.PlayModule"
+
+              play.filters {
+                # CSRF config
+                csrf {
+                  cookie {
+                    # If non null, the CSRF token will be placed in a cookie with this name
+                    name = "csrfCookie"
+                    # Whether the cookie should be set to secure
+                    secure = false
+                    # Whether the cookie should have the HTTP only flag set
+                    httpOnly = false
+                  }
+                  # Whether to bypass CSRF check if CORS check is satisfied
+                  bypassCorsTrustedOrigins = false
+                  header {
+                    # The name of the header to accept CSRF tokens from.
+                    name = "Csrf-Token"
+                  }
+                }
+                # CORS config
+                cors {
+                  pathPrefixes = ["/"]
+                  allowedOrigins = ["{{repl if ConfigOptionEquals "https_enabled" "1"}}https://{{repl else}}http://{{repl end}}{{repl ConfigOption "hostname"}}"]
+                  supportsCredentials=true
+                  allowedHttpMethods = ["GET", "POST", "PUT", "OPTIONS", "DELETE"]
+                  allowedHttpHeaders = ["Accept", "Origin", "Content-Type", "X-Auth-Token", "X-AUTH-YW-API-TOKEN", ${play.filters.csrf.header.name}]
+                }
+              }
+
+              yb {
+                devops.home = /opt/yugabyte/devops
+                metrics.host="{{repl HostPrivateIpAddress "prometheus" "prom/prometheus" }}"
+                storage.path = /opt/yugabyte/yugaware/data
+                docker.network = bridge
+                seedData = false
+                swamper.targetPath = /opt/yugabyte/prometheus/targets
+                multiTenant = false
+                releases.path = "/opt/yugabyte/releases"
+                docker.release = "/opt/yugabyte/release"
+                thirdparty.packagePath = /opt/third-party
+                helm.package = "/opt/yugabyte/helm/yugabyte-latest.tgz"
+                health.check_interval_ms = 300000
+                health.status_interval_ms = 43200000
+                health.default_email = "YB_ALERTS_EMAIL_REPLACE"
+                health.ses_email_username = "YB_ALERTS_USERNAME_REPLACE"
+                health.ses_email_password = "YB_ALERTS_PASSWORD_REPLACE"
+              }
+
+  - name: nginx
+    containers:
+      - source: public
+        image_name: nginx
+        name: nginx
+        version: 1.13.1
+        cmd: ""
+        publish_events:
+          - name: Container nginx started
+            trigger: container-start
+            data: ""
+            subscriptions: []
+        volumes_from: [yugaware]
+        customer_files: []
+        config_files:
+          - filename: /opt/certs/server.key
+            contents: '{{repl ConsoleSetting "tls.key.data"}}'
+          - filename: /opt/certs/server.cert
+            contents: '{{repl ConsoleSetting "tls.cert.data"}}'
+          - filename: /etc/nginx/conf.d/default.conf
+            contents: |
+              server {
+                {{repl if ConfigOptionEquals "https_enabled" "1"}}
+                  listen       443 ssl;
+                  server_name  {{repl ConfigOption "hostname" }};
+
+                  ssl_certificate /opt/certs/server.cert;
+                  ssl_certificate_key /opt/certs/server.key;
+                {{repl else}}
+                  listen       80;
+                  server_name  {{repl ConfigOption "hostname" }};
+                {{repl end}}
+
+                proxy_http_version 1.1;
+                proxy_set_header X-Real-IP  $remote_addr;
+                proxy_set_header X-Forwarded-For $remote_addr;
+                proxy_set_header Host $host;
+
+                location / {
+                  proxy_pass http://{{repl HostPrivateIpAddress "app" "yugabyte/yugaware" }}:{{repl ContainerExposedPort "app" "yugabyte/yugaware" "9000" }};
+                }
+              }
+        ports:
+          - private_port: '{{repl if ConfigOptionEquals "https_enabled" "1"}}443{{repl else}}80{{repl end}}'
+            public_port: '{{repl if ConfigOptionEquals "https_enabled" "1"}}443{{repl else}}80{{repl end}}'
+            port_type: tcp
+            when: '{{repl or (ConfigOptionEquals "nginx_external_port" "80") (ConfigOptionEquals "nginx_external_port" "443")}}'
+          - private_port: '{{repl if ConfigOptionEquals "https_enabled" "1"}}443{{repl else}}80{{repl end}}'
+            public_port: '{{repl ConfigOption "nginx_external_port" }}'
+            port_type: tcp
+            when: '{{repl and (ConfigOptionNotEquals "nginx_external_port" "80") (ConfigOptionNotEquals "nginx_external_port" "443")}}'
+config:
+  - name: database
+    title: Database config
+    description: Configure your postgres database
+    items:
+      - name: dbpass
+        title: Password
+        type: text
+        required: true
+        value_cmd:
+          name: dbpass_cmd
+          value_at: 0
+  - name: app
+    title: Application config
+    description: Configure your yugaware application
+    items:
+      - name: app_secret
+        title: Application Secret
+        type: text
+        hidden: true
+        readonly: true
+        default_cmd:
+          name: app_secret
+          value_at: 0
+      - name: storage_path
+        title: Storage Path
+        type: text
+        value_cmd:
+          name: storage_path_cmd
+          value_at: 0
+      - name: hostname
+        title: Hostname
+        type: text
+        recommended: false
+        default: '{{repl ConsoleSetting "tls.hostname"}}'
+        value_cmd:
+          name: host_ip
+          value_at: 0
+        required: true
+      - name: nginx_external_port
+        title: Yugaware UI Port
+        type: text
+        value: ""
+        default: "80"
+      - name: https_enabled
+        title: Enable HTTPS
+        help_text: When enabled we will listen to https
+        type: bool
+        default: "0"
+
+  - name: metrics
+    title: Metrics config
+    description: Configure your yugabyte metrics
+    items:
+      - name: prometheus_retention
+        title: Amount of time to retain the metrics, default to 15 days
+        type: text
+        default: "15d"
+      - name: prometheus_scrape_interval
+        title: How frequently we want to scrape data, default to 10 seconds
+        type: text
+        default: "10s"
+      - name: prometheus_scrape_timeout
+        title: How long until a scrape request times out, default to 10 seconds
+        type: text
+        default: "10s"

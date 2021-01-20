@@ -56,20 +56,20 @@ Specify the name of the user-defined type to drop.
 
 Simple example
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TYPE feature_struct AS (id INTEGER, name TEXT);
 yugabyte=# DROP TYPE feature_struct;
 ```
 
 `IF EXISTS` example
 
-```postgresql
+```plpgsql
 yugabyte=# DROP TYPE IF EXISTS feature_shell;
 ```
 
 `CASCADE` example
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TYPE feature_enum AS ENUM ('one', 'two', 'three');
 yugabyte=# CREATE TABLE feature_tab_enum (feature_col feature_enum);
 yugabyte=# DROP TYPE feature_tab_enum CASCADE;
@@ -77,7 +77,7 @@ yugabyte=# DROP TYPE feature_tab_enum CASCADE;
 
 `RESTRICT` example
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TYPE feature_range AS RANGE (subtype=INTEGER);
 yugabyte=# CREATE TABLE feature_tab_range (feature_col feature_range);
 yugabyte=# -- The following should error:

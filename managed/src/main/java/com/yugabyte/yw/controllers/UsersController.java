@@ -164,6 +164,9 @@ public class UsersController extends AuthenticatedController {
     }
     if (request().getQueryString("role") != null) {
         String role = request().getQueryString("role");
+        if (Role.SuperAdmin == user.getRole()) {
+          return ApiResponse.error(BAD_REQUEST, "Can't change super admin role.");
+        }
         try {
           user.setRole(Role.valueOf(role));
           user.save();
@@ -220,6 +223,7 @@ public class UsersController extends AuthenticatedController {
       }
       if (configFile == null) {
         user.setFeatures(Json.newObject());
+        user.save();
         return;
       }
       InputStream featureStream = environment.resourceAsStream(configFile);

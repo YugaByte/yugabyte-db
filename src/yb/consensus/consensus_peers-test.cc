@@ -117,9 +117,9 @@ class ConsensusPeersTest : public YBTest {
         raft_pool_->NewToken(ThreadPool::ExecutionMode::SERIAL)));
     message_queue_->RegisterObserver(consensus_.get());
 
-    message_queue_->Init(MinimumOpId());
-    message_queue_->SetLeaderMode(MinimumOpId(),
-                                  MinimumOpId().term(),
+    message_queue_->Init(OpId::Min());
+    message_queue_->SetLeaderMode(OpId::Min(),
+                                  OpId().term,
                                   OpId::Min(),
                                   BuildRaftConfigPBForTests(3));
   }
@@ -262,9 +262,9 @@ TEST_F(ConsensusPeersTest, TestRemotePeers) {
   remote_peer2_proxy->DelayResponse();
 
   // Append one message to the queue.
-  OpIdPB first = MakeOpId(0, 1);
+  OpId first(0, 1);
 
-  AppendReplicateMessagesToQueue(message_queue_.get(), clock_, first.index(), 1);
+  AppendReplicateMessagesToQueue(message_queue_.get(), clock_, first.index, 1);
 
   ASSERT_OK(remote_peer1->SignalRequest(RequestTriggerMode::kNonEmptyOnly));
   ASSERT_OK(remote_peer2->SignalRequest(RequestTriggerMode::kNonEmptyOnly));
@@ -272,7 +272,7 @@ TEST_F(ConsensusPeersTest, TestRemotePeers) {
   // Now wait for the message to be replicated, this should succeed since
   // majority = 2 and only one peer was delayed. The majority is made up
   // of remote-peer1 and the local log.
-  consensus_->WaitForMajorityReplicatedIndex(first.index());
+  consensus_->WaitForMajorityReplicatedIndex(first.index);
 
   SCOPED_TRACE(Format(
       "Written to log locally: $0, Received by peer1: {$1}, by peer2: {$2}",
@@ -280,14 +280,14 @@ TEST_F(ConsensusPeersTest, TestRemotePeers) {
       remote_peer1_proxy->proxy()->last_received(),
       remote_peer2_proxy->proxy()->last_received()));
 
-  CheckLastLogEntry(first.term(), first.index());
-  CheckLastRemoteEntry(remote_peer1_proxy, first.term(), first.index());
+  CheckLastLogEntry(first.term, first.index);
+  CheckLastRemoteEntry(remote_peer1_proxy, first.term, first.index);
 
   remote_peer2_proxy->Respond(TestPeerProxy::kUpdate);
   // Wait until all peers have replicated the message, otherwise
   // when we add the next one remote_peer2 might find the next message
   // in the queue and will replicate it, which is not what we want.
-  while (!OpIdEquals(message_queue_->GetAllReplicatedIndexForTests(), first)) {
+  while (message_queue_->TEST_GetAllReplicatedIndex() != first) {
     std::this_thread::sleep_for(1ms);
   }
 

@@ -1,0 +1,21 @@
+# Copyright 2020 YugaByte, Inc. and Contributors
+#
+# Licensed under the Polyform Free Trial License 1.0.0 (the "License"); you
+# may not use this file except in compliance with the License. You
+# may obtain a copy of the License at
+#
+# https://github.com/YugaByte/yugabyte-db/blob/master/licenses/POLYFORM-FREE-TRIAL-LICENSE-1.0.0.txt
+
+- name: Get the primary group if user already exists
+  shell: "id -gn {{ node_exporter_user }}"
+  register: user_group
+  ignore_errors: True
+  failed_when: False
+
+- set_fact:
+    node_exporter_group: "prometheus"
+  when: user_group.rc != 0
+
+- set_fact:
+    node_exporter_group: "{{ user_group.stdout }}"
+  when: user_group.rc == 0

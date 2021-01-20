@@ -43,6 +43,7 @@ import com.yugabyte.yw.common.FakeDBApplication;
 import com.yugabyte.yw.common.ModelFactory;
 import com.yugabyte.yw.common.NetworkManager;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.common.TemplateManager;
 import com.yugabyte.yw.common.TestHelper;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
@@ -686,14 +687,14 @@ public class CloudProviderControllerTest extends FakeDBApplication {
   }
 
   private void mockDnsManagerListSuccess(String mockDnsName) {
-    ShellProcessHandler.ShellResponse shellResponse =  new ShellProcessHandler.ShellResponse();
+    ShellResponse shellResponse =  new ShellResponse();
     shellResponse.message = "{\"name\": \"" + mockDnsName + "\"}";
     shellResponse.code = 0;
     when(mockDnsManager.listDnsRecord(any(), any())).thenReturn(shellResponse);
   }
 
   private void mockDnsManagerListFailure(String mockFailureMessage, int successCode) {
-    ShellProcessHandler.ShellResponse shellResponse =  new ShellProcessHandler.ShellResponse();
+    ShellResponse shellResponse =  new ShellResponse();
     shellResponse.message = "{\"wrong_key\": \"" + mockFailureMessage + "\"}";
     shellResponse.code = successCode;
     when(mockDnsManager.listDnsRecord(any(), any())).thenReturn(shellResponse);

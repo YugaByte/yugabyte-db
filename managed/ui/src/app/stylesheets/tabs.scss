@@ -1,7 +1,7 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../_style/colors.scss";
-@import "../../_style/mixins.scss";
+@import '../../_style/colors.scss';
+@import '../../_style/mixins.scss';
 
 .nav-tabs {
   border-bottom: none;
@@ -14,7 +14,7 @@
       text-align: center;
       color: #555;
       border: 1px solid $YB_GRAY;
-      background-color: rgba($YB_GRAY_HOVER, .7);
+      background-color: rgba($YB_GRAY_HOVER, 0.7);
       margin-right: 7px;
       @include transition(0.35s);
 
@@ -34,7 +34,9 @@
     }
     &.active {
       > a {
-        &, &:focus, &:hover {
+        &,
+        &:focus,
+        &:hover {
           margin-top: 0;
           background-color: white;
           border: 1px solid $YB_GRAY_HOVER;
@@ -61,7 +63,8 @@
   background-color: #fff;
   min-height: 400px;
   height: 100%;
-  box-shadow: 0 0.12em 2px rgba($YB_DARK_GRAY_2, 0.05), 0 0.5em 10px rgba($YB_DARK_GRAY_2, 0.07), 0 -0.05em 0.15em rgba($YB_DARK_GRAY_2, 0.07);
+  box-shadow: 0 0.12em 2px rgba($YB_DARK_GRAY_2, 0.05), 0 0.5em 10px rgba($YB_DARK_GRAY_2, 0.07),
+    0 -0.05em 0.15em rgba($YB_DARK_GRAY_2, 0.07);
   border: none;
   border-radius: 0 0 7px 7px;
   .x_title {

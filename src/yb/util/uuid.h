@@ -48,7 +48,7 @@ class Uuid {
 
   Uuid();
 
-  explicit Uuid(boost::uuids::uuid boost_uuid) : boost_uuid_(boost_uuid) {}
+  explicit Uuid(const boost::uuids::uuid& boost_uuid) : boost_uuid_(boost_uuid) {}
 
   explicit Uuid(const uuid_t copy);
 
@@ -68,7 +68,9 @@ class Uuid {
   std::string ToString() const;
 
   // Fills in the given string with the raw bytes for the appropriate address in network byte order.
-  CHECKED_STATUS ToBytes(std::string* bytes) const;
+  void ToBytes(std::string* bytes) const;
+  void ToBytes(std::array<uint8_t, kUuidSize>* out) const;
+  Slice AsSlice() const;
 
   // Encodes the UUID into the time comparable uuid to be stored in RocksDB.
   void EncodeToComparable(uint8_t* output) const;
@@ -81,6 +83,8 @@ class Uuid {
   // Given a string representation of uuid in hex where the bytes are in host byte order, build
   // an appropriate UUID object.
   CHECKED_STATUS FromHexString(const std::string& hex_string);
+
+  std::string ToHexString() const;
 
   // Decodes the Comparable UUID bytes into a lexical UUID.
   CHECKED_STATUS DecodeFromComparable(const std::string& bytes);

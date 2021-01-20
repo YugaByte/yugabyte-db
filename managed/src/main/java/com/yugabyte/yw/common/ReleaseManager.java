@@ -106,7 +106,7 @@ public class ReleaseManager {
         releases.put(version, ReleaseMetadata.fromLegacy(version, metadata));
       }
     });
-    
+
     return releases;
   }
 

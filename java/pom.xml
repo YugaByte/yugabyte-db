@@ -85,7 +85,7 @@
     <!-- Library dependencies -->
     <async.version>1.4.1</async.version>
     <cassandra-driver-core.version>3.8.0-yb-5</cassandra-driver-core.version>
-    <spark-cassandra-connector.version>2.4-yb-2</spark-cassandra-connector.version>
+    <spark-cassandra-connector.version>2.4-yb-3</spark-cassandra-connector.version>
     <lz4.version>1.3.0</lz4.version>
     <snappy.version>1.1.4</snappy.version>
     <commons-cli.version>1.2</commons-cli.version>
@@ -128,6 +128,7 @@
     <module>yb-client</module>
     <module>yb-cli</module>
     <module>yb-cql</module>
+    <module>yb-cql-4x</module>
     <module>yb-pgsql</module>
     <module>yb-loadtester</module>
     <module>yb-jedis-tests</module>
@@ -341,7 +342,7 @@
       <dependency>
         <groupId>org.yb</groupId>
         <artifactId>yb-client</artifactId>
-        <version>${project.version}</version>
+        <version>0.8.2-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>org.yb</groupId>
@@ -488,7 +489,7 @@
       <dependency>
         <groupId>org.yb</groupId>
         <artifactId>yb-client</artifactId>
-        <version>${project.version}</version>
+        <version>0.8.2-SNAPSHOT</version>
         <type>test-jar</type>
       </dependency>
       <dependency>

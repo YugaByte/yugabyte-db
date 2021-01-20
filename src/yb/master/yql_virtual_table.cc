@@ -18,17 +18,34 @@
 #include "yb/master/catalog_manager.h"
 #include "yb/master/ts_manager.h"
 #include "yb/master/yql_vtable_iterator.h"
+
+#include "yb/util/metrics.h"
 #include "yb/util/shared_lock.h"
 
 namespace yb {
 namespace master {
 
+namespace  {
+static const char* const kBaseMetricDescription = "Time spent querying YCQL system table: ";
+static const char* const kMetricPrefixName = "ycql_queries_";
+}
+
 YQLVirtualTable::YQLVirtualTable(const TableName& table_name,
+                                 const NamespaceName &namespace_name,
                                  const Master* const master,
                                  const Schema& schema)
     : master_(master),
       table_name_(table_name),
       schema_(schema) {
+    std::string metricDescription = kBaseMetricDescription + table_name_;
+    std::string metricName = kMetricPrefixName + namespace_name + "_" + table_name;
+    EscapeMetricNameForPrometheus(&metricName);
+
+    std::unique_ptr<HistogramPrototype> prototype = std::make_unique<OwningHistogramPrototype>(
+                "server", metricName, metricDescription,
+                MetricUnit::kMicroseconds, metricDescription,
+                MetricLevel::kInfo, 0, 10000000, 2);
+    histogram_ = master->metric_entity()->FindOrCreateHistogram(std::move(prototype));
 }
 
 CHECKED_STATUS YQLVirtualTable::GetIterator(
@@ -46,8 +63,10 @@ CHECKED_STATUS YQLVirtualTable::GetIterator(
   CatalogManager::ScopedLeaderSharedLock l(master_->catalog_manager());
   RETURN_NOT_OK(l.first_failed_status());
 
+  MonoTime start_time = MonoTime::Now();
   iter->reset(new YQLVTableIterator(
       VERIFY_RESULT(RetrieveData(request)), request.hashed_column_values()));
+  histogram_->Increment(MonoTime::Now().GetDeltaSince(start_time).ToMicroseconds());
   return Status::OK();
 }
 

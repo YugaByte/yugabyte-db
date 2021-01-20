@@ -370,6 +370,7 @@ CNStoBIG5(unsigned short cns, unsigned char lc)
 				if (b1c4[i][1] == cns)
 					return b1c4[i][0];
 			}
+			switch_fallthrough();
 		default:
 			break;
 	}

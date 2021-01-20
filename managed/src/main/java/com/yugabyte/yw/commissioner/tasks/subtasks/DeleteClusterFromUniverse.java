@@ -10,25 +10,20 @@
 
 package com.yugabyte.yw.commissioner.tasks.subtasks;
 
-import java.util.Set;
 import java.util.UUID;
 
-import com.yugabyte.yw.commissioner.AbstractTaskBase;
-import com.yugabyte.yw.commissioner.SubTaskGroup;
-import com.yugabyte.yw.forms.AbstractTaskParams;
+import com.yugabyte.yw.commissioner.tasks.UniverseTaskBase;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
-import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
+import com.yugabyte.yw.forms.UniverseTaskParams;
 import com.yugabyte.yw.models.Universe;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DeleteClusterFromUniverse extends AbstractTaskBase {
+public class DeleteClusterFromUniverse extends UniverseTaskBase {
   public static final Logger LOG = LoggerFactory.getLogger(DeleteClusterFromUniverse.class);
 
-  public static class Params extends AbstractTaskParams {
-    // The universe against which we run this task.
-    public UUID universeUUID;
+  public static class Params extends UniverseTaskParams {
     // The cluster we are removing from above universe.
     public UUID clusterUUID;
   }
@@ -57,7 +52,7 @@ public class DeleteClusterFromUniverse extends AbstractTaskBase {
           universe.setUniverseDetails(universeDetails);
         }
       };
-      Universe.saveDetails(taskParams().universeUUID, updater);
+      saveUniverseDetails(updater);
       LOG.info("Delete cluster {} done.", taskParams().clusterUUID);
     } catch (Exception e) {
       String msg = getName() + " failed with exception "  + e.getMessage();

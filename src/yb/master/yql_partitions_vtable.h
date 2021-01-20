@@ -23,8 +23,11 @@ namespace master {
 // VTable implementation of system.partitions.
 class YQLPartitionsVTable : public YQLVirtualTable {
  public:
-  explicit YQLPartitionsVTable(const Master* const master);
+  explicit YQLPartitionsVTable(const TableName& table_name,
+                               const NamespaceName& namespace_name,
+                               Master* const master);
   Result<std::shared_ptr<QLRowBlock>> RetrieveData(const QLReadRequestPB& request) const;
+  Status GenerateAndCacheData() const;
  protected:
   Schema CreateSchema() const;
 

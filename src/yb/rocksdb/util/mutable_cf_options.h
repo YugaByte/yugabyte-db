@@ -18,8 +18,8 @@
 // under the License.
 //
 
-#ifndef ROCKSDB_UTIL_MUTABLE_CF_OPTIONS_H
-#define ROCKSDB_UTIL_MUTABLE_CF_OPTIONS_H
+#ifndef YB_ROCKSDB_UTIL_MUTABLE_CF_OPTIONS_H
+#define YB_ROCKSDB_UTIL_MUTABLE_CF_OPTIONS_H
 
 #pragma once
 
@@ -98,7 +98,8 @@ struct MutableCFOptions {
         max_subcompactions(1),
         max_sequential_skip_in_iterations(0),
         paranoid_file_checks(false),
-        compaction_measure_io_stats(false) {}
+        compaction_measure_io_stats(false),
+        max_file_size_for_compaction(std::numeric_limits<uint64_t>::max()) {}
 
   // Must be called after any change to MutableCFOptions
   void RefreshDerivedOptions(const ImmutableCFOptions& ioptions);
@@ -165,4 +166,4 @@ uint64_t MultiplyCheckOverflow(uint64_t op1, int op2);
 
 }  // namespace rocksdb
 
-#endif // ROCKSDB_UTIL_MUTABLE_CF_OPTIONS_H
+#endif // YB_ROCKSDB_UTIL_MUTABLE_CF_OPTIONS_H

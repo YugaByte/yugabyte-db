@@ -120,7 +120,7 @@ static int WriteRandomDataToTable(int argc, char** argv) {
     CHECK_OK(session->Apply(insert));
     Status s = session->Flush();
     if (PREDICT_FALSE(!s.ok())) {
-      for (const auto& e : session->GetPendingErrors()) {
+      for (const auto& e : session->GetAndClearPendingErrors()) {
         if (e->status().IsAlreadyPresent()) {
           LOG(WARNING) << "Ignoring insert error: " << e->status().ToString();
         } else {

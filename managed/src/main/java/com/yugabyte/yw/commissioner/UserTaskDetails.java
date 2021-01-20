@@ -18,6 +18,9 @@ public class UserTaskDetails {
     // Ignore this subtask and do not display it to the user.
     Invalid,
 
+    // Perform preflight checks to determine if the node is ready to be configured or provisioned.
+    PreflightChecks,
+
     // Deploying machines in the desired cloud, fetching information (ip address, etc) of these
     // newly deployed machines, etc.
     Provisioning,
@@ -140,6 +143,12 @@ public class UserTaskDetails {
 
     // Run the initdb script in a tserver pod. (Deprecated)
     KubernetesInitYSQL,
+
+    // Start master process on a node
+    StartingMasterProcess,
+
+    // Rotate Node Certs.
+    RotatingCert;
   }
 
   public List<SubTaskDetails> taskDetails;
@@ -149,6 +158,11 @@ public class UserTaskDetails {
     String title;
     String description;
     switch (subTaskGroupType) {
+      case PreflightChecks:
+        title = "Preflight Checks";
+        description = "Perform preflight checks to determine if node is ready" +
+          " to be provisioned/configured.";
+          break;
       case Provisioning:
         title = "Provisioning";
         description = "Deploying machines of the required config into the desired cloud and" +
@@ -228,7 +242,7 @@ public class UserTaskDetails {
         break;
       case StartingNodeProcesses:
         title = "Starting Node processes";
-        description = "Waiting for node to start either tserver of master process.";
+        description = "Waiting for node to start either tserver or master process.";
         break;
      case AddingNode:
         title = "Adding a node";
@@ -285,7 +299,7 @@ public class UserTaskDetails {
       case KubernetesNamespaceDelete:
         title = "Delete Kubernetes Namespace";
         description = "Delete Kubernetes Namespace";
-        break;  
+        break;
       case KubernetesWaitForPod:
         title = "Wait for Kubernetes pod to run";
         description = "Wait for Kubernetes pod to run";
@@ -301,6 +315,26 @@ public class UserTaskDetails {
       case KubernetesInitYSQL:
         title = "Initialize YSQL in Kubernetes Universe";
         description = "Initialize YSQL in Kubernetes Universe";
+        break;
+      case StartingMasterProcess:
+        title = "Starting Master Process";
+        description = "Waiting for node to start the master process.";
+        break;
+      case RotatingCert:
+        title = "Rotating Cert";
+        description = "Changing certs.";
+        break;
+      case CreateNamespace:
+        title = "Creating Namespace";
+        description = "Create namespace for Kubectl.";
+        break;
+      case ApplySecret:
+        title = "Applying Pull Secret";
+        description = "Apply Pull Secret.";
+        break;
+      case UpdateNumNodes:
+        title = "Updating number of nodes";
+        description = "Update number of nodes.";
         break;
       default:
         LOG.warn("UserTaskDetails: Missing SubTaskDetails for : {}", subTaskGroupType);

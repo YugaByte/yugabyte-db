@@ -108,7 +108,7 @@ void TabletRetentionPolicy::UnregisterReaderTimestamp(HybridTime timestamp) {
 bool TabletRetentionPolicy::ShouldRetainDeleteMarkersInMajorCompaction() const {
   // If the index table is in the process of being backfilled, then we
   // want to retain delete markers until the backfill process is complete.
-  return metadata_.schema()->table_properties().IsBackfilling();
+  return metadata_.schema()->table_properties().retain_delete_markers();
 }
 
 HybridTime TabletRetentionPolicy::HistoryCutoffToPropagate(HybridTime last_write_ht) {
@@ -119,8 +119,8 @@ HybridTime TabletRetentionPolicy::HistoryCutoffToPropagate(HybridTime last_write
   VLOG_WITH_PREFIX(4) << __func__ << "(" << last_write_ht << "), left to wait: "
                       << MonoDelta(next_history_cutoff_propagation_ - now);
 
-  if (!FLAGS_enable_history_cutoff_propagation || now < next_history_cutoff_propagation_ ||
-      last_write_ht <= committed_history_cutoff_) {
+  if (disable_counter_ != 0 || !FLAGS_enable_history_cutoff_propagation ||
+      now < next_history_cutoff_propagation_ || last_write_ht <= committed_history_cutoff_) {
     return HybridTime();
   }
 
@@ -151,6 +151,15 @@ HybridTime TabletRetentionPolicy::SanitizeHistoryCutoff(HybridTime proposed_cuto
                       << active_readers_.size();
 
   return allowed_cutoff;
+}
+
+void TabletRetentionPolicy::EnableHistoryCutoffPropagation(bool value) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (value) {
+    --disable_counter_;
+  } else {
+    ++disable_counter_;
+  }
 }
 
 }  // namespace tablet

@@ -85,7 +85,7 @@ Any latest version can be used — this is an example.
     [Install YugabyteDB and start a local cluster](../../../quick-start/install/).
     Create a database and table by running the following command. You can find `ycqlsh` in the `bin`  subdirectory located inside the YugabyteDB installation folder.
 
-    ```postgresql
+    ```plpgsql
     yugabyte=# CREATE DATABASE IF NOT EXISTS demo;
     yugabyte=# \c demo
     demo=# CREATE TABLE demo.test_table (key text, value bigint, ts timestamp, PRIMARY KEY (key));
@@ -134,7 +134,7 @@ Any latest version can be used — this is an example.
 
 4. Confirm that the rows are in the target table in the YugabyteDB cluster, using `ysqlsh`.
 
-   ```postgresql
+   ```plpgsql
    demo=# select * from demo.test_table;
    ```
 

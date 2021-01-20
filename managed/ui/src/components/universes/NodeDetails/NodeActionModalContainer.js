@@ -3,8 +3,10 @@
 import { NodeActionModal } from '../../universes';
 import { connect } from 'react-redux';
 
-import { performUniverseNodeAction, performUniverseNodeActionResponse } from '../../../actions/universe';
-
+import {
+  performUniverseNodeAction,
+  performUniverseNodeActionResponse
+} from '../../../actions/universe';
 
 function mapStateToProps(state) {
   return {

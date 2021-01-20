@@ -12,6 +12,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.yugabyte.yw.commissioner.UserTaskDetails.SubTaskGroupType;
 import com.yugabyte.yw.models.TaskInfo;
 import com.yugabyte.yw.models.helpers.TaskType;
 import org.slf4j.Logger;
@@ -49,7 +50,7 @@ public class SubTaskGroup implements Runnable {
   // Flag to denote the task is done.
   boolean tasksDone = false;
 
-  // Flag to denote is an exception needs to be thrown on failure.
+  // Flag to denote if an exception needs to be thrown on failure.
   boolean ignoreErrors = false;
 
   /**
@@ -112,7 +113,9 @@ public class SubTaskGroup implements Runnable {
   }
 
   public void addTask(AbstractTaskBase task) {
-    LOG.info("Adding task #" + taskMap.size() + ": " + task.toString());
+    LOG.info("Adding task #" + taskMap.size() + ": " + task.getName());
+    LOG.debug("Details for task #" + taskMap.size() + ": " + task.toString());
+
     // Set up corresponding TaskInfo.
     TaskType taskType = TaskType.valueOf(task.getClass().getSimpleName());
     TaskInfo taskInfo = new TaskInfo(taskType);
@@ -168,33 +171,35 @@ public class SubTaskGroup implements Runnable {
   }
 
   public boolean waitFor() {
-    String errorString = null;
+    boolean hasErrored = false;
     for (Future<?> future : futuresMap.keySet()) {
+      TaskInfo taskInfo = futuresMap.get(future);
+
       // Wait for each future to finish.
+      String errorString = null;
       try {
         if (future.get() == null) {
           // Task succeeded.
           numTasksCompleted.incrementAndGet();
         } else {
-          errorString = "ERROR: task " + future.toString() + " get() returned null.";
+          errorString = "ERROR: while running task " + taskInfo.toString() +
+                        " " + taskInfo.getTaskUUID().toString();
           LOG.error(errorString);
         }
       } catch (Exception e) {
-        errorString = "Failed to execute task " + future.toString() + ", hit error " +
+        errorString = "Failed to execute task " + taskInfo.getTaskDetails() + ", hit error " +
             e.getMessage() + ".";
         LOG.error(errorString, e);
       } finally {
         if (errorString != null) {
-          TaskInfo taskInfo = futuresMap.get(future);
+          hasErrored = true;
           ObjectNode details = taskInfo.getTaskDetails().deepCopy();
           details.put("errorString", errorString);
           taskInfo.setTaskDetails(details);
           taskInfo.save();
-          return false;
         }
       }
     }
-
-    return true;
+    return !hasErrored;
   }
 }

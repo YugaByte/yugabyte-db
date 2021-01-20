@@ -139,10 +139,34 @@ CHECKED_STATUS ExecuteDocWriteOperation(
     HybridTime* restart_read_ht,
     const std::string& table_name);
 
+struct ExternalTxnApplyStateData {
+  HybridTime commit_ht;
+  IntraTxnWriteId write_id = 0;
+
+  std::string ToString() const {
+    return YB_STRUCT_TO_STRING(commit_ht, write_id);
+  }
+};
+
+using ExternalTxnApplyState = std::map<TransactionId, ExternalTxnApplyStateData>;
+
+void AddPairToWriteBatch(
+    const KeyValuePairPB& kv_pair,
+    HybridTime hybrid_time,
+    int write_id,
+    ExternalTxnApplyState* apply_external_transactions,
+    rocksdb::WriteBatch* regular_write_batch,
+    rocksdb::WriteBatch* intents_write_batch);
+
+// Prepares non transaction write batch.
+// Batch could contain intents for external transactions, in this case those intents
+// will be added to intents_write_batch.
 void PrepareNonTransactionWriteBatch(
     const docdb::KeyValueWriteBatchPB& put_batch,
     HybridTime hybrid_time,
-    rocksdb::WriteBatch* rocksdb_write_batch);
+    rocksdb::DB* intents_db,
+    rocksdb::WriteBatch* regular_write_batch,
+    rocksdb::WriteBatch* intents_write_batch);
 
 YB_STRONGLY_TYPED_BOOL(LastKey);
 
@@ -154,6 +178,10 @@ YB_STRONGLY_TYPED_BOOL(LastKey);
 // key - pointer to key in format of SubDocKey (no ht)
 // last_key - whether it is last strong key in enumeration
 
+// Indicates that the intent contains a full document key, i.e. it does not omit any final range
+// components of the document key. This flag is also true for intents that include subdocument keys.
+YB_STRONGLY_TYPED_BOOL(FullDocKey);
+
 // TODO(dtxn) don't expose this method outside of DocDB if TransactionConflictResolver is moved
 // inside DocDB.
 // Note: From https://stackoverflow.com/a/17278470/461529:
@@ -163,7 +191,7 @@ YB_STRONGLY_TYPED_BOOL(LastKey);
 // So, we use boost::function which doesn't have such issue:
 // http://www.boost.org/doc/libs/1_65_1/doc/html/function/misc.html
 typedef boost::function<
-    Status(IntentStrength, Slice, KeyBytes*, LastKey)> EnumerateIntentsCallback;
+    Status(IntentStrength, FullDocKey, Slice, KeyBytes*, LastKey)> EnumerateIntentsCallback;
 
 CHECKED_STATUS EnumerateIntents(
     const google::protobuf::RepeatedPtrField<yb::docdb::KeyValuePairPB>& kv_pairs,
@@ -222,6 +250,28 @@ Result<ApplyTransactionState> PrepareApplyIntentsBatch(
     rocksdb::WriteBatch* intents_batch);
 
 void AppendTransactionKeyPrefix(const TransactionId& transaction_id, docdb::KeyBytes* out);
+
+// Class that is used while combining external intents into single key value pair.
+class ExternalIntentsProvider {
+ public:
+  // Set output key.
+  virtual void SetKey(const Slice& slice) = 0;
+
+  // Set output value.
+  virtual void SetValue(const Slice& slice) = 0;
+
+  // Get next external intent, returns false when there are no more intents.
+  virtual boost::optional<std::pair<Slice, Slice>> Next() = 0;
+
+  virtual const Uuid& InvolvedTablet() = 0;
+
+  virtual ~ExternalIntentsProvider() = default;
+};
+
+// Combine external intents into single key value pair.
+void CombineExternalIntents(
+    const TransactionId& txn_id,
+    ExternalIntentsProvider* provider);
 
 }  // namespace docdb
 }  // namespace yb

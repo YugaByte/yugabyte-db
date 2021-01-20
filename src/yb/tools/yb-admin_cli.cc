@@ -344,6 +344,45 @@ void ClusterAdminCli::RegisterCommandHandlers(ClusterAdminClientClass* client) {
         return Status::OK();
       });
 
+  static const auto kTableName = "<(<keyspace> <table_name>)|tableid.<table_id>>";
+  static const auto kPlacementInfo = "placement_info";
+  static const auto kReplicationFactor = "replication_factor";
+  static const auto kPlacementUuid = "placement_uuid";
+
+  Register(
+      "modify_table_placement_info",
+        Format(" [$0] [$1] [$2] [$3]", kTableName, kPlacementInfo, kReplicationFactor,
+          kPlacementUuid),
+      [client](const CLIArguments& args) -> Status {
+        if (args.size() < 5 || args.size() > 7) {
+          return ClusterAdminCli::kInvalidArguments;
+        }
+        std::string placement_info;
+        int rf = -1;
+        std::string placement_uuid;
+        const auto table_name  = VERIFY_RESULT(ResolveSingleTableName(
+            client, args.begin() + 2, args.end(),
+            [&placement_info, &rf, &placement_uuid](
+        auto i, const auto& end) -> Status {
+          // Get placement info.
+          placement_info = *i;
+          i = std::next(i);
+          // Get replication factor.
+          rf = VERIFY_RESULT(CheckedStoi(*i));
+          i = std::next(i);
+          // Get optional placement uuid.
+          if (i != end) {
+            placement_uuid = *i;
+          }
+          return Status::OK();
+        }
+        ));
+        RETURN_NOT_OK_PREPEND(
+            client->ModifyTablePlacementInfo(table_name, placement_info, rf, placement_uuid),
+            Substitute("Unable to modify placement info for table $0", table_name.ToString()));
+        return Status::OK();
+      });
+
   Register(
       "modify_placement_info", " <placement_info> <replication_factor> [placement_uuid]",
       [client](const CLIArguments& args) -> Status {
@@ -354,6 +393,17 @@ void ClusterAdminCli::RegisterCommandHandlers(ClusterAdminClientClass* client) {
         string placement_uuid = args.size() == 5 ? args[4] : "";
         RETURN_NOT_OK_PREPEND(client->ModifyPlacementInfo(args[2], rf, placement_uuid),
                               Substitute("Unable to modify placement info."));
+        return Status::OK();
+      });
+
+  Register(
+      "clear_placement_info", "",
+      [client](const CLIArguments& args) -> Status {
+        if (args.size() != 2) {
+          return ClusterAdminCli::kInvalidArguments;
+        }
+        RETURN_NOT_OK_PREPEND(client->ClearPlacementInfo(),
+                              Substitute("Unable to clear placement info."));
         return Status::OK();
       });
 

@@ -128,13 +128,13 @@ showAsideToc: true
 Download the YugabyteDB `tar.gz` file using the following `wget` command.
 
 ```sh
-$ wget https://downloads.yugabyte.com/yugabyte-2.3.0.0-darwin.tar.gz
+$ wget https://downloads.yugabyte.com/yugabyte-2.5.1.0-darwin.tar.gz
 ```
 
 To unpack the archive file and change to the YugabyteDB home directory, run the following command.
 
 ```sh
-$ tar xvfz yugabyte-2.3.0.0-darwin.tar.gz && cd yugabyte-2.3.0.0/
+$ tar xvfz yugabyte-2.5.1.0-darwin.tar.gz && cd yugabyte-2.5.1.0/
 ```
 
 ## Configure

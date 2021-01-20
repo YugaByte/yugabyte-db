@@ -30,6 +30,7 @@ public class SetUniverseKey extends UniverseTaskBase {
     public void run() {
         LOG.info("Started {} task.", getName());
         try {
+            checkUniverseVersion();
             // Create the task list sequence.
             subTaskGroupQueue = new SubTaskGroupQueue(userTaskUUID);
 

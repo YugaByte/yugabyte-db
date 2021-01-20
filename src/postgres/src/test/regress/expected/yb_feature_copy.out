@@ -284,6 +284,130 @@ SELECT COUNT(*) FROM t;
      0
 (1 row)
 
+-- Test COPY FROM on combination of cases
+-- Create trigger functions
+create or replace function noticeBefore() returns trigger as $$begin raise notice 'b: %', new.b; return NEW; end$$ language plpgsql;
+create or replace function noticeAfter() returns trigger as $$begin raise notice 'a: %', new.b; return NEW; end$$ language plpgsql;
+-- Test before and after row insert trigger on partition table
+create table q (a int not null, b int) partition by list (a);
+create table q1 (b int, a int not null);
+create trigger trigBefore_q1 before insert on q1 for each row execute procedure noticeBefore();
+create trigger trigAfter_q1 after insert on q1 for each row execute procedure noticeAfter();
+alter table q attach partition q1 for values in (1, 2);
+copy q from stdin;
+NOTICE:  b: 5
+NOTICE:  b: 6
+NOTICE:  b: 7
+NOTICE:  a: 5
+NOTICE:  a: 6
+NOTICE:  a: 7
+-- should fail, no partition exists for value 3
+copy q from stdin;
+ERROR:  no partition of relation "q" found for row
+DETAIL:  Partition key of the failing row contains (a) = (3).
+CONTEXT:  COPY q, line 1: "3	0"
+-- Test before and after row insert trigger on multiple partition tables
+create table s (a int not null, b int) partition by list (a);
+create table s1 (b int, a int not null);
+create table s2 (a int not null, b int);
+create table s3 (a int not null, b int);
+create trigger trigBefore_s1 before insert on s1 for each row execute procedure noticeBefore();
+create trigger trigAfter_s2 after insert on s2 for each row execute procedure noticeAfter();
+create trigger trigAfter_s3 after insert on s3 for each row execute procedure noticeAfter();
+alter table s attach partition s1 for values in (1, 2);
+alter table s attach partition s2 for values in (3);
+alter table s attach partition s3 for values in (4);
+copy s from stdin;
+NOTICE:  b: 5
+NOTICE:  b: 6
+NOTICE:  b: 9
+NOTICE:  a: 7
+NOTICE:  a: 8
+-- should fail, no partition exists for value 6
+copy s from stdin;
+ERROR:  no partition of relation "s" found for row
+DETAIL:  Partition key of the failing row contains (a) = (6).
+CONTEXT:  COPY s, line 1: "6	10"
+-- Test before and after row insert trigger on nested partition with depth 2 and constraint
+create table r (a int check (a > 0), b int) partition by range(a);
+create table r1 partition of r for values from (1) to (5) partition by list (b);
+create table r2 partition of r1 for values in (3);
+create table r3 partition of r1 for values in (4);
+create trigger trigAfter_r2 after insert on r2 for each row execute procedure noticeAfter();
+create trigger trigAfter_r3 before insert on r3 for each row execute procedure noticeBefore();
+copy r from stdin;
+NOTICE:  b: 4
+NOTICE:  a: 3
+NOTICE:  a: 3
+-- should fail, 5 is exclusive no invalid partition value
+copy r from stdin;
+ERROR:  no partition of relation "r" found for row
+DETAIL:  Partition key of the failing row contains (a) = (5).
+CONTEXT:  COPY r, line 1: "5	3"
+-- Test before and after row insert trigger on nested partition with depth 3 and constraint
+create table w (a int check (a > 0), b int) partition by list (a);
+create table w1 partition of w for values in (1, 2, 3, 4, 5, 6, 7, 8) partition by list (b);
+create table w2 partition of w for values in (9, 10);
+create table w3 partition of w1 for values in (1, 2);
+create table w4 partition of w1 for values in (4, 5, 6, 7) partition by list (a);
+create table w5 partition of w4 for values in (3, 8, 9, 10);
+create or replace function before_w1() returns trigger as $$begin raise notice 'b_w1: %', new.a; return NEW; end$$ language plpgsql;
+create or replace function after_w2() returns trigger as $$begin raise notice 'a_w2: %', new.a; return NEW; end$$ language plpgsql;
+create or replace function before_w3() returns trigger as $$begin raise notice 'b_w3: %', new.b; return NEW; end$$ language plpgsql;
+create or replace function before_w4() returns trigger as $$begin raise notice 'b_w4: %', new.b; return NEW; end$$ language plpgsql;
+create or replace function after_w5() returns trigger as $$begin raise notice 'a_w5: %', new.a; return NEW; end$$ language plpgsql;
+create trigger trigAfter_w2 after insert on w2 for each row execute procedure after_w2();
+create trigger trigBefore_w3 before insert on w3 for each row execute procedure before_w3();
+create trigger trigAfter_w5 after insert on w5 for each row execute procedure after_w5();
+-- prints at each leaf partitions
+copy w from stdin;
+NOTICE:  b_w3: 2
+NOTICE:  a_w5: 8
+NOTICE:  a_w2: 9
+NOTICE:  a_w5: 3
+-- should fail, 5 cannot fall under partition w5 (a should be between 8 to 10)
+copy w from stdin;
+ERROR:  no partition of relation "w4" found for row
+DETAIL:  Partition key of the failing row contains (a) = (2).
+CONTEXT:  COPY w, line 1: "2	6"
+-- Test before row insert trigger with check constraint on partition table
+create table p (a int check (a > 0), b int) partition by list (a);
+create table p1 partition of p for values in (1);
+create trigger trigBefore_p1 before insert on p1 for each row execute procedure noticeBefore();
+copy p from stdin;
+NOTICE:  b: 5
+NOTICE:  b: 6
+-- should fail, fails constraint
+copy p from stdin;
+ERROR:  no partition of relation "p" found for row
+DETAIL:  Partition key of the failing row contains (a) = (0).
+CONTEXT:  COPY p, line 1: "0	1"
+-- Test index and auto generated column on partition table
+create table u (a serial, b int) partition by list (a);
+create table u1 partition of u for values in (1, 2, 3, 4, 5);
+create unique index key on u (a);
+copy u from stdin;
+copy u (b) from stdin;
+-- should fail, a duplicates
+copy u from stdin;
+ERROR:  duplicate key value violates unique constraint "u1_a_idx"
+-- Test after row insert trigger with check constraint, index, and auto generated column on partition table
+create table v (a int default 1 check (a > 0), b serial) partition by list (a);
+create table v1 partition of v for values in (1, 2);
+create unique index key2 on v (a, b);
+create trigger trigAfter_v1 after insert on v1 for each row execute procedure noticeAfter();
+copy v from stdin;
+NOTICE:  a: 5
+NOTICE:  a: 6
+NOTICE:  a: 7
+copy v (b) from stdin;
+NOTICE:  a: 8
+NOTICE:  a: 9
+NOTICE:  a: 10
+-- should fail, duplicate key (1, 5)
+copy v (b) from stdin;
+NOTICE:  a: 5
+ERROR:  duplicate key value violates unique constraint "v1_a_b_idx"
 -- clean up
 DROP TABLE forcetest;
 DROP TABLE x;
@@ -292,3 +416,10 @@ DROP TABLE testnl;
 DROP TABLE testeoc;
 DROP TABLE testnull;
 DROP TABLE t;
+DROP TABLE q;
+DROP TABLE s;
+DROP TABLE r;
+DROP TABLE w;
+DROP TABLE p;
+DROP TABLE u;
+DROP TABLE v;

@@ -62,7 +62,7 @@ class YBTableAlterer {
 
   YBTableAlterer* SetWalRetentionSecs(const uint32_t wal_retention_secs);
 
-      // Set the timeout for the operation. This includes any waiting
+  // Set the timeout for the operation. This includes any waiting
   // after the alter has been submitted (i.e if the alter is slow
   // to be performed on a large table, it may time out and then
   // later be successful).
@@ -72,6 +72,9 @@ class YBTableAlterer {
   //
   // If not provided, defaults to true.
   YBTableAlterer* wait(bool wait);
+
+  // Set replication info for the table.
+  YBTableAlterer* replication_info(const master::ReplicationInfoPB& ri);
 
   // Alters the table.
   //
@@ -110,6 +113,8 @@ class YBTableAlterer {
   boost::optional<TableProperties> table_properties_;
 
   boost::optional<uint32_t> wal_retention_secs_;
+
+  boost::optional<master::ReplicationInfoPB> replication_info_;
 
   DISALLOW_COPY_AND_ASSIGN(YBTableAlterer);
 };

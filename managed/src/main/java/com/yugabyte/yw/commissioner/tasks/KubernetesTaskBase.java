@@ -97,7 +97,7 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
       Map<String, String> config = entry.getValue();
 
       PlacementInfo tempPI = new PlacementInfo();
-      PlacementInfoUtil.addPlacementZoneHelper(azUUID, tempPI);
+      PlacementInfoUtil.addPlacementZone(azUUID, tempPI);
 
       int currNumTservers = 0, currNumMasters = 0;
       int newNumMasters = newPlacement.masters.getOrDefault(azUUID, 0);
@@ -117,8 +117,10 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
           if (newNumMasters <= currNumMasters) {
             continue;
           }
+          // When adding new masters, we want to not increase the number of tservers
+          // in the same operation.
           tempPI.cloudList.get(0).regionList.get(0).azList.get(0).numNodesInAZ =
-          currNumTservers;
+              currNumTservers;
         } else {
           if (newNumTservers <= currNumTservers) {
             continue;
@@ -129,14 +131,28 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
       // This will always be false in the case of a new universe.
       if (activeDeploymentConfigs.containsKey(azUUID)) {
         // Helm Upgrade
-        int partition = serverType == ServerType.MASTER ? currNumMasters : currNumTservers;
+        // Potential changes:
+        // 1) Adding masters: Do not want either old masters or tservers to be rolled.
+        // 2) Adding tservers:
+        //    a) No masters changed, that means the master addresses are the same. Do not need
+        //       to set partition on tserver or master.
+        //    b) Masters changed, that means the master addresses changed, and we don't want to
+        //       roll the older pods (or the new masters, since they will be in shell mode).
+        int tserverPartition = currNumMasters != newNumMasters ? currNumTservers : 0;
+        int masterPartition = currNumMasters != newNumMasters ?
+            (serverType == ServerType.MASTER ? currNumMasters : newNumMasters): 0;
         helmInstalls.addTask(createKubernetesExecutorTaskForServerType(CommandType.HELM_UPGRADE,
                              tempPI, azCode, masterAddresses, null, serverType,
-                             partition, config));
+                             config, masterPartition,
+                             tserverPartition));
 
+        // When adding masters, the number of tservers will be still the same as before.
+        // They get added later.
+        int podsToWaitFor = serverType == ServerType.MASTER ?
+            newNumMasters + currNumTservers : newNumMasters + newNumTservers;
         podsWait.addTask(createKubernetesCheckPodNumTask(
             KubernetesCheckNumPod.CommandType.WAIT_FOR_PODS, azCode, config,
-            newNumMasters + newNumTservers));
+            podsToWaitFor));
       } else {
         // Create the namespaces of the deployment.
         createNamespaces.addTask(createKubernetesExecutorTask(
@@ -152,7 +168,7 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
             masterAddresses, config));
 
         // Add zone to active configs.
-        PlacementInfoUtil.addPlacementZoneHelper(azUUID, activeZones);
+        PlacementInfoUtil.addPlacementZone(azUUID, activeZones);
       }
     }
 
@@ -164,7 +180,8 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
 
   public void upgradePodsTask(KubernetesPlacement newPlacement, String masterAddresses,
                               KubernetesPlacement currPlacement, ServerType serverType,
-                              String softwareVersion, int waitTime) {
+                              String softwareVersion, int waitTime, boolean masterChanged,
+                              boolean tserverChanged) {
 
     boolean edit = currPlacement != null;
     boolean isMultiAz = masterAddresses != null;
@@ -178,7 +195,7 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
       String azCode = isMultiAz ? AvailabilityZone.get(azUUID).code : null;
 
       PlacementInfo tempPI = new PlacementInfo();
-      PlacementInfoUtil.addPlacementZoneHelper(azUUID, tempPI);
+      PlacementInfoUtil.addPlacementZone(azUUID, tempPI);
 
       int currNumMasters = 0, currNumTservers = 0;
       int newNumMasters = newPlacement.masters.getOrDefault(azUUID, 0);
@@ -205,8 +222,25 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
 
       // Upgrade the master pods individually for each deployment.
       for (int partition = numPods - 1; partition >= 0; partition--) {
+        // Possible scenarios:
+        // 1) Upgrading masters.
+        //    a) The tservers have no changes. In that case, the tserver partition should
+        //       be 0.
+        //    b) The tservers have changes. In the case of an edit, the value should be
+        //       the old number of tservers (since the new will already have the updated values).
+        //       Otherwise, the value should be the number of existing pods (since we don't
+        //       want any pods to be rolled.)
+        // 2) Upgrading the tserver. In this case, the masters will always have already rolled.
+        //    So it is safe to assume for all current supported operations via upgrade,
+        //    this will be a no-op. But for future proofing, we try to model it the same way
+        //    as the tservers.
+        int masterPartition = masterChanged ? (edit ? currNumMasters : newNumMasters) : 0;
+        int tserverPartition = tserverChanged ? (edit ? currNumTservers : newNumTservers) : 0;
+        masterPartition = serverType == ServerType.MASTER ? partition : masterPartition;
+        tserverPartition = serverType == ServerType.TSERVER ? partition : tserverPartition;
         createSingleKubernetesExecutorTaskForServerType(CommandType.HELM_UPGRADE,
-            tempPI, azCode, masterAddresses, softwareVersion, serverType, partition, config);
+            tempPI, azCode, masterAddresses, softwareVersion, serverType, config,
+            masterPartition, tserverPartition);
         String podName = String.format("%s-%d", sType, partition);
         createKubernetesWaitForPodTask(KubernetesWaitForPod.CommandType.WAIT_FOR_POD,
             podName, azCode, config);
@@ -264,7 +298,7 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
       }
       if (keepDeployment) {
         PlacementInfo tempPI = new PlacementInfo();
-        PlacementInfoUtil.addPlacementZoneHelper(azUUID, tempPI);
+        PlacementInfoUtil.addPlacementZone(azUUID, tempPI);
         tempPI.cloudList.get(0).regionList.get(0).azList.get(0).numNodesInAZ =
             newPlacement.tservers.get(azUUID);
         tempPI.cloudList.get(0).regionList.get(0).azList.get(0).replicationFactor =
@@ -365,15 +399,16 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
       KubernetesCommandExecutor.CommandType commandType, PlacementInfo pi, String az,
       String masterAddresses, Map<String, String> config) {
     return createKubernetesExecutorTaskForServerType(commandType, pi, az, masterAddresses, null,
-        ServerType.EITHER, 0, config);
+        ServerType.EITHER, config, 0 /* master partition */, 0 /* tserver partition */);
   }
 
   // Create and return the Kubernetes Executor task for deployment of a k8s universe.
   public KubernetesCommandExecutor createKubernetesExecutorTaskForServerType(
-                                                        KubernetesCommandExecutor.CommandType commandType,
-                                                        PlacementInfo pi, String az, String masterAddresses,
-                                                        String ybSoftwareVersion, ServerType serverType,
-                                                        int partition, Map<String, String> config) {
+      KubernetesCommandExecutor.CommandType commandType,
+      PlacementInfo pi, String az, String masterAddresses,
+      String ybSoftwareVersion, ServerType serverType,
+      Map<String, String> config, int masterPartition,
+      int tserverPartition) {
     KubernetesCommandExecutor.Params params = new KubernetesCommandExecutor.Params();
     UniverseDefinitionTaskParams.Cluster primary = taskParams().getPrimaryCluster();
     params.providerUUID = UUID.fromString(
@@ -397,7 +432,8 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
     if (config != null) {
       params.config = config;
     }
-    params.rollingUpgradePartition = partition;
+    params.masterPartition = masterPartition;
+    params.tserverPartition = tserverPartition;
     params.enableNodeToNodeEncrypt = primary.userIntent.enableNodeToNodeEncrypt;
     params.enableClientToNodeEncrypt = primary.userIntent.enableClientToNodeEncrypt;
     params.rootCA = taskParams().rootCA;
@@ -416,7 +452,9 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
   public void createSingleKubernetesExecutorTask(KubernetesCommandExecutor.CommandType commandType,
                                                  PlacementInfo pi) {
     createSingleKubernetesExecutorTaskForServerType(commandType, pi, null, null, null,
-                                                    ServerType.EITHER, 0, null);
+                                                    ServerType.EITHER, null,
+                                                    0 /* master partition */,
+                                                    0 /* tserver partition */);
   }
 
   // Create a single Kubernetes Executor task in case we cannot execute tasks in parallel.
@@ -424,7 +462,7 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
       KubernetesCommandExecutor.CommandType commandType,
       PlacementInfo pi, String az, String masterAddresses,
       String ybSoftwareVersion, ServerType serverType,
-      int partition, Map<String, String> config) {
+      Map<String, String> config, int masterPartition, int tserverPartition) {
     SubTaskGroup subTaskGroup = new SubTaskGroup(commandType.getSubTaskGroupName(), executor);
     KubernetesCommandExecutor.Params params = new KubernetesCommandExecutor.Params();
     UniverseDefinitionTaskParams.Cluster primary = taskParams().getPrimaryCluster();
@@ -449,8 +487,8 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
     if (config != null) {
       params.config = config;
     }
-
-    params.rollingUpgradePartition = partition;
+    params.masterPartition = masterPartition;
+    params.tserverPartition = tserverPartition;
     params.enableNodeToNodeEncrypt = primary.userIntent.enableNodeToNodeEncrypt;
     params.enableClientToNodeEncrypt = primary.userIntent.enableClientToNodeEncrypt;
     params.rootCA = taskParams().rootCA;

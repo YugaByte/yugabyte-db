@@ -30,23 +30,26 @@ const string kNamespace = "test";
 
 class FlushManagerTest : public CqlTestBase {
  protected:
-  Result<tablet::TabletPeerPtr> GetTabletPeer(const string& table_id) {
-    auto all_peers = ListTabletPeers(cluster_.get(), ListPeersFilter::kLeaders);
-    std::vector<tablet::TabletPeerPtr> table_peers;
-    std::copy_if(
-        all_peers.begin(), all_peers.end(), std::back_inserter(table_peers),
-        [table_id](auto peer) {
-          return peer->tablet()->metadata()->table_id() == table_id;
-        });
-    if (table_peers.size() != 1) {
-      return STATUS(IllegalState, "Unexpected number of table peers found.");
+
+  Result<OpId> GetOpIdAtLeader(const string& table_id) {
+    auto all_peers = ListTabletPeers(cluster_.get(), ListPeersFilter::kAll);
+    for (const auto& peer : all_peers) {
+      if (peer->tablet()->metadata()->table_id() == table_id) {
+        return VERIFY_RESULT(peer->tablet()->MaxPersistentOpId()).regular;
+      }
     }
-    return table_peers[0];
+    return STATUS(IllegalState, "No leader found for table.");
   }
 
-  Result<OpId> GetOpId(const string& table_id) {
-    auto peer = VERIFY_RESULT(GetTabletPeer(table_id));
-    return VERIFY_RESULT(peer->tablet()->MaxPersistentOpId()).regular;
+  Result<OpId> GetMaxOpId(const string& table_id) {
+    auto all_peers = ListTabletPeers(cluster_.get(), ListPeersFilter::kAll);
+    OpId max_op_id(0, 0);
+    for (const auto& peer : all_peers) {
+      if (peer->tablet()->metadata()->table_id() == table_id) {
+        max_op_id = std::max(max_op_id, VERIFY_RESULT(peer->tablet()->MaxPersistentOpId()).regular);
+      }
+    }
+    return max_op_id;
   }
 };
 
@@ -65,11 +68,11 @@ TEST_F(FlushManagerTest, VerifyFlush) {
 
   ASSERT_OK(session.ExecuteQuery("INSERT INTO t(key, value) VALUES (1, 2)"));
 
-  auto baseline_table_op_id = ASSERT_RESULT(GetOpId(table->id()));
-  auto baseline_index_op_id = ASSERT_RESULT(GetOpId(index->id()));
+  auto baseline_table_op_id = ASSERT_RESULT(GetOpIdAtLeader(table->id()));
+  auto baseline_index_op_id = ASSERT_RESULT(GetOpIdAtLeader(index->id()));
   ASSERT_OK(client_->FlushTables({table->name()}, true, 30, false));
-  EXPECT_GT(ASSERT_RESULT(GetOpId(table->id())), baseline_table_op_id);
-  EXPECT_GT(ASSERT_RESULT(GetOpId(index->id())), baseline_index_op_id);
+  EXPECT_GT(ASSERT_RESULT(GetMaxOpId(table->id())), baseline_table_op_id);
+  EXPECT_GT(ASSERT_RESULT(GetMaxOpId(index->id())), baseline_index_op_id);
 }
 
 

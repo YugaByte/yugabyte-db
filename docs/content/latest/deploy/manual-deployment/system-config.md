@@ -18,16 +18,18 @@ Do the following configuration steps on each of the nodes in the cluster.
 
 ## ntp
 
- If your instance does not have public Internet access, make sure the following packages have been installed (all can be retrieved from the yum repo **epel**, make sure to use the latest epel release repository):
-
-- epel-release
-- ntp
-
-Here's the command to install these packages.
+ If your instance does not have public Internet access, make sure the ntp package is installed:
 
 ```sh
-$ sudo yum install -y epel-release ntp
+$ sudo yum install -y ntp
 ```
+
+{{< note title="Note" >}}
+As of CentOS 8, `ntp` is no longer available and has been replaced by `chrony`. To install, run:
+```sh
+$ sudo yum install -y chrony
+```
+{{< /note >}}
 
 ## ulimits
 
@@ -87,7 +89,7 @@ $ ulimit -n <value>
 
 {{< /note >}}
 
-Most of these settings can also be applied permanently by adding the following in `/etc/security/limits.conf`.
+These settings should be applied permanently by adding the following in `/etc/security/limits.conf`.
 
 ```
 *                -       core            unlimited
@@ -104,7 +106,7 @@ Most of these settings can also be applied permanently by adding the following i
 *                -       locks           unlimited
 ```
 
-On CentOS, /etc/security/limits.d/20-nproc.conf must also be configured
+On CentOS, /etc/security/limits.d/20-nproc.conf must also be configured to match.
 
 ```
 *          soft    nproc     12000
@@ -166,3 +168,49 @@ In `/etc/systemd/user.conf` and `/etc/systemd/system.conf`, add at the end of fi
 
 Something similar may be needed for other distributions.
 {{< /note >}}
+
+
+## transparent hugepages
+
+Transparent hugepages should be enabled for optimal performance. By default, they are enabled.
+
+You can check with the following command:
+
+
+```sh
+$ cat /sys/kernel/mm/transparent_hugepage/enabled
+[always] madvise never
+```
+
+It is generally not necessary to adjust the kernel command line if the above value is correct.
+
+However, if the value is set to "madvise" or "never", you should modify your kernel command line to set transparent hugepages to "always".
+
+
+You should consult your operating system docs to determine the best way to modify a kernel command line argument for your operating system, but on RHEL or Centos 7 or 8, using grub2, the following steps are one solution:
+
+
+Append "transparent_hugepage=always" to `GRUB_CMDLINE_LINUX` in `/etc/default/grub`
+
+```sh
+GRUB_CMDLINE_LINUX="rd.lvm.lv=rhel/root rd.lvm.lv=rhel/swap ... transparent_hugepage=always"
+```
+
+
+Rebuild `/boot/grub2/grub.cfg` using grub2-mkconfig.
+
+Please ensure to take a backup of the existing `/boot/grub2/grub.cfg` before rebuilding.
+
+On BIOS-based machines:
+
+```sh
+# grub2-mkconfig -o /boot/grub2/grub.cfg
+```
+On UEFI-based machines:
+
+```sh
+# grub2-mkconfig -o /boot/efi/EFI/redhat/grub.cfg
+```
+
+
+Reboot the system.

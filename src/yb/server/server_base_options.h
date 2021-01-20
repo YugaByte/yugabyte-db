@@ -82,6 +82,10 @@ class ServerBaseOptions {
 
   std::string master_addresses_flag;
 
+  // The full unparsed string from FLAGS_server_broadcast_addresses.
+  std::string server_broadcast_addresses;
+
+  // The parsed version of server_broadcast_addresses.
   std::vector<HostPort> broadcast_addresses;
 
   // This can crash the process if you pass in an invalid list of master addresses!

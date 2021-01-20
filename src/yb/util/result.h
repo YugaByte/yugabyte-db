@@ -342,7 +342,7 @@ std::reference_wrapper<T> WrapMove(const Result<T&>& result) {
 #define CHECK_RESULT(expr) \
   RESULT_CHECKER_HELPER(expr, CHECK_OK(__result))
 
-// Returns if result is not ok, extracts result value is case of success.
+// Returns if result is not ok, extracts result value in case of success.
 #define VERIFY_RESULT(expr) \
   RESULT_CHECKER_HELPER(expr, RETURN_NOT_OK(__result))
 

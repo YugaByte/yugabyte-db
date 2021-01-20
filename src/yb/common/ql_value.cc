@@ -69,7 +69,11 @@ QLValue::~QLValue() {}
 //------------------------- instance methods for abstract QLValue class -----------------------
 
 int QLValue::CompareTo(const QLValue& other) const {
-  CHECK_EQ(type(), other.type());
+  if (!IsVirtual() && other.IsVirtual()) {
+    return -other.CompareTo(*this);
+  }
+
+  CHECK(type() == other.type() || EitherIsVirtual(other));
   CHECK(!IsNull());
   CHECK(!other.IsNull());
   switch (type()) {
@@ -126,7 +130,12 @@ int QLValue::CompareTo(const QLValue& other) const {
       LOG(FATAL) << "Internal error: value should not be null";
       break;
 
-    // default: fall through
+    case QLValuePB::kVirtualValue:
+      if (IsMax()) {
+        return other.IsMax() ? 0 : 1;
+      } else {
+        return other.IsMin() ? 0 : -1;
+      }
   }
 
   LOG(FATAL) << "Internal error: unsupported type " << type();
@@ -238,6 +247,8 @@ void AppendToKey(const QLValuePB &value_pb, string *bytes) {
       LOG(FATAL) << "Runtime error: This datatype("
                  << int(value_pb.value_case())
                  << ") is not supported in hash key";
+    case InternalType::kVirtualValue:
+      LOG(FATAL) << "Runtime error: virtual value should not be used to construct hash key";
   }
 }
 
@@ -322,7 +333,7 @@ void QLValue::Serialize(
     }
     case UUID: {
       std::string bytes;
-      CHECK_OK(uuid_value(pb).ToBytes(&bytes));
+      uuid_value(pb).ToBytes(&bytes);
       CQLEncodeBytes(bytes, buffer);
       return;
     }
@@ -330,7 +341,7 @@ void QLValue::Serialize(
       std::string bytes;
       Uuid uuid = timeuuid_value(pb);
       CHECK_OK(uuid.IsTimeUuid());
-      CHECK_OK(uuid.ToBytes(&bytes));
+      uuid.ToBytes(&bytes);
       CQLEncodeBytes(bytes, buffer);
       return;
     }
@@ -797,6 +808,11 @@ string QLValue::ToString() const {
       ss << ">";
       return ss.str();
     }
+    case InternalType::kVirtualValue:
+      if (IsMax()) {
+        return "<MAX_LIMIT>";
+      }
+      return "<MIN_LIMIT>";
 
     case InternalType::VALUE_NOT_SET:
       LOG(FATAL) << "Internal error: value should not be null";
@@ -828,14 +844,25 @@ bool BothNotNull(const QLValuePB& lhs, const QLValuePB& rhs) {
 bool BothNull(const QLValuePB& lhs, const QLValuePB& rhs) {
   return IsNull(lhs) && IsNull(rhs);
 }
+bool EitherIsVirtual(const QLValuePB& lhs, const QLValuePB& rhs) {
+  return lhs.value_case() == QLValuePB::kVirtualValue ||
+         rhs.value_case() == QLValuePB::kVirtualValue;
+}
 bool Comparable(const QLValuePB& lhs, const QLValuePB& rhs) {
-  return lhs.value_case() == rhs.value_case() || EitherIsNull(lhs, rhs);
+  return (lhs.value_case() == rhs.value_case() ||
+          EitherIsNull(lhs, rhs) ||
+          EitherIsVirtual(lhs, rhs));
 }
 bool EitherIsNull(const QLValuePB& lhs, const QLValue& rhs) {
   return IsNull(lhs) || rhs.IsNull();
 }
+bool EitherIsVirtual(const QLValuePB& lhs, const QLValue& rhs) {
+  return lhs.value_case() == QLValuePB::kVirtualValue || rhs.IsVirtual();
+}
 bool Comparable(const QLValuePB& lhs, const QLValue& rhs) {
-  return lhs.value_case() == rhs.type() || EitherIsNull(lhs, rhs);
+  return (lhs.value_case() == rhs.type() ||
+          EitherIsNull(lhs, rhs) ||
+          EitherIsVirtual(lhs, rhs));
 }
 bool BothNotNull(const QLValuePB& lhs, const QLValue& rhs) {
   return !IsNull(lhs) && !rhs.IsNull();
@@ -844,6 +871,10 @@ bool BothNull(const QLValuePB& lhs, const QLValue& rhs) {
   return IsNull(lhs) && rhs.IsNull();
 }
 int Compare(const QLValuePB& lhs, const QLValuePB& rhs) {
+  if (rhs.value_case() == QLValuePB::kVirtualValue &&
+      lhs.value_case() != QLValuePB::kVirtualValue) {
+    return -Compare(rhs, lhs);
+  }
   CHECK(Comparable(lhs, rhs));
   CHECK(BothNotNull(lhs, rhs));
   switch (lhs.value_case()) {
@@ -896,6 +927,14 @@ int Compare(const QLValuePB& lhs, const QLValuePB& rhs) {
       return 0;
     case QLValuePB::VALUE_NOT_SET:
       LOG(FATAL) << "Internal error: value should not be null";
+    case QLValuePB::kVirtualValue:
+      if (lhs.virtual_value() == QLVirtualValuePB::LIMIT_MAX) {
+        return (rhs.value_case() == QLValuePB::kVirtualValue &&
+                rhs.virtual_value() == QLVirtualValuePB::LIMIT_MAX) ? 0 : 1;
+      } else {
+        return (rhs.value_case() == QLValuePB::kVirtualValue &&
+                rhs.virtual_value() == QLVirtualValuePB::LIMIT_MIN) ? 0 : -1;
+      }
       break;
 
     // default: fall through
@@ -906,6 +945,9 @@ int Compare(const QLValuePB& lhs, const QLValuePB& rhs) {
 }
 
 int Compare(const QLValuePB& lhs, const QLValue& rhs) {
+  if (rhs.IsVirtual() && lhs.value_case() != QLValuePB::kVirtualValue) {
+    return -Compare(rhs.value(), lhs);
+  }
   CHECK(Comparable(lhs, rhs));
   CHECK(BothNotNull(lhs, rhs));
   switch (type(lhs)) {
@@ -960,6 +1002,13 @@ int Compare(const QLValuePB& lhs, const QLValue& rhs) {
       return 0;
     case QLValuePB::VALUE_NOT_SET:
       LOG(FATAL) << "Internal error: value should not be null";
+      break;
+    case QLValuePB::kVirtualValue:
+      if (lhs.virtual_value() == QLVirtualValuePB::LIMIT_MAX) {
+        return rhs.IsMax() ? 0 : 1;
+      } else {
+        return rhs.IsMin() ? 0 : -1;
+      }
       break;
 
     // default: fall through

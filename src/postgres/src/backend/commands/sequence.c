@@ -44,6 +44,7 @@
 #include "utils/resowner.h"
 #include "utils/syscache.h"
 #include "utils/varlena.h"
+#include "yb/yql/pggate/ybc_pggate.h"
 
 /*  YB includes. */
 #include "pg_yb_utils.h"
@@ -899,9 +900,6 @@ check_bounds:
 	 */
 	if (IsYugaByteEnabled())
 	{
-		if (last == seq->last_value && seq->is_called == true) {
-		  YBC_DEBUG_LOG_FATAL("Invalid sequence value %ld", last);
-		}
 		bool skipped = false;
 		/*
 		 * We do a conditional update here to detect write conflicts with other sessions. If the
@@ -1816,6 +1814,19 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 	{
 		seqform->seqcache = 1;
 	}
+
+	Datum cacheOptionOrLastCache = Int64GetDatumFast(seqform->seqcache);
+	Datum cacheFlag = Int64GetDatumFast(YBCGetSequenceCacheMinval());
+	Datum computedCacheValue = (cacheOptionOrLastCache > cacheFlag) ? cacheOptionOrLastCache : cacheFlag;
+
+	if (cache_value != NULL && cacheOptionOrLastCache < cacheFlag)
+		ereport(NOTICE,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("Overriding cache option with cache flag or previous cache value."),
+				 errhint("Cache option cannot be set lower than "
+						 "cache flag or previous cache value.")));
+
+	seqform->seqcache = computedCacheValue;
 }
 
 /*

@@ -43,6 +43,7 @@
 #include "yb/master/catalog_manager.h"
 #include "yb/master/master.h"
 #include "yb/rpc/messenger.h"
+#include "yb/util/flag_tags.h"
 #include "yb/util/net/sockaddr.h"
 #include "yb/util/net/tunnel.h"
 #include "yb/util/status.h"
@@ -52,6 +53,7 @@ using strings::Substitute;
 DECLARE_bool(TEST_simulate_fs_create_failure);
 DECLARE_bool(rpc_server_allow_ephemeral_ports);
 DECLARE_double(leader_failure_max_missed_heartbeat_periods);
+DECLARE_int32(TEST_nodes_per_cloud);
 
 namespace yb {
 namespace master {
@@ -130,7 +132,9 @@ Status MiniMaster::StartOnPorts(uint16_t rpc_port, uint16_t web_port,
       HostPort(server::TEST_RpcAddress(index_, server::Private::kFalse), rpc_port) };
 
   if (!opts->has_placement_cloud()) {
-    opts->SetPlacement(Format("cloud$0", (index_ + 1) / 2), Format("rack$0", index_), "zone");
+    opts->SetPlacement(
+        Format("cloud$0", (index_ + 1) / FLAGS_TEST_nodes_per_cloud),
+        Format("rack$0", index_), "zone");
   }
 
   gscoped_ptr<Master> server(new enterprise::Master(*opts));

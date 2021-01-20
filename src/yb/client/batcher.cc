@@ -201,7 +201,8 @@ void Batcher::CheckForFinishedFlush() {
 
     if (state_ != BatcherState::kResolvingTablets &&
         state_ != BatcherState::kTransactionReady) {
-      LOG_WITH_PREFIX(DFATAL) << "Batcher finished in a wrong state: " << state_;
+      LOG_WITH_PREFIX(DFATAL) << "Batcher finished in a wrong state: " << AsString(state_) << "\n"
+                              << GetStackTrace();
       return;
     }
 
@@ -278,6 +279,12 @@ void Batcher::FlushAsync(StatusFunctor callback) {
 }
 
 Status Batcher::Add(shared_ptr<YBOperation> yb_op) {
+  if (state() != BatcherState::kGatheringOps) {
+    const auto error =
+        STATUS_FORMAT(InternalError, "Adding op to batcher in a wrong state: $0", state_);
+    LOG(DFATAL) << error << "\n" << GetStackTrace();
+    return error;
+  }
   // As soon as we get the op, start looking up where it belongs,
   // so that when the user calls Flush, we are ready to go.
   auto in_flight_op = std::make_shared<InFlightOp>(yb_op);
@@ -492,6 +499,12 @@ void Batcher::FlushBuffersIfReady() {
       return;
     }
 
+    if (ops_queue_.empty()) {
+      // Nothing to prepare.
+      state_ = BatcherState::kTransactionReady;
+      return;
+    }
+
     state_ = BatcherState::kTransactionPrepare;
   }
 
@@ -511,6 +524,21 @@ void Batcher::FlushBuffersIfReady() {
     return lhs->tablet.get() < rhs->tablet.get();
   });
 
+  auto group_start = ops_queue_.begin();
+  auto current_group = (**group_start).yb_op->group();
+  const auto* current_tablet = (**group_start).tablet.get();
+  for (auto it = group_start; it != ops_queue_.end(); ++it) {
+    const auto it_group = (**it).yb_op->group();
+    const auto* it_tablet = (**it).tablet.get();
+    if (current_tablet != it_tablet || current_group != it_group) {
+      ops_info_.groups.emplace_back(group_start, it);
+      group_start = it;
+      current_group = it_group;
+      current_tablet = it_tablet;
+    }
+  }
+  ops_info_.groups.emplace_back(group_start, ops_queue_.end());
+
   ExecuteOperations(Initial::kTrue);
 }
 
@@ -522,12 +550,11 @@ void Batcher::ExecuteOperations(Initial initial) {
     //
     // If transaction is not yet ready to do it, then it will notify as via provided when
     // it could be done.
-    if (!transaction->Prepare(ops_queue_,
+    if (!transaction->Prepare(&ops_info_,
                               force_consistent_read_,
                               deadline_,
                               initial,
-                              std::bind(&Batcher::TransactionReady, this, _1, BatcherPtr(this)),
-                              &transaction_metadata_)) {
+                              std::bind(&Batcher::TransactionReady, this, _1, BatcherPtr(this)))) {
       return;
     }
   }
@@ -553,33 +580,21 @@ void Batcher::ExecuteOperations(Initial initial) {
   const size_t ops_number = ops_queue_.size();
 
   // Use big enough value for preallocated storage, to avoid unnecessary allocations.
-  boost::container::small_vector<std::shared_ptr<AsyncRpc>, 40> rpcs;
+  boost::container::small_vector<std::shared_ptr<AsyncRpc>,
+                                 InFlightOpsGroupsWithMetadata::kPreallocatedCapacity> rpcs;
+  rpcs.reserve(ops_info_.groups.size());
 
-  // Now flush the ops for each tablet.
-  auto start = ops_queue_.begin();
-  auto start_group = (**start).yb_op->group();
-  for (auto it = start; it != ops_queue_.end(); ++it) {
-    auto it_group = (**it).yb_op->group();
-    // Aggregate and flush the ops so far if either:
-    //   - we reached the next tablet or group
-    if ((**it).tablet.get() != (**start).tablet.get() ||
-        start_group != it_group) {
-      // Consistent read is not required when whole batch fits into one command.
-      bool need_consistent_read = force_consistent_read || start != ops_queue_.begin() ||
-                                  it != ops_queue_.end();
-      rpcs.push_back(CreateRpc(
-          start->get()->tablet.get(), start, it, /* allow_local_calls_in_curr_thread */ false,
-          need_consistent_read));
-      start = it;
-      start_group = it_group;
-    }
-  }
-
+  // Now flush the ops for each group.
   // Consistent read is not required when whole batch fits into one command.
-  bool need_consistent_read = force_consistent_read || start != ops_queue_.begin();
-  rpcs.push_back(CreateRpc(
-      start->get()->tablet.get(), start, ops_queue_.end(),
-      allow_local_calls_in_curr_thread_, need_consistent_read));
+  const auto need_consistent_read = force_consistent_read || ops_info_.groups.size() > 1;
+
+  for (const auto& group : ops_info_.groups) {
+    // Allow local calls for last group only.
+    const auto allow_local_calls =
+        allow_local_calls_in_curr_thread_ && (&group == &ops_info_.groups.back());
+    rpcs.push_back(CreateRpc(
+        group.begin->get()->tablet.get(), group, allow_local_calls, need_consistent_read));
+  }
 
   LOG_IF(DFATAL, ops_number != ops_queue_.size())
     << "Ops queue was modified while creating RPCs";
@@ -620,12 +635,12 @@ void Batcher::RequestFinished(const TabletId& tablet_id, RetryableRequestId requ
 }
 
 std::shared_ptr<AsyncRpc> Batcher::CreateRpc(
-    RemoteTablet* tablet, InFlightOps::const_iterator begin, InFlightOps::const_iterator end,
+    RemoteTablet* tablet, const InFlightOpsGroup& group,
     const bool allow_local_calls_in_curr_thread, const bool need_consistent_read) {
   VLOG_WITH_PREFIX(3) << "FlushBuffersIfReady: already in flushing state, immediately flushing to "
                       << tablet->tablet_id();
 
-  CHECK(begin != end);
+  CHECK(group.begin != group.end);
 
   // Create and send an RPC that aggregates the ops. The RPC is freed when
   // its callback completes.
@@ -635,10 +650,17 @@ std::shared_ptr<AsyncRpc> Batcher::CreateRpc(
 
   // Split the read operations according to consistency levels since based on consistency
   // levels the read algorithm would differ.
-  InFlightOps ops(begin, end);
-  auto op_group = (**begin).yb_op->group();
-  AsyncRpcData data{this, tablet, allow_local_calls_in_curr_thread, need_consistent_read,
-                    hybrid_time_for_write_, std::move(ops)};
+  const auto op_group = (**group.begin).yb_op->group();
+  AsyncRpcData data {
+    .batcher = this,
+    .tablet = tablet,
+    .allow_local_calls_in_curr_thread = allow_local_calls_in_curr_thread,
+    .need_consistent_read = need_consistent_read,
+    .write_time_for_backfill_ = hybrid_time_for_write_,
+    .ops = InFlightOps(group.begin, group.end),
+    .need_metadata = group.need_metadata
+  };
+
   switch (op_group) {
     case OpGroup::kWrite:
       return std::make_shared<WriteRpc>(&data);
@@ -739,6 +761,11 @@ double Batcher::RejectionScore(int attempt_num) {
 std::string Batcher::LogPrefix() const {
   const void* self = this;
   return Format("Batcher ($0): ", self);
+}
+
+BatcherState Batcher::state() const {
+  std::lock_guard<decltype(mutex_)> lock(mutex_);
+  return state_;
 }
 
 }  // namespace internal

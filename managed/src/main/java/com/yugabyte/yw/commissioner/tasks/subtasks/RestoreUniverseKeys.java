@@ -70,7 +70,7 @@ public class RestoreUniverseKeys extends AbstractTaskBase {
                     "Skipping universe %s, No active keyRef found.",
                     taskParams().universeUUID.toString()
             );
-            LOG.debug(errMsg);
+            LOG.trace(errMsg);
             return null;
         }
 
@@ -119,6 +119,9 @@ public class RestoreUniverseKeys extends AbstractTaskBase {
                     !isEncryptionEnabled.getSecond().equals(encodedKeyRef)) {
                 throw new RuntimeException("Master did not respond that key was enabled");
             }
+
+            universe.incrementVersion();
+
             // Activate keyRef so that if the universe is not enabled,
             // the last keyRef will always be in-memory due to the setkey task
             // which will mean the cluster will always be able to decrypt the
@@ -199,6 +202,7 @@ public class RestoreUniverseKeys extends AbstractTaskBase {
                 // encrypted to begin with, and thus we should restore it back
                 // to that state
                 client.disableEncryptionAtRestInMemory();
+                universe.incrementVersion();
               }
           }
         } catch (Exception e) {

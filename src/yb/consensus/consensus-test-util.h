@@ -914,10 +914,10 @@ class TestRaftConsensusQueueIface : public PeerMessageQueueObserver {
  public:
   bool IsMajorityReplicated(int64_t index) {
     std::lock_guard<simple_spinlock> lock(lock_);
-    return majority_replicated_op_id_.index() >= index;
+    return majority_replicated_op_id_.index >= index;
   }
 
-  OpIdPB majority_replicated_op_id() {
+  OpId majority_replicated_op_id() {
     std::lock_guard<simple_spinlock> lock(lock_);
     return majority_replicated_op_id_;
   }
@@ -930,12 +930,12 @@ class TestRaftConsensusQueueIface : public PeerMessageQueueObserver {
 
  protected:
   void UpdateMajorityReplicated(
-      const MajorityReplicatedData& data, OpIdPB* committed_index,
+      const MajorityReplicatedData& data, OpId* committed_index,
       OpId* last_applied_op_id) override {
     std::lock_guard<simple_spinlock> lock(lock_);
     majority_replicated_op_id_ = data.op_id;
-    committed_index->CopyFrom(data.op_id);
-    *last_applied_op_id = OpId::FromPB(data.op_id);
+    *committed_index = data.op_id;
+    *last_applied_op_id = data.op_id;
   }
   void NotifyTermChange(int64_t term) override {}
   void NotifyFailedFollower(const std::string& uuid,
@@ -945,7 +945,7 @@ class TestRaftConsensusQueueIface : public PeerMessageQueueObserver {
 
  private:
   mutable simple_spinlock lock_;
-  OpIdPB majority_replicated_op_id_;
+  OpId majority_replicated_op_id_;
 };
 
 }  // namespace consensus

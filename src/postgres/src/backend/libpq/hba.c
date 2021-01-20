@@ -102,6 +102,16 @@ static List *parsed_hba_lines = NIL;
 static MemoryContext parsed_hba_context = NULL;
 
 /*
+ * The following character array contains the additional hardcoded HBA config
+ * lines that are set internally.  User defined config lines take priority over
+ * these.
+ */
+static const char *const HardcodedHbaLines[] =
+{
+	"local all postgres yb-tserver-key",
+};
+
+/*
  * pre-parsed content of ident mapping file: list of IdentLine structs.
  * parsed_ident_context is the memory context where it lives.
  *
@@ -127,6 +137,7 @@ static const char *const UserAuthName[] =
 	"password",
 	"md5",
 	"scram-sha-256",
+	"yb-tserver-key",			/* For internal tserver-postgres connection */
 	"gss",
 	"sspi",
 	"pam",
@@ -140,6 +151,11 @@ static const char *const UserAuthName[] =
 
 static MemoryContext tokenize_file(const char *filename, FILE *file,
 			  List **tok_lines, int elevel);
+static void tokenize_hardcoded(MemoryContext linecxt, List **tok_lines,
+							   int elevel);
+static TokenizedLine *tokenize_line(const char *filename, int elevel,
+									int line_number, char *rawline,
+									char *err_msg);
 static List *tokenize_inc_file(List *tokens, const char *outer_filename,
 				  const char *inc_filename, int elevel, char **err_msg);
 static bool parse_hba_auth_opt(char *name, char *val, HbaLine *hbaline,
@@ -483,9 +499,8 @@ tokenize_file(const char *filename, FILE *file, List **tok_lines, int elevel)
 	while (!feof(file) && !ferror(file))
 	{
 		char		rawline[MAX_LINE];
-		char	   *lineptr;
-		List	   *current_line = NIL;
 		char	   *err_msg = NULL;
+		TokenizedLine *tok_line;
 
 		if (!fgets(rawline, sizeof(rawline), file))
 		{
@@ -512,36 +527,13 @@ tokenize_file(const char *filename, FILE *file, List **tok_lines, int elevel)
 			err_msg = "authentication file line too long";
 		}
 
-		/* Strip trailing linebreak from rawline */
-		lineptr = rawline + strlen(rawline) - 1;
-		while (lineptr >= rawline && (*lineptr == '\n' || *lineptr == '\r'))
-			*lineptr-- = '\0';
-
-		/* Parse fields */
-		lineptr = rawline;
-		while (*lineptr && err_msg == NULL)
-		{
-			List	   *current_field;
-
-			current_field = next_field_expand(filename, &lineptr,
-											  elevel, &err_msg);
-			/* add field to line, unless we are at EOL or comment start */
-			if (current_field != NIL)
-				current_line = lappend(current_line, current_field);
-		}
-
-		/* Reached EOL; emit line to TokenizedLine list unless it's boring */
-		if (current_line != NIL || err_msg != NULL)
-		{
-			TokenizedLine *tok_line;
-
-			tok_line = (TokenizedLine *) palloc(sizeof(TokenizedLine));
-			tok_line->fields = current_line;
-			tok_line->line_num = line_number;
-			tok_line->raw_line = pstrdup(rawline);
-			tok_line->err_msg = err_msg;
+		tok_line = tokenize_line(filename,
+								 elevel,
+								 line_number,
+								 rawline,
+								 err_msg);
+		if (tok_line != NULL)
 			*tok_lines = lappend(*tok_lines, tok_line);
-		}
 
 		line_number++;
 	}
@@ -549,6 +541,111 @@ tokenize_file(const char *filename, FILE *file, List **tok_lines, int elevel)
 	MemoryContextSwitchTo(oldcxt);
 
 	return linecxt;
+}
+
+/*
+ * Tokenize the hardcoded configuration lines.
+ *
+ * The output is a list of TokenizedLine structs; see struct definition above.
+ *
+ * linecxt: memory context to save tokenized lines to (expect the same memcxt
+ *		as the one where file tokenized lines are)
+ * tok_lines: receives output list (expect file tokenized lines to already be
+ *		in this list)
+ * elevel: message logging level
+ *
+ * Errors are reported by logging messages at ereport level elevel and by
+ * adding TokenizedLine structs containing non-null err_msg fields to the
+ * output list.
+ */
+static void
+tokenize_hardcoded(MemoryContext linecxt, List **tok_lines, int elevel)
+{
+	int			line_number = -1;
+	MemoryContext oldcxt;
+
+	oldcxt = MemoryContextSwitchTo(linecxt);
+	for (int i = 0; i < sizeof(HardcodedHbaLines) / sizeof(char *); ++i)
+	{
+		char	   *err_msg = NULL;
+		TokenizedLine *tok_line;
+
+		tok_line = tokenize_line("(hardcoded: no filename)" /* filename */,
+								 elevel,
+								 line_number,
+								 pstrdup(HardcodedHbaLines[i]),
+								 err_msg);
+		if (tok_line != NULL)
+			*tok_lines = lappend(*tok_lines, tok_line);
+
+		line_number--;
+	}
+
+	MemoryContextSwitchTo(oldcxt);
+}
+
+/*
+ * Tokenize the given line.
+ *
+ * The output is a TokenizedLine struct.
+ *
+ * filename: the absolute path to the target file
+ * elevel: message logging level
+ * line_number: line in the target file
+ * rawline: the input line (strip trailing line breaks)
+ * err_msg: error message (inherit it, set it, or leave it null)
+ *
+ * Errors are reported by logging messages at ereport level elevel and by
+ * putting a non-null err_msg in the TokenizedLine struct.
+ *
+ * Return value is a palloc'd tokenized line.
+ */
+static TokenizedLine *
+tokenize_line(const char *filename,
+			  int elevel,
+			  int line_number,
+			  char *rawline,
+			  char *err_msg)
+{
+	char	   *lineptr;
+	List	   *current_line = NIL;
+
+	if (rawline == NULL)
+		ereport(ERROR,
+				(ERRCODE_INTERNAL_ERROR,
+				 errmsg("line is null")));
+
+	/* Strip trailing linebreak from rawline */
+	lineptr = rawline + strlen(rawline) - 1;
+	while (lineptr >= rawline && (*lineptr == '\n' || *lineptr == '\r'))
+		*lineptr-- = '\0';
+
+	/* Parse fields */
+	lineptr = rawline;
+	while (*lineptr && err_msg == NULL)
+	{
+		List	   *current_field;
+
+		current_field = next_field_expand(filename, &lineptr,
+										  elevel, &err_msg);
+		/* add field to line, unless we are at EOL or comment start */
+		if (current_field != NIL)
+			current_line = lappend(current_line, current_field);
+	}
+
+	/* Reached EOL; emit line unless it's boring */
+	if (current_line != NIL || err_msg != NULL)
+	{
+		TokenizedLine *tok_line;
+
+		tok_line = (TokenizedLine *) palloc(sizeof(TokenizedLine));
+		tok_line->fields = current_line;
+		tok_line->line_num = line_number;
+		tok_line->raw_line = pstrdup(rawline);
+		tok_line->err_msg = err_msg;
+		return tok_line;
+	}
+	return NULL;
 }
 
 
@@ -1332,6 +1429,8 @@ parse_hba_line(TokenizedLine *tok_line, int elevel)
 	}
 	else if (strcmp(token->string, "scram-sha-256") == 0)
 		parsedline->auth_method = uaSCRAM;
+	else if (strcmp(token->string, "yb-tserver-key") == 0)
+		parsedline->auth_method = uaYbTserverKey;
 	else if (strcmp(token->string, "pam") == 0)
 #ifdef USE_PAM
 		parsedline->auth_method = uaPAM;
@@ -2102,6 +2201,14 @@ check_hba(hbaPort *port)
 
 		/* Found a record that matched! */
 		port->hba = hba;
+
+		/*
+		 * Also persist whether the auth method is yb-tserver-key because this
+		 * information gets lost upon deleting the memory context for auth.
+		 */
+		if (hba->auth_method == uaYbTserverKey)
+			port->yb_is_tserver_auth_method = true;
+
 		return;
 	}
 
@@ -2146,6 +2253,10 @@ load_hba(void)
 
 	linecxt = tokenize_file(HbaFileName, file, &hba_lines, LOG);
 	FreeFile(file);
+
+	/* Add hardcoded hba config lines after user-defined ones. */
+	if (!YBCGetDisableIndexBackfill())
+		tokenize_hardcoded(linecxt, &hba_lines, LOG);
 
 	/* Now parse all the lines */
 	Assert(PostmasterContext);

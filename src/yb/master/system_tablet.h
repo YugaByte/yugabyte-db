@@ -60,9 +60,11 @@ class SystemTablet : public tablet::AbstractTablet {
 
   CHECKED_STATUS HandlePgsqlReadRequest(CoarseTimePoint deadline,
                                         const ReadHybridTime& read_time,
+                                        bool is_explicit_request_read_time,
                                         const PgsqlReadRequestPB& pgsql_read_request,
                                         const TransactionMetadataPB& transaction_metadata,
-                                        tablet::PgsqlReadRequestResult* result) override {
+                                        tablet::PgsqlReadRequestResult* result,
+                                        size_t* num_rows_read) override {
     return STATUS(NotSupported, "Postgres system table is not yet supported");
   }
 
@@ -83,7 +85,7 @@ class SystemTablet : public tablet::AbstractTablet {
   bool IsTransactionalRequest(bool is_ysql_request) const override { return false; }
 
  private:
-  HybridTime DoGetSafeTime(
+  Result<HybridTime> DoGetSafeTime(
       tablet::RequireLease require_lease, HybridTime min_allowed,
       CoarseTimePoint deadline) const override;
 

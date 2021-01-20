@@ -16,6 +16,7 @@
 #include "yb/docdb/doc_key.h"
 #include "yb/docdb/doc_ttl_util.h"
 #include "yb/docdb/value.h"
+#include "yb/docdb/docdb-internal.h"
 #include "yb/rocksutil/yb_rocksdb.h"
 #include "yb/server/hybrid_clock.h"
 #include "yb/util/bytes_formatter.h"
@@ -136,9 +137,9 @@ Status DecodeEncodedStr(rocksdb::Slice* slice, string* result) {
         break;
       }
       if (*p == END_OF_STRING_ESCAPE) {
-        // Character END_OF_STRING is encoded as AB.
+        // 0 is encoded as 00 01 in ascending encoding and FF FE in descending encoding.
         if (result != nullptr) {
-          result->push_back(END_OF_STRING ^ END_OF_STRING);
+          result->push_back(0);
         }
         ++p;
       } else {
@@ -188,6 +189,32 @@ string DecodeZeroEncodedStr(string encoded_str) {
 
 std::string ToShortDebugStr(rocksdb::Slice slice) {
   return FormatSliceAsStr(slice, QuotesType::kDoubleQuotes, kShortDebugStringLength);
+}
+
+Result<DocHybridTime> DecodeInvertedDocHt(Slice key_slice) {
+  if (key_slice.empty() || key_slice.size() > kMaxBytesPerEncodedHybridTime + 1) {
+    return STATUS_FORMAT(
+        Corruption,
+        "Invalid doc hybrid time in reverse intent record suffix: $0",
+        key_slice.ToDebugHexString());
+  }
+  size_t doc_ht_buffer[kMaxWordsPerEncodedHybridTimeWithValueType];
+  memcpy(doc_ht_buffer, key_slice.data(), key_slice.size());
+  for (size_t i = 0; i != kMaxWordsPerEncodedHybridTimeWithValueType; ++i) {
+    doc_ht_buffer[i] = ~doc_ht_buffer[i];
+  }
+  key_slice = Slice(pointer_cast<char*>(doc_ht_buffer), key_slice.size());
+
+  if (static_cast<ValueType>(key_slice[0]) != ValueType::kHybridTime) {
+    return STATUS_FORMAT(
+        Corruption,
+        "Invalid prefix of doc hybrid time in reverse intent record decoded suffix: $0",
+        key_slice.ToDebugHexString());
+  }
+  key_slice.consume_byte();
+  DocHybridTime doc_ht;
+  RETURN_NOT_OK(doc_ht.DecodeFrom(&key_slice));
+  return doc_ht;
 }
 
 }  // namespace docdb

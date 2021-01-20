@@ -345,6 +345,10 @@ public class MiniYBDaemon {
         throw ex;
       }
     }
+    try {
+      process.getInputStream().close();
+    } catch (IOException ex) {
+    }
   }
 
 }

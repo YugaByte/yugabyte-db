@@ -15,7 +15,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 
-import com.yugabyte.yw.common.ApiHelper;
 import com.yugabyte.yw.common.services.YBClientService;
 import com.yugabyte.yw.common.SslHelper;
 import com.yugabyte.yw.common.Util;

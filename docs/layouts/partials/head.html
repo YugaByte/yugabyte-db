@@ -81,10 +81,10 @@
     <link rel="stylesheet" href="/css/temporary.css">
     <link rel="stylesheet" href="{{ with .Site.Params.highlight_css }}{{ . | absURL }}{{ else }}{{ "/css/highlight/highlight.css" }}{{ end }}">
 
-    {{ $text := or .Site.Params.font.text "Inter" }}
+    {{ $text := or .Site.Params.font.text "Source Sans Pro" }}
     {{ $code := or .Site.Params.font.code "Roboto Mono" }}
     <link href="https://fonts.googleapis.com/css?family=Rubik:300,400,500,600,700,800&amp;display=swap" rel="stylesheet">
-    <link href="https://rsms.me/inter/inter.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css?family=Inconsolata" rel="stylesheet">
     <style>
       body, input {

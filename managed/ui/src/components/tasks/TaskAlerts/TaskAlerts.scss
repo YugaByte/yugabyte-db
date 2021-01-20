@@ -1,7 +1,7 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../_style/colors.scss";
-@import "../../../_style/icons.scss";
+@import '../../../_style/colors.scss';
+@import '../../../_style/icons.scss';
 
 .task-list-container {
   margin-top: 8px;
@@ -13,7 +13,7 @@
   .list-group-item {
     padding: 2px 0px 2px 10px;
     margin: 0px 4px -2px 4px;
-    background-color: rgba(211,211,211, 0.2);
+    background-color: rgba(211, 211, 211, 0.2);
     border-radius: 2px;
     text-align: left;
   }

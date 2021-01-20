@@ -23,8 +23,8 @@ DEFINE_uint64(wait_hybrid_time_sleep_interval_us, 10000,
 
 namespace yb {
 
-Status WaitUntil(ClockBase* clock_base, HybridTime hybrid_time, CoarseTimePoint deadline) {
-  auto ht_now = clock_base->Now();
+Result<HybridTime> WaitUntil(ClockBase* clock, HybridTime hybrid_time, CoarseTimePoint deadline) {
+  auto ht_now = clock->Now();
   while (ht_now < hybrid_time) {
     if (CoarseMonoClock::now() > deadline) {
       return STATUS_FORMAT(TimedOut, "Timed out waiting for $0, now $1", deadline, ht_now);
@@ -32,10 +32,10 @@ Status WaitUntil(ClockBase* clock_base, HybridTime hybrid_time, CoarseTimePoint 
     auto delta_micros = hybrid_time.GetPhysicalValueMicros() - ht_now.GetPhysicalValueMicros();
     std::this_thread::sleep_for(
         std::max(FLAGS_wait_hybrid_time_sleep_interval_us, delta_micros) * 1us);
-    ht_now = clock_base->Now();
+    ht_now = clock->Now();
   }
 
-  return Status::OK();
+  return ht_now;
 }
 
 } // namespace yb

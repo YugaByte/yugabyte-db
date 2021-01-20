@@ -7,13 +7,10 @@ import 'react-day-picker/lib/style.css';
 
 export default class YBFormDatePicker extends Component {
   render() {
-    const { pickerComponent} = this.props;
+    const { pickerComponent } = this.props;
     return (
-      <YBLabel {...this.props} >
-        <DayPickerInput
-          component={pickerComponent}
-          {...this.props}
-        />
+      <YBLabel {...this.props}>
+        <DayPickerInput component={pickerComponent} {...this.props} {...this.props.field} />
       </YBLabel>
     );
   }

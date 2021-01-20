@@ -22,7 +22,9 @@ namespace master {
 // VTable implementation of system_schema.triggers.
 class YQLTriggersVTable : public YQLEmptyVTable {
  public:
-  explicit YQLTriggersVTable(const Master* const master);
+  explicit YQLTriggersVTable(const TableName& table_name,
+                             const NamespaceName& namespace_name,
+                             Master* const master);
  protected:
   Schema CreateSchema() const;
 };

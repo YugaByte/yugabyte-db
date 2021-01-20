@@ -819,7 +819,7 @@ compute_index_stats(Relation onerel, double totalrows,
 			ResetExprContext(econtext);
 
 			/* Set up for predicate or expression evaluation */
-			ExecStoreTuple(heapTuple, slot, InvalidBuffer, false);
+			ExecStoreHeapTuple(heapTuple, slot, false);
 
 			/* If index is partial, check predicate */
 			if (predicate != NULL)
@@ -1530,7 +1530,7 @@ acquire_inherited_sample_rows(Relation onerel, int elevel,
 						{
 							HeapTuple	newtup;
 
-							newtup = do_convert_tuple(rows[numrows + j], map);
+							newtup = execute_attr_map_tuple(rows[numrows + j], map);
 							heap_freetuple(rows[numrows + j]);
 							rows[numrows + j] = newtup;
 						}

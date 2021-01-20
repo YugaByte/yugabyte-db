@@ -202,7 +202,7 @@ class WriteOperationContext {
  public:
   // When operation completes, its callback is executed.
   virtual void Submit(std::unique_ptr<Operation> operation, int64_t term) = 0;
-  virtual HybridTime ReportReadRestart() = 0;
+  virtual Result<HybridTime> ReportReadRestart() = 0;
 
   virtual ~WriteOperationContext() {}
 };

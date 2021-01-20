@@ -30,26 +30,10 @@ CHECKED_STATUS QLKeyColumnValuesToPrimitiveValues(
     const Schema &schema, size_t column_idx, const size_t column_count,
     vector<PrimitiveValue> *components);
 
-CHECKED_STATUS InitKeyColumnPrimitiveValues(
+Result<vector<PrimitiveValue>> InitKeyColumnPrimitiveValues(
     const google::protobuf::RepeatedPtrField<PgsqlExpressionPB> &column_values,
     const Schema &schema,
-    size_t start_idx,
-    vector<PrimitiveValue> *components);
-
-boost::optional<int32_t> DocHashCode(const PgsqlReadRequestPB& request,
-                                     int64_t batch_arg_index);
-
-boost::optional<int32_t> DocMaxHashCode(const PgsqlReadRequestPB& request,
-                                        int64_t batch_arg_index);
-bool DocHasRangeValues(const PgsqlReadRequestPB& request, int64_t batch_arg_index);
-
-const google::protobuf::RepeatedPtrField<PgsqlExpressionPB>&
-DocRangeValues(const PgsqlReadRequestPB& request, int64_t batch_arg_index);
-
-bool DocHasPartitionValues(const PgsqlReadRequestPB& request, int64_t batch_arg_index);
-
-const google::protobuf::RepeatedPtrField<PgsqlExpressionPB>&
-DocPartitionValues(const PgsqlReadRequestPB& request, int64_t batch_arg_index);
+    size_t start_idx);
 
 }  // namespace docdb
 }  // namespace yb

@@ -31,6 +31,7 @@ typedef enum UserAuth
 	uaPassword,
 	uaMD5,
 	uaSCRAM,
+	uaYbTserverKey,				/* For internal tserver-postgres connection */
 	uaGSS,
 	uaSSPI,
 	uaPAM,

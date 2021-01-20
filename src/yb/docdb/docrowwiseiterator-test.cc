@@ -16,6 +16,7 @@
 
 #include "yb/common/ql_expr.h"
 #include "yb/common/ql_value.h"
+#include "yb/common/read_hybrid_time.h"
 #include "yb/common/transaction-test-util.h"
 
 #include "yb/docdb/doc_rowwise_iterator.h"
@@ -605,6 +606,52 @@ TEST_F(DocRowwiseIteratorTest, DocRowwiseIteratorIncompleteProjection) {
     ASSERT_FALSE(value.IsNull());
     ASSERT_EQ(20000, value.int64_value());
 
+    ASSERT_FALSE(ASSERT_RESULT(iter.HasNext()));
+  }
+}
+
+TEST_F(DocRowwiseIteratorTest, ColocatedTableTombstoneTest) {
+  constexpr PgTableOid pgtable_id(0x4001);
+  auto dwb = MakeDocWriteBatch();
+
+  DocKey encoded_1_with_tableid;
+
+  ASSERT_OK(encoded_1_with_tableid.FullyDecodeFrom(kEncodedDocKey1));
+  encoded_1_with_tableid.set_pgtable_id(pgtable_id);
+
+  ASSERT_OK(dwb.SetPrimitive(
+      DocPath(
+        encoded_1_with_tableid.Encode(),
+        PrimitiveValue::SystemColumnId(SystemColumnIds::kLivenessColumn)),
+      PrimitiveValue(ValueType::kNullLow)));
+  ASSERT_OK(WriteToRocksDBAndClear(&dwb, HybridTime::FromMicros(1000)));
+
+  DocKey table_id(pgtable_id);
+  ASSERT_OK(dwb.DeleteSubDoc(DocPath(table_id.Encode())));
+  ASSERT_OK(WriteToRocksDBAndClear(&dwb, HybridTime::FromMicros(2000)));
+
+  ASSERT_DOCDB_DEBUG_DUMP_STR_EQ(R"#(
+SubDocKey(DocKey(PgTableId=16385, [], []), [HT{ physical: 2000 }]) -> DEL
+SubDocKey(DocKey(PgTableId=16385, [], ["row1", 11111]), [SystemColumnId(0); HT{ physical: 1000 }]) \
+    -> null
+      )#");
+  Schema schema_copy = kSchemaForIteratorTests;
+  schema_copy.set_pgtable_id(pgtable_id);
+  Schema projection;
+  // Read should have results before delete...
+  {
+    DocRowwiseIterator iter(
+        projection, schema_copy, kNonTransactionalOperationContext, doc_db(),
+        CoarseTimePoint::max() /* deadline */, ReadHybridTime::FromMicros(1500));
+    ASSERT_OK(iter.Init());
+    ASSERT_TRUE(ASSERT_RESULT(iter.HasNext()));
+  }
+  // ...but there should be no results after delete.
+  {
+    DocRowwiseIterator iter(
+        projection, schema_copy, kNonTransactionalOperationContext, doc_db(),
+        CoarseTimePoint::max() /* deadline */, ReadHybridTime::Max());
+    ASSERT_OK(iter.Init());
     ASSERT_FALSE(ASSERT_RESULT(iter.HasNext()));
   }
 }

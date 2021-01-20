@@ -57,6 +57,8 @@
 #include "yb/tserver/tablet_server.h"
 #include "yb/tserver/ts_tablet_manager.h"
 #include "yb/util/url-coding.h"
+#include "yb/util/version_info.h"
+#include "yb/util/version_info.pb.h"
 
 namespace {
 
@@ -254,6 +256,8 @@ void HandleConsensusStatusPage(
     *output << "Tablet " << EscapeForHtmlToString(tablet_id) << " not running";
     return;
   }
+
+  *output << "<h1>Tablet " << EscapeForHtmlToString(tablet_id) << "</h1>\n";
   consensus->DumpStatusHtml(*output);
 }
 
@@ -369,8 +373,23 @@ Status TabletServerPathHandlers::Register(Webserver* server) {
       "/api/v1/health-check", "TServer Health Check",
       std::bind(&TabletServerPathHandlers::HandleHealthCheck, this, _1, _2),
       false /* styled */, false /* is_on_nav_bar */);
-
+  server->RegisterPathHandler(
+      "/api/v1/version", "YB Version Information",
+      std::bind(&TabletServerPathHandlers::HandleVersionInfoDump, this, _1, _2),
+      false /* styled */, false /* is_on_nav_bar */);
   return Status::OK();
+}
+
+void TabletServerPathHandlers::HandleVersionInfoDump(const Webserver::WebRequest& req,
+                                                    Webserver::WebResponse* resp) {
+  // Get the version info.
+  VersionInfoPB version_info;
+  VersionInfo::GetVersionInfoPB(&version_info);
+
+  std::stringstream *output = &resp->output;
+  JsonWriter jw(output, JsonWriter::PRETTY);
+
+  jw.Protobuf(version_info);
 }
 
 void TabletServerPathHandlers::HandleOperationsPage(const Webserver::WebRequest& req,

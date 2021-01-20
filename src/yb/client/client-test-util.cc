@@ -51,7 +51,7 @@ namespace client {
 void LogSessionErrorsAndDie(const std::shared_ptr<YBSession>& session,
                             const Status& s) {
   CHECK(!s.ok());
-  auto errors = session->GetPendingErrors();
+  auto errors = session->GetAndClearPendingErrors();
 
   // Log only the first 10 errors.
   LOG(INFO) << errors.size() << " failed ops. First 10 errors follow";

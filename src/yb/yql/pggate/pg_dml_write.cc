@@ -124,7 +124,7 @@ Status PgDmlWrite::Exec(bool force_non_bufferable) {
   }
 
   // Initialize doc operator.
-  doc_op_->ExecuteInit(nullptr);
+  RETURN_NOT_OK(doc_op_->ExecuteInit(nullptr));
 
   // Set column references in protobuf.
   ColumnRefsToPB(write_req_->mutable_column_refs());

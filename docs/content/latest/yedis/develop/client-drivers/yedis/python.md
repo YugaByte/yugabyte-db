@@ -4,7 +4,7 @@ headerTitle: Build an application using Python
 linkTitle: Python
 description: Use Python to build a YugabyteDB application that interacts with YEDIS
 aliases:
- - /latest/yedis/develop/client-drivers/python
+  - /latest/yedis/develop/client-drivers/python
 menu:
   latest:
     identifier: client-drivers-yedis-python

@@ -15,13 +15,13 @@ import java.util.List;
 import java.util.Collection;
 import java.util.UUID;
 
-import com.yugabyte.yw.forms.AbstractTaskParams;
+import com.yugabyte.yw.commissioner.tasks.UniverseTaskBase;
+import com.yugabyte.yw.forms.UniverseTaskParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yb.Common.HostPortPB;
 import org.yb.client.ModifyMasterClusterConfigBlacklist;
 
-import com.yugabyte.yw.commissioner.AbstractTaskBase;
 import com.yugabyte.yw.common.services.YBClientService;
 import com.yugabyte.yw.forms.ITaskParams;
 import com.yugabyte.yw.models.Universe;
@@ -32,17 +32,14 @@ import play.api.Play;
 
 // This class runs the task that helps modify the existing list of blacklisted servers maintained
 // on the master leader.
-public class ModifyBlackList extends AbstractTaskBase {
+public class ModifyBlackList extends UniverseTaskBase {
   public static final Logger LOG = LoggerFactory.getLogger(ModifyBlackList.class);
 
   // The YB client.
   public YBClientService ybService = null;
 
   // Parameters for placement info update task.
-  public static class Params extends AbstractTaskParams {
-    // The universe against which this node's details should be saved.
-    public UUID universeUUID;
-
+  public static class Params extends UniverseTaskParams {
     // When true, the collection of nodes below are added to the blacklist on the master leader,
     // else they are removed.
     public boolean isAdd;
@@ -90,6 +87,7 @@ public class ModifyBlackList extends AbstractTaskBase {
       ModifyMasterClusterConfigBlacklist modifyBlackList =
         new ModifyMasterClusterConfigBlacklist(client, modifyHosts, taskParams().isAdd);
       modifyBlackList.doCall();
+      universe.incrementVersion();
     } catch (Exception e) {
       LOG.error("{} hit error : {}", getName(), e.getMessage());
       throw new RuntimeException(e);

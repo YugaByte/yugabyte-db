@@ -185,7 +185,7 @@ class LogCache {
     ReplicateMsgPtr msg;
     // The cached value of msg->SpaceUsedLong(). This method is expensive
     // to compute, so we compute it only once upon insertion.
-    int64_t mem_usage;
+    int64_t mem_usage = 0;
 
     // Did we start memory tracking for this entry.
     bool tracked = false;

@@ -13,29 +13,42 @@
 
 #include "yb/integration-tests/cql_test_base.h"
 
+#include "yb/consensus/raft_consensus.h"
+
+#include "yb/integration-tests/mini_cluster_utils.h"
+
 #include "yb/util/random_util.h"
 #include "yb/util/test_util.h"
 
 using namespace std::literals;
 
 DECLARE_bool(disable_index_backfill);
+DECLARE_bool(transactions_poll_check_aborted);
+DECLARE_bool(TEST_disable_proactive_txn_cleanup_on_abort);
 DECLARE_int32(client_read_write_timeout_ms);
 DECLARE_int32(rpc_workers_limit);
 DECLARE_uint64(transaction_manager_workers_limit);
 DECLARE_uint64(TEST_inject_txn_get_status_delay_ms);
+DECLARE_int64(transaction_abort_check_interval_ms);
 
 namespace yb {
 
 class CqlIndexTest : public CqlTestBase {
  public:
   virtual ~CqlIndexTest() = default;
+
+  void TestTxnCleanup(size_t max_remaining_txns_per_tablet);
 };
 
-CHECKED_STATUS CreateIndexedTable(CassandraSession* session) {
+YB_STRONGLY_TYPED_BOOL(UniqueIndex);
+
+CHECKED_STATUS CreateIndexedTable(
+    CassandraSession* session, UniqueIndex unique_index = UniqueIndex::kFalse) {
   RETURN_NOT_OK(
       session->ExecuteQuery("CREATE TABLE IF NOT EXISTS t (key INT PRIMARY KEY, value INT) WITH "
                             "transactions = { 'enabled' : true }"));
-  return session->ExecuteQuery("CREATE INDEX IF NOT EXISTS idx ON T (value)");
+  return session->ExecuteQuery(
+      Format("CREATE $0 INDEX IF NOT EXISTS idx ON T (value)", unique_index ? "UNIQUE" : ""));
 }
 
 TEST_F(CqlIndexTest, Simple) {
@@ -99,6 +112,7 @@ TEST_F_EX(CqlIndexTest, ConcurrentIndexUpdate, CqlIndexSmallWorkersTest) {
 
   FLAGS_client_read_write_timeout_ms = 10000;
   SetAtomicFlag(1000, &FLAGS_TEST_inject_txn_get_status_delay_ms);
+  FLAGS_transaction_abort_check_interval_ms = 100000;
 
   auto session = ASSERT_RESULT(EstablishSession(driver_.get()));
 
@@ -138,14 +152,69 @@ TEST_F_EX(CqlIndexTest, ConcurrentIndexUpdate, CqlIndexSmallWorkersTest) {
   }
 
   while (!thread_holder.stop_flag().load(std::memory_order_acquire)) {
-    if (inserts.load(std::memory_order_acquire) >= kNumInserts) {
+    auto num_inserts = inserts.load(std::memory_order_acquire);
+    if (num_inserts >= kNumInserts) {
       break;
     }
+    YB_LOG_EVERY_N_SECS(INFO, 5) << "Num inserts " << num_inserts << " of " << kNumInserts;
+    std::this_thread::sleep_for(100ms);
   }
 
   thread_holder.Stop();
 
   SetAtomicFlag(0, &FLAGS_TEST_inject_txn_get_status_delay_ms);
+}
+
+YB_STRONGLY_TYPED_BOOL(CheckReady);
+
+void CleanFutures(std::deque<CassandraFuture>* futures, CheckReady check_ready) {
+  while (!futures->empty() && (!check_ready || futures->front().Ready())) {
+    auto status = futures->front().Wait();
+    if (!status.ok() && !status.IsTimedOut()) {
+      auto msg = status.message().ToBuffer();
+      if (msg.find("Duplicate value disallowed by unique index") == std::string::npos) {
+        ASSERT_OK(status);
+      }
+    }
+    futures->pop_front();
+  }
+}
+
+void CqlIndexTest::TestTxnCleanup(size_t max_remaining_txns_per_tablet) {
+  auto session = ASSERT_RESULT(EstablishSession(driver_.get()));
+
+  ASSERT_OK(CreateIndexedTable(&session, UniqueIndex::kTrue));
+  std::deque<CassandraFuture> futures;
+
+  auto prepared = ASSERT_RESULT(session.Prepare("INSERT INTO t (key, value) VALUES (?, ?)"));
+
+  for (int i = 0; i != RegularBuildVsSanitizers(100, 30); ++i) {
+    ASSERT_NO_FATALS(CleanFutures(&futures, CheckReady::kTrue));
+
+    auto stmt = prepared.Bind();
+    stmt.Bind(0, i);
+    stmt.Bind(1, RandomUniformInt<cass_int32_t>(1, 10));
+    futures.push_back(session.ExecuteGetFuture(stmt));
+  }
+
+  ASSERT_NO_FATALS(CleanFutures(&futures, CheckReady::kFalse));
+
+  AssertRunningTransactionsCountLessOrEqualTo(cluster_.get(), max_remaining_txns_per_tablet);
+}
+
+// Test proactive aborted transactions cleanup.
+TEST_F(CqlIndexTest, TxnCleanup) {
+  FLAGS_transactions_poll_check_aborted = false;
+
+  TestTxnCleanup(/* max_remaining_txns_per_tablet= */ 5);
+}
+
+// Test poll based aborted transactions cleanup.
+TEST_F(CqlIndexTest, TxnPollCleanup) {
+  FLAGS_TEST_disable_proactive_txn_cleanup_on_abort = true;
+  FLAGS_transaction_abort_check_interval_ms = 1000;
+
+  TestTxnCleanup(/* max_remaining_txns_per_tablet= */ 0);
 }
 
 } // namespace yb

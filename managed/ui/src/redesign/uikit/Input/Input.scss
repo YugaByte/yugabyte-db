@@ -1,7 +1,16 @@
-@import "../common";
+@import '../common';
 
 .yb-uikit-input {
   $arrows-width: 26px;
+
+  &--disabled {
+    background-color: $YB_BORDER_1;
+  }
+
+  &--invalid {
+    border-color: $YB_ERROR;
+    box-shadow: 0 0 5px rgba($YB_ERROR, 0.2);
+  }
 
   @include input-wrapper();
 
@@ -12,7 +21,7 @@
       background-color: $YB_BORDER_1;
     }
 
-    &[type="number"] {
+    &[type='number'] {
       padding-right: $arrows-width + 10px;
       // hide arrows for firefox
       -moz-appearance: textfield;
@@ -32,18 +41,25 @@
     width: $arrows-width;
     height: 100%;
     background-color: $YB_INPUT_NUMBERS_BG;
+    border-left: 1px solid $YB_BORDER_1;
     display: flex;
     justify-content: space-evenly;
     flex-direction: column;
 
     &--disabled {
       pointer-events: none; // to turn off on hover styles
+      background-color: $YB_BORDER_1;
+      border-left-color: $YB_INPUT_NUMBERS_BG;
+
+      & .yb-uikit-input__number-delim {
+        border-top-color: $YB_INPUT_NUMBERS_BG;
+      }
     }
   }
 
   &__number-up {
     @include chevron-up();
-    margin-left: 5px;
+    margin-left: 7px;
     cursor: pointer;
 
     &:hover {
@@ -53,7 +69,7 @@
 
   &__number-down {
     @include chevron-down();
-    margin-left: 5px;
+    margin-left: 7px;
     cursor: pointer;
 
     &:hover {
@@ -62,6 +78,6 @@
   }
 
   &__number-delim {
-    border-top: 1px solid $YB_TEXT_1;
+    border-top: 1px solid $YB_BORDER_1;
   }
 }

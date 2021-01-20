@@ -34,12 +34,13 @@ public class SubTaskGroupQueue {
    * Execute the sequence of task lists in a sequential manner.
    */
   public void run() {
-    boolean success = false;
+    boolean runSuccess = true;
     for (SubTaskGroup subTaskGroup : subTaskGroups) {
+      boolean subTaskGroupSuccess = false;
       subTaskGroup.setUserSubTaskState(TaskInfo.State.Running);
       try {
         subTaskGroup.run();
-        success = subTaskGroup.waitFor();
+        subTaskGroupSuccess = subTaskGroup.waitFor();
       } catch (Throwable t) {
         // Update task state to failure
         subTaskGroup.setUserSubTaskState(TaskInfo.State.Failure);
@@ -47,14 +48,20 @@ public class SubTaskGroupQueue {
           throw t;
         }
       }
-      if (!success) {
+
+      if (!subTaskGroupSuccess) {
         LOG.error("SubTaskGroup '{}' waitFor() returned failed status.", subTaskGroup.toString());
         subTaskGroup.setUserSubTaskState(TaskInfo.State.Failure);
         if (!subTaskGroup.ignoreErrors) {
           throw new RuntimeException(subTaskGroup.toString() + " failed.");
         }
       }
-      subTaskGroup.setUserSubTaskState(TaskInfo.State.Success);
+
+      runSuccess = runSuccess && subTaskGroupSuccess;
+
+      if (subTaskGroupSuccess) subTaskGroup.setUserSubTaskState(TaskInfo.State.Success);
     }
+
+    if (!runSuccess) throw new RuntimeException("One or more subTaskGroups failed while running.");
   }
 }

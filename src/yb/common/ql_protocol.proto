@@ -151,7 +151,7 @@ message QLWriteRequestPB {
   optional bool returns_status = 18 [default = false];
 
   // Does this request correspond to backfilling an index table?
-  optional bool is_backfilling = 19 [default = false];
+  optional bool is_backfill = 19 [default = false];
 }
 
 //-------------------------------------- Read request ----------------------------------------

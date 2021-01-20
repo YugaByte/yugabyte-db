@@ -12,6 +12,8 @@
 //
 package org.yb.pgsql;
 
+import java.util.Map;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.yb.util.YBTestRunnerNonTsanOnly;
@@ -21,9 +23,20 @@ import org.yb.util.YBTestRunnerNonTsanOnly;
  */
 @RunWith(value=YBTestRunnerNonTsanOnly.class)
 public class TestPgRegressExtension extends BasePgSQLTest {
+
+  private static final String TURN_OFF_COPY_FROM_BATCH_TRANSACTION =
+      "yb_default_copy_from_rows_per_transaction=0";
+
   @Override
   public int getTestMethodTimeoutSec() {
     return 1800;
+  }
+
+  @Override
+  protected Map<String, String> getTServerFlags() {
+    Map<String, String> flags = super.getTServerFlags();
+    flags.put("ysql_pg_conf", TURN_OFF_COPY_FROM_BATCH_TRANSACTION);
+    return flags;
   }
 
   @Test

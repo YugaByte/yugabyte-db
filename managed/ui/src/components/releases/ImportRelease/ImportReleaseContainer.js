@@ -16,7 +16,7 @@ const mapDispatchToProps = (dispatch) => {
 
 function mapStateToProps(state, ownProps) {
   return {
-    initialValues: {version: ""},
+    initialValues: { version: '' },
     importRelease: state.customer.importRelease
   };
 }

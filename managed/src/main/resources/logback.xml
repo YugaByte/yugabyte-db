@@ -14,7 +14,7 @@
         <maxHistory>30</maxHistory>
     </rollingPolicy>
     <encoder>
-      <pattern>%date [%level] from %logger in %thread - %message%n%xException</pattern>
+      <pattern>%date [%level] from %logger{0} in %thread - %message%n%xException</pattern>
     </encoder>
   </appender>
 
@@ -22,11 +22,9 @@
     <encoder>
       <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %F:%L [%thread] %msg%n</pattern>
     </encoder>
-  </appender>
-
-  <appender name="ASYNCFILE" class="ch.qos.logback.classic.AsyncAppender">
-    <appender-ref ref="FILE" />
-    <includeCallerData>true</includeCallerData>
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>${APPLICATION_CONSOLE_LOG_LEVEL:-INFO}</level>
+    </filter>
   </appender>
 
   <appender name="ASYNCSTDOUT" class="ch.qos.logback.classic.AsyncAppender">
@@ -34,17 +32,23 @@
     <includeCallerData>true</includeCallerData>
   </appender>
 
+  <appender name="ASYNCFILE" class="ch.qos.logback.classic.AsyncAppender">
+    <appender-ref ref="FILE" />
+    <includeCallerData>true</includeCallerData>
+  </appender>
+
   <logger name="play" level="INFO" />
-  <logger name="com.yugabyte.yw" level="INFO" />
   <logger name="org.yb" level="INFO" />
   <logger name="application" level="DEBUG" />
+  <logger name="org.yb" level="INFO" />
+  <logger name="com.yugabyte.yw" level="DEBUG" />
 
   <!-- Off these ones as they are annoying, and anyway we manage configuration ourselves -->
   <logger name="com.gargoylesoftware.htmlunit.javascript" level="OFF" />
 
   <root level="WARN">
-    <appender-ref ref="ASYNCFILE" />
     <appender-ref ref="ASYNCSTDOUT" />
+    <appender-ref ref="ASYNCFILE" />
   </root>
 
 </configuration>

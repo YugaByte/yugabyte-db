@@ -67,7 +67,7 @@ INSTANTIATE_TEST_CASE_P(Priorities, RWMutexTest,
                                           RWMutex::Priority::PREFER_WRITING));
 
 // Multi-threaded test that tries to find deadlocks in the RWMutex wrapper.
-TEST_P(RWMutexTest, TestDeadlocks) {
+TEST_P(RWMutexTest, TestDeadlocks) NO_THREAD_SAFETY_ANALYSIS {
   uint64_t number_of_writes = 0;
   AtomicInt<uint64_t> number_of_reads(0);
 
@@ -124,7 +124,7 @@ TEST_P(RWMutexTest, TestDeadlocks) {
 #ifndef NDEBUG
 // Tests that the RWMutex wrapper catches basic usage errors. This checking is
 // only enabled in debug builds.
-TEST_P(RWMutexTest, TestLockChecking) {
+TEST_P(RWMutexTest, TestLockChecking) NO_THREAD_SAFETY_ANALYSIS {
   EXPECT_DEATH({
     lock_.ReadLock();
     lock_.ReadLock();

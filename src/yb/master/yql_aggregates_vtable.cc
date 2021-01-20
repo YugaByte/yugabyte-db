@@ -17,8 +17,10 @@
 namespace yb {
 namespace master {
 
-YQLAggregatesVTable::YQLAggregatesVTable(const Master* const master)
-    : YQLEmptyVTable(master::kSystemSchemaAggregatesTableName, master, CreateSchema()) {
+YQLAggregatesVTable::YQLAggregatesVTable(const TableName& table_name,
+                                         const NamespaceName& namespace_name,
+                                         Master* const master)
+    : YQLEmptyVTable(table_name, namespace_name, master, CreateSchema()) {
 }
 
 Schema YQLAggregatesVTable::CreateSchema() const {

@@ -5,9 +5,7 @@ import LoginFormContainer from '../components/common/forms/LoginForm/LoginFormCo
 
 class Login extends Component {
   render() {
-    return (
-      <LoginFormContainer />
-    );
+    return <LoginFormContainer />;
   }
 }
 

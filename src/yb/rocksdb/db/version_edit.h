@@ -188,17 +188,13 @@ class VersionEdit {
     new_files_.emplace_back(level, f);
   }
 
-  void AddCleanedFile(int level, const FileMetaData& f, bool suppress_frontiers = false) {
+  void AddCleanedFile(int level, const FileMetaData& f) {
     DCHECK_LE(f.smallest.seqno, f.largest.seqno);
     FileMetaData nf;
     nf.fd = f.fd;
     nf.fd.table_reader = nullptr;
     nf.smallest = f.smallest;
     nf.largest = f.largest;
-    if (suppress_frontiers) {
-      nf.smallest.user_frontier.reset();
-      nf.largest.user_frontier.reset();
-    }
     nf.marked_for_compaction = f.marked_for_compaction;
     nf.imported = f.imported;
     new_files_.emplace_back(level, std::move(nf));

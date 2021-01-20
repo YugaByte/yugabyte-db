@@ -20,6 +20,7 @@ import org.junit.runner.RunWith;
 import org.yb.util.YBTestRunnerNonTsanOnly;
 import org.yb.cql.BaseCQLTest;
 import org.yb.minicluster.IOMetrics;
+import org.yb.minicluster.MiniYBClusterBuilder;
 import org.yb.minicluster.MiniYBDaemon;
 
 import java.util.Iterator;
@@ -31,6 +32,12 @@ import static org.yb.AssertionWrappers.assertTrue;
 
 @RunWith(value=YBTestRunnerNonTsanOnly.class)
 public class TestSparkLocality extends BaseCQLTest {
+  @Override
+  protected void customizeMiniClusterBuilder(MiniYBClusterBuilder builder) {
+      super.customizeMiniClusterBuilder(builder);
+      // Disable the system.partitions vtable refresh bg thread.
+      builder.yqlSystemPartitionsVtableRefreshSecs(0);
+  }
 
   // Timeout to wait for load balancing to complete.
   private static final int LOADBALANCE_TIMEOUT_MS = 120000; // 2 mins

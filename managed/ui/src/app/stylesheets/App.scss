@@ -1,22 +1,22 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "./modules/leaflet.scss";
-@import "./modules/highlightjs.scss";
-@import "./modules/react-bs-table.scss";
+@import './modules/leaflet.scss';
+@import './modules/highlightjs.scss';
+@import './modules/react-bs-table.scss';
 
-@import "./body.scss";
-@import "./layout.scss";
-@import "./headings.scss";
-@import "./links.scss";
-@import "./buttons.scss";
-@import "./forms.scss";
-@import "./tabs.scss";
-@import "./modals.scss";
-@import "./spinners.scss";
-@import "../../_style/colors";
+@import './body.scss';
+@import './layout.scss';
+@import './headings.scss';
+@import './links.scss';
+@import './buttons.scss';
+@import './forms.scss';
+@import './tabs.scss';
+@import './modals.scss';
+@import './spinners.scss';
+@import '../../_style/colors';
 
 .progress {
-  width:100%;
+  width: 100%;
 }
 
 .region-item-cell {
@@ -53,17 +53,17 @@
 }
 
 .btn-primary {
-  background-color: $YB_ORANGE ;
+  background-color: $YB_ORANGE;
   border-color: $YB_ORANGE;
 }
 
 .btn-primary:hover {
-  background-color: #fff ;
+  background-color: #fff;
   border-color: #ccc;
   color: $YB_ORANGE;
 }
 .btn-primary:active:focus {
-  background-color: #fff ;
+  background-color: #fff;
   border-color: #ccc;
   color: $YB_ORANGE;
 }

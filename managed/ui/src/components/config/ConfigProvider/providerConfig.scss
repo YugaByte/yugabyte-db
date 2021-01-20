@@ -1,6 +1,6 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../_style/colors.scss";
+@import '../../../_style/colors.scss';
 
 #config-tab-panel .tab-content {
   min-height: 400px;
@@ -29,7 +29,8 @@
         font-weight: 500;
       }
 
-      form, .well {
+      form,
+      .well {
         margin: 10px 0 20px 20px;
       }
 
@@ -141,7 +142,6 @@
       font-size: 14px;
 
       &:first-child {
-        
         div {
           padding-bottom: 10px;
         }
@@ -207,7 +207,9 @@
           cursor: pointer;
         }
 
-        .form-group, .yb-field-group, input {
+        .form-group,
+        .yb-field-group,
+        input {
           padding: 0;
         }
 
@@ -227,12 +229,12 @@
 }
 
 .yb-breadcrumb {
-  color: #CD6500;
+  color: #cd6500;
   font-weight: 500;
   cursor: pointer;
 }
 
-.provider-config-container h2{
+.provider-config-container h2 {
   font-size: 20px;
   padding: 0;
   margin: 0 10px 10px 4px;
@@ -266,21 +268,22 @@
   background-color: $YB_FAIL_COLOR;
   border-color: transparent;
   color: white;
-  i{
+  i {
     color: $YB_FAIL_COLOR_ICON;
   }
-  &:hover{
+  &:hover {
     color: white;
     background-color: darken($YB_FAIL_COLOR, 5%) !important;
     border-color: transparent;
-    i{
+    i {
       color: $YB_FAIL_COLOR_DARK;
     }
   }
 }
 
 .provider-config-container {
-  .save-btn, .delete-btn {
+  .save-btn,
+  .delete-btn {
     font-weight: 500;
   }
 }
@@ -315,7 +318,7 @@
 
     img {
       height: 50px;
-      
+
       &.aws-logo {
         height: 42px;
         margin-top: 5px;
@@ -354,7 +357,8 @@
     }
 
     .custom-tab {
-      display: inline-block;
+      display: flex;
+      align-items: center;
       width: 180px;
       font-size: 15px;
       font-weight: 500;
@@ -376,4 +380,36 @@
 
 .yb-hidden {
   display: none !important;
+}
+
+#cloud-config-tab-panel-tab-azure:before {
+  content: 'BETA';
+  position: absolute;
+  padding: 3px 7px;
+  top: 0;
+  right: 0;
+  background-color: $YB_ORANGE;
+  border-radius: 4px;
+  color: $YB_BACKGROUND;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.action-bar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+
+  .disable-delete {
+    display: inline-block;
+    margin: 4px 20px 4px auto;
+    font-size: inherit;
+
+    .fa-ban {
+      color: $YB_FAIL_COLOR;
+    }
+  }
+  .provider-config-container button {    
+    margin-bottom: 0;
+  }
 }

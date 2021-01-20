@@ -52,19 +52,19 @@ See [`CREATE ROLE`](../dcl_create_role) for more details.
 
 - Create a sample user with password.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE USER John WITH PASSWORD 'password';
 ```
 
 - Grant John all permissions on the `yugabyte` database.
 
-```postgresql
+```plpgsql
 yugabyte=# GRANT ALL ON DATABASE yugabyte TO John;
 ```
 
 - Remove John's permissions from the `yugabyte` database.
 
-```postgresql
+```plpgsql
 yugabyte=# REVOKE ALL ON DATABASE yugabyte FROM John;
 ```
 

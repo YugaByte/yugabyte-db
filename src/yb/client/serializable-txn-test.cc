@@ -16,6 +16,7 @@
 #include "yb/client/session.h"
 #include "yb/client/transaction.h"
 
+#include "yb/util/async_util.h"
 #include "yb/util/bfql/gen_opcodes.h"
 #include "yb/util/random_util.h"
 
@@ -29,7 +30,8 @@ DECLARE_int32(txn_max_apply_batch_records);
 namespace yb {
 namespace client {
 
-class SerializableTxnTest : public TransactionCustomLogSegmentSizeTest<0, TransactionTestBase> {
+class SerializableTxnTest
+    : public TransactionCustomLogSegmentSizeTest<0, TransactionTestBase<MiniCluster>> {
  protected:
   void SetUp() override {
     SetIsolationLevel(IsolationLevel::SERIALIZABLE_ISOLATION);
@@ -65,8 +67,7 @@ TEST_F(SerializableTxnTest, NonConflictingWrites) {
 
   ASSERT_OK(WaitFor([&entries]() -> Result<bool> {
     for (auto& entry : entries) {
-      if (entry.flush_future.valid() &&
-          entry.flush_future.wait_for(0s) == std::future_status::ready) {
+      if (entry.flush_future.valid() && IsReady(entry.flush_future)) {
         LOG(INFO) << "Flush done";
         RETURN_NOT_OK(entry.flush_future.get());
         entry.commit_future = entry.txn->CommitFuture();
@@ -74,8 +75,7 @@ TEST_F(SerializableTxnTest, NonConflictingWrites) {
     }
 
     for (auto& entry : entries) {
-      if (entry.commit_future.valid() &&
-          entry.commit_future.wait_for(0s) == std::future_status::ready) {
+      if (entry.commit_future.valid() && IsReady(entry.commit_future)) {
         LOG(INFO) << "Commit done";
         RETURN_NOT_OK(entry.commit_future.get());
         entry.done = true;
@@ -177,10 +177,10 @@ void SerializableTxnTest::TestIncrement(int key, bool transactional) {
       if (!entry.op) {
         // Execute UPDATE table SET value = value + 1 WHERE key = kKey
         entry.session->SetTransaction(entry.txn);
-        entry.op = ASSERT_RESULT(Increment(&table_, entry.session, key));
+        entry.op = ASSERT_RESULT(kv_table_test::Increment(&table_, entry.session, key));
         entry.write_future = entry.session->FlushFuture();
       } else if (entry.write_future.valid()) {
-        if (entry.write_future.wait_for(0s) == std::future_status::ready) {
+        if (IsReady(entry.write_future)) {
           auto write_status = entry.write_future.get();
           entry.write_future = std::shared_future<Status>();
           if (!write_status.ok()) {
@@ -207,7 +207,7 @@ void SerializableTxnTest::TestIncrement(int key, bool transactional) {
           }
         }
       } else if (entry.commit_future.valid()) {
-        if (entry.commit_future.wait_for(0s) == std::future_status::ready) {
+        if (IsReady(entry.commit_future)) {
           auto status = entry.commit_future.get();
           if (status.IsExpired()) {
             entry.txn = transactional ? CreateTransaction() : nullptr;

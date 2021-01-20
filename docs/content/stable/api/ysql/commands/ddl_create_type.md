@@ -107,28 +107,28 @@ The order of options in creating range types and base types does not matter.  Ev
 
 Composite type
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TYPE feature_struct AS (id INTEGER, name TEXT);
 yugabyte=# CREATE TABLE feature_tab_struct (feature_col feature_struct);
 ```
 
 Enumerated type
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TYPE feature_enum AS ENUM ('one', 'two', 'three');
 yugabyte=# CREATE TABLE feature_tab_enum (feature_col feature_enum);
 ```
 
 Range type
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TYPE feature_range AS RANGE (subtype=INTEGER);
 yugabyte=# CREATE TABLE feature_tab_range (feature_col feature_range);
 ```
 
 Base type
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TYPE int4_type;
 yugabyte=# CREATE FUNCTION int4_type_in(cstring) RETURNS int4_type
                LANGUAGE internal IMMUTABLE STRICT PARALLEL SAFE AS 'int4in';
@@ -144,7 +144,7 @@ yugabyte=# CREATE TABLE int4_table (t int4_type);
 
 Shell type
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TYPE shell_type;
 ```
 

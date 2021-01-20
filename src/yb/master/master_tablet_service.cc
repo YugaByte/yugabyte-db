@@ -14,6 +14,13 @@
 
 #include "yb/master/catalog_manager-internal.h"
 
+#include "yb/util/flag_tags.h"
+#include "yb/util/random_util.h"
+
+DEFINE_test_flag(int32, ysql_catalog_write_rejection_percentage, 0,
+                 "Reject specified percentage of writes to the YSQL catalog tables.");
+TAG_FLAG(TEST_ysql_catalog_write_rejection_percentage, runtime);
+
 namespace yb {
 namespace master {
 
@@ -60,6 +67,15 @@ void MasterTabletServiceImpl::Write(const tserver::WriteRequestPB* req,
   if (!l.CheckIsInitializedAndIsLeaderOrRespondTServer(resp, &context)) {
     return;
   }
+
+  if (PREDICT_FALSE(FLAGS_TEST_ysql_catalog_write_rejection_percentage > 0) &&
+      req->pgsql_write_batch_size() > 0 &&
+      RandomUniformInt(1, 99) <= FLAGS_TEST_ysql_catalog_write_rejection_percentage) {
+    context.RespondRpcFailure(rpc::ErrorStatusPB::ERROR_APPLICATION,
+        STATUS(InternalError, "Injected random failure for testing."));
+      return;
+  }
+
   for (const auto& pg_req : req->pgsql_write_batch()) {
     if (pg_req.is_ysql_catalog_change()) {
       const auto &res = master_->catalog_manager()->IncrementYsqlCatalogVersion();

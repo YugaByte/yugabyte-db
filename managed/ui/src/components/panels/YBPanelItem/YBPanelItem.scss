@@ -1,6 +1,6 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../_style/colors.scss";
+@import '../../../_style/colors.scss';
 
 .content-panel {
   margin: 0;
@@ -31,15 +31,15 @@
   float: right;
   min-width: 70px;
 }
-.panel_toolbox>li {
+.panel_toolbox > li {
   float: left;
   cursor: pointer;
 }
-.panel_toolbox>li>a {
+.panel_toolbox > li > a {
   padding: 5px;
-  color: #C5C7CB;
+  color: #c5c7cb;
   font-size: 14px;
 }
-.panel_toolbox>li>a:hover {
-  background: #F5F7FA;
+.panel_toolbox > li > a:hover {
+  background: #f5f7fa;
 }

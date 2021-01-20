@@ -19,6 +19,7 @@
 #include "yb/docdb/doc_expr.h"
 #include "yb/docdb/doc_key.h"
 #include "yb/docdb/doc_operation.h"
+#include "yb/docdb/intent_aware_iterator.h"
 
 namespace yb {
 
@@ -60,6 +61,18 @@ class PgsqlWriteOperation :
   bool result_is_single_empty_row() const {
     return result_rows_ == 1 && result_buffer_.size() == sizeof(int64_t);
   }
+
+  Result<bool> HasDuplicateUniqueIndexValue(const DocOperationApplyData& data);
+  Result<bool> HasDuplicateUniqueIndexValue(
+      const DocOperationApplyData& data,
+      yb::docdb::Direction direction);
+  Result<bool> HasDuplicateUniqueIndexValue(
+      const DocOperationApplyData& data,
+      ReadHybridTime read_time);
+  Result<HybridTime> FindOldestOverwrittenTimestamp(
+      IntentAwareIterator* iter,
+      const SubDocKey& sub_doc_key,
+      HybridTime min_hybrid_time);
 
   // Execute write.
   CHECKED_STATUS Apply(const DocOperationApplyData& data) override;
@@ -137,6 +150,7 @@ class PgsqlReadOperation : public DocExprExecutor {
   Result<size_t> Execute(const common::YQLStorageIf& ql_storage,
                          CoarseTimePoint deadline,
                          const ReadHybridTime& read_time,
+                         bool is_explicit_request_read_time,
                          const Schema& schema,
                          const Schema *index_schema,
                          faststring *result_buffer,
@@ -151,37 +165,21 @@ class PgsqlReadOperation : public DocExprExecutor {
   Result<size_t> ExecuteScalar(const common::YQLStorageIf& ql_storage,
                                CoarseTimePoint deadline,
                                const ReadHybridTime& read_time,
+                               bool is_explicit_request_read_time,
                                const Schema& schema,
                                const Schema *index_schema,
-                               int64_t batch_arg_index,
                                faststring *result_buffer,
                                HybridTime *restart_read_ht,
                                bool *has_paging_state);
-
-  // Execute a READ operator for a given batch of arguments.
-  // - Currently, batch argument is used for only ybctid, a virtual columns.
-  // - We haven't used batch of actual columns yet (hash, range, regular).
-  Result<size_t> ExecuteBatch(const common::YQLStorageIf& ql_storage,
-                              CoarseTimePoint deadline,
-                              const ReadHybridTime& read_time,
-                              const Schema& schema,
-                              const Schema *index_schema,
-                              faststring *result_buffer,
-                              HybridTime *restart_read_ht,
-                              bool *has_paging_state);
 
   // Execute a READ operator for a given batch of ybctids.
   Result<size_t> ExecuteBatchYbctid(const common::YQLStorageIf& ql_storage,
                                     CoarseTimePoint deadline,
                                     const ReadHybridTime& read_time,
                                     const Schema& schema,
+                                    bool unknown_ybctid_allowed,
                                     faststring *result_buffer,
                                     HybridTime *restart_read_ht);
-
-  CHECKED_STATUS GetPartitionIntent(
-      const Schema& schema,
-      const google::protobuf::RepeatedPtrField<PgsqlExpressionPB> &column_values,
-      KeyValueWriteBatchPB* out);
 
   CHECKED_STATUS PopulateResultSet(const QLTableRow& table_row,
                                    faststring *result_buffer);
@@ -198,7 +196,7 @@ class PgsqlReadOperation : public DocExprExecutor {
                                            const size_t row_count_limit,
                                            const bool scan_time_exceeded,
                                            const Schema* schema,
-                                           int64_t batch_arg_index,
+                                           const ReadHybridTime& read_time,
                                            bool *has_paging_state);
 
   //------------------------------------------------------------------------------------------------

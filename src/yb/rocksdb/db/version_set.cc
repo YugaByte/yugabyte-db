@@ -3380,12 +3380,9 @@ Status VersionSet::WriteSnapshot(log::Writer* log, UserFrontierPtr flushed_front
       VersionEdit edit;
       edit.SetColumnFamily(cfd->GetID());
 
-      const bool frontier_overridden = !!flushed_frontier_override;
       for (int level = 0; level < cfd->NumberLevels(); level++) {
-        for (const auto& f :
-             cfd->current()->storage_info()->LevelFiles(level)) {
-
-          edit.AddCleanedFile(level, *f, /* suppress_frontiers */ frontier_overridden);
+        for (const auto& f : cfd->current()->storage_info()->LevelFiles(level)) {
+          edit.AddCleanedFile(level, *f);
         }
       }
       edit.SetLogNumber(cfd->GetLogNumber());

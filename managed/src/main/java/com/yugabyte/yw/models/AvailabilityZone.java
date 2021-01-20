@@ -1,24 +1,22 @@
 // Copyright (c) Yugabyte, Inc.
 package com.yugabyte.yw.models;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.List;
-import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.JsonNode;
+import io.ebean.*;
+import io.ebean.annotation.DbJson;
+import play.data.validation.Constraints;
+import play.libs.Json;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.ManyToOne;
-
-import io.ebean.annotation.DbJson;
-import io.ebean.*;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-
-import play.data.validation.Constraints;
-import play.libs.Json;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static com.yugabyte.yw.models.helpers.CommonUtils.maskConfig;
 
@@ -43,8 +41,14 @@ public class AvailabilityZone extends Model {
 
   @Column(nullable = false, columnDefinition = "boolean default true")
   public Boolean active = true;
-  public Boolean isActive() { return active; }
-  public void setActiveFlag(Boolean active) { this.active = active; }
+
+  public Boolean isActive() {
+    return active;
+  }
+
+  public void setActiveFlag(Boolean active) {
+    this.active = active;
+  }
 
   @Column(length = 50)
   public String subnet;
@@ -84,7 +88,8 @@ public class AvailabilityZone extends Model {
    * Query Helper for Availability Zone with primary key
    */
   public static final Finder<UUID, AvailabilityZone> find =
-    new Finder<UUID,AvailabilityZone>(AvailabilityZone.class){};
+    new Finder<UUID, AvailabilityZone>(AvailabilityZone.class) {
+    };
 
   public static AvailabilityZone create(Region region, String code, String name, String subnet) {
     AvailabilityZone az = new AvailabilityZone();
@@ -116,11 +121,24 @@ public class AvailabilityZone extends Model {
   @JsonBackReference
   public Provider getProvider() {
     String providerQuery =
-        "select p.uuid, p.code, p.name from provider p where p.uuid = :p_uuid";
+      "select p.uuid, p.code, p.name from provider p where p.uuid = :p_uuid";
     RawSql rawSql = RawSqlBuilder.parse(providerQuery).create();
     Query<Provider> query = Ebean.find(Provider.class);
     query.setRawSql(rawSql);
     query.setParameter("p_uuid", region.provider.uuid);
     return query.findOne();
+  }
+
+  @Override
+  public String toString() {
+    return "AvailabilityZone{" +
+      "uuid=" + uuid +
+      ", code='" + code + '\'' +
+      ", name='" + name + '\'' +
+      ", region=" + region +
+      ", active=" + active +
+      ", subnet='" + subnet + '\'' +
+      ", config=" + config +
+      '}';
   }
 }

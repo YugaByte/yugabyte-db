@@ -363,4 +363,7 @@ DECLARE_UNIQUE_INDEX(pg_subscription_subname_index, 6115, on pg_subscription usi
 DECLARE_UNIQUE_INDEX(pg_subscription_rel_srrelid_srsubid_index, 6117, on pg_subscription_rel using btree(srrelid oid_ops, srsubid oid_ops));
 #define SubscriptionRelSrrelidSrsubidIndexId 6117
 
+DECLARE_UNIQUE_INDEX(pg_yb_catalog_version_db_oid_index, 8012, on pg_yb_catalog_version using btree(db_oid oid_ops));
+#define YBCatalogVersionDbOidIndexId 8012
+
 #endif							/* INDEXING_H */

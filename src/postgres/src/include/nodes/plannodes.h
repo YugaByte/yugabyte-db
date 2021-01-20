@@ -241,8 +241,8 @@ typedef struct ModifyTable
 	List	   *exclRelTlist;	/* tlist of the EXCLUDED pseudo relation */
 
 	List	   *ybPushdownTlist; /* tlist for the pushed down SET expressions */
-	bool	   no_index_update; /* planner has checked no indexes need update */
 	bool	   no_row_trigger; /* planner has checked no triggers apply */
+	List	   *no_update_index_list; /* OIDs of indexes to be aren't updated */
 } ModifyTable;
 
 struct PartitionPruneInfo;		/* forward reference to struct below */
@@ -287,6 +287,8 @@ typedef struct MergeAppend
 	Oid		   *sortOperators;	/* OIDs of operators to sort them by */
 	Oid		   *collations;		/* OIDs of collations */
 	bool	   *nullsFirst;		/* NULLS FIRST/LAST directions */
+	/* Info for run-time subplan pruning; NULL if we're not doing that */
+	struct PartitionPruneInfo *part_prune_info;
 } MergeAppend;
 
 /* ----------------

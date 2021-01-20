@@ -23,6 +23,7 @@
 DECLARE_bool(enable_ysql);
 DECLARE_bool(hide_pg_catalog_table_creation_logs);
 DECLARE_bool(master_auto_run_initdb);
+DECLARE_bool(ysql_disable_index_backfill);
 DECLARE_int32(client_read_write_timeout_ms);
 DECLARE_int32(pggate_rpc_timeout_secs);
 DECLARE_int32(pgsql_proxy_webserver_port);
@@ -39,19 +40,19 @@ void PgMiniTestBase::DoTearDown() {
 void PgMiniTestBase::SetUp() {
   HybridTime::TEST_SetPrettyToString(true);
 
-  constexpr int kNumMasters = 1;
-
   FLAGS_client_read_write_timeout_ms = 120000;
   FLAGS_enable_ysql = true;
   FLAGS_hide_pg_catalog_table_creation_logs = true;
   FLAGS_master_auto_run_initdb = true;
   FLAGS_pggate_rpc_timeout_secs = 120;
+  FLAGS_ysql_disable_index_backfill = true;
   FLAGS_ysql_num_shards_per_tserver = 1;
+
 
   master::SetDefaultInitialSysCatalogSnapshotFlags();
   YBMiniClusterTestBase::SetUp();
 
-  MiniClusterOptions mini_cluster_opt(kNumMasters, NumTabletServers());
+  MiniClusterOptions mini_cluster_opt(NumMasters(), NumTabletServers());
   cluster_ = std::make_unique<MiniCluster>(env_.get(), mini_cluster_opt);
   ASSERT_OK(cluster_->Start());
 

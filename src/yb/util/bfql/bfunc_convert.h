@@ -96,7 +96,7 @@ CHECKED_STATUS SetNumericResult(SetResult set_result, PTypePtr source, DataType 
           // Convert via DOUBLE:
           RETURN_NOT_OK(set_result(VERIFY_RESULT(d.ToDouble()), target));
         } else { // Expected an Integer type
-          DSCHECK(target_datatype == DataType::INT8 || target_datatype == DataType::INT16
+          RSTATUS_DCHECK(target_datatype == DataType::INT8 || target_datatype == DataType::INT16
               || target_datatype == DataType::INT32 || target_datatype == DataType::INT64,
               InvalidArgument, strings::Substitute("Unexpected target type: ",
                                                    QLType::ToCQLString(target_datatype)));
@@ -768,8 +768,8 @@ CHECKED_STATUS ConvertUuidToBlob(PTypePtr source, RTypePtr target) {
     target->SetNull();
   } else {
     string byte_stream;
-    Uuid source_val = source->uuid_value();
-    RETURN_NOT_OK(source_val.ToBytes(&byte_stream));
+    const Uuid& source_val = source->uuid_value();
+    source_val.ToBytes(&byte_stream);
     target->set_binary_value(byte_stream);
   }
   return Status::OK();
@@ -781,8 +781,8 @@ CHECKED_STATUS ConvertTimeuuidToBlob(PTypePtr source, RTypePtr target) {
     target->SetNull();
   } else {
     string byte_stream;
-    Uuid source_val = source->timeuuid_value();
-    RETURN_NOT_OK(source_val.ToBytes(&byte_stream));
+    const Uuid& source_val = source->timeuuid_value();
+    source_val.ToBytes(&byte_stream);
     target->set_binary_value(byte_stream);
   }
   return Status::OK();
@@ -1410,19 +1410,19 @@ CHECKED_STATUS ConvertToDecimal(PTypePtr source, RTypePtr target) {
   util::Decimal d;
   switch(convert) {
     case ConvertDecimalVia::kString:
-      DSCHECK_EQ(source->type(), InternalType::kStringValue,
+      RSTATUS_DCHECK_EQ(source->type(), InternalType::kStringValue,
           InvalidArgument, strings::Substitute("Invalid source type: ",
                                                QLType::ToCQLString(source_datatype)));
       RETURN_NOT_OK(d.FromString(source->string_value()));
       break;
     case ConvertDecimalVia::kVarint:
-      DSCHECK_EQ(source->type(), InternalType::kVarintValue,
+      RSTATUS_DCHECK_EQ(source->type(), InternalType::kVarintValue,
           InvalidArgument, strings::Substitute("Invalid source type: ",
                                                QLType::ToCQLString(source_datatype)));
       RETURN_NOT_OK(d.FromVarInt(source->varint_value()));
       break;
     case ConvertDecimalVia::kDecimal:
-      DSCHECK_EQ(source->type(), InternalType::kDecimalValue,
+      RSTATUS_DCHECK_EQ(source->type(), InternalType::kDecimalValue,
           InvalidArgument, strings::Substitute("Invalid source type: ",
                                                QLType::ToCQLString(source_datatype)));
       RETURN_NOT_OK(d.DecodeFromComparable(source->decimal_value()));

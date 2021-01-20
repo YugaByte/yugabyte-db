@@ -82,9 +82,9 @@ class AbstractTablet {
   //
   // Returns invalid hybrid time in case it cannot satisfy provided requirements, e.g. because of
   // a timeout.
-  HybridTime SafeTime(RequireLease require_lease = RequireLease::kTrue,
-                      HybridTime min_allowed = HybridTime::kMin,
-                      CoarseTimePoint deadline = CoarseTimePoint::max()) const {
+  Result<HybridTime> SafeTime(RequireLease require_lease = RequireLease::kTrue,
+                              HybridTime min_allowed = HybridTime::kMin,
+                              CoarseTimePoint deadline = CoarseTimePoint::max()) const {
     return DoGetSafeTime(require_lease, min_allowed, deadline);
   }
 
@@ -99,9 +99,11 @@ class AbstractTablet {
   virtual CHECKED_STATUS HandlePgsqlReadRequest(
       CoarseTimePoint deadline,
       const ReadHybridTime& read_time,
+      bool is_explicit_request_read_time,
       const PgsqlReadRequestPB& ql_read_request,
       const TransactionMetadataPB& transaction_metadata,
-      PgsqlReadRequestResult* result) = 0;
+      PgsqlReadRequestResult* result,
+      size_t* number_rows_read) = 0;
 
   virtual Result<IsolationLevel> GetIsolationLevel(const TransactionMetadataPB& transaction) = 0;
 
@@ -122,14 +124,16 @@ class AbstractTablet {
 
   CHECKED_STATUS HandlePgsqlReadRequest(CoarseTimePoint deadline,
                                         const ReadHybridTime& read_time,
+                                        bool is_explicit_request_read_time,
                                         const PgsqlReadRequestPB& pgsql_read_request,
                                         const TransactionOperationContextOpt& txn_op_context,
-                                        PgsqlReadRequestResult* result);
+                                        PgsqlReadRequestResult* result,
+                                        size_t* num_rows_read);
 
   virtual bool IsTransactionalRequest(bool is_ysql_request) const = 0;
 
  private:
-  virtual HybridTime DoGetSafeTime(
+  virtual Result<HybridTime> DoGetSafeTime(
       RequireLease require_lease, HybridTime min_allowed, CoarseTimePoint deadline) const = 0;
 };
 

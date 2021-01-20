@@ -708,7 +708,8 @@ TEST_F(DeleteTableTest, TestMergeConsensusMetadata) {
   };
 
   std::vector<std::string> master_flags = {
-    "--catalog_manager_wait_for_new_tablets_to_elect_leader=false"
+    "--catalog_manager_wait_for_new_tablets_to_elect_leader=false"s,
+    "--use_create_table_leader_hint=false"s,
   };
   ASSERT_NO_FATALS(StartCluster(ts_flags, master_flags));
   const MonoDelta timeout = MonoDelta::FromSeconds(10);
@@ -826,10 +827,14 @@ TEST_F(DeleteTableTest, TestDeleteFollowerWithReplicatingOperation) {
   const MonoDelta timeout = MonoDelta::FromSeconds(10);
 
   const int kNumTabletServers = 5;
-  vector<string> ts_flags, master_flags;
-  ts_flags.push_back("--enable_leader_failure_detection=false");
-  ts_flags.push_back("--maintenance_manager_polling_interval_ms=100");
-  master_flags.push_back("--catalog_manager_wait_for_new_tablets_to_elect_leader=false");
+  std::vector<std::string> ts_flags = {
+    "--enable_leader_failure_detection=false"s,
+    "--maintenance_manager_polling_interval_ms=100"s,
+  };
+  std::vector<std::string> master_flags = {
+    "--catalog_manager_wait_for_new_tablets_to_elect_leader=false"s,
+    "--use_create_table_leader_hint=false"s,
+  };
   ASSERT_NO_FATALS(StartCluster(ts_flags, master_flags, kNumTabletServers));
 
   const int kTsIndex = 0;  // We'll test with the first TS.
@@ -937,11 +942,14 @@ TEST_F(DeleteTableTest, TestMemtableNoFlushOnTabletDelete) {
 // Test that orphaned blocks are cleared from the superblock when a tablet is tombstoned.
 TEST_F(DeleteTableTest, TestOrphanedBlocksClearedOnDelete) {
   const MonoDelta timeout = MonoDelta::FromSeconds(30);
-  vector<string> ts_flags, master_flags;
-  ts_flags.push_back("--enable_leader_failure_detection=false");
-  // Flush quickly since we wait for a flush to occur.
-  ts_flags.push_back("--maintenance_manager_polling_interval_ms=100");
-  master_flags.push_back("--catalog_manager_wait_for_new_tablets_to_elect_leader=false");
+  std::vector<std::string> ts_flags = {
+    "--enable_leader_failure_detection=false"s,
+    "--maintenance_manager_polling_interval_ms=100"s,
+  };
+  std::vector<std::string> master_flags = {
+    "--catalog_manager_wait_for_new_tablets_to_elect_leader=false"s,
+    "--use_create_table_leader_hint=false"s,
+  };
   ASSERT_NO_FATALS(StartCluster(ts_flags, master_flags));
 
   const int kFollowerIndex = 0;

@@ -202,6 +202,10 @@ TEST_F(TabletServerTest, TestSetFlagsAndCheckWebPages) {
   ASSERT_STR_CONTAINS(buf.ToString(), "<th>key</th>");
   ASSERT_STR_CONTAINS(buf.ToString(), "<td>string NULLABLE NOT A PARTITION KEY</td>");
 
+  ASSERT_OK(c.FetchURL(Substitute("http://$0/tablet-consensus-status?id=$1",
+                       addr, kTabletId), &buf));
+  ASSERT_STR_CONTAINS(buf.ToString(), kTabletId);
+
   // Test fetching metrics.
   // Fetching metrics has the side effect of retiring metrics, but not in a single pass.
   // So, we check a couple of times in a loop -- thus, if we had a bug where one of these

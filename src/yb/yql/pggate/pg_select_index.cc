@@ -60,7 +60,8 @@ Status PgSelectIndex::PrepareQuery(PgsqlReadRequestPB *read_req) {
     // For (system and user) colocated tables, SelectIndex is a part of Select and being sent
     // together with the SELECT protobuf request. A read doc_op and request is not needed in this
     // case.
-    DSCHECK(prepare_params_.querying_colocated_table, InvalidArgument, "Read request invalid");
+    RSTATUS_DCHECK(
+        prepare_params_.querying_colocated_table, InvalidArgument, "Read request invalid");
     read_req_ = read_req;
     read_req_->set_table_id(index_id_.GetYBTableId());
     doc_op_ = nullptr;

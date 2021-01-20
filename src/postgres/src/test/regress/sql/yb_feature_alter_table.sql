@@ -444,3 +444,21 @@ alter table test_alter_column_type alter column e type varbit;
 \d test_alter_column_type
 
 DROP TABLE test_alter_column_type;
+
+
+-- Test ALTER TABLE _ ALTER COLUMN _ TYPE _ with an index (Issue #6113)
+create table test_alter_column_type_with_index(i int primary key, a varchar(50));
+
+alter table test_alter_column_type_with_index alter column a type varchar(100);
+insert into test_alter_column_type_with_index values (1, 'abcde'), (2, 'fghij');
+
+create index on test_alter_column_type_with_index(a);
+
+alter table test_alter_column_type_with_index alter column a type varchar(100);
+alter table test_alter_column_type_with_index alter column a type varchar(200);
+
+insert into test_alter_column_type_with_index values (3, 'klmno'), (4, 'pqrst');
+select * from test_alter_column_type_with_index order by a;
+\d test_alter_column_type_with_index
+
+DROP TABLE test_alter_column_type_with_index;

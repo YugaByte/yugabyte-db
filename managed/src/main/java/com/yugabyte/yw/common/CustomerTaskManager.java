@@ -42,7 +42,7 @@ public class CustomerTaskManager {
           }
         };
 
-        Universe.saveDetails(customerTask.getTargetUUID(), updater);
+        Universe.saveDetails(customerTask.getTargetUUID(), updater, false);
         LOG.debug("Unlocked universe {} for updates.", customerTask.getTargetUUID());
       }
     } catch (Exception e) {

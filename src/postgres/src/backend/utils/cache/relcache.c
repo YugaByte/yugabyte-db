@@ -64,6 +64,7 @@
 #include "catalog/pg_type.h"
 #include "catalog/schemapg.h"
 #include "catalog/storage.h"
+#include "catalog/ybc_catalog_version.h"
 #include "commands/dbcommands.h"
 #include "commands/policy.h"
 #include "commands/trigger.h"
@@ -1532,6 +1533,7 @@ void YBPreloadRelCache()
 				need = relation->rd_rel->relnatts;
 				ndef = 0;
 				attrdef = NULL;
+				attrmiss = NULL;
 				constr = (TupleConstr*) MemoryContextAlloc(CacheMemoryContext, sizeof(TupleConstr));
 				constr->has_not_null = false;
 			}
@@ -1670,7 +1672,8 @@ void YBPreloadRelCache()
 			/*
 			 * Set up constraint/default info
 			 */
-			if (constr->has_not_null || ndef > 0 || relation->rd_rel->relchecks)
+			if (constr->has_not_null || ndef > 0 ||
+				attrmiss || relation->rd_rel->relchecks)
 			{
 				relation->rd_att->constr = constr;
 
@@ -4327,6 +4330,15 @@ RelationCacheInitializePhase3(void)
 		return;
 
 	/*
+	 * In YugaByte mode initialize the catalog cache version to the latest
+	 * version from the master (except during initdb).
+	 */
+	if (IsYugaByteEnabled())
+	{
+		YBCGetMasterCatalogVersion(&yb_catalog_cache_version);
+	}
+
+	/*
 	 * In YB mode initialize the relache at the beginning so that we need
 	 * fewer cache lookups in steady state.
 	 */
@@ -5524,6 +5536,60 @@ IsProjectionFunctionalIndex(Relation index)
 	return is_projection;
 }
 
+bool
+CheckUpdateExprOrPred(const Bitmapset *updated_attrs,
+                      Relation indexDesc,
+                      const int Anum_pg_index,
+                      AttrNumber attr_offset)
+{
+  bool      isnull = false;
+  Datum datum = heap_getattr(
+      indexDesc->rd_indextuple, Anum_pg_index, GetPgIndexDescriptor(), &isnull);
+  if (isnull)
+    return false;
+
+  Node *indexNode = stringToNode(TextDatumGetCString(datum));
+  Bitmapset *indexattrs = NULL;
+  pull_varattnos_min_attr(indexNode, 1, &indexattrs, attr_offset + 1);
+  return bms_overlap(updated_attrs, indexattrs);
+}
+/*
+ * CheckIndexForUpdate -- Given Oid of an Index corresponding to a specific
+ * relation and the set of attributes that are updated because of an SQL
+ * statement, this function returns true of the Index needs to be updated and
+ * vice versa.
+ */
+bool
+CheckIndexForUpdate(Oid indexOid, const Bitmapset *updated_attrs, AttrNumber attr_offset)
+{
+  Relation  indexDesc          = index_open(indexOid, AccessShareLock);
+  Bitmapset *indexattrs        = NULL;
+  bool need_update = false;
+
+  /*
+   * We first check updates affect the current index by iterating over the
+   * columns associated with an index to see if the updated attributes affects
+   * the index. If it does, we return true.
+   */
+  for (int i = 0; i < indexDesc->rd_index->indnatts; ++i)
+  {
+    const int attrnum = indexDesc->rd_index->indkey.values[i];
+    if (attrnum != 0 && bms_is_member(attrnum - attr_offset, updated_attrs))
+    {
+      need_update = true;
+      break;
+    }
+  }
+  /* If none of the columns are affected, we check for IndexExpressions and IndexPredicates */
+  need_update = need_update
+                || CheckUpdateExprOrPred(updated_attrs, indexDesc, Anum_pg_index_indexprs, attr_offset)
+                || CheckUpdateExprOrPred(updated_attrs, indexDesc, Anum_pg_index_indpred, attr_offset);
+
+  bms_free(indexattrs);
+  index_close(indexDesc, AccessShareLock);
+  return need_update;
+}
+
 /*
  * RelationGetIndexAttrBitmap -- get a bitmap of index attribute numbers
  *
@@ -6185,7 +6251,7 @@ load_relcache_init_file(bool shared)
 
 		/* Else, still need to check with the master version to be sure. */
 		uint64_t catalog_master_version = 0;
-		YBCPgGetCatalogMasterVersion(&catalog_master_version);
+		YBCGetMasterCatalogVersion(&catalog_master_version);
 
 		/* File version does not match actual master version (i.e. too old) */
 		if (ybc_stored_cache_version != catalog_master_version)

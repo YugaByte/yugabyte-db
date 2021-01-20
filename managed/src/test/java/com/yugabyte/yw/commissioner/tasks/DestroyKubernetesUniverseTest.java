@@ -9,6 +9,7 @@ import com.google.common.collect.ImmutableMap;
 import com.yugabyte.yw.commissioner.Commissioner;
 import com.yugabyte.yw.common.ApiUtils;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import com.yugabyte.yw.models.AvailabilityZone;
 import com.yugabyte.yw.models.InstanceType;
@@ -152,7 +153,7 @@ public class DestroyKubernetesUniverseTest extends CommissionerBaseTest {
     setupUniverse(false);
     defaultUniverse.setConfig(ImmutableMap.of(Universe.HELM2_LEGACY,
                                               Universe.HelmLegacy.V3.toString()));
-    ShellProcessHandler.ShellResponse response = new ShellProcessHandler.ShellResponse();
+    ShellResponse response = new ShellResponse();
     when(mockKubernetesManager.helmDelete(any(), any())).thenReturn(response);
     DestroyUniverse.Params taskParams = new DestroyUniverse.Params();
     taskParams.isForceDelete = false;
@@ -207,12 +208,12 @@ public class DestroyKubernetesUniverseTest extends CommissionerBaseTest {
     setupUniverseMultiAZ(false);
     defaultUniverse.setConfig(ImmutableMap.of(Universe.HELM2_LEGACY,
                                               Universe.HelmLegacy.V3.toString()));
-    ShellProcessHandler.ShellResponse response = new ShellProcessHandler.ShellResponse();
+    ShellResponse response = new ShellResponse();
     when(mockKubernetesManager.helmDelete(any(), any())).thenReturn(response);
 
     ArgumentCaptor<UUID> expectedUniverseUUID = ArgumentCaptor.forClass(UUID.class);
     ArgumentCaptor<String> expectedNodePrefix = ArgumentCaptor.forClass(String.class);
-    
+
     DestroyUniverse.Params taskParams = new DestroyUniverse.Params();
     taskParams.isForceDelete = false;
     taskParams.customerUUID = defaultCustomer.uuid;
@@ -240,7 +241,7 @@ public class DestroyKubernetesUniverseTest extends CommissionerBaseTest {
     setupUniverseMultiAZ(false);
     defaultUniverse.setConfig(ImmutableMap.of(Universe.HELM2_LEGACY,
                                               Universe.HelmLegacy.V2TO3.toString()));
-    ShellProcessHandler.ShellResponse response = new ShellProcessHandler.ShellResponse();
+    ShellResponse response = new ShellResponse();
     when(mockKubernetesManager.helmDelete(any(), any())).thenReturn(response);
 
     ArgumentCaptor<UUID> expectedUniverseUUID = ArgumentCaptor.forClass(UUID.class);

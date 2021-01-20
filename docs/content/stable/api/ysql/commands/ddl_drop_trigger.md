@@ -50,7 +50,7 @@ Use the `DROP TRIGGER` statement to remove a trigger from the database.
 
 ## Examples
 
-```postgresql
+```plpgsql
 DROP TRIGGER update_moddatetime ON posts;
 ```
 

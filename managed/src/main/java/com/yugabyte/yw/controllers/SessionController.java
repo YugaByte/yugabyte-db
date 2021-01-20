@@ -20,12 +20,12 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.Inject;
-import com.yugabyte.yw.common.ApiResponse;
-import com.yugabyte.yw.common.ConfigHelper;
+import com.yugabyte.yw.common.*;
 import com.yugabyte.yw.forms.CustomerLoginFormData;
 import com.yugabyte.yw.forms.CustomerRegisterFormData;
 import com.yugabyte.yw.forms.SetSecurityFormData;
 import com.yugabyte.yw.models.Customer;
+import com.yugabyte.yw.models.Universe;
 import com.yugabyte.yw.models.Users;
 
 import org.apache.commons.io.input.ReversedLinesFileReader;
@@ -43,13 +43,21 @@ import play.Environment;
 import play.data.Form;
 import play.data.FormFactory;
 import play.libs.Json;
+import play.libs.ws.StandaloneWSResponse;
+import play.libs.ws.WSClient;
+import play.libs.ws.WSRequest;
 import play.mvc.*;
 
 import java.io.File;
 import java.io.InputStream;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.persistence.PersistenceException;
 
 import static com.yugabyte.yw.common.ConfigHelper.ConfigType.Security;
@@ -57,6 +65,8 @@ import static com.yugabyte.yw.models.Users.Role;
 
 public class SessionController extends Controller {
   public static final Logger LOG = LoggerFactory.getLogger(SessionController.class);
+
+  final static Pattern PROXY_PATTERN = Pattern.compile("^(.+):([0-9]{1,5})/.*$");
 
   @Inject
   FormFactory formFactory;
@@ -71,7 +81,13 @@ public class SessionController extends Controller {
   Environment environment;
 
   @Inject
+  WSClient ws;
+
+  @Inject
   private PlaySessionStore playSessionStore;
+
+  @Inject
+  ApiHelper apiHelper;
 
   public static final String AUTH_TOKEN = "authToken";
   public static final String API_TOKEN = "apiToken";
@@ -251,8 +267,8 @@ public class SessionController extends Controller {
     ObjectNode apiTokenJson = Json.newObject();
     apiTokenJson.put(API_TOKEN, apiToken);
     response().setCookie(Http.Cookie.builder(API_TOKEN, apiToken)
-                                    .withSecure(ctx().request().secure())
-                                    .withMaxAge(FOREVER).build());
+              .withSecure(ctx().request().secure())
+              .withMaxAge(FOREVER).build());
     return ok(apiTokenJson);
   }
 
@@ -344,7 +360,7 @@ public class SessionController extends Controller {
   @With(TokenAuthenticator.class)
   public Result getLogs(Integer maxLines) {
     String appHomeDir = appConfig.getString("application.home", ".");
-    String logDir = System.getProperty("log.override.path", String.format("%s/logs", appHomeDir));
+    String logDir = appConfig.getString("log.override.path", String.format("%s/logs", appHomeDir));
     File file = new File(String.format("%s/application.log", logDir));
     // TODO(bogdan): This is not really pagination friendly as it re-reads everything all the time.
     // TODO(bogdan): Need to figure out if there's a rotation-friendly log-reader..
@@ -369,6 +385,62 @@ public class SessionController extends Controller {
       LOG.error("Log file open failed.", ex);
       return ApiResponse.error(INTERNAL_SERVER_ERROR, "Could not open log file with error " +
                                ex.getMessage());
+    }
+  }
+
+  @With(TokenAuthenticator.class)
+  public Result proxyRequest(UUID universeUUID, String requestUrl) {
+    try {
+      // Validate that the request is of <ip/hostname>:<port> format
+      Matcher matcher = PROXY_PATTERN.matcher(requestUrl);
+      if (!matcher.matches()) {
+        LOG.error("Request {} does not match expected pattern", requestUrl);
+        return ApiResponse.error(BAD_REQUEST, "Invalid proxy request");
+      }
+
+      // Extract host + port from request
+      String host = matcher.group(1);
+      String port = matcher.group(2);
+      String addr = String.format("%s:%s", host, port);
+
+      // Validate that the proxy request is for a node from the specified universe
+      Universe universe = Universe.get(universeUUID);
+      if (!universe.nodeExists(host, Integer.parseInt(port))) {
+        LOG.error("Universe {} does not contain node address {}", universeUUID, addr);
+        return ApiResponse.error(BAD_REQUEST, "Invalid proxy request");
+      }
+
+      // Add query params to proxied request
+      requestUrl = apiHelper.buildUrl(requestUrl, request().queryString());
+
+      // Make the request
+      WSRequest request = ws.url("http://" + requestUrl);
+      CompletionStage<? extends StandaloneWSResponse> response = request.get();
+      StandaloneWSResponse r = response.toCompletableFuture().get(1, TimeUnit.MINUTES);
+
+      // Format the response body
+      if (r.getStatus() == 200) {
+        Result result;
+        String url = request.getUrl();
+        if (url.contains(".png") || url.contains(".ico") || url.contains("fontawesome")) {
+          result = ok(r.getBodyAsBytes().toArray());
+        } else {
+          result = ok(apiHelper.replaceProxyLinks(r.getBody(), universeUUID, addr));
+        }
+
+        // Set response headers
+        for (Map.Entry<String, List<String>> entry : r.getHeaders().entrySet()) {
+          if (!entry.getKey().equals("Content-Length") && !entry.getKey().equals("Content-Type")) {
+            result = result.withHeader(entry.getKey(), String.join(",", entry.getValue()));
+          }
+        }
+
+        return result.as(r.getContentType());
+      } else {
+        return ApiResponse.error(BAD_REQUEST, r.getStatusText());
+      }
+    } catch (Exception e) {
+      return ApiResponse.error(INTERNAL_SERVER_ERROR, e.getMessage());
     }
   }
 }

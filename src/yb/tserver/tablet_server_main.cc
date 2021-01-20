@@ -107,6 +107,7 @@ DECLARE_int64(remote_bootstrap_rate_limit_bytes_per_sec);
 DECLARE_bool(use_client_to_server_encryption);
 DECLARE_string(certs_dir);
 DECLARE_string(certs_for_client_dir);
+DECLARE_string(cert_node_filename);
 DECLARE_string(ysql_hba_conf);
 DECLARE_string(ysql_pg_conf);
 DECLARE_string(metric_node_name);
@@ -121,11 +122,16 @@ namespace {
 
 void SetProxyAddress(std::string* flag, const std::string& name, uint16_t port) {
   if (flag->empty()) {
-    HostPort host_port;
-    CHECK_OK(host_port.ParseString(FLAGS_rpc_bind_addresses, 0));
-    host_port.set_port(port);
-    *flag = host_port.ToString();
-    LOG(INFO) << "Reset " << name << " bind address to " << *flag;
+    std::vector<HostPort> bind_addresses;
+    Status status = HostPort::ParseStrings(FLAGS_rpc_bind_addresses, 0, &bind_addresses);
+    LOG_IF(DFATAL, !status.ok()) << "Bad public IPs " << FLAGS_rpc_bind_addresses << ": " << status;
+    if (!bind_addresses.empty()) {
+      for (auto& addr : bind_addresses) {
+        addr.set_port(port);
+      }
+      *flag = HostPort::ToCommaSeparatedString(bind_addresses);
+      LOG(INFO) << "Reset " << name << " bind address to " << *flag;
+    }
   }
 }
 
@@ -229,10 +235,22 @@ int TabletServerMain(int argc, char** argv) {
         ? pg_process_conf.certs_dir
         : FLAGS_certs_for_client_dir;
     pg_process_conf.enable_tls = FLAGS_use_client_to_server_encryption;
-    const auto hosts_result = HostPort::ParseStrings(
-        server->options().rpc_opts.rpc_bind_addresses, 0);
-    LOG_AND_RETURN_FROM_MAIN_NOT_OK(hosts_result);
-    pg_process_conf.cert_base_name = hosts_result->front().host();
+
+    // Follow the same logic as elsewhere, check FLAGS_cert_node_filename then
+    // server_broadcast_addresses then rpc_bind_addresses.
+    if (!FLAGS_cert_node_filename.empty()) {
+      pg_process_conf.cert_base_name = FLAGS_cert_node_filename;
+    } else {
+      const auto server_broadcast_addresses =
+          HostPort::ParseStrings(server->options().server_broadcast_addresses, 0);
+      LOG_AND_RETURN_FROM_MAIN_NOT_OK(server_broadcast_addresses);
+      const auto rpc_bind_addresses =
+          HostPort::ParseStrings(server->options().rpc_opts.rpc_bind_addresses, 0);
+      LOG_AND_RETURN_FROM_MAIN_NOT_OK(rpc_bind_addresses);
+      pg_process_conf.cert_base_name = !server_broadcast_addresses->empty()
+                                     ? server_broadcast_addresses->front().host()
+                                     : rpc_bind_addresses->front().host();
+    }
     LOG(INFO) << "Starting PostgreSQL server listening on "
               << pg_process_conf.listen_addresses << ", port " << pg_process_conf.pg_port;
 

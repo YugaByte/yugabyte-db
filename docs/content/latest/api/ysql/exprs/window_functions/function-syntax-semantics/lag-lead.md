@@ -12,7 +12,7 @@ isTocNested: true
 showAsideToc: true
 ---
 
-These functions look backwards, or forwards, by the specified number of rows from the current row, within the current [_window_](../../sql-syntax-semantics/#the-window-definition-rule). The functions fall into the second group, [Window functions that return column(s) of another row within the window](../#window-functions-that-return-column-s-of-another-row-within-the-window) in the section [List of all window functions](../#list-of-all-window-functions). Each of the functions in the second group makes obvious sense when the scope within which the specified row is found is the entire [_window_](../../sql-syntax-semantics/#the-window-definition-rule). Only this use will be described here.
+These functions look backwards, or forwards, by the specified number of rows from the current row, within the current [_window_](../../invocation-syntax-semantics/#the-window-definition-rule). The functions fall into the second group, [Window functions that return column(s) of another row within the window](../#window-functions-that-return-column-s-of-another-row-within-the-window) in the section [List of all window functions](../#list-of-all-window-functions). Each of the functions in the second group makes obvious sense when the scope within which the specified row is found is the entire [_window_](../../invocation-syntax-semantics/#the-window-definition-rule). Only this use will be described here.
 
 ## Example
 
@@ -112,9 +112,9 @@ input value:       anyelement, int, [, anyelement]
 return value:      anyelement
 ```
 
-**Purpose:** Return, for the current row, the designated value from the row in the ordered input set that is _"lag_distance "_ rows before it. The data type of the _return value_ matches that of the _input value_. `NULL` is returned when the value of _"lag_distance"_ places the earlier row before the start of the [_window_](../../sql-syntax-semantics/#the-window-definition-rule). This is illustrated by the example above.
+**Purpose:** Return, for the current row, the designated value from the row in the ordered input set that is _"lag_distance "_ rows before it. The data type of the _return value_ matches that of the _input value_. `NULL` is returned when the value of _"lag_distance"_ places the earlier row before the start of the [_window_](../../invocation-syntax-semantics/#the-window-definition-rule). This is illustrated by the example above.
 
-Use the optional last parameter to specify the value to be returned, instead of `NULL`, when the looked-up row falls outside of the current [_window_](../../sql-syntax-semantics/#the-window-definition-rule).
+Use the optional last parameter to specify the value to be returned, instead of `NULL`, when the looked-up row falls outside of the current [_window_](../../invocation-syntax-semantics/#the-window-definition-rule).
 
 ## lead()
 
@@ -126,9 +126,9 @@ input value:       anyelement, int, [, anyelement]
 return value:      anyelement
 ```
 
-**Purpose:** Return, for the current row, the designated value from the row in the ordered input set that is _"lead_distance"_ rows after it. The data type of the _return value_ matches that of the _input value_. `NULL` is returned when the value of _"lead_distance"_ places the later row after the start of the [_window_](../../sql-syntax-semantics/#the-window-definition-rule). This is illustrated by the example above.
+**Purpose:** Return, for the current row, the designated value from the row in the ordered input set that is _"lead_distance"_ rows after it. The data type of the _return value_ matches that of the _input value_. `NULL` is returned when the value of _"lead_distance"_ places the later row after the start of the [_window_](../../invocation-syntax-semantics/#the-window-definition-rule). This is illustrated by the example above.
 
-Use the optional last parameter to specify the value to be returned, instead of `NULL`, when the looked-up row falls outside of the current [_window_](../../sql-syntax-semantics/#the-window-definition-rule).
+Use the optional last parameter to specify the value to be returned, instead of `NULL`, when the looked-up row falls outside of the current [_window_](../../invocation-syntax-semantics/#the-window-definition-rule).
 
 ## Example of returning a row
 

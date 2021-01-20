@@ -21,7 +21,7 @@ showAsideToc: true
 &#160;&#160;&#160;&#160;[Operators for comparing two arrays](./#operators-for-comparing-two-arrays)<br>
 &#160;&#160;&#160;&#160;[The slice operator](./#the-slice-operator)<br>
 &#160;&#160;&#160;&#160;[Functions and operators for concatenating an array with an array or an element](./#functions-and-operators-for-concatenating-an-array-with-an-array-or-an-element)<br>
-&#160;&#160;&#160;&#160;[Functions and operators to change values in an existing array](./#functions-and-operators-to-change-values-in-an-existing-array)<br>
+&#160;&#160;&#160;&#160;[Functions and operators to change values in an array](./#functions-and-operators-to-change-values-in-an-array)<br>
 &#160;&#160;&#160;&#160;[Function to convert an array to a text value](./#function-to-convert-an-array-to-a-text-value)<br>
 &#160;&#160;&#160;&#160;[Table function to transform an array into a `SETOF anyelement`](./#table-function-to-transform-an-array-into-a-setof-anyelement)
 
@@ -102,12 +102,12 @@ These functions require that the two arrays have the same data type and compatib
 | [`array_append()`](./concatenation/#array-append) | | Returns an array that results from appending a scalar value to (that is, _after_) an array value. |
 | [`array_prepend()`](./concatenation/#array-prepend) | | Returns an array that results from prepending a scalar value to (that is, _before_) an array value. |
 
-## Functions and operators to change values in an existing array
+## Functions and operators to change values in an array
 
 | Function or operator | 1-d only? | Description |
 | ---- | ---- | ---- |
 | [`array_replace()`](./replace-a-value/#array-replace) | | Returns a new array where every occurrence of the specified value in the input array has been replaced by the specified new value. |
-| [`arr[idx_1]...[idx_N] := val`](./replace-a-value/#setting-an-array-value-explicitly-and-in-place) | | Update a value in an existing array "in place". |
+| [`arr[idx_1]...[idx_N] := val`](./replace-a-value/#setting-an-array-value-explicitly-and-in-place) | | Update a value in an array "in place". |
 | [`array_remove()`](./array-remove) | 1-d | Returns a new array where _every_ occurrence of the specified value has been removed from the specified input array. |
 
 ## Function to convert an array to a text value

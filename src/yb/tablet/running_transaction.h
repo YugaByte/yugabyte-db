@@ -29,12 +29,15 @@
 namespace yb {
 namespace tablet {
 
+YB_DEFINE_ENUM(UpdateAbortCheckHTMode, (kStatusRequestSent)(kStatusResponseReceived));
+
 // Represents transaction running at transaction participant.
 class RunningTransaction : public std::enable_shared_from_this<RunningTransaction> {
  public:
   RunningTransaction(TransactionMetadata metadata,
                      const TransactionalBatchData& last_batch_data,
                      OneWayBitmap&& replicated_batches,
+                     HybridTime base_time_for_abort_check_ht_calculation,
                      RunningTransactionContext* context);
 
   ~RunningTransaction();
@@ -46,6 +49,15 @@ class RunningTransaction : public std::enable_shared_from_this<RunningTransactio
   HybridTime start_ht() const {
     return metadata_.start_time;
   }
+
+  HybridTime abort_check_ht() const {
+    return abort_check_ht_;
+  }
+
+  MUST_USE_RESULT bool UpdateStatus(
+      TransactionStatus transaction_status, HybridTime time_of_status);
+
+  void UpdateAbortCheckHT(HybridTime now, UpdateAbortCheckHTMode mode);
 
   const TransactionMetadata& metadata() const {
     return metadata_;
@@ -147,6 +159,9 @@ class RunningTransaction : public std::enable_shared_from_this<RunningTransactio
   TransactionApplyData apply_data_;
   docdb::ApplyTransactionState apply_state_;
   ApplyIntentsTask apply_intents_task_;
+
+  // Time of the next check whether this transaction has been aborted.
+  HybridTime abort_check_ht_;
 };
 
 CHECKED_STATUS MakeAbortedStatus(const TransactionId& id);

@@ -18,11 +18,14 @@
 #include <string>
 #include <vector>
 
+#include <boost/intrusive/list.hpp>
+
 #include "yb/gutil/ref_counted.h"
 
 #include "yb/yql/pggate/pg_session.h"
 #include "yb/yql/pggate/pg_env.h"
 #include "yb/yql/pggate/pg_expr.h"
+#include "yb/yql/pggate/pg_memctx.h"
 
 namespace yb {
 namespace pggate {
@@ -53,11 +56,8 @@ enum class StmtOp {
   STMT_DROP_TABLEGROUP,
 };
 
-class PgStatement : public RefCountedThreadSafe<PgStatement> {
+class PgStatement : public PgMemctx::Registrable {
  public:
-  // Public types.
-  typedef scoped_refptr<PgStatement> ScopedRefPtr;
-
   //------------------------------------------------------------------------------------------------
   // Constructors.
   // pg_session is the session that this statement belongs to. If PostgreSQL cancels the session

@@ -48,6 +48,8 @@
 #include "yb/consensus/consensus_meta.h"
 #include "yb/consensus/consensus_queue.h"
 
+#include "yb/rpc/scheduler.h"
+
 #include "yb/util/opid.h"
 #include "yb/util/random.h"
 #include "yb/util/result.h"
@@ -95,7 +97,8 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
   class ConsensusFaultHooks;
 
   // Creates RaftConsensus.
-  // split_op_id is the ID of split tablet Raft operation requesting split of this tablet or unset.
+  // split_op_info is the parameters of split tablet Raft operation requesting split of this
+  // tablet or unset.
   static std::shared_ptr<RaftConsensus> Create(
     const ConsensusOptions& options,
     std::unique_ptr<ConsensusMetadata> cmeta,
@@ -112,10 +115,11 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
     TableType table_type,
     ThreadPool* raft_pool,
     RetryableRequests* retryable_requests,
-    const yb::OpId& split_op_id);
+    const SplitOpInfo& split_op_info);
 
   // Creates RaftConsensus.
-  // split_op_id is the ID of split tablet Raft operation requesting split of this tablet or unset.
+  // split_op_info is the parameters of split tablet Raft operation requesting split of this
+  // tablet or unset.
   RaftConsensus(
     const ConsensusOptions& options,
     std::unique_ptr<ConsensusMetadata> cmeta,
@@ -132,7 +136,7 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
     Callback<void(std::shared_ptr<StateChangeContext> context)> mark_dirty_clbk,
     TableType table_type,
     RetryableRequests* retryable_requests,
-    const yb::OpId& split_op_id);
+    const SplitOpInfo& split_op_info);
 
   virtual ~RaftConsensus();
 
@@ -201,8 +205,8 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
   // can cause consensus to deadlock.
   ReplicaState* GetReplicaStateForTests();
 
-  void UpdateMajorityReplicatedInTests(
-      const OpIdPB&majority_replicated, OpIdPB* committed_index, OpId* last_committed_op_id) {
+  void TEST_UpdateMajorityReplicated(
+      const OpId& majority_replicated, OpId* committed_index, OpId* last_committed_op_id) {
     UpdateMajorityReplicated({ majority_replicated,
                                CoarseTimePoint::min(),
                                HybridTime::kMin.GetPhysicalValueMicros() },
@@ -215,14 +219,13 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
 
   yb::OpId GetLastAppliedOpId() override;
 
-  yb::OpId TEST_GetAllAppliedOpId();
+  yb::OpId GetAllAppliedOpId();
 
   yb::OpId GetSplitOpId() override;
 
-  // Resets split operation ID, to be used only from SplitOperation::DoAbort.
-  CHECKED_STATUS ResetSplitOpId();
+  std::array<TabletId, kNumSplitParts> GetSplitChildTabletIds() override;
 
-  MicrosTime MajorityReplicatedHtLeaseExpiration(
+  Result<MicrosTime> MajorityReplicatedHtLeaseExpiration(
       MicrosTime min_allowed, CoarseTimePoint deadline) const override;
 
   // The on-disk size of the consensus metadata.
@@ -262,6 +265,8 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
   uint64_t MajorityNumSSTFiles() const {
     return majority_num_sst_files_.load(std::memory_order_acquire);
   }
+
+  int64_t TEST_LeaderTerm() const;
 
  protected:
   // Trigger that a non-Operation ConsensusRound has finished replication.
@@ -309,8 +314,7 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
   // operations were pending and updates last_applied_op_id.
   // This is idempotent.
   void UpdateMajorityReplicated(
-      const MajorityReplicatedData& data, OpIdPB* committed_op_id,
-      OpId* last_applied_op_id) override;
+      const MajorityReplicatedData& data, OpId* committed_op_id, OpId* last_applied_op_id) override;
 
   void NotifyTermChange(int64_t term) override;
 
@@ -362,14 +366,15 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
   // The ReplicaState must be locked for configuration change before calling.
   CHECKED_STATUS BecomeReplicaUnlocked(
       const std::string& new_leader_uuid,
-      MonoDelta initial_fd_wait = MonoDelta(),
-      bool graceful_stepdown = false);
+      MonoDelta initial_fd_wait = MonoDelta());
 
   struct UpdateReplicaResult {
-    yb::OpId wait_for_op_id;
+    OpId wait_for_op_id;
 
     // Start an election after the writes are committed?
     bool start_election = false;
+
+    int64_t current_term = OpId::kUnknownTerm;
   };
 
   // Updates the state in a replica by storing the received operations in the log
@@ -593,7 +598,7 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
   // Also we could introduce serial number of stepdown and filter using it.
   // That woule be more robust, since it handles also situation when we tried to stepdown
   // to the same node twice, and first retry was delayed, but second procedure is on the way.
-  void WithholdElectionAfterStepDown(const std::string& protege_uuid, bool graceful_stepdown);
+  void WithholdElectionAfterStepDown(const std::string& protege_uuid);
 
   // Steps of UpdateReplica.
   CHECKED_STATUS EarlyCommitUnlocked(const ConsensusRequestPB& request,
@@ -605,8 +610,11 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
   yb::OpId EnqueueWritesUnlocked(const LeaderRequest& deduped_req, WriteEmpty write_empty);
   CHECKED_STATUS MarkOperationsAsCommittedUnlocked(const ConsensusRequestPB& request,
                                                    const LeaderRequest& deduped_req,
-                                                   yb::OpId last_from_leader);
-  CHECKED_STATUS WaitForWrites(const yb::OpId& wait_for_op_id);
+                                                   OpId last_from_leader);
+
+  // Wait until the operation with op id equal to wait_for_op_id is flushed in the WAL.
+  // If term was changed during wait from the specified one - exit with error.
+  CHECKED_STATUS WaitForWrites(int64_t term, const OpId& wait_for_op_id);
 
   // See comment for ReplicaState::CancelPendingOperation
   void RollbackIdAndDeleteOpId(const ReplicateMsgPtr& replicate_msg, bool should_exists);
@@ -614,6 +622,14 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
   yb::OpId WaitForSafeOpIdToApply(const yb::OpId& op_id) override;
 
   void AppendEmptyBatchToLeaderLog();
+
+  // Step down in favor of peer.
+  // When graceful is true, protege would not be stored and election would not take place in case
+  // of protege election failure.
+  CHECKED_STATUS StartStepDownUnlocked(const RaftPeerPB& peer, bool graceful);
+
+  // Checked whether we should start step down when protege did not synchronize before timeout.
+  void CheckDelayedStepDown(const Status& status);
 
   // Threadpool token for constructing requests to peers, handling RPC callbacks,
   // etc.
@@ -641,7 +657,6 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
 
   // UUID of new desired leader during stepdown.
   TabletServerId protege_leader_uuid_;
-  bool graceful_stepdown_ = false;
 
   // This is the time (in the MonoTime's uint64 representation) for which election should not start
   // on this peer.
@@ -651,6 +666,17 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
   // during leader stepdown. Then, when the master asks us to step down again in favor of the same
   // server, we'll reply with the amount of time that has passed to avoid leader stepdown loops.s
   MonoTime election_lost_by_protege_at_;
+
+  struct DelayedStepDown {
+    int64_t term = OpId::kUnknownTerm;
+    TabletServerId protege;
+    bool graceful;
+
+    std::string ToString() const;
+  };
+
+  DelayedStepDown delayed_step_down_;
+  rpc::ScheduledTaskTracker step_down_check_tracker_;
 
   // The number of times this node has called and lost a leader election since
   // the last time it saw a stable leader (either itself or another node).
@@ -662,6 +688,8 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
   // Lock ordering note: If both this lock and the ReplicaState lock are to be
   // taken, this lock must be taken first.
   mutable std::timed_mutex update_mutex_;
+
+  std::atomic_flag outstanding_report_failure_task_ = ATOMIC_FLAG_INIT;
 
   AtomicBool shutdown_;
 

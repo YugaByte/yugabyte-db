@@ -14,7 +14,7 @@ isTocNested: true
 showAsideToc: true
 ---
 
-If you are already familiar with window functions, then you can skip straight to the [syntax and semantics](./sql-syntax-semantics/) section or the section that lists all of [YSQL's window functions](./function-syntax-semantics/) and that links, in turn, to the definitive account of each function.
+If you are already familiar with window functions, then you can skip straight to the [syntax and semantics](./invocation-syntax-semantics/) section or the section that lists all of [the YSQL window functions](./function-syntax-semantics/) and that links, in turn, to the definitive account of each function.
 
 This page has only the [Synopsis](./#synopsis) section and the section [Organization of the window functions documentation](./#organization-of-the-window-functions-documentation) section.
 
@@ -26,43 +26,43 @@ Each of the code examples uses one of the four tables _"t1"_, _"t2"_, _"t3"_, or
 
 ## Synopsis
 
-A window function operates, in general, on each of the set of [_windows_](./sql-syntax-semantics/#the-window-definition-rule) into which the rows of its input row set are divided, and it produces one value for every row in each of the [_windows_](./sql-syntax-semantics/#the-window-definition-rule). A [_window_](./sql-syntax-semantics/#the-window-definition-rule) is defined by having the same values for a set of one or more classifier columns. In the limit, there will be just a single [_window_](./sql-syntax-semantics/#the-window-definition-rule). In general, the output value of a window function for a particular row takes into account values from all of the rows in the successive [_windows_](./sql-syntax-semantics/#the-window-definition-rule) on which it operates.
+A window function operates, in general, on each of the set of [_windows_](./invocation-syntax-semantics/#the-window-definition-rule) into which the rows of its input row set are divided, and it produces one value for every row in each of the [_windows_](./invocation-syntax-semantics/#the-window-definition-rule). A [_window_](./invocation-syntax-semantics/#the-window-definition-rule) is defined by having the same values for a set of one or more classifier columns. In the limit, there will be just a single [_window_](./invocation-syntax-semantics/#the-window-definition-rule). In general, the output value of a window function for a particular row takes into account values from all of the rows in the successive [_windows_](./invocation-syntax-semantics/#the-window-definition-rule) on which it operates.
 
-A window function can be invoked only in a select list item in a subquery; and specific syntax, using the `OVER` clause is essential. The argument of this clause is the [`window_definition`](../../syntax_resources/grammar_diagrams/#window-definition) . The authoritative account is given in the section [Window function invocation—SQL syntax and semantics](./sql-syntax-semantics). Here is a brief overview. A window definition can have up to three clauses, thus:
+A window function can be invoked only in a select list item in a subquery; and specific syntax, using the `OVER` clause is essential. The argument of this clause is the [`window_definition`](../../syntax_resources/grammar_diagrams/#window-definition) . The authoritative account is given in the section [Window function invocation—SQL syntax and semantics](./invocation-syntax-semantics). Here is a brief overview. A window definition can have up to three clauses, thus:
 
-- The `PARTITION BY` clause. This specifies the rule that divides the input row set into two or more [_windows_](./sql-syntax-semantics/#the-window-definition-rule). If it's omitted, then the input row set is treated as a single [_window_](./sql-syntax-semantics/#the-window-definition-rule).
-- The window `ORDER BY` clause. This specifies the rule that determines how the rows within each [_window_](./sql-syntax-semantics/#the-window-definition-rule) are ordered. If it's omitted, then the ordering is unpredictable—and therefore the output of the window function is meaningless.
-- The [`frame_clause`](../../syntax_resources/grammar_diagrams/#frame-clause). This is significant for only some of the eleven window functions. It determines which rows within each [_window_](./sql-syntax-semantics/#the-window-definition-rule) are taken as the input for the window function. For example, you can use it to exclude the current row; or you can say that the function should look only at the rows in the [_window_](./sql-syntax-semantics/#the-window-definition-rule) from the start through the current row.
+- The `PARTITION BY` clause. This specifies the rule that divides the input row set into two or more [_windows_](./invocation-syntax-semantics/#the-window-definition-rule). If it's omitted, then the input row set is treated as a single [_window_](./invocation-syntax-semantics/#the-window-definition-rule).
+- The window `ORDER BY` clause. This specifies the rule that determines how the rows within each [_window_](./invocation-syntax-semantics/#the-window-definition-rule) are ordered. If it's omitted, then the ordering is unpredictable—and therefore the output of the window function is meaningless.
+- The [`frame_clause`](../../syntax_resources/grammar_diagrams/#frame-clause). This is significant for only some of the eleven window functions. It determines which rows within each [_window_](./invocation-syntax-semantics/#the-window-definition-rule) are taken as the input for the window function. For example, you can use it to exclude the current row; or you can say that the function should look only at the rows in the [_window_](./invocation-syntax-semantics/#the-window-definition-rule) from the start through the current row.
 
 Examples of each of these clauses are shown in the section [Informal overview of function invocation using the OVER clause](./functionality-overview).
 
 Window functions are similar to aggregate functions in this way:
 
-- Each operates on each of possibly many [_windows_](./sql-syntax-semantics/#the-window-definition-rule) of a row set.
+- Each operates on each of possibly many [_windows_](./invocation-syntax-semantics/#the-window-definition-rule) of a row set.
 
 **Note:** As mentioned above, the row set for a window function can be defined _only_ by using the `PARTITION BY` clause within a [`window_definition`](../../syntax_resources/grammar_diagrams/#window-definition). The row set for an aggregate function _may_ be defined in this way. But it may alternatively be defined by the regular `GROUP BY` clause at the syntax spot in a subquery that follows the `WHERE` clause's spot.
 
 Window functions differ from aggregate functions in this way:
 
-- A window function produces, in general, a different output value for _each different input row_ in the [_window_](./sql-syntax-semantics/#the-window-definition-rule).
-- An aggregate function, when it's invoked in the same way as a window function, always produces the _same value_ for _each different input row_ in the [_window_](./sql-syntax-semantics/#the-window-definition-rule).
-- When an aggregate function is invoked using the regular `GROUP BY` clause, it produces a _single value_ for each whole [_window_](./sql-syntax-semantics/#the-window-definition-rule) that the `GROUP BY` clause defines.
+- A window function produces, in general, a different output value for _each different input row_ in the [_window_](./invocation-syntax-semantics/#the-window-definition-rule).
+- An aggregate function, when it's invoked in the same way as a window function, often produces the _same value_ for _each different input row_ in the [_window_](./invocation-syntax-semantics/#the-window-definition-rule). (The exact behavior depends on what the [frame clause](./invocation-syntax-semantics/#the-frame-clause-1) specifies.)
+- When an aggregate function is invoked using the regular `GROUP BY` clause, it produces a _single value_ for each whole [_window_](./invocation-syntax-semantics/#the-window-definition-rule) that the `GROUP BY` clause defines.
 
 ## Organization of the window functions documentation
 
-The remainder of the pages are organized as follows:
+The remaining pages are organized as follows:
 
 ### Informal overview of function invocation using the OVER clause: [here](./functionality-overview/)
 
-Skip this section entirely if you are already familiar with window functions. It presents five code examples. It focuses on the _effect_ that the code in each example has. It leaves their formal definitions to the [syntax and semantics](./sql-syntax-semantics/) section.
+Skip this section entirely if you are already familiar with window functions. It presents five code examples. This section focuses on the _effect_ that each illustrated function has. It leaves their formal definitions to the [invocation syntax and semantics](./invocation-syntax-semantics/) section.
 
-### Window function invocation—SQL syntax and semantics: [here](./sql-syntax-semantics/)
+### Window function invocation—SQL syntax and semantics: [here](./invocation-syntax-semantics/)
 
 This section presents the formal treatment of the syntax and semantics of how a window function, or an aggregate function, is invoked as a special kind of `SELECT` list item in conjunction with the `OVER` keyword.
 
 ### Signature and purpose of each window function: [here](./function-syntax-semantics/)
 
-The following list groups YSQL's eleven window functions in the same way that the sidebar items group them. The rationale for the grouping is explained in the referenced section.
+The following list groups the eleven window functions in the same way that the sidebar items group them. The rationale for the grouping is explained in the referenced sections.
 
 &#160;&#160;&#160;&#160;&#160;&#160;[`row_number()`](./function-syntax-semantics/row-number-rank-dense-rank/#row-number)<br>
 &#160;&#160;&#160;&#160;&#160;&#160;[`rank()`](./function-syntax-semantics/row-number-rank-dense-rank/#rank)<br>

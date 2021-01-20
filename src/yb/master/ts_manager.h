@@ -107,6 +107,7 @@ class TSManager {
 
   // Return all of the currently registered TS descriptors into the provided list.
   void GetAllDescriptors(TSDescriptorVector* descs) const;
+  TSDescriptorVector GetAllDescriptors() const;
 
   // Return all of the currently registered TS descriptors that have sent a
   // heartbeat recently, indicating that they're alive and well.
@@ -126,13 +127,8 @@ class TSManager {
   // full report of their tablets as well.
   void GetAllReportedDescriptors(TSDescriptorVector* descs) const;
 
-  // Get the TS count.
-  int GetCount() const;
-
   // Return the tablet server descriptor running on the given port.
   const TSDescriptorPtr GetTSDescriptor(const HostPortPB& host_port) const;
-
-  static bool IsTSLive(const TSDescriptorPtr& ts);
 
   // Check if the placement uuid of the tserver is same as given cluster uuid.
   static bool IsTsInCluster(const TSDescriptorPtr& ts, string cluster_uuid);
@@ -145,9 +141,13 @@ class TSManager {
   void SetTSCountCallback(int min_count, TSCountCallback callback);
 
  private:
-
   void GetDescriptors(std::function<bool(const TSDescriptorPtr&)> condition,
                       TSDescriptorVector* descs) const;
+
+
+  void GetAllDescriptorsUnlocked(TSDescriptorVector* descs) const REQUIRES_SHARED(lock_);
+  void GetDescriptorsUnlocked(std::function<bool(const TSDescriptorPtr&)> condition,
+                      TSDescriptorVector* descs) const REQUIRES_SHARED(lock_);
 
   int GetCountUnlocked() const REQUIRES_SHARED(lock_);
 

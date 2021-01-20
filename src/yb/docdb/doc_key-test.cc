@@ -29,7 +29,6 @@
 using std::unique_ptr;
 using strings::Substitute;
 using yb::util::ApplyEagerLineContinuation;
-using yb::FormatBytesAsStr;
 using yb::FormatSliceAsStr;
 using rocksdb::FilterBitsBuilder;
 using rocksdb::FilterBitsReader;
@@ -441,12 +440,13 @@ TEST_F(DocKeyTest, TestWriteId) {
 
 struct CollectedIntent {
   IntentStrength strength;
+  FullDocKey full_doc_key;
   KeyBytes intent_key;
   Slice value;
 
   std::string ToString() const {
-    return Format("{ strength: $0 intent_key: $1 value: $2 }",
-                  strength, SubDocKey::DebugSliceToString(intent_key.AsSlice()),
+    return Format("{ strength: $0 full_doc_key: $1 intent_key: $2 value: $3 }",
+                  strength, full_doc_key, SubDocKey::DebugSliceToString(intent_key.AsSlice()),
                   value.ToDebugHexString());
   }
 };
@@ -455,8 +455,14 @@ class IntentCollector {
  public:
   explicit IntentCollector(std::vector<CollectedIntent>* out) : out_(out) {}
 
-  Status operator()(IntentStrength strength, Slice value, KeyBytes* key, LastKey) {
-    out_->push_back({strength, *key, value});
+  Status operator()(
+      IntentStrength strength, FullDocKey full_doc_key, Slice value, KeyBytes* key, LastKey) {
+    out_->push_back(CollectedIntent{
+      .strength = strength,
+      .full_doc_key = full_doc_key,
+      .intent_key = *key,
+      .value = value
+    });
     return Status::OK();
   }
 
@@ -707,6 +713,7 @@ TEST_F(DocKeyTest, TestEnumerateIntents) {
         }
         VLOG(1) << "Subkeys match: " << (a.subkeys() == b.subkeys());
 
+        ASSERT_EQ(intent.full_doc_key, a.doc_key() == sub_doc_key.doc_key());
         ASSERT_EQ(expected_intents[i], decoded_intent_key);
         if (i < num_intents - 1) {
           ASSERT_EQ(IntentStrength::kWeak, intent.strength);

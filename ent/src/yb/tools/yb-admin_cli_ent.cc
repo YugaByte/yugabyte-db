@@ -155,7 +155,7 @@ void ClusterAdminCli::RegisterCommandHandlers(ClusterAdminClientClass* client) {
       });
 
   Register(
-      "import_snapshot", " <file_name> [[ycql.]<keyspace_name> <table_name> [<table_name>]...]",
+      "import_snapshot", " <file_name> [<namespace> <table_name> [<table_name>]...]",
       [client](const CLIArguments& args) -> Status {
         if (args.size() < 3) {
           return ClusterAdminCli::kInvalidArguments;

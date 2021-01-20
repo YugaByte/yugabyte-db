@@ -2,24 +2,32 @@
 
 import { connect } from 'react-redux';
 import { UniverseDetail } from '../../universes';
-import { fetchUniverseInfo, fetchUniverseInfoResponse, resetUniverseInfo, closeUniverseDialog, getHealthCheck,
-  getHealthCheckResponse } from '../../../actions/universe';
+import {
+  fetchUniverseInfo,
+  fetchUniverseInfoResponse,
+  resetUniverseInfo,
+  closeUniverseDialog,
+  getHealthCheck,
+  getHealthCheckResponse
+} from '../../../actions/universe';
 
 import { getAlerts, getAlertsSuccess, getAlertsFailure } from '../../../actions/customers';
 
 import { openDialog, closeDialog } from '../../../actions/modal';
 
-import { fetchUniverseTables, fetchUniverseTablesSuccess, fetchUniverseTablesFailure,
-  resetTablesList } from '../../../actions/tables';
-import { getPrimaryCluster } from "../../../utils/UniverseUtils";
-import { isDefinedNotNull, isNonEmptyObject }
-  from '../../../utils/ObjectUtils';
+import {
+  fetchUniverseTables,
+  fetchUniverseTablesSuccess,
+  fetchUniverseTablesFailure,
+  resetTablesList
+} from '../../../actions/tables';
+import { getPrimaryCluster } from '../../../utils/UniverseUtils';
+import { isDefinedNotNull, isNonEmptyObject } from '../../../utils/ObjectUtils';
 
 const mapDispatchToProps = (dispatch) => {
   return {
     getUniverseInfo: (uuid) => {
-      dispatch(fetchUniverseInfo(uuid))
-      .then((response) => {
+      dispatch(fetchUniverseInfo(uuid)).then((response) => {
         dispatch(fetchUniverseInfoResponse(response.payload));
       });
     },
@@ -41,30 +49,34 @@ const mapDispatchToProps = (dispatch) => {
       dispatch(resetUniverseInfo());
     },
     showUniverseModal: () => {
-      dispatch(openDialog("universeModal"));
+      dispatch(openDialog('universeModal'));
     },
     showGFlagsModal: () => {
-      dispatch(openDialog("gFlagsModal"));
+      dispatch(openDialog('gFlagsModal'));
     },
     showManageKeyModal: () => {
-      dispatch(openDialog("manageKeyModal"));
+      dispatch(openDialog('manageKeyModal'));
     },
     showDeleteUniverseModal: () => {
-      dispatch(openDialog("deleteUniverseModal"));
+      dispatch(openDialog('deleteUniverseModal'));
     },
     showSoftwareUpgradesModal: () => {
-      dispatch(openDialog("softwareUpgradesModal"));
+      dispatch(openDialog('softwareUpgradesModal'));
     },
     showRunSampleAppsModal: () => {
-      dispatch(openDialog("runSampleAppsModal"));
+      dispatch(openDialog('runSampleAppsModal'));
+    },
+    showTLSConfigurationModal: () => {
+      dispatch(openDialog('tlsConfigurationModal'));
+    },
+    showRollingRestartModal: () => {
+      dispatch(openDialog('rollingRestart'));
     },
     closeModal: () => {
       dispatch(closeDialog());
-      dispatch(closeUniverseDialog());
     },
     getHealthCheck: (uuid) => {
-      dispatch(getHealthCheck(uuid))
-      .then((response) => {
+      dispatch(getHealthCheck(uuid)).then((response) => {
         dispatch(getHealthCheckResponse(response.payload));
       });
     },
@@ -81,13 +93,13 @@ const mapDispatchToProps = (dispatch) => {
 };
 
 function mapStateToProps(state, ownProps) {
-  // Detect if software update is available for this universe  
+  // Detect if software update is available for this universe
   const isUpdateAvailable = (state) => {
     const isFirstVersionOlder = (first, second) => {
       for (let idx = 0; idx < first.length; idx++) {
         const first_ = parseInt(first[idx], 10);
         const second_ = parseInt(second[idx], 10);
-        if (first_ < second_) { 
+        if (first_ < second_) {
           return true;
         } else if (first_ > second_) {
           return false;
@@ -96,28 +108,37 @@ function mapStateToProps(state, ownProps) {
       return false;
     };
     try {
-      if (isDefinedNotNull(state.universe.currentUniverse.data) && isNonEmptyObject(state.universe.currentUniverse.data)) {
-        const primaryCluster = getPrimaryCluster(state.universe.currentUniverse.data.universeDetails.clusters);
-        const currentversion = primaryCluster && (primaryCluster.userIntent.ybSoftwareVersion || undefined);
+      if (
+        isDefinedNotNull(state.universe.currentUniverse.data) &&
+        isNonEmptyObject(state.universe.currentUniverse.data)
+      ) {
+        const primaryCluster = getPrimaryCluster(
+          state.universe.currentUniverse.data.universeDetails.clusters
+        );
+        const currentversion =
+          primaryCluster && (primaryCluster.userIntent.ybSoftwareVersion || undefined);
         if (currentversion && state.customer.softwareVersions.length) {
           for (let idx = 0; idx < state.customer.softwareVersions.length; idx++) {
-            const current = currentversion.split("-");
-            const iterator = state.customer.softwareVersions[idx].split("-");
-            
+            const current = currentversion.split('-');
+            const iterator = state.customer.softwareVersions[idx].split('-');
+
             const currentVersion = current[0];
             const iteratorVersion = iterator[0];
-            const currentBuild = current[1] ? parseInt(current[1].substr(1), 10) : "";
-            const iteratorBuild = iterator[1] ? parseInt(iterator[1].substr(1), 10) : "";
+            const currentBuild = current[1] ? parseInt(current[1].substr(1), 10) : '';
+            const iteratorBuild = iterator[1] ? parseInt(iterator[1].substr(1), 10) : '';
 
             // Compare versions till current won't be founded or founded an older one and compare release codes separately because "b9" > "b13"
-            if (isFirstVersionOlder(iteratorVersion.split("."), currentVersion.split("."))
-              || (iteratorVersion === currentVersion && iteratorBuild <= currentBuild)) return idx;
-          };
+            if (
+              isFirstVersionOlder(iteratorVersion.split('.'), currentVersion.split('.')) ||
+              (iteratorVersion === currentVersion && iteratorBuild <= currentBuild)
+            )
+              return idx;
+          }
         }
       }
       return false;
     } catch (err) {
-      console.log("Versions comparison failed with: "+err);
+      console.log('Versions comparison failed with: ' + err);
       return false;
     }
   };

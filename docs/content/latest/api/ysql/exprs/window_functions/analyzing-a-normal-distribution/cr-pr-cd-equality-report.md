@@ -20,7 +20,6 @@ create type pr_cd_equality_report_t as("count(*)" int, max_score text, max_ratio
 create or replace function pr_cd_equality_report(
   delta_threshold in double precision)
   returns SETOF pr_cd_equality_report_t
-  immutable
   language sql
 as $body$
   with

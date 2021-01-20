@@ -11,7 +11,7 @@ import { YBButton } from '../../components/common/forms/fields';
 import { openDialog, closeDialog } from '../../actions/modal';
 import { AddUserModal } from './modals/AddUserModal';
 import { EditRoleModal } from './modals/EditRoleModal';
-import {YBConfirmModal} from '../modals';
+import { YBConfirmModal } from '../modals';
 import { isNotHidden, isDisabled } from '../../utils/LayoutUtils';
 import {
   changeUserRole,
@@ -47,12 +47,16 @@ class UserList extends Component {
       this.props.getCustomerUsers();
       this.props.closeModal();
     }
-  }
+  };
 
   actionsDropdown = (user) => {
     const { customer } = this.props;
     const loginUserId = localStorage.getItem('userId');
-    if (user.uuid === loginUserId || isDisabled(customer.data.features, 'universe.create')) {
+    if (
+      user.uuid === loginUserId ||
+      isDisabled(customer.data.features, 'universe.create') ||
+      user.role === 'SuperAdmin'
+    ) {
       return null;
     } else {
       return (
@@ -63,15 +67,15 @@ class UserList extends Component {
           pullRight
         >
           <MenuItem onClick={() => this.editRole(user)}>
-            <span className="fa fa-edit"/> Edit User Role
+            <span className="fa fa-edit" /> Edit User Role
           </MenuItem>
           <MenuItem onClick={() => this.showDeleteUserModal(user)}>
-            <span className="fa fa-trash"/> Delete User
+            <span className="fa fa-trash" /> Delete User
           </MenuItem>
         </DropdownButton>
       );
     }
-  }
+  };
 
   render() {
     const {
@@ -88,20 +92,20 @@ class UserList extends Component {
 
     return (
       <div className="user-list-container">
-        <Row >
+        <Row>
           <Col className="pull-left">
             <h2>Users</h2>
           </Col>
           <Col className="pull-right">
-            {isNotHidden(customer.data.features, 'universe.create') &&
+            {isNotHidden(customer.data.features, 'universe.create') && (
               <YBButton
                 btnClass="universe-button btn btn-lg btn-orange"
                 onClick={showAddUserModal}
                 btnText="Add User"
                 btnIcon="fa fa-plus"
-                disabled={isDisabled(customer.data.features, "universe.create")}
+                disabled={isDisabled(customer.data.features, 'universe.create')}
               />
-            }
+            )}
             {/* re-mount modals in order to internal forms show valid initial values all the times */}
             {showModal && visibleModal === 'addUserModal' && (
               <AddUserModal
@@ -130,24 +134,22 @@ class UserList extends Component {
               confirmLabel="Delete"
               cancelLabel="Cancel"
             >
-              Are you sure you want to delete user <strong>{this.state.userForModal?.email}</strong> ?
+              Are you sure you want to delete user <strong>{this.state.userForModal?.email}</strong>{' '}
+              ?
             </YBConfirmModal>
           </Col>
         </Row>
         <Row>
           <YBPanelItem
             body={
-              <BootstrapTable data={users.data} bodyStyle={{ marginBottom: '1%', paddingBottom: '1%' }}>
+              <BootstrapTable
+                data={users.data}
+                bodyStyle={{ marginBottom: '1%', paddingBottom: '1%' }}
+              >
                 <TableHeaderColumn dataField="uuid" isKey hidden />
-                <TableHeaderColumn dataField="email">
-                  Email
-                </TableHeaderColumn>
-                <TableHeaderColumn dataField="role" >
-                  Role
-                </TableHeaderColumn>
-                <TableHeaderColumn dataField="creationDate">
-                  Created At
-                </TableHeaderColumn>
+                <TableHeaderColumn dataField="email">Email</TableHeaderColumn>
+                <TableHeaderColumn dataField="role">Role</TableHeaderColumn>
+                <TableHeaderColumn dataField="creationDate">Created At</TableHeaderColumn>
                 <TableHeaderColumn
                   columnClassName="table-actions-cell"
                   dataFormat={(cell, row) => this.actionsDropdown(row)}
@@ -189,7 +191,7 @@ const mapDispatchToProps = (dispatch) => {
     },
     closeModal: () => {
       dispatch(closeDialog());
-    },
+    }
   };
 };
 

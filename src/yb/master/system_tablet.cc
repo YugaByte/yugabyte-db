@@ -41,7 +41,7 @@ const TabletId& SystemTablet::tablet_id() const {
   return tablet_id_;
 }
 
-HybridTime SystemTablet::DoGetSafeTime(
+Result<HybridTime> SystemTablet::DoGetSafeTime(
     tablet::RequireLease require_lease, HybridTime min_allowed, CoarseTimePoint deadline) const {
   // HybridTime doesn't matter for SystemTablets.
   return HybridTime::kMax;

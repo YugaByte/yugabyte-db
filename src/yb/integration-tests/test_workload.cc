@@ -311,7 +311,7 @@ void TestWorkload::State::WriteThread(const TestWorkloadOptions& options) {
     Status s = session->Flush();
     if (!s.ok()) {
       VLOG(1) << "Flush error: " << AsString(s);
-      for (const auto& error : session->GetPendingErrors()) {
+      for (const auto& error : session->GetAndClearPendingErrors()) {
         auto* resp = down_cast<client::YBqlOp*>(&error->failed_op())->mutable_response();
         resp->Clear();
         resp->set_status(

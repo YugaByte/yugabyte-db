@@ -113,6 +113,9 @@ public class NodeInstance extends Model {
     return deleteStmt.execute();
   }
 
+  /** Pick available nodes in zones specified by onpremAzToNodes with
+   *  with the instance type specified
+   */
   public static synchronized Map<String, NodeInstance> pickNodes(
     Map<UUID, List<String>> onpremAzToNodes, String instanceTypeCode) {
     Map<String, NodeInstance> outputMap = new HashMap<String, NodeInstance>();
@@ -134,6 +137,7 @@ public class NodeInstance extends Model {
           node.setNodeName(nodeName);
           outputMap.put(nodeName, node);
           ++index;
+          LOG.info("Marking node {} (ip {}) as in-use.", nodeName, node.getDetails().ip);
         }
       }
       // All good, save to DB.

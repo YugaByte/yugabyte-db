@@ -294,13 +294,13 @@ This utility also uses the environment variables supported by `libpq`.
 
 `ysql_dump` internally executes `SELECT` statements. If you have problems running `ysql_dump`, make sure you are able to select information from the database using, for example, [`ysqlsh`](../ysqlsh). Also, any default connection settings and environment variables used by the `libpq` front-end library will apply.
 
-The database activity of `ysql_dump` is normally collected by the statistics collector. If this is undesirable, you can set parameter `track_counts` to `false` using `PGOPTIONS` or the [`ALTER USER`](../../api/ysql/commands/dcl_alter_user) statement.
+The database activity of `ysql_dump` is normally collected by the statistics collector. If this is undesirable, you can set parameter `track_counts` to `false` using `PGOPTIONS` or the [`ALTER USER`](../../api/ysql/the-sql-language/statements/dcl_alter_user) statement.
 
 ## Notes
 
 If your YugabyteDB cluster has any local additions to the `template1` database, be careful to restore the output of `ysql_dump` into a truly empty database; otherwise you are likely to get errors due to duplicate definitions of the added objects. To make an empty database without any local additions, copy from `template0` not `template1`, for example:
 
-```postgresql
+```plpgsql
 CREATE DATABASE foo WITH TEMPLATE template0;
 ```
 

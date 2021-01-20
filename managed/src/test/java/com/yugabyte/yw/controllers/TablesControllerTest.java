@@ -627,6 +627,34 @@ public class TablesControllerTest extends FakeDBApplication {
   }
 
   @Test
+  public void testCreateBackupFailureInProgress() {
+    Customer customer = ModelFactory.testCustomer();
+    Users user = ModelFactory.testUser(customer);
+    UUID tableUUID = UUID.randomUUID();
+    Universe universe = createUniverse(customer.getCustomerId());
+    universe = Universe.saveDetails(universe.universeUUID,
+                                    ApiUtils.mockUniverseUpdater("host", null, true));
+    customer.addUniverseUUID(universe.universeUUID);
+    customer.save();
+    String url = "/api/customers/" + customer.uuid + "/universes/" + universe.universeUUID +
+        "/tables/" + tableUUID + "/create_backup";
+    ObjectNode bodyJson = Json.newObject();
+    CustomerConfig customerConfig = ModelFactory.createS3StorageConfig(customer);
+    bodyJson.put("keyspace", "foo");
+    bodyJson.put("tableName", "bar");
+    bodyJson.put("actionType", "CREATE");
+    bodyJson.put("storageConfigUUID", customerConfig.configUUID.toString());
+
+    Result result = FakeApiHelper.doRequestWithAuthTokenAndBody("PUT", url,
+        user.createAuthToken(), bodyJson);
+
+    String errMsg = String.format("Cannot run Backup task since the " +
+                                  "universe %s is currently in a locked state.",
+                                  universe.universeUUID.toString());
+    assertBadRequest(result, errMsg);
+  }
+
+  @Test
   public void testCreateBackupCronExpression() {
     Customer customer = ModelFactory.testCustomer();
     Users user = ModelFactory.testUser(customer);
@@ -680,6 +708,30 @@ public class TablesControllerTest extends FakeDBApplication {
     CustomerTask ct = CustomerTask.findByTaskUUID(fakeTaskUUID);
     assertNotNull(ct);
     assertAuditEntry(1, customer.uuid);
+  }
+
+  @Test
+  public void testCreateMultiBackupFailureInProgress() {
+    Customer customer = ModelFactory.testCustomer();
+    Users user = ModelFactory.testUser(customer);
+    Universe universe = createUniverse(customer.getCustomerId());
+    universe = Universe.saveDetails(universe.universeUUID,
+                                    ApiUtils.mockUniverseUpdater("host", null, true));
+    customer.addUniverseUUID(universe.universeUUID);
+    customer.save();
+    String url = "/api/customers/" + customer.uuid + "/universes/" + universe.universeUUID +
+        "/multi_table_backup";
+    ObjectNode bodyJson = Json.newObject();
+    CustomerConfig customerConfig = ModelFactory.createS3StorageConfig(customer);
+    bodyJson.put("actionType", "CREATE");
+    bodyJson.put("storageConfigUUID", customerConfig.configUUID.toString());
+
+    Result result = FakeApiHelper.doRequestWithAuthTokenAndBody("PUT", url,
+        user.createAuthToken(), bodyJson);
+    String errMsg = String.format("Cannot run Backup task since the " +
+                                  "universe %s is currently in a locked state.",
+                                  universe.universeUUID.toString());
+    assertBadRequest(result, errMsg);
   }
 
   @Test

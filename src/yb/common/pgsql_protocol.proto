@@ -120,6 +120,14 @@ message PgsqlRSRowDescPB {
   repeated PgsqlRSColDescPB rscol_descs = 1;
 }
 
+// Boundary value.
+message PgsqlPartitionBound {
+  // Boundary partition key.
+  optional bytes key = 1;
+  // Indicate whether or not the boundary is inclusive.
+  optional bool is_inclusive = 2;
+}
+
 //--------------------------------------------------------------------------------------------------
 // Data Writing Instructions - INSERT, UPDATE, DELETE, colocated TRUNCATE.
 //--------------------------------------------------------------------------------------------------
@@ -198,6 +206,9 @@ message PgsqlWriteRequestPB {
 
   // True only if this changes a system catalog table (or index).
   optional bool is_ysql_catalog_change = 17 [default = false];
+
+  // Does this request correspond to backfilling an index table?
+  optional bool is_backfill = 19 [default = false];
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -242,6 +253,9 @@ message PgsqlPagingStatePB {
   // queried, one for each combination of allowed values for the hash columns.
   // This holds the index of the next partition and is used to resume the read from the right place.
   optional uint64 next_partition_index = 5;
+
+  // Used read time.
+  optional ReadHybridTimePB read_time = 6;
 }
 
 // TODO(neil) The protocol for select needs to be changed accordingly when we introduce and cache
@@ -291,6 +305,10 @@ message PgsqlReadRequestPB {
   // If this attribute is present, this request is a batch request.
   repeated PgsqlBatchArgumentPB batch_arguments = 24;
 
+  // Indicates ybctids in batch_arguments may not exist.
+  // If flag is false read operation will fail in case any of ybctids in batch will not be found.
+  optional bool unknown_ybctid_allowed = 26;
+
   //------------------------------------------------------------------------------------------------
   // Output Argument Specification (Tuple descriptor).
   //
@@ -337,8 +355,24 @@ message PgsqlReadRequestPB {
   // Row mark as used by postgres for row locking.
   optional RowMarkType row_mark_type = 23;
 
-  // Upper limit for partition key for range tables when paging.
-  optional bytes max_partition_key = 25;
+  // Scan partition boundary.
+  // NOTE
+  // - Boundaries indicate the scan range that are given by SQL statement. This should be set by
+  //   PgGate when it processed query specification.
+  // - paging_state indicates the current position of a scan. This should be set ONLY by DocDB
+  //   who scans the table.
+  // - Don't overload these fields for different purposes to avoid confusion.
+  optional PgsqlPartitionBound lower_bound = 27;
+  optional PgsqlPartitionBound upper_bound = 28;
+
+  // Deprecated fields.
+  // Field "max_partition_key" is replaced by "lower_bound" and "upper_bound". This field is only
+  // available in beta version for SPLIT_AT feature. The release version for SPLIT AT does not need
+  // to be compatible with the beta version as SPLIT AT feature were not used.
+  optional bytes DEPRECATED_max_partition_key = 25;
+
+  // Does this request correspond to scanning the indexed table for backfill?
+  optional bool is_for_backfill = 29 [default = false];
 }
 
 //--------------------------------------------------------------------------------------------------

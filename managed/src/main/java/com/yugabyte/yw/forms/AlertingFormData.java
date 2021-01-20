@@ -35,6 +35,8 @@ public class AlertingFormData {
         public long statusUpdateIntervalMs = 0;
 
         public Boolean reportOnlyErrors = false;
+
+        public Boolean reportBackupFailures = false;
     }
 
     static public class SmtpData {

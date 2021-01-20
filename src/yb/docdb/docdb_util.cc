@@ -99,6 +99,10 @@ Status DocDBRocksDBUtil::PopulateRocksDBWriteBatch(
     PartialRangeKeyIntents partial_range_key_intents) const {
   if (decode_dockey) {
     for (const auto& entry : dwb.key_value_pairs()) {
+      // Skip key validation for external intents.
+      if (!entry.first.empty() && entry.first[0] == ValueTypeAsChar::kExternalTransactionId) {
+        continue;
+      }
       SubDocKey subdoc_key;
       // We don't expect any invalid encoded keys in the write batch. However, these encoded keys
       // don't contain the HybridTime.
@@ -158,7 +162,7 @@ Status DocDBRocksDBUtil::WriteToRocksDB(
 
   ConsensusFrontiers frontiers;
   rocksdb::WriteBatch rocksdb_write_batch;
-  if (op_id_) {
+  if (!op_id_.empty()) {
     ++op_id_.index;
     set_op_id(op_id_, &frontiers);
     set_hybrid_time(hybrid_time, &frontiers);
@@ -243,6 +247,77 @@ Status DocDBRocksDBUtil::SetPrimitive(
     const HybridTime hybrid_time,
     const ReadHybridTime& read_ht) {
   return SetPrimitive(doc_path, Value(primitive_value), hybrid_time, read_ht);
+}
+
+Status DocDBRocksDBUtil::AddExternalIntents(
+    const TransactionId& txn_id,
+    const std::vector<ExternalIntent>& intents,
+    const Uuid& involved_tablet,
+    HybridTime hybrid_time) {
+  class Provider : public ExternalIntentsProvider {
+   public:
+    Provider(
+        const std::vector<ExternalIntent>* intents, const Uuid& involved_tablet,
+        HybridTime hybrid_time)
+        : intents_(*intents), involved_tablet_(involved_tablet), hybrid_time_(hybrid_time) {}
+
+    void SetKey(const Slice& slice) override {
+      key_.AppendRawBytes(slice);
+    }
+
+    void SetValue(const Slice& slice) override {
+      value_ = slice;
+    }
+
+    void Apply(rocksdb::WriteBatch* batch) {
+      KeyValuePairPB kv_pair;
+      kv_pair.set_key(key_.ToStringBuffer());
+      kv_pair.set_value(value_.ToString());
+      ExternalTxnApplyState external_txn_apply_state;
+      AddPairToWriteBatch(kv_pair, hybrid_time_, 0, &external_txn_apply_state, nullptr, batch);
+    }
+
+    boost::optional<std::pair<Slice, Slice>> Next() override {
+      if (next_idx_ >= intents_.size()) {
+        return boost::none;
+      }
+
+      // It is ok to have inefficient code in tests.
+      const auto& intent = intents_[next_idx_];
+      ++next_idx_;
+
+      intent_key_ = intent.doc_path.encoded_doc_key();
+      for (const auto& subkey : intent.doc_path.subkeys()) {
+        subkey.AppendToKey(&intent_key_);
+      }
+      intent_value_ = intent.value.Encode();
+
+      return std::pair<Slice, Slice>(intent_key_.AsSlice(), intent_value_);
+    }
+
+    const Uuid& InvolvedTablet() override {
+      return involved_tablet_;
+    }
+
+   private:
+    const std::vector<ExternalIntent>& intents_;
+    const Uuid involved_tablet_;
+    const HybridTime hybrid_time_;
+    size_t next_idx_ = 0;
+    KeyBytes key_;
+    KeyBuffer value_;
+
+    KeyBytes intent_key_;
+    std::string intent_value_;
+  };
+
+  Provider provider(&intents, involved_tablet, hybrid_time);
+  CombineExternalIntents(txn_id, &provider);
+
+  rocksdb::WriteBatch rocksdb_write_batch;
+  provider.Apply(&rocksdb_write_batch);
+
+  return intents_db_->Write(write_options(), &rocksdb_write_batch);
 }
 
 Status DocDBRocksDBUtil::InsertSubDocument(

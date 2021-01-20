@@ -19,9 +19,6 @@ import static org.yb.AssertionWrappers.assertTrue;
 import com.google.common.net.HostAndPort;
 
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.yb.minicluster.MiniYBCluster;
 
 import java.util.*;
 
@@ -63,7 +60,7 @@ public class TestMasterLeaderDecommission extends TestClusterBase {
     }
 
     // Wait for tservers to find and heartbeat to new master.
-    Thread.sleep(MiniYBCluster.TSERVER_HEARTBEAT_TIMEOUT_MS * 5);
+    Thread.sleep(miniCluster.getClusterParameters().getTServerHeartbeatTimeoutMs() * 5);
 
     for (HostAndPort hp : miniCluster.getTabletServers().keySet()) {
       String masters = client.getMasterAddresses(hp);

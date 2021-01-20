@@ -173,3 +173,7 @@ race:uv_timer_start
 # GOOGLE_SAFE_CONCURRENT_WRITES_BEGIN and GOOGLE_SAFE_CONCURRENT_WRITES_END.
 # But they are defined to empty, so have to suppress it here.
 race:google::protobuf::Any::ByteSizeLong
+
+# Races on gflag changes should be strictly test-only issues, as we never update gflags from the
+# code, at runtime.
+race:fLI::*

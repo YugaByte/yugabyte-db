@@ -19,6 +19,8 @@
 #include "yb/util/result.h"
 #include "yb/util/enums.h"
 
+DECLARE_string(cert_node_filename);
+
 namespace yb {
 
 class FsManager;
@@ -32,6 +34,8 @@ class SecureContext;
 namespace server {
 
 YB_DEFINE_ENUM(SecureContextType, (kServerToServer)(kClientToServer));
+
+string DefaultRootDir(const FsManager& fs_manager);
 
 string DefaultCertsDir(const FsManager& fs_manager);
 

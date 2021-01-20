@@ -7,7 +7,7 @@ image: /images/section_icons/index/quick_start.png
 headcontent: Build the source code on macOS, CentOS, and Ubuntu.
 type: page
 aliases:
- - /latest/contribute/core-database/build-from-src
+  - /latest/contribute/core-database/build-from-src
 menu:
   latest:
     identifier: build-from-src-1-macos
@@ -60,17 +60,8 @@ First, install [Homebrew](https://brew.sh/), if you do not already have it. Home
 Install the following packages using Homebrew:
 
 ```sh
-brew install autoconf automake bash ccache cmake  \
-             coreutils flex gnu-tar icu4c libtool \
-             maven ninja pkg-config pstree wget \
-             zlib python
-```
-
-An older version of `bison` is required to correctly compile the code. The following command installs the required `3.4.1` version of bison.
-
-```sh
-brew install \
-https://raw.githubusercontent.com/Homebrew/homebrew-core/ee89a1d59df03f495a85c15e253b60299082ab9d/Formula/bison.rb
+brew install autoconf automake bash ccache cmake coreutils gnu-tar libtool \
+             maven ninja pkg-config pstree wget python
 ```
 
 {{< note title="Note" >}}
@@ -110,3 +101,12 @@ export PATH=$HOME/tools/apache-maven-3.6.3/bin:$PATH
 ```
 
 For building YugabyteDB Java code, you'll need to install Java and Apache Maven.
+
+## Build release package
+You can build a release package by executing:
+
+```shell
+$ ./yb_release
+......
+2020-10-27 13:55:40,856 [yb_release.py:283 INFO] Generated a package at '/Users/me/code/yugabyte-db/build/yugabyte-2.5.1.0-6ab8013159fdca00ced7e6f5d2f98cacac6a536a-release-darwin-x86_64.tar.gz'```
+```

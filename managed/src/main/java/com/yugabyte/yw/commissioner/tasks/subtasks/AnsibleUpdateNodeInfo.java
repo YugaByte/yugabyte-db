@@ -16,6 +16,7 @@ import java.util.Map.Entry;
 
 import com.yugabyte.yw.common.NodeManager;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,14 +37,15 @@ public class AnsibleUpdateNodeInfo extends NodeTaskBase {
   @Override
   public void run() {
     // Create the process to fetch information about the node from the cloud provider.
-    ShellProcessHandler.ShellResponse response = getNodeManager().nodeCommand(
+    ShellResponse response = getNodeManager().nodeCommand(
         NodeManager.NodeCommandType.List, taskParams());
-    logShellResponse(response);
+    processShellResponse(response);
 
     // TODO: log output stream somewhere.
 
     NodeTaskParams taskParams = taskParams();
-    LOG.info("Updating details uuid={}, name={}.", taskParams.universeUUID, taskParams.nodeName);
+    LOG.info("Updating node details for univ uuid={}, node name={}.",
+            taskParams.universeUUID, taskParams.nodeName);
 
     // Parse into a json object.
     JsonNode jsonNodeTmp = Json.parse(response.message);
@@ -69,7 +71,7 @@ public class AnsibleUpdateNodeInfo extends NodeTaskBase {
           }
           Field field;
           try {
-            LOG.info("Node {}: setting field {} to value {}.",
+            LOG.debug("Node {}: setting univ node details field {} to value {}.",
                      taskParams.nodeName, entry.getKey(), entry.getValue());
             // Error out if the host was not found.
             if (entry.getKey().equals("host_found") && entry.getValue().asText().equals("false")) {
@@ -100,6 +102,6 @@ public class AnsibleUpdateNodeInfo extends NodeTaskBase {
       }
     };
     // Save the updated universe object.
-    Universe.saveDetails(taskParams.universeUUID, updater);
+    saveUniverseDetails(updater);
   }
 }

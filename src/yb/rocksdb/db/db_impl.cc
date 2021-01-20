@@ -1977,18 +1977,11 @@ void DBImpl::NotifyOnFlushCompleted(ColumnFamilyData* cfd,
     return;
   }
   if (db_options_.listeners.size() > 0) {
+    int num_0level_files = cfd->current()->storage_info()->NumLevelFiles(0);
     bool triggered_writes_slowdown =
-        (cfd->current()->storage_info()->NumLevelFiles(0) >=
-         mutable_cf_options.level0_slowdown_writes_trigger);
+        num_0level_files >= mutable_cf_options.level0_slowdown_writes_trigger;
     bool triggered_writes_stop =
-        (cfd->current()->storage_info()->NumLevelFiles(0) >=
-         mutable_cf_options.level0_stop_writes_trigger);
-    if (triggered_writes_stop) {
-      TEST_SYNC_POINT("DBImpl::NotifyOnFlushCompleted::TriggeredWriteStop");
-    } else if (triggered_writes_slowdown) {
-      TEST_SYNC_POINT("DBImpl::NotifyOnFlushCompleted::TriggeredWriteSlowdown");
-    }
-
+        num_0level_files >= mutable_cf_options.level0_stop_writes_trigger;
     // release lock while notifying events
     mutex_.Unlock();
     {
@@ -6439,12 +6432,18 @@ Status DestroyDB(const std::string& dbname, const Options& options) {
     }
 
     // ignore case where no archival directory is present.
-    WARN_NOT_OK(env->DeleteDir(archivedir), "Failed to cleanup dir " + archivedir);
-
+    if (env->FileExists(archivedir).ok()) {
+      WARN_NOT_OK(env->DeleteDir(archivedir), "Failed to cleanup dir " + archivedir);
+    }
     WARN_NOT_OK(env->UnlockFile(lock), "Unlock file failed");
     env->CleanupFile(lockname);
-    WARN_NOT_OK(env->DeleteDir(dbname), "Failed to cleanup dir " + dbname);
-    WARN_NOT_OK(env->DeleteDir(soptions.wal_dir), "Failed to cleanup wal dir " + soptions.wal_dir);
+    if (env->FileExists(dbname).ok()) {
+      WARN_NOT_OK(env->DeleteDir(dbname), "Failed to cleanup dir " + dbname);
+    }
+    if (env->FileExists(soptions.wal_dir).ok()) {
+      WARN_NOT_OK(env->DeleteDir(soptions.wal_dir),
+                  "Failed to cleanup wal dir " + soptions.wal_dir);
+    }
   }
   return result;
 }

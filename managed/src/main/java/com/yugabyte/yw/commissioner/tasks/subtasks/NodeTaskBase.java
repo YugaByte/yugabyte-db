@@ -10,24 +10,21 @@
 
 package com.yugabyte.yw.commissioner.tasks.subtasks;
 
+import com.yugabyte.yw.commissioner.tasks.UniverseDefinitionTaskBase;
 import com.yugabyte.yw.common.NodeManager;
-import com.yugabyte.yw.common.ShellProcessHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.yugabyte.yw.commissioner.AbstractTaskBase;
 import com.yugabyte.yw.commissioner.tasks.params.NodeTaskParams;
 import com.yugabyte.yw.forms.ITaskParams;
-import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
-import com.yugabyte.yw.models.Universe;
 import com.yugabyte.yw.models.Universe.UniverseUpdater;
 import com.yugabyte.yw.models.helpers.NodeDetails;
 
 import play.api.Play;
 import play.libs.Json;
 
-public abstract class NodeTaskBase extends AbstractTaskBase {
+public abstract class NodeTaskBase extends UniverseDefinitionTaskBase {
   public static final Logger LOG = LoggerFactory.getLogger(NodeTaskBase.class);
 
   private NodeManager nodeManager;
@@ -61,6 +58,6 @@ public abstract class NodeTaskBase extends AbstractTaskBase {
     UniverseUpdater updater = nodeStateUpdater(taskParams().universeUUID,
                                                taskParams().nodeName,
                                                state);
-    Universe.saveDetails(taskParams().universeUUID, updater);
+    saveUniverseDetails(updater);
   }
 }

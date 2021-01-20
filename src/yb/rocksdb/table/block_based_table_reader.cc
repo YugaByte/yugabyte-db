@@ -228,16 +228,17 @@ struct BlockBasedTable::Rep {
   BlockHandle filter_handle;
 
   std::shared_ptr<const TableProperties> table_properties;
-  IndexType index_type;
-  bool hash_index_allow_collision;
-  bool whole_key_filtering;
-  bool prefix_filtering;
+  IndexType index_type = IndexType::kBinarySearch;
+  bool hash_index_allow_collision = false;
+  bool whole_key_filtering = false;
+  bool prefix_filtering = false;
   // TODO(kailiu) It is very ugly to use internal key in table, since table
   // module should not be relying on db module. However to make things easier
   // and compatible with existing code, we introduce a wrapper that allows
   // block to extract prefix without knowing if a key is internal or not.
   unique_ptr<SliceTransform> internal_prefix_transform;
-  DataIndexLoadMode data_index_load_mode;
+
+  DataIndexLoadMode data_index_load_mode = static_cast<DataIndexLoadMode>(0);
   yb::MemTrackerPtr mem_tracker;
 };
 
@@ -329,6 +330,9 @@ bool BloomFilterAwareFileFilter::Filter(TableReader* reader) const {
   auto table = down_cast<BlockBasedTable*>(reader);
   if (table->rep_->filter_type == FilterType::kFixedSizeFilter) {
     const auto filter_key = table->GetFilterKeyFromUserKey(user_key_);
+    if (filter_key.empty()) {
+      return true;
+    }
     auto filter_entry = table->GetFilter(read_options_.query_id,
         read_options_.read_tier == kBlockCacheTier /* no_io */, &filter_key);
     FilterBlockReader* filter = filter_entry.value;
@@ -1265,9 +1269,9 @@ bool BlockBasedTable::PrefixMayMatch(const Slice& internal_key) {
 
   assert(rep_->ioptions.prefix_extractor != nullptr);
   auto user_key = ExtractUserKey(internal_key);
-  auto filter_key = rep_->filter_key_transformer ?
-      rep_->filter_key_transformer->Transform(user_key) : user_key;
-  if (!rep_->ioptions.prefix_extractor->InDomain(filter_key) ||
+  auto filter_key = GetFilterKeyFromUserKey(user_key);
+  if (filter_key.empty() ||
+      !rep_->ioptions.prefix_extractor->InDomain(filter_key) ||
       !rep_->ioptions.prefix_extractor->InDomain(user_key)) {
     return true;
   }
@@ -1384,9 +1388,12 @@ Status BlockBasedTable::Get(const ReadOptions& read_options, const Slice& intern
   Slice filter_key;
   if (!skip_filters) {
     filter_key = GetFilterKeyFromInternalKey(internal_key);
-    filter_entry = GetFilter(read_options.query_id,
-                             read_options.read_tier == kBlockCacheTier,
-                             &filter_key);
+    if (!filter_key.empty()) {
+      filter_entry =
+          GetFilter(read_options.query_id, read_options.read_tier == kBlockCacheTier, &filter_key);
+    } else {
+      skip_filters = true;
+    }
   }
   FilterBlockReader* filter = filter_entry.value;
 
@@ -1396,7 +1403,6 @@ Status BlockBasedTable::Get(const ReadOptions& read_options, const Slice& intern
   if (!is_block_based_filter && !NonBlockBasedFilterKeyMayMatch(filter, filter_key)) {
     RecordTick(rep_->ioptions.statistics, BLOOM_FILTER_USEFUL);
   } else {
-
     // Either filter is block-based or key may match.
     IndexIteratorHolder iiter_holder(this, read_options);
     InternalIterator& iiter = *iiter_holder.iter();

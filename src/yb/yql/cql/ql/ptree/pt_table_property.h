@@ -125,8 +125,9 @@ class PTTableProperty : public PTProperty {
   }
 
   PTExpr::SharedPtr order_expr_;
-  PTOrderBy::Direction direction_;
-  PropertyType property_type_;
+  // We just need some default values. These are overridden in various constructors.
+  PTOrderBy::Direction direction_ = PTOrderBy::Direction::kASC;
+  PropertyType property_type_ = PropertyType::kTableProperty;
   PTQualifiedName::SharedPtr copartition_table_name_;
   std::shared_ptr<client::YBTable> copartition_table_;
 

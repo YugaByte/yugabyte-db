@@ -4,7 +4,11 @@ import { connect } from 'react-redux';
 
 import UniverseTable from './UniverseTable';
 import { fetchUniverseMetadata, resetUniverseTasks } from '../../../actions/universe';
-import { fetchCustomerTasks, fetchCustomerTasksSuccess, fetchCustomerTasksFailure } from '../../../actions/tasks';
+import {
+  fetchCustomerTasks,
+  fetchCustomerTasksSuccess,
+  fetchCustomerTasksFailure
+} from '../../../actions/tasks';
 
 const mapDispatchToProps = (dispatch) => {
   return {
@@ -13,8 +17,7 @@ const mapDispatchToProps = (dispatch) => {
     },
 
     fetchUniverseTasks: () => {
-      dispatch(fetchCustomerTasks())
-      .then((response) => {
+      dispatch(fetchCustomerTasks()).then((response) => {
         if (!response.error) {
           dispatch(fetchCustomerTasksSuccess(response.payload));
         } else {
@@ -38,4 +41,4 @@ function mapStateToProps(state) {
   };
 }
 
-export default connect( mapStateToProps, mapDispatchToProps)(UniverseTable);
+export default connect(mapStateToProps, mapDispatchToProps)(UniverseTable);

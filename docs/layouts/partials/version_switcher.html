@@ -1,12 +1,18 @@
 {{ $currentVersion := (.Scratch.Get "currentVersionTitle") }}
 {{ if not $currentVersion}}
   {{ $context := . }}
-  {{ $path := split .File.Dir "/" }}
+  {{ $path := split .File.Dir "/" }}  
   {{ if eq (index $path 0) "versions" }}
-    {{ $title := (index $path 1) }}
+    {{ $title := (index $path 1) }}    
     {{ range $index,$value := .Site.Menus }}
       {{ if eq $index $title }}
-        {{ $context.Scratch.Set "currentVersionTitle" $index }}
+        {{ if eq $index "latest" }}
+          {{ $context.Scratch.Set "currentVersionTitle" "v2.5 (latest)" }}
+        {{ else if eq $index "stable" }}
+          {{ $context.Scratch.Set "currentVersionTitle" "v2.2 (stable)" }}
+        {{ else }}
+          {{ $context.Scratch.Set "currentVersionTitle" $index }}
+        {{ end }}
         {{ $index }}
       {{ end }}
     {{ end }}
@@ -21,8 +27,8 @@
     </button>
     
     <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-        <a class="dropdown-item" href="/latest/">latest (v2.3)</a>
-        <a class="dropdown-item" href="/stable/">stable (v2.2)</a>
+        <a class="dropdown-item" href="/latest/">v2.5 (latest)</a>
+        <a class="dropdown-item" href="/stable/">v2.2 (stable)</a>
         {{ range sort $versions "Name" "desc" }}
             {{ if  hasPrefix .Name "v"}}
               <a class="dropdown-item" href="/{{.Name}}/">{{ .Name }} (earlier version)</a>

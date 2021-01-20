@@ -71,10 +71,11 @@
 #include "yb/util/net/socket.h"
 #include "yb/util/path_util.h"
 #include "yb/util/pb_util.h"
+#include "yb/util/size_literals.h"
 #include "yb/util/stopwatch.h"
 #include "yb/util/subprocess.h"
 #include "yb/util/test_util.h"
-#include "yb/util/size_literals.h"
+#include "yb/util/tsan_util.h"
 #include "yb/yql/pgwrapper/pg_wrapper.h"
 
 using namespace std::literals;  // NOLINT
@@ -967,6 +968,11 @@ Status ExternalMiniCluster::StartMasters() {
   string peer_addrs_str = JoinStrings(peer_addrs, ",");
   vector<string> flags = opts_.extra_master_flags;
   flags.push_back("--enable_leader_failure_detection=true");
+  // For sanitizer builds, it is easy to overload the master, leading to quorum changes.
+  // This could end up breaking ever trivial DDLs like creating an initial table in the cluster.
+  if (IsSanitizer()) {
+    flags.push_back("--leader_failure_max_missed_heartbeat_periods=10");
+  }
   if (opts_.enable_ysql) {
     flags.push_back("--enable_ysql=true");
     flags.push_back("--master_auto_run_initdb");
@@ -1003,6 +1009,8 @@ Status ExternalMiniCluster::StartMasters() {
 Status ExternalMiniCluster::WaitForInitDb() {
   const auto start_time = std::chrono::steady_clock::now();
   const auto kTimeout = NonTsanVsTsan(900s, 1800s);
+  int num_timeouts = 0;
+  const int kMaxTimeouts = 10;
   while (true) {
     for (int i = 0; i < opts_.num_masters; i++) {
       auto elapsed_time = std::chrono::steady_clock::now() - start_time;
@@ -1017,7 +1025,16 @@ Status ExternalMiniCluster::WaitForInitDb() {
       rpc.set_timeout(opts_.timeout);
       IsInitDbDoneRequestPB req;
       IsInitDbDoneResponsePB resp;
-      RETURN_NOT_OK(proxy->IsInitDbDone(req, &resp, &rpc));
+      Status status = proxy->IsInitDbDone(req, &resp, &rpc);
+      if (status.IsTimedOut()) {
+        num_timeouts++;
+        LOG(WARNING) << status << " (seen " << num_timeouts << " timeouts so far)";
+        if (num_timeouts == kMaxTimeouts) {
+          LOG(ERROR) << "Reached " << kMaxTimeouts << " timeouts: " << status;
+          return status;
+        }
+        continue;
+      }
       if (resp.has_error() &&
           resp.error().code() != master::MasterErrorPB::NOT_THE_LEADER) {
 
@@ -1461,6 +1478,13 @@ Status ExternalMiniCluster::SetFlag(ExternalDaemon* daemon,
   return Status::OK();
 }
 
+Status ExternalMiniCluster::SetFlagOnMasters(const string& flag, const string& value) {
+  for (const auto& master : masters_) {
+    RETURN_NOT_OK(SetFlag(master.get(), flag, value));
+  }
+  return Status::OK();
+}
+
 Status ExternalMiniCluster::SetFlagOnTServers(const string& flag, const string& value) {
   for (const auto& tablet_server : tablet_servers_) {
     RETURN_NOT_OK(SetFlag(tablet_server.get(), flag, value));
@@ -1766,13 +1790,13 @@ Status ExternalDaemon::StartProcess(const vector<string>& user_flags) {
   RETURN_NOT_OK_PREPEND(p->Start(),
                         Substitute("Failed to start subprocess $0", exe_));
 
-  stdout_tailer_thread_ = unique_ptr<LogTailerThread>(new LogTailerThread(
-      Substitute("[$0 stdout]", daemon_id_), p->ReleaseChildStdoutFd(), &std::cout));
+  stdout_tailer_thread_ = std::make_unique<LogTailerThread>(
+      Substitute("[$0 stdout]", daemon_id_), p->ReleaseChildStdoutFd(), &std::cout);
 
   // We will mostly see stderr output from the child process (because of --logtostderr), so we'll
   // assume that by default in the output prefix.
-  stderr_tailer_thread_ = unique_ptr<LogTailerThread>(new LogTailerThread(
-      default_output_prefix, p->ReleaseChildStderrFd(), &std::cerr));
+  stderr_tailer_thread_ = std::make_unique<LogTailerThread>(
+      default_output_prefix, p->ReleaseChildStderrFd(), &std::cerr);
 
   // The process is now starting -- wait for the bound port info to show up.
   Stopwatch sw;

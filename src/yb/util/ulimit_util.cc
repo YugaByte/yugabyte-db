@@ -42,6 +42,7 @@
 
 #include "yb/util/env.h"
 #include "yb/util/size_literals.h"
+#include "yb/util/ulimit.h"
 
 using std::string;
 using std::stringstream;
@@ -52,9 +53,13 @@ using yb::operator"" _MB;
 // systems, RLIM_INFINITY is defined as -1, and setting these flags to that value will result in an
 // attempt to set these resource limits to infinity. All other negative values are ignored.
 DEFINE_int64(rlimit_data, RLIM_INFINITY, "Data file size limit: bytes.");
+#if defined(__APPLE__)
 // Note that we've chosen 10240 as the default value here since this is the default system limit
 // for this resource on *macOS* as defined by OPEN_MAX in <sys/syslimits.h>
 DEFINE_int64(rlimit_nofile, 10240, "Open files limit.");
+#else
+DEFINE_int64(rlimit_nofile, 1048576, "Open files limit.");
+#endif
 DEFINE_int64(rlimit_fsize, RLIM_INFINITY, "File size limit: blocks.");
 DEFINE_int64(rlimit_memlock, 64_KB, "Locked memory limit: bytes.");
 DEFINE_int64(rlimit_as, RLIM_INFINITY, "Memory size limit: bytes.");
@@ -101,19 +106,20 @@ namespace yb {
 static stringstream& getLimit(
     stringstream& ss, const std::string pfx, const std::string sfx, int resource, int rightshift) {
   ss << "ulimit: " << pfx << " ";
-  int64_t cur, max;
-  Status status = Env::Default()->GetUlimit(resource, &cur, &max);
-  if (status.ok()) {
-    if (cur == RLIM_INFINITY) {
+  const auto limits_or_status = Env::Default()->GetUlimit(resource);
+  if (limits_or_status.ok()) {
+    const ResourceLimit soft = limits_or_status->soft;
+    if (soft.IsUnlimited()) {
       ss << "unlimited";
     } else {
-      ss << (cur >> rightshift);
+      ss << (soft.RawValue() >> rightshift);
     }
     ss << "(";
-    if (max == RLIM_INFINITY) {
+    const ResourceLimit hard = limits_or_status->hard;
+    if (hard.IsUnlimited()) {
       ss << "unlimited";
     } else {
-      ss << (max >> rightshift);
+      ss << (hard.RawValue() >> rightshift);
     }
     ss << ")";
   } else {
@@ -183,40 +189,37 @@ string UlimitUtil::GetUlimitInfo() {
   return ss.str();
 }
 
-int64_t GetMinUlimValue(const int64_t x, const int64_t y) {
-  // Handle the fact that some systems may not define RLIM_INFINITY as max(int64_t).
-  if (x == RLIM_INFINITY)
-    return y;
-  else if (y == RLIM_INFINITY)
-    return x;
-  else
-    return std::min(x, y);
-}
-
 void UlimitUtil::InitUlimits() {
   for (const auto& kv : kRlimitsToInit) {
-    int resource_id;
-    int64_t ideal_soft_limit;
-    std::tie(resource_id, ideal_soft_limit) = kv;
+    int resource_id = kv.first;
+    const ResourceLimit min_soft_limit(kv.second);
     const string resource_name = getCommandLineDescription(resource_id);
 
-    if (ideal_soft_limit != RLIM_INFINITY && ideal_soft_limit < 0) {
+    if (min_soft_limit.IsNegative()) {
       LOG(INFO)
           << "Skipping setrlimit for " << resource_name
-          << " with negative configured value " << ideal_soft_limit;
+          << " with negative specified min value " << min_soft_limit.ToString();
       continue;
     }
 
-    int64_t sys_hard_limit;
-    Status get_ulim_status = Env::Default()->GetUlimit(
-        resource_id, /* soft_limit */ nullptr, &sys_hard_limit);
-    if (!get_ulim_status.ok()) {
+    const auto limits_or_status = Env::Default()->GetUlimit(resource_id);
+    if (!limits_or_status.ok()) {
       LOG(ERROR) << "Unable to fetch hard limit for resource " << resource_name
                  << " Skipping initialization.";
       continue;
     }
 
-    const int64_t new_soft_limit = GetMinUlimValue(sys_hard_limit, ideal_soft_limit);
+    const ResourceLimit sys_soft_limit = limits_or_status->soft;
+    if (min_soft_limit <= sys_soft_limit) {
+      LOG(INFO)
+          << "Configured soft limit for " << resource_name
+          << " is already larger than specified min value (" << sys_soft_limit.ToString()
+          << " vs. " << min_soft_limit.ToString() << "). Skipping.";
+      continue;
+    }
+
+    const ResourceLimit sys_hard_limit = limits_or_status->hard;
+    const ResourceLimit new_soft_limit = std::min(sys_hard_limit, min_soft_limit);
 
     Status set_ulim_status = Env::Default()->SetUlimit(resource_id, new_soft_limit, resource_name);
     if (!set_ulim_status.ok()) {

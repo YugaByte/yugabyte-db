@@ -88,7 +88,8 @@ class SysCatalogTable {
   ~SysCatalogTable();
 
   // Allow for orderly shutdown of tablet peer, etc.
-  void Shutdown();
+  void StartShutdown();
+  void CompleteShutdown();
 
   // Load the Metadata from disk, and initialize the TabletPeer for the sys-table
   CHECKED_STATUS Load(FsManager *fs_manager);
@@ -155,6 +156,11 @@ class SysCatalogTable {
       int64_t current_term);
 
   CHECKED_STATUS Visit(VisitorBase* visitor);
+
+  // Read the ysql catalog version info from the pg_yb_catalog_verison catalog table.
+  Status ReadYsqlCatalogVersion(TableId ysql_catalog_table_id,
+                                uint64_t *catalog_version,
+                                uint64_t *last_breaking_version);
 
   // Copy the content of co-located tables in sys catalog as a batch.
   CHECKED_STATUS CopyPgsqlTables(const std::vector<TableId>& source_table_ids,

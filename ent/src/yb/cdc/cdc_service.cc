@@ -561,34 +561,34 @@ MicrosTime CDCServiceImpl::GetLastReplicatedTime(
 }
 
 void CDCServiceImpl::UpdatePeersAndMetrics() {
-  MonoTime time_since_update_peers = MonoTime::Now();
+  MonoTime time_since_update_peers = MonoTime::kUninitialized;
+  MonoTime time_since_update_metrics = MonoTime::kUninitialized;
 
   // Returns false if the CDC service has been stopped.
   auto sleep_while_not_stopped = [this]() {
-    auto time_to_sleep = MonoDelta::FromMilliseconds(
-        GetAtomicFlag(&FLAGS_update_metrics_interval_ms));
-    auto time_slept = MonoDelta::FromMilliseconds(0);
-    auto sleep_period = MonoDelta::FromMilliseconds(100);
-    while (time_slept < time_to_sleep) {
-      SleepFor(sleep_period);
-      if (cdc_service_stopped_.load(std::memory_order_acquire)) {
-        return false;
-      }
-      time_slept += sleep_period;
+    int min_sleep_ms = std::min(100, GetAtomicFlag(&FLAGS_update_metrics_interval_ms));
+    auto sleep_period = MonoDelta::FromMilliseconds(min_sleep_ms);
+    SleepFor(sleep_period);
+    if (cdc_service_stopped_.load(std::memory_order_acquire)) {
+      return false;
     }
     return true;
   };
 
   do {
-    // Always update lag metrics, default every 1s.
-
-    if (ANNOTATE_UNPROTECTED_READ(FLAGS_enable_collect_cdc_metrics)) {
+    if (ANNOTATE_UNPROTECTED_READ(FLAGS_enable_collect_cdc_metrics) &&
+        (time_since_update_metrics == MonoTime::kUninitialized ||
+         MonoTime::Now() - time_since_update_metrics >=
+             MonoDelta::FromMilliseconds(GetAtomicFlag(&FLAGS_update_metrics_interval_ms)))) {
       UpdateLagMetrics();
+      time_since_update_metrics = MonoTime::Now();
     }
 
     // If its not been 60s since the last peer update, continue.
-    if (!FLAGS_enable_log_retention_by_op_idx || MonoTime::Now() - time_since_update_peers <
-        MonoDelta::FromSeconds(GetAtomicFlag(&FLAGS_update_min_cdc_indices_interval_secs))) {
+    if (!FLAGS_enable_log_retention_by_op_idx ||
+        (time_since_update_peers != MonoTime::kUninitialized &&
+         MonoTime::Now() - time_since_update_peers <
+             MonoDelta::FromSeconds(GetAtomicFlag(&FLAGS_update_min_cdc_indices_interval_secs)))) {
       continue;
     }
 
@@ -698,6 +698,8 @@ Result<client::internal::RemoteTabletPtr> CDCServiceImpl::GetRemoteTablet(
   auto start = CoarseMonoClock::Now();
   async_client_init_->client()->LookupTabletById(
       tablet_id,
+      // TODO(tsplit): decide whether we need to get info about stale table partitions here.
+      /* table =*/ nullptr,
       CoarseMonoClock::Now() + MonoDelta::FromMilliseconds(FLAGS_cdc_read_rpc_timeout_ms),
       callback, client::UseCache::kFalse);
   future.wait();

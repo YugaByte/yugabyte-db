@@ -32,6 +32,7 @@ typedef struct ybpgmEntry {
     char name[100];
     atomic_ullong calls;
     atomic_ullong total_time;
+    atomic_ullong rows;
 } ybpgmEntry;
 
 typedef struct rpczEntry {

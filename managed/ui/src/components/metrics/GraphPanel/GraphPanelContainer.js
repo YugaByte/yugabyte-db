@@ -3,14 +3,17 @@
 import { connect } from 'react-redux';
 
 import { GraphPanel } from '../../metrics';
-import { queryMetrics, queryMetricsSuccess, queryMetricsFailure,
-  resetMetrics } from '../../../actions/graph';
+import {
+  queryMetrics,
+  queryMetricsSuccess,
+  queryMetricsFailure,
+  resetMetrics
+} from '../../../actions/graph';
 
 const mapDispatchToProps = (dispatch) => {
   return {
     queryMetrics: (queryParams, panelType) => {
-      dispatch(queryMetrics(queryParams))
-      .then((response) => {
+      dispatch(queryMetrics(queryParams)).then((response) => {
         if (!response.error) {
           dispatch(queryMetricsSuccess(response.payload, panelType));
         } else {
@@ -30,4 +33,4 @@ const mapStateToProps = (state) => {
   };
 };
 
-export default connect( mapStateToProps, mapDispatchToProps)(GraphPanel);
+export default connect(mapStateToProps, mapDispatchToProps)(GraphPanel);

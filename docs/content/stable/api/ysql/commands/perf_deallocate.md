@@ -58,16 +58,16 @@ Deallocate all prepared statements.
 
 Prepare and deallocate an insert statement.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE sample(k1 int, k2 int, v1 int, v2 text, PRIMARY KEY (k1, k2));
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# PREPARE ins (bigint, double precision, int, text) AS 
                INSERT INTO sample(k1, k2, v1, v2) VALUES ($1, $2, $3, $4);
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# DEALLOCATE ins;
 ```
 

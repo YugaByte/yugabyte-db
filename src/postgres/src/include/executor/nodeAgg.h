@@ -158,12 +158,12 @@ typedef struct AggStatePerTransData
 	 * re-initializing the unchanging fields; which isn't much, but it seems
 	 * worth the extra space consumption.
 	 */
-	FunctionCallInfoData transfn_fcinfo;
+	FunctionCallInfo transfn_fcinfo;
 
 	/* Likewise for serialization and deserialization functions */
-	FunctionCallInfoData serialfn_fcinfo;
+	FunctionCallInfo serialfn_fcinfo;
 
-	FunctionCallInfoData deserialfn_fcinfo;
+	FunctionCallInfo deserialfn_fcinfo;
 }			AggStatePerTransData;
 
 /*
@@ -300,7 +300,7 @@ typedef struct AggStatePerHashData
 	int			numhashGrpCols; /* number of columns in hash table */
 	int			largestGrpColIdx;	/* largest col required for hashing */
 	AttrNumber *hashGrpColIdxInput; /* hash col indices in input slot */
-	AttrNumber *hashGrpColIdxHash;	/* indices in hashtbl tuples */
+	AttrNumber *hashGrpColIdxHash;	/* indices in hash table tuples */
 	Agg		   *aggnode;		/* original Agg node, for numGroups etc. */
 }			AggStatePerHashData;
 

@@ -2,18 +2,24 @@
 
 import { connect } from 'react-redux';
 import { TableDetail } from '..';
-import { fetchTableDetail, fetchTableDetailFailure, fetchTableDetailSuccess, resetTableDetail }
-  from '../../../actions/tables';
-import { fetchUniverseInfo, fetchUniverseInfoResponse, resetUniverseInfo }
-  from '../../../actions/universe';
+import {
+  fetchTableDetail,
+  fetchTableDetailFailure,
+  fetchTableDetailSuccess,
+  resetTableDetail
+} from '../../../actions/tables';
+import {
+  fetchUniverseInfo,
+  fetchUniverseInfoResponse,
+  resetUniverseInfo
+} from '../../../actions/universe';
 
 const mapDispatchToProps = (dispatch) => {
   return {
     fetchUniverseDetail: (universeUUID) => {
-      dispatch(fetchUniverseInfo(universeUUID))
-        .then((response) => {
-          dispatch(fetchUniverseInfoResponse(response.payload));
-        });
+      dispatch(fetchUniverseInfo(universeUUID)).then((response) => {
+        dispatch(fetchUniverseInfoResponse(response.payload));
+      });
     },
 
     fetchTableDetail: (universeUUID, tableUUID) => {
@@ -26,7 +32,7 @@ const mapDispatchToProps = (dispatch) => {
       });
     },
 
-    resetTableDetail:() => {
+    resetTableDetail: () => {
       dispatch(resetTableDetail());
     },
 

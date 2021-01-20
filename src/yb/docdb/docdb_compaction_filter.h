@@ -80,6 +80,11 @@ class DocDBCompactionFilter : public rocksdb::CompactionFilter {
   // ConsensusFrontier, so that it can be persisted in RocksDB metadata and recovered on bootstrap.
   rocksdb::UserFrontierPtr GetLargestUserFrontier() const override;
 
+  // Returns known post-split boundaries of the tablet's key space, if applicable, and boost::none
+  // otherwise.
+  Slice DropKeysLessThan() const override;
+  Slice DropKeysGreaterOrEqual() const override;
+
  private:
   // Assigns prev_subdoc_key_ from memory addressed by data. The length of key is taken from
   // sub_key_ends_ and same_bytes are reused.

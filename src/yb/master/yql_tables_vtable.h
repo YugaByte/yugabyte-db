@@ -23,7 +23,9 @@ namespace master {
 // VTable implementation of system_schema.tables.
 class YQLTablesVTable : public YQLVirtualTable {
  public:
-  explicit YQLTablesVTable(const Master* const master);
+  explicit YQLTablesVTable(const TableName& table_name,
+                           const NamespaceName& namespace_name,
+                           Master * const master);
   Result<std::shared_ptr<QLRowBlock>> RetrieveData(const QLReadRequestPB& request) const override;
  protected:
   Schema CreateSchema() const;

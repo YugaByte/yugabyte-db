@@ -10,7 +10,7 @@
 
 from ybops.cloud.common.method import CreateInstancesMethod, ProvisionInstancesMethod,\
     AbstractMethod, DestroyInstancesMethod, AbstractAccessMethod
-from ybops.common.exceptions import YBOpsRuntimeError
+from ybops.common.exceptions import YBOpsRuntimeError, get_exception_message
 from ybops.utils import validated_key_file, format_rsa_key
 from ybops.cloud.gcp.utils import GCP_PERSISTENT, GCP_SCRATCH
 
@@ -161,7 +161,7 @@ class GcpQueryPreemptibleInstanceMethod(AbstractMethod):
                 raise YBOpsRuntimeError("Must specify a region to query spot price")
             print(json.dumps({'SpotPrice': self.cloud.get_spot_pricing(args)}))
         except YBOpsRuntimeError as ye:
-            print(json.dumps({"error": ye.message}))
+            print(json.dumps({"error": get_exception_message(ye)}))
 
 
 class GcpAccessAddKeyMethod(AbstractAccessMethod):
@@ -202,7 +202,7 @@ class GcpNetworkBootstrapMethod(GcpAbstractNetworkMethod):
         try:
             print(json.dumps(self.cloud.network_bootstrap(args)))
         except YBOpsRuntimeError as ye:
-            print(json.dumps({"error": ye.message}))
+            print(json.dumps({"error": get_exception_message(ye)}))
 
 
 class GcpNetworkCleanupMethod(GcpAbstractNetworkMethod):
@@ -219,7 +219,7 @@ class GcpNetworkCleanupMethod(GcpAbstractNetworkMethod):
         try:
             print(json.dumps(self.cloud.network_cleanup(args)))
         except YBOpsRuntimeError as ye:
-            print(json.dumps({"error": ye.message}))
+            print(json.dumps({"error": get_exception_message(ye)}))
 
 
 class GcpNetworkQueryMethod(GcpAbstractNetworkMethod):
@@ -236,4 +236,4 @@ class GcpNetworkQueryMethod(GcpAbstractNetworkMethod):
         try:
             print(json.dumps(self.cloud.query_vpc(args)))
         except YBOpsRuntimeError as ye:
-            print(json.dumps({"error": ye.message}))
+            print(json.dumps({"error": get_exception_message(ye)}))

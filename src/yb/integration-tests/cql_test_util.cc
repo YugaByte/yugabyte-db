@@ -205,15 +205,18 @@ Status CassandraFuture::CheckErrorCode() {
       message = cass_error_desc(rc);
       message_sz = strlen(message);
     }
+    Slice message_slice(message, message_sz);
     switch (rc) {
       case CASS_ERROR_LIB_NO_HOSTS_AVAILABLE: FALLTHROUGH_INTENDED;
       case CASS_ERROR_SERVER_OVERLOADED:
-        return STATUS(ServiceUnavailable, Slice(message, message_sz));
+        return STATUS(ServiceUnavailable, message_slice);
       case CASS_ERROR_LIB_REQUEST_TIMED_OUT:
-        return STATUS(TimedOut, Slice(message, message_sz));
+        return STATUS(TimedOut, message_slice);
+      case CASS_ERROR_SERVER_INVALID_QUERY:
+        return STATUS(QLError, message_slice);
       default:
         LOG(INFO) << "Cassandra error code: " << rc;
-        return STATUS(RuntimeError, Slice(message, message_sz));
+        return STATUS(RuntimeError, message_slice);
     }
   }
 

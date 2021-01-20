@@ -2226,6 +2226,15 @@ make_system_platform(FILE *cmdfd) {
 }
 
 /*
+ * Create pg_stat_statements extension by default
+ */
+static void
+enable_pg_stat_statements(FILE *cmdfd)
+{
+	PG_CMD_PUTS("CREATE EXTENSION pg_stat_statements schema pg_catalog;\n\n");
+}
+
+/*
  * signal handler in case we are interrupted.
  *
  * The Windows runtime docs at
@@ -3165,10 +3174,10 @@ initialize_data_directory(void)
 	setup_config();
 
 	/* Bootstrap template1 */
-  bootstrap_template1();
-
-  if (IsYugaByteLocalNodeInitdb())
-    return;
+	bootstrap_template1();
+	
+	if (IsYugaByteLocalNodeInitdb())
+		return;
 
 	/*
 	 * Make the per-database PG_VERSION for template1 only after init'ing it
@@ -3218,6 +3227,9 @@ initialize_data_directory(void)
 	setup_schema(cmdfd);
 
 	load_plpgsql(cmdfd);
+
+	/* Enable pg_stat_statements */
+	enable_pg_stat_statements(cmdfd);
 
 	if (!IsYugaByteGlobalClusterInitdb())
 	{

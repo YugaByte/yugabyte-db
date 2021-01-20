@@ -45,7 +45,10 @@
 #include "yb/gutil/stl_util.h"
 #include "yb/gutil/strings/substitute.h"
 #include "yb/gutil/sysinfo.h"
+
+#include "yb/util/debug/long_operation_tracker.h"
 #include "yb/util/errno.h"
+#include "yb/util/logging.h"
 #include "yb/util/metrics.h"
 #include "yb/util/stopwatch.h"
 #include "yb/util/thread.h"
@@ -325,6 +328,12 @@ Status ThreadPool::Init() {
   for (int i = 0; i < min_threads_; i++) {
     Status status = CreateThreadUnlocked();
     if (!status.ok()) {
+      if (i != 0) {
+        YB_LOG_EVERY_N_SECS(WARNING, 5) << "Cannot create thread: " << status << ", will try later";
+        // Cannot create enough threads now, will try later.
+        break;
+      }
+      unique_lock.Unlock();
       Shutdown();
       return status;
     }

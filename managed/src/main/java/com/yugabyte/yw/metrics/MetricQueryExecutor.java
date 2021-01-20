@@ -9,12 +9,10 @@ import com.yugabyte.yw.common.ApiHelper;
 import com.yugabyte.yw.models.MetricConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import play.Configuration;
 import play.libs.Json;
 
 import java.util.HashMap;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -23,7 +21,7 @@ public class MetricQueryExecutor implements Callable<JsonNode> {
   public static final Logger LOG = LoggerFactory.getLogger(MetricQueryExecutor.class);
 
   private ApiHelper apiHelper;
-  private Configuration appConfig;
+  private play.Configuration appConfig;
   private YBMetricQueryComponent ybMetricQueryComponent;
 
   private Map<String, String> queryParam = new HashMap<>();
@@ -31,7 +29,7 @@ public class MetricQueryExecutor implements Callable<JsonNode> {
   private String queryUrl;
   private int queryRangeSecs = 0;
 
-  public MetricQueryExecutor(Configuration appConfig, ApiHelper apiHelper,
+  public MetricQueryExecutor(play.Configuration appConfig, ApiHelper apiHelper,
                              Map<String, String> queryParam, Map<String, String> additionalFilters,
                              YBMetricQueryComponent ybMetricQueryComponent) {
     this.apiHelper = apiHelper;
@@ -70,6 +68,7 @@ public class MetricQueryExecutor implements Callable<JsonNode> {
     if (metricsUrl == null || metricsUrl.isEmpty()) {
       throw new RuntimeException("yb.metrics.url not set");
     }
+
     return metricsUrl;
   }
 
@@ -83,13 +82,14 @@ public class MetricQueryExecutor implements Callable<JsonNode> {
       } else {
         this.queryUrl = this.getMetricsUrl() + "/query";
       }
-      //LOG.info("Executing metric query {}: {}", queryUrl, queryParam);
-      return apiHelper.getRequest(queryUrl, new HashMap<String, String>(), queryParam);
+
+      LOG.trace("Executing metric query {}: {}", queryUrl, queryParam);
+      return apiHelper.getRequest(queryUrl, new HashMap<>(), queryParam);
     }
   }
 
   @Override
-  public JsonNode call() throws Exception {
+  public JsonNode call() {
     MetricConfig config = MetricConfig.get(queryParam.get("queryKey"));
     ObjectNode responseJson = Json.newObject();
     responseJson.put("queryKey", queryParam.get("queryKey"));
@@ -99,13 +99,14 @@ public class MetricQueryExecutor implements Callable<JsonNode> {
     } else {
       Map<String, String> queries = config.getQueries(additionalFilters, this.queryRangeSecs);
       responseJson.set("layout", Json.toJson(config.getLayout()));
-      ArrayList<MetricGraphData> output = new ArrayList<>();
+      List<MetricGraphData> output = new ArrayList<>();
       for (Map.Entry<String, String> e : queries.entrySet()) {
         String metric = e.getKey();
         queryParam.put("query", e.getValue());
         JsonNode queryResponseJson = getMetrics();
         if (queryResponseJson == null) {
-          responseJson.set("data", Json.toJson(new ArrayList()));
+          responseJson.set("data", Json.toJson(new ArrayList<>()));
+
           return responseJson;
         }
         MetricQueryResponse queryResponse =
@@ -119,6 +120,7 @@ public class MetricQueryExecutor implements Callable<JsonNode> {
       }
       responseJson.set("data", Json.toJson(output));
     }
+
     return responseJson;
   }
 }

@@ -26,6 +26,8 @@ import static com.yugabyte.yw.common.AssertHelper.assertValue;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyMap;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.description;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
@@ -52,7 +54,7 @@ public class NetworkManagerTest extends FakeDBApplication {
   }
 
   private JsonNode runBootstrap(UUID regionUUID, UUID providerUUID, String customPayload, boolean mimicError) {
-    ShellProcessHandler.ShellResponse response = new ShellProcessHandler.ShellResponse();
+    ShellResponse response = new ShellResponse();
     if (mimicError) {
       response.message = "{\"error\": \"Unknown Error\"}";
       response.code = 99;
@@ -60,12 +62,12 @@ public class NetworkManagerTest extends FakeDBApplication {
       response.code = 0;
       response.message = "{\"foo\": \"bar\"}";
     }
-    when(shellProcessHandler.run(anyList(), anyMap())).thenReturn(response);
+    when(shellProcessHandler.run(anyList(), anyMap(), anyString())).thenReturn(response);
     return networkManager.bootstrap(regionUUID, providerUUID, customPayload);
   }
 
   private JsonNode runCommand(UUID regionUUID, String commandType, boolean mimicError) {
-    ShellProcessHandler.ShellResponse response = new ShellProcessHandler.ShellResponse();
+    ShellResponse response = new ShellResponse();
     if (mimicError) {
       response.message = "{\"error\": \"Unknown Error\"}";
       response.code = 99;
@@ -73,7 +75,7 @@ public class NetworkManagerTest extends FakeDBApplication {
       response.code = 0;
       response.message = "{\"foo\": \"bar\"}";
     }
-    when(shellProcessHandler.run(anyList(), anyMap())).thenReturn(response);
+    when(shellProcessHandler.run(anyList(), anyMap(), anyString())).thenReturn(response);
 
     if (commandType.equals("query")) {
       return networkManager.query(regionUUID, "");
@@ -108,7 +110,7 @@ public class NetworkManagerTest extends FakeDBApplication {
   public void testBootstrapCommandWithProvider() {
     JsonNode json = runBootstrap(null, defaultRegion.provider.uuid, "{}", false);
     Mockito.verify(shellProcessHandler, times(1)).run((List<String>) command.capture(),
-        (Map<String, String>) cloudCredentials.capture());
+        (Map<String, String>) cloudCredentials.capture(), anyString());
     assertEquals(String.join(" ", command.getValue()),
         "bin/ybcloud.sh aws network bootstrap --custom_payload {}");
     assertValue(json, "foo", "bar");
@@ -120,7 +122,7 @@ public class NetworkManagerTest extends FakeDBApplication {
     Region gcpRegion = Region.create(gcpProvider, "us-west1", "US West1", "yb-image");
     JsonNode json = runBootstrap(null, gcpRegion.provider.uuid, "{}", false);
     Mockito.verify(shellProcessHandler, times(1)).run((List<String>) command.capture(),
-        (Map<String, String>) cloudCredentials.capture());
+        (Map<String, String>) cloudCredentials.capture(), anyString());
     assertEquals(String.join(" ", command.getValue()),
         "bin/ybcloud.sh gcp network bootstrap --custom_payload {}");
     assertValue(json, "foo", "bar");
@@ -133,7 +135,7 @@ public class NetworkManagerTest extends FakeDBApplication {
     String payload = "{\"region\": \"gcptest\"}";
     JsonNode json = runBootstrap(null, gcpRegion.provider.uuid, payload, false);
     Mockito.verify(shellProcessHandler, times(1)).run((List<String>) command.capture(),
-        (Map<String, String>) cloudCredentials.capture());
+        (Map<String, String>) cloudCredentials.capture(), anyString());
     assertEquals(String.join(" ", command.getValue()),
         "bin/ybcloud.sh gcp network bootstrap --custom_payload " + payload);
     assertValue(json, "foo", "bar");
@@ -143,7 +145,7 @@ public class NetworkManagerTest extends FakeDBApplication {
   public void testBootstrapCommandWithRegion() {
     JsonNode json = runBootstrap(defaultRegion.uuid, null, "{}", false);
     Mockito.verify(shellProcessHandler, times(1)).run((List<String>) command.capture(),
-        (Map<String, String>) cloudCredentials.capture());
+        (Map<String, String>) cloudCredentials.capture(), anyString());
     assertEquals(String.join(" ", command.getValue()),
         "bin/ybcloud.sh aws --region us-west-2 network bootstrap --custom_payload {}");
     assertValue(json, "foo", "bar");
@@ -154,7 +156,7 @@ public class NetworkManagerTest extends FakeDBApplication {
     // If both are provided, we first check for region and use --region if available.
     JsonNode json = runBootstrap(defaultRegion.uuid, defaultRegion.provider.uuid, "{}", false);
     Mockito.verify(shellProcessHandler, times(1)).run((List<String>) command.capture(),
-        (Map<String, String>) cloudCredentials.capture());
+        (Map<String, String>) cloudCredentials.capture(), anyString());
     assertEquals(String.join(" ", command.getValue()),
         "bin/ybcloud.sh aws --region us-west-2 network bootstrap --custom_payload {}");
     assertValue(json, "foo", "bar");

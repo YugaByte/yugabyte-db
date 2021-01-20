@@ -1,25 +1,26 @@
 
 ## Table of Contents
 
-- [Structure of each page](#structure-of-each-page)
+- [Structure of a documentation page](#structure-of-each-page)
+- [Mandatory front matter attributes](#mandatory-front-matter-attributes)
+- [Optional front matter attributes](#optional-front-matter-attributes)
 - [Types of pages](#types-of-pages)
 - [Widgets](#widgets)
-    - [Information boxes](#information-boxes)
-        - [Note box](#note-box)
-        - [Tip box](#tip-box)
-        - [Warning box](#warning-box)
-    - [Inline section switcher](#inline-section-switcher)
+  - [Information boxes](#information-boxes)
+    - [Note box](#note-box)
+    - [Tip box](#tip-box)
+    - [Warning box](#warning-box)
+  - [Inline section switcher](#inline-section-switcher)
 
+# Structure of a documentation page
 
-# Structure of each page
-
-All docs pages must start with a front matter as shown below.
+All documentation pages must start with front matter as shown below.
 
 ```
 ---
-title: Browser-Title
-linkTitle: My-Left-Nav-Link
-headerTitle: Doc-Page-Title (if different from Browser-Title)
+title: SEO-Title-Browser-Tab-Title
+headerTitle: Doc-Page-Title
+linkTitle: Navigation-Link
 description: SEO-Meta-Description
 image: Icon-For-Page-Title
 headcontent: Brief-description
@@ -30,15 +31,17 @@ menu:
     weight: number-to-decide-display-order
 ---
 ```
-## Mandatory Front Matter Attributes
 
-| Field Name      | Description           |
-| :-------------: | --------------------- |
-| `title`         | Page title displayed in browser tab |
-| `linkTitle`     | Text displayed in left navigation |
-| `description`   | Text displayed as the title of the docs page |
+## Mandatory front matter attributes
 
-## Optional Front Matter Attributes
+| Field Name      | Description                                                    |
+| :-------------- | :------------------------------------------------------------- |
+| `title`         | Title text to display in browser tab and search engine results |
+| `headerTitle`   | Title text to appear as the page title                         |
+| `linkTitle`     | Title text to display in the navigation bar                    |
+| `description`   | Description text to display in search engine results           |
+
+## Optional front matter attributes
 
 | Field Name      | Default | Description           |
 | :-------------: | :-----: | --------------------- |
@@ -47,16 +50,15 @@ menu:
 | `showAsideToc`  | `false` | Should the TOC on the right be enabled |
 | `hidePagination`| `false` | Should the automatic navigation links be displayed at the bottom of the page |
 
+# Types of pages
 
-# Types of Pages
+There are different types of documentation pages as noted below.
 
-There are different types of docs pages as noted below.
+## Index pages
 
-## Index Pages
+Index pages have links to subtopics within a topic. These pages are named `_index.html`.
 
-Index pages have links to various sub-topics inside a topic. These pages are named `_index.html`. 
-
-## Content Pages
+## Content pages
 
 Content pages contain information about topics. The names of these docs page has the format `my-docs-page.md`.
 
@@ -64,44 +66,52 @@ Content pages contain information about topics. The names of these docs page has
 
 There are a number of display widgets available. These are listed below.
 
-## Information Boxes
+## Information boxes
 
-### NOTE Box
+### Note box
 
 A note box gives some important information that is often not optional. It looks as follows:
 ![Note Box](https://raw.githubusercontent.com/yugabyte/docs/master/contributing/info-box-NOTE.png)
 
-Short code for a note box:
+Hugo shortcode to add a note box:
+
 ```
 {{< note title="Note" >}}
+
 This is a note with a [link](https://www.yugabyte.com).
+
 {{< /note >}}
 ```
 
-### TIP Box
+### Tip box
 
 A tip box gives a hint or other useful but optional piece of information. It looks as follows:
 ![Tip Box](https://raw.githubusercontent.com/yugabyte/docs/master/contributing/info-box-TIP.png)
 
-Short code for a tip code:
+Hugo shortcode to add a tip box:
+
 ```
 {{< tip title="Tip" >}}
+
 This is a tip with a [link](https://www.yugabyte.com).
+
 {{< /tip >}}
 ```
 
-### WARNING Box
+### Warning box
 
 A warning box informs the user about a potential issue or something to watch out for. It looks as follows:
 ![Warning Box](https://raw.githubusercontent.com/yugabyte/docs/master/contributing/info-box-WARNING.png)
 
-Short code for a warning code:
+Hugo shortcode to add a warning box:
+
 ```
 {{< warning title="Warning" >}}
+
 This is a warning with a [link](https://www.yugabyte.com).
+
 {{< /warning >}}
 ```
-
 
 ## Inline Section Switcher
 

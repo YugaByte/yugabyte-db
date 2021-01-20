@@ -528,6 +528,10 @@ class ErrorResponse : public CQLResponse {
 
   virtual ~ErrorResponse() override;
 
+  const std::string& message() const {
+    return message_;
+  }
+
  protected:
   virtual void SerializeBody(faststring* mesg) const override;
   virtual void SerializeErrorBody(faststring* mesg) const;

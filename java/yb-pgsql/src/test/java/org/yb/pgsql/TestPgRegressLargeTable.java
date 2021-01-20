@@ -24,6 +24,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.time.Instant;
 
 import static org.yb.AssertionWrappers.*;
@@ -35,16 +36,25 @@ import static org.yb.AssertionWrappers.*;
 public class TestPgRegressLargeTable extends BasePgSQLTest {
   private static final Logger LOG = LoggerFactory.getLogger(TestPgRegressLargeTable.class);
 
+  private static final String TURN_OFF_COPY_FROM_BATCH_TRANSACTION =
+      "yb_default_copy_from_rows_per_transaction=0";
+
   @Override
   public int getTestMethodTimeoutSec() {
     return 1800;
   }
 
+  @Override
+  protected Map<String, String> getTServerFlags() {
+    Map<String, String> flags = super.getTServerFlags();
+    flags.put("ysql_pg_conf", TURN_OFF_COPY_FROM_BATCH_TRANSACTION);
+    return flags;
+  }
+
   @Test
   public void testPgRegressLargeTable() throws Exception {
     // Run schedule, check time for release build.
-    runPgRegressTest("yb_large_table_serial_schedule",
-                     getPerfMaxRuntime(60000, 0, 0, 0, 0) /* maxRuntimeMillis */);
+    runPgRegressTest("yb_large_table_serial_schedule");
 
     // Number of executions for each statement.
     // Performance number is the average run time for each execution.

@@ -2,37 +2,24 @@
 
 package com.yugabyte.yw.models;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.ImmutableMap;
-
-import com.yugabyte.yw.common.ApiUtils;
+import com.yugabyte.yw.common.FakeDBApplication;
 import com.yugabyte.yw.common.ModelFactory;
-import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
-import com.yugabyte.yw.models.Users;
-
-import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Before;
 import org.junit.Test;
-import org.mindrot.jbcrypt.BCrypt;
 import play.libs.Json;
 import play.mvc.Http;
 
-import com.yugabyte.yw.common.FakeDBApplication;
-
-import javax.persistence.PersistenceException;
-
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
+import static com.yugabyte.yw.models.Users.Role;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static com.yugabyte.yw.models.Users.Role;
 import static play.test.Helpers.contextComponents;
 
 public class AuditTest extends FakeDBApplication {
@@ -66,13 +53,15 @@ public class AuditTest extends FakeDBApplication {
 
   @Test
   public void testCreate() {
-    UUID randUUID = UUID.randomUUID();
-    Audit entry = createEntry(randUUID, user);
-    assertNotNull(entry.getAuditID());
-    assertEquals("/test/api/call", entry.getApiCall());
-    assertEquals("PUT", entry.getApiMethod());
-    assertEquals(randUUID, entry.getTaskUUID());
-    assertNotNull(entry.getTimestamp());
+    for (long i = 0; i < 2; i++) {
+      UUID randUUID = UUID.randomUUID();
+      Audit entry = createEntry(randUUID, user);
+      assertSame(i+1, entry.getAuditID());
+      assertEquals("/test/api/call", entry.getApiCall());
+      assertEquals("PUT", entry.getApiMethod());
+      assertEquals(randUUID, entry.getTaskUUID());
+      assertNotNull(entry.getTimestamp());
+    }
   }
 
   @Test

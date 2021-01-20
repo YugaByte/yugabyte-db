@@ -11,7 +11,6 @@ menu:
     weight: 1105
 isTocNested: true
 showAsideToc: true
-hidePagination: true
 ---
 
 This page outlines the design goals with which YugabyteDB has been built.

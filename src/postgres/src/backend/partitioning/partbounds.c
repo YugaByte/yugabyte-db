@@ -715,7 +715,7 @@ check_default_partition_contents(Relation parent, Relation default_rel,
 
 		while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
 		{
-			ExecStoreTuple(tuple, tupslot, InvalidBuffer, false);
+			ExecStoreHeapTuple(tuple, tupslot, false);
 			econtext->ecxt_scantuple = tupslot;
 
 			if (!ExecCheck(partqualstate, econtext))
@@ -2144,7 +2144,7 @@ satisfies_hash_partition(PG_FUNCTION_ARGS)
 		PartitionKey key;
 		int			j;
 
-		/* Open parent relation and fetch partition keyinfo */
+		/* Open parent relation and fetch partition key info */
 		parent = try_relation_open(parentId, AccessShareLock);
 		if (parent == NULL)
 			PG_RETURN_NULL();

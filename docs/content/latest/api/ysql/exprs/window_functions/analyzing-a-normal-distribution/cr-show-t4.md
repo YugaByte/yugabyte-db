@@ -16,7 +16,6 @@ Save this script as `cr_show_t4.sql`.
 -- Function to report on some useful overall measures of t4.
 create or replace function show_t4()
   returns table(t varchar)
-  immutable
   language plpgsql
 as $body$
 declare

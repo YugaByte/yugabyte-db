@@ -37,6 +37,7 @@
 #include "yb/util/result.h"
 #include "yb/util/status.h"
 #include "yb/util/strongly_typed_bool.h"
+#include "yb/util/ulimit.h"
 
 namespace yb {
 
@@ -470,7 +471,7 @@ class Env {
   virtual Result<uint64_t> GetFreeSpaceBytes(const std::string& path) = 0;
 
   // Get ulimit
-  virtual CHECKED_STATUS GetUlimit(int resource, int64_t* soft_limit, int64_t* hard_limit) = 0;
+  virtual Result<ResourceLimits> GetUlimit(int resource) = 0;
 
   // Set ulimit
   // Note that if running on macOS, the semantics of this API are a bit inconsistent across
@@ -479,9 +480,9 @@ class Env {
   // on at least RLIM_NPROC, where constraints around number of processes are a bit more restrictive
   // than other POSIX systems.
   // See: https://apple.stackexchange.com/questions/373063/why-is-macos-limited-to-1064-processes
-  virtual CHECKED_STATUS SetUlimit(int resource, int64_t value) = 0;
+  virtual CHECKED_STATUS SetUlimit(int resource, ResourceLimit value) = 0;
   virtual CHECKED_STATUS SetUlimit(
-      int resource, int64_t value, const std::string& resource_name) = 0;
+      int resource, ResourceLimit value, const std::string& resource_name) = 0;
  private:
   // No copying allowed
   Env(const Env&);
@@ -808,15 +809,16 @@ class EnvWrapper : public Env {
   Result<uint64_t> GetFreeSpaceBytes(const std::string& path) override {
     return target_->GetFreeSpaceBytes(path);
   }
-  CHECKED_STATUS GetUlimit(int resource, int64_t* soft_limit, int64_t* hard_limit) override {
-    return target_->GetUlimit(resource, soft_limit, hard_limit);
+  Result<ResourceLimits> GetUlimit(int resource) override {
+    return target_->GetUlimit(resource);
   }
-  CHECKED_STATUS SetUlimit(int resource, int64_t value) override {
+  CHECKED_STATUS SetUlimit(int resource, ResourceLimit value) override {
     return target_->SetUlimit(resource, value);
-  }
-  CHECKED_STATUS SetUlimit(int resource, int64_t value, const std::string& resource_name) override {
+  };
+  CHECKED_STATUS SetUlimit(
+      int resource, ResourceLimit value, const std::string& resource_name) override {
     return target_->SetUlimit(resource, value, resource_name);
-  }
+  };
  private:
   Env* target_;
 };

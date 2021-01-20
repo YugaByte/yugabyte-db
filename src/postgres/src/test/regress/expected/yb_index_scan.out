@@ -476,3 +476,250 @@ SELECT * FROM pg_database WHERE datname IN ('non_existing_db1', test_null_pushdo
  datname | datdba | encoding | datcollate | datctype | datistemplate | datallowconn | datconnlimit | datlastsysoid | datfrozenxid | datminmxid | dattablespace | datacl
 ---------+--------+----------+------------+----------+---------------+--------------+--------------+---------------+--------------+------------+---------------+--------
 (0 rows)
+
+--------------------------------------
+-- Testing Selective Updation of Indices
+--------------------------------------
+-- create table with lot of columns
+create table test (pk int primary key, col2 int, col3 int, col4 int, col5 int,
+col6 int, col7 name, col8 int, col9 int);
+insert into test values(1,1,1,1,1,1,'Aa',1,99);
+insert into test values(2,2,2,2,2,2,'Bb',2,99);
+insert into test values(3,3,3,3,3,3,'Cc',3,99);
+insert into test values(4,4,4,4,4,4,'Dd',4,99);
+insert into test values(5,5,5,5,5,5,'Ee',5,88);
+insert into test values(6,6,6,6,6,6,'Ff',6,88);
+-- Creating indices with included columns
+create index idx_col3 on test(col3) include (col4,col5,col6);
+create index idx_col5 on test(col5) include (col6,col7);
+-- Performing a few updates and checking if subsequent commands exhibit expected behavior
+update test set col3=11, col4=11 where pk=1;
+select * from test;
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+  5 |    5 |    5 |    5 |    5 |    5 | Ee   |    5 |   88
+  1 |    1 |   11 |   11 |    1 |    1 | Aa   |    1 |   99
+  6 |    6 |    6 |    6 |    6 |    6 | Ff   |    6 |   88
+  4 |    4 |    4 |    4 |    4 |    4 | Dd   |    4 |   99
+  2 |    2 |    2 |    2 |    2 |    2 | Bb   |    2 |   99
+  3 |    3 |    3 |    3 |    3 |    3 | Cc   |    3 |   99
+(6 rows)
+
+-- testing partial index on where clause
+create index idx_col9 on test(col9) where col9 = 88;
+update test set col9=199 where pk=2;
+update test set col9=199 where pk=5;
+select * from test;
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+  5 |    5 |    5 |    5 |    5 |    5 | Ee   |    5 |  199
+  1 |    1 |   11 |   11 |    1 |    1 | Aa   |    1 |   99
+  6 |    6 |    6 |    6 |    6 |    6 | Ff   |    6 |   88
+  4 |    4 |    4 |    4 |    4 |    4 | Dd   |    4 |   99
+  2 |    2 |    2 |    2 |    2 |    2 | Bb   |    2 |  199
+  3 |    3 |    3 |    3 |    3 |    3 | Cc   |    3 |   99
+(6 rows)
+
+explain select * from test where col9 = 88;
+                                QUERY PLAN
+---------------------------------------------------------------------------
+ Index Scan using idx_col9 on test  (cost=0.00..102.00 rows=1000 width=96)
+(1 row)
+
+explain select * from test where col9 = 99;
+                        QUERY PLAN
+----------------------------------------------------------
+ Seq Scan on test  (cost=0.00..102.50 rows=1000 width=96)
+   Filter: (col9 = 99)
+(2 rows)
+
+select * from test where col9 = 88;
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+  6 |    6 |    6 |    6 |    6 |    6 | Ff   |    6 |   88
+(1 row)
+
+select * from test where col9 = 99;
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+  1 |    1 |   11 |   11 |    1 |    1 | Aa   |    1 |   99
+  4 |    4 |    4 |    4 |    4 |    4 | Dd   |    4 |   99
+  3 |    3 |    3 |    3 |    3 |    3 | Cc   |    3 |   99
+(3 rows)
+
+-- testing index on expressions
+create index idx_col7 ON test(col7);
+explain select * from test where col7 = 'Dd';
+                              QUERY PLAN
+-----------------------------------------------------------------------
+ Index Scan using idx_col7 on test  (cost=0.00..5.22 rows=10 width=96)
+   Index Cond: (col7 = 'Dd'::name)
+(2 rows)
+
+explain select * from test where lower(col7) = 'dd';
+                        QUERY PLAN
+----------------------------------------------------------
+ Seq Scan on test  (cost=0.00..107.50 rows=1000 width=96)
+   Filter: (lower((col7)::text) = 'dd'::text)
+(2 rows)
+
+select * from test where col7 = 'Dd';
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+  4 |    4 |    4 |    4 |    4 |    4 | Dd   |    4 |   99
+(1 row)
+
+drop index idx_col7;
+create index idx_col7 ON test(lower(col7));
+update test set col7='DdD' where pk=4;
+explain select * from test where lower(col7) = lower('DdD');
+                              QUERY PLAN
+-----------------------------------------------------------------------
+ Index Scan using idx_col7 on test  (cost=0.00..5.27 rows=10 width=96)
+   Index Cond: (lower((col7)::text) = 'ddd'::text)
+(2 rows)
+
+select * from test;
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+  5 |    5 |    5 |    5 |    5 |    5 | Ee   |    5 |  199
+  1 |    1 |   11 |   11 |    1 |    1 | Aa   |    1 |   99
+  6 |    6 |    6 |    6 |    6 |    6 | Ff   |    6 |   88
+  4 |    4 |    4 |    4 |    4 |    4 | DdD  |    4 |   99
+  2 |    2 |    2 |    2 |    2 |    2 | Bb   |    2 |  199
+  3 |    3 |    3 |    3 |    3 |    3 | Cc   |    3 |   99
+(6 rows)
+
+select * from test where lower(col7) = lower('DdD');
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+  4 |    4 |    4 |    4 |    4 |    4 | DdD  |    4 |   99
+(1 row)
+
+-- testing multi-column indices
+create index idx_col4_idx_col5_idx_col6 on test(col4, col5, col6);
+update test set col4=112 where pk=1;
+EXPLAIN SELECT * FROM test WHERE col4 = 112;
+                                        QUERY PLAN
+-------------------------------------------------------------------------------------------
+ Index Scan using idx_col4_idx_col5_idx_col6 on test  (cost=0.00..16.25 rows=100 width=96)
+   Index Cond: (col4 = 112)
+(2 rows)
+
+SELECT * FROM test WHERE col4 = 112;
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+  1 |    1 |   11 |  112 |    1 |    1 | Aa   |    1 |   99
+(1 row)
+
+update test set col4=222, col5=223 where pk=2;
+EXPLAIN SELECT * FROM test WHERE col4 = 222 and col5 = 223;
+                              QUERY PLAN
+-----------------------------------------------------------------------
+ Index Scan using idx_col5 on test  (cost=0.00..5.28 rows=10 width=96)
+   Index Cond: (col5 = 223)
+   Filter: (col4 = 222)
+(3 rows)
+
+SELECT * FROM test WHERE col4 = 222 and col5 = 223;
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+  2 |    2 |    2 |  222 |  223 |    2 | Bb   |    2 |  199
+(1 row)
+
+update test set col4=232, col5=345, col6=456 where pk=3;
+EXPLAIN SELECT * FROM test WHERE col4 = 232 and col5 = 345 and col6 = 456;
+                                       QUERY PLAN
+-----------------------------------------------------------------------------------------
+ Index Scan using idx_col4_idx_col5_idx_col6 on test  (cost=0.00..5.27 rows=10 width=96)
+   Index Cond: ((col4 = 232) AND (col5 = 345) AND (col6 = 456))
+(2 rows)
+
+SELECT * FROM test WHERE col4 = 232 and col5 = 345 and col6 = 456;
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+  3 |    3 |    3 |  232 |  345 |  456 | Cc   |    3 |   99
+(1 row)
+
+EXPLAIN SELECT * FROM test WHERE col5 = 345;
+                              QUERY PLAN
+-----------------------------------------------------------------------
+ Index Scan using idx_col5 on test  (cost=0.00..5.22 rows=10 width=96)
+   Index Cond: (col5 = 345)
+(2 rows)
+
+SELECT * FROM test WHERE col5 = 345;
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+  3 |    3 |    3 |  232 |  345 |  456 | Cc   |    3 |   99
+(1 row)
+
+update test set col5=444, col6=35 where pk=4;
+EXPLAIN SELECT * FROM test WHERE col5 = 444 and col6 = 35;
+                              QUERY PLAN
+-----------------------------------------------------------------------
+ Index Scan using idx_col5 on test  (cost=0.00..5.28 rows=10 width=96)
+   Index Cond: (col5 = 444)
+   Filter: (col6 = 35)
+(3 rows)
+
+SELECT * FROM test WHERE col5 = 444 and col6 = 35;
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+  4 |    4 |    4 |    4 |  444 |   35 | DdD  |    4 |   99
+(1 row)
+
+update test set col6=5554 where pk=5;
+EXPLAIN SELECT * FROM test WHERE col6 = 5554;
+                        QUERY PLAN
+----------------------------------------------------------
+ Seq Scan on test  (cost=0.00..102.50 rows=1000 width=96)
+   Filter: (col6 = 5554)
+(2 rows)
+
+SELECT * FROM test WHERE col6 = 5554;
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+  5 |    5 |    5 |    5 |    5 | 5554 | Ee   |    5 |  199
+(1 row)
+
+-- testing update on primary key
+update test set pk=17 where pk=1;
+update test set pk=25, col4=777 where pk=2;
+select * from test;
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+  5 |    5 |    5 |    5 |    5 | 5554 | Ee   |    5 |  199
+  6 |    6 |    6 |    6 |    6 |    6 | Ff   |    6 |   88
+ 17 |    1 |   11 |  112 |    1 |    1 | Aa   |    1 |   99
+  4 |    4 |    4 |    4 |  444 |   35 | DdD  |    4 |   99
+  3 |    3 |    3 |  232 |  345 |  456 | Cc   |    3 |   99
+ 25 |    2 |    2 |  777 |  223 |    2 | Bb   |    2 |  199
+(6 rows)
+
+explain select * from test where pk=17;
+                              QUERY PLAN
+-----------------------------------------------------------------------
+ Index Scan using test_pkey on test  (cost=0.00..4.11 rows=1 width=96)
+   Index Cond: (pk = 17)
+(2 rows)
+
+select * from test where pk=17;
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+ 17 |    1 |   11 |  112 |    1 |    1 | Aa   |    1 |   99
+(1 row)
+
+explain select * from test where pk=25;
+                              QUERY PLAN
+-----------------------------------------------------------------------
+ Index Scan using test_pkey on test  (cost=0.00..4.11 rows=1 width=96)
+   Index Cond: (pk = 25)
+(2 rows)
+
+select * from test where pk=25;
+ pk | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9
+----+------+------+------+------+------+------+------+------
+ 25 |    2 |    2 |  777 |  223 |    2 | Bb   |    2 |  199
+(1 row)
+

@@ -10,6 +10,7 @@
 
 package com.yugabyte.yw.commissioner.tasks;
 
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +55,7 @@ public class EditKubernetesUniverse extends KubernetesTaskBase {
   @Override
   public void run() {
     try {
+      checkUniverseVersion();
       // Verify the task params.
       verifyParams(UniverseOpType.EDIT);
 
@@ -107,12 +109,13 @@ public class EditKubernetesUniverse extends KubernetesTaskBase {
               ServerType.TSERVER, universe, isMultiAz);
 
       for (UUID currAZs : currPlacement.configs.keySet()) {
-        PlacementInfoUtil.addPlacementZoneHelper(currAZs, activeZones);
+        PlacementInfoUtil.addPlacementZone(currAZs, activeZones);
       }
 
       boolean userIntentChange = false;
       boolean isNumNodeChange = false;
       boolean isFirstIteration = true;
+      boolean masterChange = false;
 
       // Check if number of nodes changed.
       if (currIntent.numNodes != userIntent.numNodes) {
@@ -120,9 +123,15 @@ public class EditKubernetesUniverse extends KubernetesTaskBase {
         currIntent.numNodes = userIntent.numNodes;
       }
 
+      List<String> masterResourceChangeInstances = Arrays.asList("dev", "xsmall");
       // Check if the instance type has changed. In that case, we still
       // need to perform rolling upgrades.
       if (!currIntent.instanceType.equals(userIntent.instanceType)) {
+        // If the instance type changed from dev/xsmall to anything else,
+        // master resources will also change.
+        if (masterResourceChangeInstances.contains(currIntent.instanceType)) {
+          masterChange = true;
+        }
         userIntentChange = true;
       }
 
@@ -131,6 +140,7 @@ public class EditKubernetesUniverse extends KubernetesTaskBase {
 
       // Bring up new masters and update the configs.
       if (!mastersToAdd.isEmpty()) {
+        masterChange = true;
         startNewPods(mastersToAdd, ServerType.MASTER, newPI, provider,
           universeDetails.communicationPorts.masterRpcPort);
 
@@ -162,10 +172,12 @@ public class EditKubernetesUniverse extends KubernetesTaskBase {
       // Now roll all the old pods that haven't been removed and aren't newly added.
       // This will update the master addresses as well as the instance type changes.
       if (userIntentChange || !mastersToAdd.isEmpty()) {
-        updateRemainingPods(ServerType.MASTER, newPI, provider,
-          universeDetails.communicationPorts.masterRpcPort);
+        if (masterChange) {
+          updateRemainingPods(ServerType.MASTER, newPI, provider,
+              universeDetails.communicationPorts.masterRpcPort, true, true);
+        }
         updateRemainingPods(ServerType.TSERVER, newPI, provider,
-          universeDetails.communicationPorts.masterRpcPort);
+            universeDetails.communicationPorts.masterRpcPort, false, true);
       }
 
       // If tservers have been removed, check if some deployments need to be completely
@@ -244,13 +256,14 @@ public class EditKubernetesUniverse extends KubernetesTaskBase {
   update the instance type.
   */
   public void updateRemainingPods(ServerType serverType, PlacementInfo newPI, Provider provider,
-                                  int masterRpcPort) {
+                                  int masterRpcPort, boolean masterChanged,
+                                  boolean tserverChanged) {
 
     String masterAddresses = PlacementInfoUtil.computeMasterAddresses(newPI, newPlacement.masters,
         taskParams().nodePrefix, provider, masterRpcPort);
 
-    upgradePodsTask(newPlacement, masterAddresses, currPlacement,
-                    serverType, null, DEFAULT_WAIT_TIME_MS);
+    upgradePodsTask(newPlacement, masterAddresses, currPlacement, serverType,
+                    null, DEFAULT_WAIT_TIME_MS, masterChanged, tserverChanged);
   }
 
   /*

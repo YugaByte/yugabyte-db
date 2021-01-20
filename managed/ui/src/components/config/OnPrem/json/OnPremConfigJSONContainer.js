@@ -1,8 +1,8 @@
 // Copyright (c) YugaByte, Inc.
 
 import { connect } from 'react-redux';
-import {OnPremConfigJSON} from '../../../config';
-import {setOnPremConfigData} from '../../../../actions/cloud';
+import { OnPremConfigJSON } from '../../../config';
+import { setOnPremConfigData } from '../../../../actions/cloud';
 
 const mapStateToProps = (state) => {
   return {
@@ -12,7 +12,7 @@ const mapStateToProps = (state) => {
 
 const mapDispatchToProps = (dispatch) => {
   return {
-    setOnPremJsonData:(formData) => {
+    setOnPremJsonData: (formData) => {
       dispatch(setOnPremConfigData(formData));
     }
   };

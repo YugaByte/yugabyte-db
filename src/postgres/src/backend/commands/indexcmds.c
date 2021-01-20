@@ -365,7 +365,7 @@ DefineIndex(Oid relationId,
 	LockRelId	heaprelid;
 	LOCKMODE	lockmode;
 	int			i;
-	YBIndexPermissions actual_index_permissions;
+	bool		is_indexed_table_colocated = false;
 
 	/*
 	 * count key attributes in index
@@ -395,27 +395,48 @@ DefineIndex(Oid relationId,
 						INDEX_MAX_KEYS)));
 
 	/*
-	 * An index build should be concurent when all of the following hold:
-	 * - index backfill is enabled
-	 * - the index is secondary
-	 * - the indexed table is not temporary
-	 * - we are not in bootstrap mode
-	 * Otherwise, it should not be concurrent.  This logic works because
+	 * Get whether the indexed table is colocated.  This includes tables that
+	 * are colocated because they are part of a tablegroup with colocation.
+	 */
+	if (IsYugaByteEnabled() &&
+		!IsBootstrapProcessingMode() &&
+		!YBIsPreparingTemplates() &&
+		IsYBRelationById(relationId))
+	{
+		HandleYBStatus(YBCPgIsTableColocated(MyDatabaseId,
+											 relationId,
+											 &is_indexed_table_colocated));
+	}
+
+	/*
+	 * An index build should not be concurent when
+	 * - index backfill is disabled
+	 * - the index is primary
+	 * - the indexed table is temporary
+	 * - we are in bootstrap mode
+	 * This logic works because
 	 * - primary key indexes are on the main table, and index backfill doesn't
 	 *   apply to them.
 	 * - temporary tables cannot have concurrency issues when building indexes.
 	 * - system table indexes created during initdb cannot have concurrency
 	 *   issues.
-	 * Concurrent index build is currently disabled for
+	 * Concurrent index build is currently also disabled for
 	 * - indexes in nested DDL
+	 * - indexes whose indexed table is colocated (issue #6215)
 	 * - unique indexes
 	 * - system table indexes (implied by disallowing on bootstrap mode)
+	 * TODO(jason): check whether it's even possible to come here with
+	 * concurrent true and
+	 * - bootstrap mode
+	 * - nested DDL
+	 * - primary index
 	 */
-	stmt->concurrent = (!YBCGetDisableIndexBackfill()
-						&& !stmt->primary
-						&& IsYBRelationById(relationId) &&
-						!IsBootstrapProcessingMode());
-	/* Use fast path create index when in nested DDL.  This is desired
+	if (stmt->primary ||
+		!IsYBRelationById(relationId) ||
+		IsBootstrapProcessingMode())
+		stmt->concurrent = false;
+	/*
+	 * Use fast path create index when in nested DDL.  This is desired
 	 * when there would be no concurrency issues (e.g. `CREATE TABLE
 	 * ... (... UNIQUE (...))`).  However, there may be cases where it
 	 * is unsafe to use the fast path.  For now, just use the fast path
@@ -426,15 +447,10 @@ DefineIndex(Oid relationId,
 	if (stmt->concurrent && YBGetDdlNestingLevel() > 1)
 		stmt->concurrent = false;
 	/*
-	 * Backfilling unique indexes is currently not supported.  This is desired
-	 * when there would be no concurrency issues (e.g. `CREATE TABLE ... (...
-	 * UNIQUE (...))`).  However, it is not desired in cases where there could
-	 * be concurrency issues (e.g. `CREATE UNIQUE INDEX ...`, `ALTER TABLE ...
-	 * ADD UNIQUE (...)`).  For now, just use the fast path in all cases.
-	 * TODO(jason): support backfill for unique indexes, and use the online
-	 * path for the appropriate statements (issue #4899).
+	 * Backfilling indexes whose indexed table is colocated is currently not
+	 * supported.  See issue #6215.
 	 */
-	if (stmt->concurrent && stmt->unique)
+	if (is_indexed_table_colocated)
 		stmt->concurrent = false;
 
 	/*
@@ -593,8 +609,8 @@ DefineIndex(Oid relationId,
 			{
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-				 		errmsg("Cannot use TABLEGROUP with SPLIT."),
-				 		errdetail("Please supply NO TABLEGROUP to opt-out of indexed table's tablegroup.")));
+						 errmsg("Cannot use TABLEGROUP with SPLIT."),
+						 errdetail("Please supply NO TABLEGROUP to opt-out of indexed table's tablegroup.")));
 			}
 		}
 		else
@@ -606,7 +622,7 @@ DefineIndex(Oid relationId,
 				{
 					ereport(ERROR,
 							(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-					 		errmsg("Cannot use TABLEGROUP with SPLIT.")));
+							 errmsg("Cannot use TABLEGROUP with SPLIT.")));
 				}
 				tablegroupId = get_tablegroup_oid(grp->tablegroup_name, false);
 			}
@@ -994,6 +1010,13 @@ DefineIndex(Oid relationId,
 	if (stmt->initdeferred)
 		constr_flags |= INDEX_CONSTR_CREATE_INIT_DEFERRED;
 
+	/* Check for WITH (table_oid = x). */
+	if (!OidIsValid(indexRelationId) && stmt->relation)
+	{
+		indexRelationId = GetTableOidFromRelOptions(
+			stmt->options, tablespaceId, stmt->relation->relpersistence);
+	}
+
 	indexRelationId =
 		index_create(rel, indexRelationName, indexRelationId, parentIndexId,
 					 parentConstraintId,
@@ -1021,15 +1044,17 @@ DefineIndex(Oid relationId,
 
 	if (partitioned)
 	{
+		PartitionDesc partdesc;
+
 		/*
 		 * Unless caller specified to skip this step (via ONLY), process each
 		 * partition to make sure they all contain a corresponding index.
 		 *
 		 * If we're called internally (no stmt->relation), recurse always.
 		 */
-		if (!stmt->relation || stmt->relation->inh)
+		partdesc = RelationGetPartitionDesc(rel);
+		if ((!stmt->relation || stmt->relation->inh) && partdesc->nparts > 0)
 		{
-			PartitionDesc partdesc = RelationGetPartitionDesc(rel);
 			int			nparts = partdesc->nparts;
 			Oid		   *part_oids = palloc(sizeof(Oid) * nparts);
 			bool		invalidate_parent = false;
@@ -1258,78 +1283,59 @@ DefineIndex(Oid relationId,
 
 	PopActiveSnapshot();
 
-	/*
-	 * TODO(jason): retry backfill or revert schema changes instead of failing
-	 * through HandleYBStatus.
-	 */
-	elog(LOG, "waiting for YB_INDEX_PERM_DELETE_ONLY");
-	HandleYBStatus(YBCPgWaitUntilIndexPermissionsAtLeast(MyDatabaseId,
-														 relationId,
-														 indexRelationId,
-														 YB_INDEX_PERM_DELETE_ONLY,
-														 &actual_index_permissions));
-	/*
-	 * TODO(jason): handle bad actual_index_permissions.
-	 */
-
 	elog(LOG, "committing pg_index tuple with indislive=true");
+	/*
+	 * No need to break (abort) ongoing txns since this is an online schema
+	 * change.
+	 * TODO(jason): handle nested CREATE INDEX (this assumes we're at nest
+	 * level 1).
+	 */
+	YBDecrementDdlNestingLevel(true /* success */,
+	                           true /* is_catalog_version_increment */,
+	                           false /* is_breaking_catalog_change */);
 	CommitTransactionCommand();
-	/* TODO(jason): handle nested CREATE INDEX (this assumes we're at nest
-	 * level 1). */
-	YBDecrementDdlNestingLevel(true /* success */);
-	YBIncrementDdlNestingLevel();
+
+	/*
+	 * Delay after committing pg_index update.  Although it is controlled by a
+	 * test flag, it currently helps (but does not guarantee) correctness
+	 * because commits may not have propagated to all tservers by this time.
+	 */
+	pg_usleep(YBCGetTestIndexStateFlagsUpdateDelayMs() * 1000);
+
 	StartTransactionCommand();
+	YBIncrementDdlNestingLevel();
 
 	/*
-	 * TODO(jason): retry backfill or revert schema changes instead of failing
-	 * through HandleYBStatus.
-	 */
-	HandleYBStatus(YBCPgAsyncUpdateIndexPermissions(MyDatabaseId, relationId));
-	elog(LOG, "waiting for YB_INDEX_PERM_WRITE_AND_DELETE");
-	HandleYBStatus(YBCPgWaitUntilIndexPermissionsAtLeast(MyDatabaseId,
-														 relationId,
-														 indexRelationId,
-														 YB_INDEX_PERM_WRITE_AND_DELETE,
-														 &actual_index_permissions));
-	/*
-	 * TODO(jason): handle bad actual_index_permissions.
-	 */
-
-	/*
-	 * Update the pg_index row to mark the index as ready for inserts.  This
-	 * allows writes, but Yugabyte would only accept deletes until the index
-	 * permission changes to INDEX_PERM_WRITE_AND_DELETE.
+	 * Update the pg_index row to mark the index as ready for inserts.
 	 */
 	index_set_state_flags(indexRelationId, INDEX_CREATE_SET_READY);
 
-	/*
-	 * Commit this transaction to make the indisready update visible.
-	 */
 	elog(LOG, "committing pg_index tuple with indisready=true");
+	/*
+	 * No need to break (abort) ongoing txns since this is an online schema
+	 * change.
+	 * TODO(jason): handle nested CREATE INDEX (this assumes we're at nest
+	 * level 1).
+	 */
+	YBDecrementDdlNestingLevel(true /* success */,
+	                           true /* is_catalog_version_increment */,
+	                           false /* is_breaking_catalog_change */);
 	CommitTransactionCommand();
-	/* TODO(jason): handle nested CREATE INDEX (this assumes we're at nest
-	 * level 1). */
-	YBDecrementDdlNestingLevel(true /* success */);
-	YBIncrementDdlNestingLevel();
+
+	/*
+	 * Delay after committing pg_index update.  Although it is controlled by a
+	 * test flag, it currently helps (but does not guarantee) correctness
+	 * because commits may not have propagated to all tservers by this time.
+	 */
+	pg_usleep(YBCGetTestIndexStateFlagsUpdateDelayMs() * 1000);
+
 	StartTransactionCommand();
+	YBIncrementDdlNestingLevel();
 
 	/* TODO(jason): handle exclusion constraints, possibly not here. */
 
-	/*
-	 * TODO(jason): retry backfill or revert schema changes instead of failing
-	 * through HandleYBStatus.
-	 */
-	HandleYBStatus(YBCPgAsyncUpdateIndexPermissions(MyDatabaseId, relationId));
-	elog(LOG, "waiting for Yugabyte index read permission");
-	HandleYBStatus(YBCPgWaitUntilIndexPermissionsAtLeast(MyDatabaseId,
-														 relationId,
-														 indexRelationId,
-														 YB_INDEX_PERM_READ_WRITE_AND_DELETE,
-														 &actual_index_permissions));
-	/*
-	 * TODO(jason): handle bad actual_index_permissions, like
-	 * YB_INDEX_PERM_WRITE_AND_DELETE_WHILE_REMOVING.
-	 */
+	/* Do backfill. */
+	HandleYBStatus(YBCPgBackfillIndex(MyDatabaseId, indexRelationId));
 
 	/*
 	 * Index can now be marked valid -- update its pg_index entry
@@ -1508,7 +1514,7 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
 							range_index = true;
 							break;
 						}
-						/* Fallthrough */
+						switch_fallthrough();
 					case SORTBY_HASH:
 						if (range_index)
 							ereport(ERROR,

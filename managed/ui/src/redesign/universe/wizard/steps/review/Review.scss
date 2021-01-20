@@ -1,0 +1,23 @@
+@import '../../../../uikit/common';
+
+.review-step {
+  @include wizard-step-form();
+  @include wizard-form-footer();
+
+  max-height: calc(100vh - 290px);
+  overflow: auto;
+
+  &__row {
+    margin-top: 15px;
+    padding: 0 50px;
+  }
+
+  &__field-title {
+    font-size: 14px;
+  }
+
+  &__field-value {
+    font-size: 14px;
+    font-weight: 700;
+  }
+}

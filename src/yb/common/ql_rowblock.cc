@@ -111,6 +111,9 @@ QLRow& QLRowBlock::Extend() {
   rows_.emplace_back(schema_);
   return rows_.back();
 }
+void QLRowBlock::Reserve(size_t size) {
+  rows_.reserve(size);
+}
 
 Status QLRowBlock::AddRow(const QLRow& row) {
   // TODO: check for schema compatibility between QLRow and QLRowBlock.

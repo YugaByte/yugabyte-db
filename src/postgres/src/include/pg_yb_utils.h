@@ -58,6 +58,19 @@ extern uint64_t yb_catalog_cache_version;
 #define YB_CATCACHE_VERSION_UNINITIALIZED (0)
 
 /*
+ * Utility to get the current cache version that accounts for the fact that
+ * during a DDL we automatically apply the pending syscatalog changes to
+ * the local cache (of the current session).
+ * Therefore, if we are within a DDL we return yb_catalog_cache_version + 1.
+ * Currently, this is only used during procedure/function compilation so that
+ * compilation during CREATE FUNCTION/PROCEDURE is cached correctly.
+ * TODO Is there a simpler way to handle this?
+ */
+extern uint64_t YBGetActiveCatalogCacheVersion();
+
+extern void YBResetCatalogVersion();
+
+/*
  * Checks whether YugaByte functionality is enabled within PostgreSQL.
  * This relies on pgapi being non-NULL, so probably should not be used
  * in postmaster (which does not need to talk to YB backend) or early
@@ -65,6 +78,8 @@ extern uint64_t yb_catalog_cache_version;
  * YBIsEnabledInPostgresEnvVar function might be more appropriate.
  */
 extern bool IsYugaByteEnabled();
+
+extern bool yb_read_from_followers;
 
 /*
  * Given a relation, checks whether the relation is supported in YugaByte mode.
@@ -140,10 +155,16 @@ extern bool YBRelHasSecondaryIndices(Relation relation);
 extern bool YBTransactionsEnabled();
 
 /*
- * Given a status returned by YB C++ code, reports that status using ereport if
- * it is not OK.
+ * Given a status returned by YB C++ code, reports that status as a PG/YSQL
+ * ERROR using ereport if it is not OK.
  */
 extern void	HandleYBStatus(YBCStatus status);
+
+/*
+ * Generic version of HandleYBStatus that reports the YBCStatus at the
+ * specified PG/YSQL error level (e.g. ERROR or WARNING or NOTICE).
+ */
+void HandleYBStatusAtErrorLevel(YBCStatus status, int error_level);
 
 /*
  * Since DDL metadata in master DocDB and postgres system tables is not modified
@@ -181,6 +202,12 @@ extern void YBInitPostgresBackend(const char *program_name,
  * Only main PostgreSQL backend thread is expected to call this.
  */
 extern void YBOnPostgresBackendShutdown();
+
+/*
+ * Signals PgTxnManager to recreate the transaction. This is used when we need
+ * to restart a transaction that failed due to a transaction conflict error.
+ */
+extern void YBCRecreateTransaction();
 
 /*
  * Signals PgTxnManager to restart current transaction - pick a new read point, etc.
@@ -293,6 +320,22 @@ Oid YBCGetDatabaseOid(Relation rel);
 void YBRaiseNotSupported(const char *msg, int issue_no);
 void YBRaiseNotSupportedSignal(const char *msg, int issue_no, int signal_level);
 
+/*
+ * Return the value of (base ^ exponent) bounded by the upper limit.
+ */
+extern double PowerWithUpperLimit(double base, int exponent, double upper_limit);
+
+//------------------------------------------------------------------------------
+// YB GUC variables.
+
+/**
+ * YSQL guc variables that can be used to toggle yugabyte features.
+ * See also the corresponding entries in guc.c.
+ */
+
+/* Enables tables/indexes to be created WITH (table_oid = x). */
+extern bool yb_enable_create_with_table_oid;
+
 //------------------------------------------------------------------------------
 // YB Debug utils.
 
@@ -338,10 +381,21 @@ bool YBIsInitDbAlreadyDone();
 
 int YBGetDdlNestingLevel();
 void YBIncrementDdlNestingLevel();
-void YBDecrementDdlNestingLevel(bool success);
+void YBDecrementDdlNestingLevel(bool success,
+                                bool is_catalog_version_increment,
+                                bool is_breaking_catalog_change);
 
 extern void YBBeginOperationsBuffering();
 extern void YBEndOperationsBuffering();
 extern void YBResetOperationsBuffering();
+
+bool YBReadFromFollowersEnabled();
+
+/*
+ * Allocates YBCPgYBTupleIdDescriptor with nattrs arguments by using palloc.
+ * Resulted object can be released with pfree.
+ */
+YBCPgYBTupleIdDescriptor* YBCCreateYBTupleIdDescriptor(Oid db_oid, Oid table_oid, int nattrs);
+void YBCFillUniqueIndexNullAttribute(YBCPgYBTupleIdDescriptor* descr);
 
 #endif /* PG_YB_UTILS_H */

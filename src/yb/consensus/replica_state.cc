@@ -75,14 +75,14 @@ using strings::SubstituteAndAppend;
 ReplicaState::ReplicaState(
     ConsensusOptions options, string peer_uuid, std::unique_ptr<ConsensusMetadata> cmeta,
     ConsensusContext* consensus_context, SafeOpIdWaiter* safe_op_id_waiter,
-    RetryableRequests* retryable_requests, const yb::OpId& split_op_id,
+    RetryableRequests* retryable_requests, const SplitOpInfo& split_op_info,
     std::function<void(const OpIds&)> applied_ops_tracker)
     : options_(std::move(options)),
       peer_uuid_(std::move(peer_uuid)),
       cmeta_(std::move(cmeta)),
       context_(consensus_context),
       safe_op_id_waiter_(safe_op_id_waiter),
-      split_op_id_(split_op_id),
+      split_op_info_(split_op_info),
       applied_ops_tracker_(std::move(applied_ops_tracker)) {
   CHECK(cmeta_) << "ConsensusMeta passed as NULL";
   if (retryable_requests) {
@@ -594,12 +594,15 @@ Status ReplicaState::AbortOpsAfterUnlocked(int64_t new_preceding_idx) {
   for (auto it = preceding_op_iter; it != pending_operations_.end(); ++it) {
     const scoped_refptr<ConsensusRound>& round = *it;
     LOG_WITH_PREFIX(INFO) << "Aborting uncommitted operation due to leader change: "
-                          << round->replicate_msg()->id();
+                          << round->replicate_msg()->id() << ", committed: "
+                          << last_committed_op_id_;
     NotifyReplicationFinishedUnlocked(round, abort_status, yb::OpId::kUnknownTerm,
                                       nullptr /* applied_op_ids */);
   }
+
   // Clear entries from pending operations.
   pending_operations_.erase(preceding_op_iter, pending_operations_.end());
+  CheckPendingOperationsHead();
 
   return Status::OK();
 }
@@ -638,8 +641,8 @@ Status ReplicaState::AddPendingOperation(const scoped_refptr<ConsensusRound>& ro
   DCHECK(IsLocked());
 
   SCHECK_GT(
-      yb::OpId::FromPB(round->replicate_msg()->id()), split_op_id_, InvalidArgument,
-      "Received op id should be grater than split_op_id.");
+      yb::OpId::FromPB(round->replicate_msg()->id()), split_op_info_.op_id, InvalidArgument,
+      "Received op id should be greater than split OP ID.");
 
   auto op_type = round->replicate_msg()->op_type();
   if (PREDICT_FALSE(state_ != kRunning)) {
@@ -651,16 +654,18 @@ Status ReplicaState::AddPendingOperation(const scoped_refptr<ConsensusRound>& ro
     }
   }
 
-  if (PREDICT_FALSE(!split_op_id_.empty() && !ShouldAllowOpAfterSplitTablet(op_type))) {
+  if (PREDICT_FALSE(!split_op_info_.op_id.empty() && !ShouldAllowOpAfterSplitTablet(op_type))) {
     // TODO(tsplit): for optimization - include new tablet IDs into response, so client knows
     // earlier where to retry.
     // TODO(tsplit): test - check that split_op_id_ is correctly aborted.
     // TODO(tsplit): test - check that split_op_id_ is correctly restored during bootstrap.
     return STATUS_EC_FORMAT(
-        IllegalState, ConsensusError(ConsensusErrorPB::TABLET_SPLIT),
-        "Tablet split has been added to Raft log, operation $0 $1 should be retried to new "
-        "tablets.",
-        op_type, round->replicate_msg()->id());
+               IllegalState, ConsensusError(ConsensusErrorPB::TABLET_SPLIT),
+               "Tablet split has been added to Raft log ($0), operation $1 $2 should be retried to "
+               "new tablets.",
+               split_op_info_.op_id, OperationType_Name(op_type), round->replicate_msg()->id())
+        .CloneAndAddErrorCode(SplitChildTabletIdsData(std::vector<TabletId>(
+            split_op_info_.child_tablet_ids.begin(), split_op_info_.child_tablet_ids.end())));
   }
 
   // When we do not have a hybrid time leader lease we allow 2 operation types to be added to RAFT.
@@ -724,15 +729,27 @@ Status ReplicaState::AddPendingOperation(const scoped_refptr<ConsensusRound>& ro
       return STATUS(AlreadyPresent, "Duplicate request");
     }
   } else if (op_type == SPLIT_OP) {
+    const auto& split_request = round->replicate_msg()->split_request();
     SCHECK_EQ(
-        round->replicate_msg()->split_request().tablet_id(), cmeta_->tablet_id(), InvalidArgument,
+        split_request.tablet_id(), cmeta_->tablet_id(), InvalidArgument,
         "Received split op for a different tablet.");
-    split_op_id_ = yb::OpId::FromPB(round->replicate_msg()->id());
+    split_op_info_ = {
+        .op_id = yb::OpId::FromPB(round->replicate_msg()->id()),
+        .child_tablet_ids = {split_request.new_tablet1_id(), split_request.new_tablet2_id()}
+    };
     // TODO(tsplit): if we get failures past this point we can't undo the tablet state.
     // Might be need some tool to be able to remove SPLIT_OP from Raft log.
   }
 
+  LOG_IF_WITH_PREFIX(
+      DFATAL,
+      !pending_operations_.empty() &&
+          pending_operations_.back()->id().index() + 1 != round->id().index())
+      << "Adding operation with wrong index: " << AsString(round) << ", last op id: "
+      << AsString(pending_operations_.back()->id()) << ", operations: "
+      << AsString(pending_operations_);
   pending_operations_.push_back(round);
+  CheckPendingOperationsHead();
   return Status::OK();
 }
 
@@ -746,10 +763,9 @@ scoped_refptr<ConsensusRound> ReplicaState::GetPendingOpByIndexOrNullUnlocked(in
 }
 
 Status ReplicaState::UpdateMajorityReplicatedUnlocked(
-    const OpIdPB& majority_replicated, OpIdPB* committed_op_id,
+    const OpId& majority_replicated, OpId* committed_op_id,
     bool* committed_op_id_changed, OpId* last_applied_op_id) {
   DCHECK(IsLocked());
-  DCHECK(majority_replicated.IsInitialized());
   if (PREDICT_FALSE(state_ == kShuttingDown || state_ == kShutDown)) {
     return STATUS(ServiceUnavailable, "Cannot trigger apply. Replica is shutting down.");
   }
@@ -761,8 +777,8 @@ Status ReplicaState::UpdateMajorityReplicatedUnlocked(
   // then 'committed_op_id' is simply equal to majority replicated.
   if (last_committed_op_id_.term == GetCurrentTermUnlocked()) {
     *committed_op_id_changed = VERIFY_RESULT(AdvanceCommittedOpIdUnlocked(
-        yb::OpId::FromPB(majority_replicated), CouldStop::kFalse));
-    last_committed_op_id_.ToPB(committed_op_id);
+        majority_replicated, CouldStop::kFalse));
+    *committed_op_id = last_committed_op_id_;
     *last_applied_op_id = GetLastAppliedOpIdUnlocked();
     return Status::OK();
   }
@@ -770,11 +786,11 @@ Status ReplicaState::UpdateMajorityReplicatedUnlocked(
   // If the last committed operation is not in the current term (such as when
   // we change leaders) but 'majority_replicated' is then we can advance the
   // 'committed_op_id' too.
-  if (majority_replicated.term() == GetCurrentTermUnlocked()) {
+  if (majority_replicated.term == GetCurrentTermUnlocked()) {
     auto previous = last_committed_op_id_;
     *committed_op_id_changed = VERIFY_RESULT(AdvanceCommittedOpIdUnlocked(
-        yb::OpId::FromPB(majority_replicated), CouldStop::kFalse));
-    last_committed_op_id_.ToPB(committed_op_id);
+        majority_replicated, CouldStop::kFalse));
+    *committed_op_id = last_committed_op_id_;
     *last_applied_op_id = GetLastAppliedOpIdUnlocked();
     LOG_WITH_PREFIX(INFO)
         << "Advanced the committed_op_id across terms."
@@ -783,13 +799,13 @@ Status ReplicaState::UpdateMajorityReplicatedUnlocked(
     return Status::OK();
   }
 
-  last_committed_op_id_.ToPB(committed_op_id);
+  *committed_op_id = last_committed_op_id_;
   *last_applied_op_id = GetLastAppliedOpIdUnlocked();
   YB_LOG_EVERY_N_SECS(WARNING, 1) << LogPrefix()
           << "Can't advance the committed index across term boundaries"
           << " until operations from the current term are replicated."
           << " Last committed operation was: " << last_committed_op_id_ << ","
-          << " New majority replicated is: " << majority_replicated.ShortDebugString() << ","
+          << " New majority replicated is: " << majority_replicated << ","
           << " Current term is: " << GetCurrentTermUnlocked();
 
   return Status::OK();
@@ -799,10 +815,11 @@ void ReplicaState::SetLastCommittedIndexUnlocked(const yb::OpId& committed_op_id
   DCHECK(IsLocked());
   CHECK_GE(last_received_op_id_.index, committed_op_id.index);
   last_committed_op_id_ = committed_op_id;
+  CheckPendingOperationsHead();
 }
 
 Status ReplicaState::InitCommittedOpIdUnlocked(const yb::OpId& committed_op_id) {
-  if (last_committed_op_id_) {
+  if (!last_committed_op_id_.empty()) {
     return STATUS_FORMAT(
         IllegalState,
         "Committed index already initialized to: $0, tried to set $1",
@@ -818,6 +835,18 @@ Status ReplicaState::InitCommittedOpIdUnlocked(const yb::OpId& committed_op_id) 
   SetLastCommittedIndexUnlocked(committed_op_id);
 
   return Status::OK();
+}
+
+void ReplicaState::CheckPendingOperationsHead() const {
+  if (pending_operations_.empty() || last_committed_op_id_.empty() ||
+      pending_operations_.front()->id().index() == last_committed_op_id_.index + 1) {
+    return;
+  }
+
+  LOG_WITH_PREFIX(FATAL)
+      << "The first pending operation's index is supposed to immediately follow the last committed "
+      << "operation's index. Committed op id: " << last_committed_op_id_ << ", pending operations: "
+      << AsString(pending_operations_);
 }
 
 Result<bool> ReplicaState::AdvanceCommittedOpIdUnlocked(
@@ -844,8 +873,7 @@ Result<bool> ReplicaState::AdvanceCommittedOpIdUnlocked(
         last_committed_op_id_, committed_op_id, last_received_op_id_);
   }
 
-  // Start at the operation after the last committed one.
-  CHECK_EQ(pending_operations_.front()->id().index(), last_committed_op_id_.index + 1);
+  CheckPendingOperationsHead();
 
   auto old_index = last_committed_op_id_.index;
 
@@ -876,15 +904,18 @@ Status ReplicaState::ApplyPendingOperationsUnlocked(
   OpIds applied_op_ids;
   applied_op_ids.reserve(committed_op_id.index - prev_id.index);
 
+  Status status;
+
   while (!pending_operations_.empty()) {
     auto round = pending_operations_.front();
     auto current_id = yb::OpId::FromPB(round->id());
-    if (current_id.index > committed_op_id.index) {
-      break;
-    }
 
     if (PREDICT_TRUE(prev_id)) {
       CHECK_OK(CheckOpInSequence(prev_id, current_id));
+    }
+
+    if (current_id.index > committed_op_id.index) {
+      break;
     }
 
     auto type = round->replicate_msg()->op_type();
@@ -901,10 +932,29 @@ Status ReplicaState::ApplyPendingOperationsUnlocked(
     } else if (current_id.index > max_allowed_op_id.index ||
                current_id.term > max_allowed_op_id.term) {
       max_allowed_op_id = safe_op_id_waiter_->WaitForSafeOpIdToApply(current_id);
-      SCHECK(max_allowed_op_id.index >= current_id.index &&
-                 max_allowed_op_id.term >= current_id.term,
-             RuntimeError,
-             Format("Bad max allowed: $0, while current: $1", max_allowed_op_id, current_id));
+      // This situation should not happen. Prior to #4150 it could happen as follows.  Suppose
+      // replica A was the leader of term 1 and added operations 1.100 and 1.101 to the WAL but
+      // has not committed them yet.  Replica B decides that A is unavailable, starts and wins
+      // term 2 election, and tries to replicate a no-op 2.100.  Replica A starts and wins term 3
+      // election and then continues to replicate 1.100 and 1.101 and the new no-op 3.102.
+      // Suppose an UpdateConsensus from replica A reaches replica B with a committed op id of
+      // 3.102 (because perhaps some other replica has already received those entries).  Replica B
+      // will abort 2.100 and try to apply all three operations. Suppose the last op id flushed to
+      // the WAL on replica B is currently 2.100, and current_id is 1.101. Then
+      // WaitForSafeOpIdToApply would return 2.100 immediately as 2.100 > 1.101 in terms of OpId
+      // comparison, and we will throw an error here.
+      //
+      // However, after the #4150 fix we are resetting flushed op id using ResetLastSynchedOpId
+      // when aborting operations during term changes, so WaitForSafeOpIdToApply would correctly
+      // wait until 1.101 is written and return 1.101 or 3.102 in the above example.
+      if (max_allowed_op_id.index < current_id.index || max_allowed_op_id.term < current_id.term) {
+        status = STATUS_FORMAT(
+            RuntimeError,
+            "Bad max allowed op id ($0), term/index must be no less than that of current op id "
+            "($1)",
+            max_allowed_op_id, current_id);
+        break;
+      }
     }
 
     pending_operations_.pop_front();
@@ -921,7 +971,7 @@ Status ReplicaState::ApplyPendingOperationsUnlocked(
 
   applied_ops_tracker_(applied_op_ids);
 
-  return Status::OK();
+  return status;
 }
 
 void ReplicaState::ApplyConfigChangeUnlocked(const ConsensusRoundPtr& round) {
@@ -974,12 +1024,12 @@ const yb::OpId& ReplicaState::GetCommittedOpIdUnlocked() const {
 
 const yb::OpId& ReplicaState::GetSplitOpIdUnlocked() const {
   DCHECK(IsLocked());
-  return split_op_id_;
+  return split_op_info_.op_id;
 }
 
-void ReplicaState::ResetSplitOpIdUnlocked() {
+std::array<TabletId, kNumSplitParts> ReplicaState::GetSplitChildTabletIdsUnlocked() const {
   DCHECK(IsLocked());
-  split_op_id_ = yb::OpId();
+  return split_op_info_.child_tablet_ids;
 }
 
 RestartSafeCoarseMonoClock& ReplicaState::Clock() {
@@ -1042,6 +1092,12 @@ void ReplicaState::CancelPendingOperation(const OpIdPB& id, bool should_exist) {
   CHECK_EQ(GetCurrentTermUnlocked(), id.term());
   CHECK_EQ(next_index_, id.index() + 1);
   next_index_ = id.index();
+
+  if (OpId::FromPB(id) == split_op_info_.op_id) {
+    // If we cancel first split operation in Raft log designated for this Raft group - we need
+    // to reset split_op_info_.
+    split_op_info_ = SplitOpInfo();
+  }
 
   // We don't use UpdateLastReceivedOpIdUnlocked because we're actually
   // updating it back to a lower value and we need to avoid the checks
@@ -1257,7 +1313,7 @@ MonoDelta ReplicaState::RemainingOldLeaderLeaseDuration(CoarseTimePoint* now) co
   return result;
 }
 
-MicrosTime ReplicaState::MajorityReplicatedHtLeaseExpiration(
+Result<MicrosTime> ReplicaState::MajorityReplicatedHtLeaseExpiration(
     MicrosTime min_allowed, CoarseTimePoint deadline) const {
   if (FLAGS_ht_lease_duration_ms == 0) {
     return kMaxHybridTimePhysicalMicros;
@@ -1277,7 +1333,7 @@ MicrosTime ReplicaState::MajorityReplicatedHtLeaseExpiration(
   if (deadline == CoarseTimePoint::max()) {
     cond_.wait(l, predicate);
   } else if (!cond_.wait_until(l, deadline, predicate)) {
-    return 0;
+    return STATUS_FORMAT(TimedOut, "Timed out waiting leader lease: $0", min_allowed);
   }
   return result;
 }

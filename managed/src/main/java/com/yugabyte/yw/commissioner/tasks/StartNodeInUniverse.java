@@ -10,25 +10,24 @@
 
 package com.yugabyte.yw.commissioner.tasks;
 
+import com.google.common.collect.ImmutableList;
 import com.yugabyte.yw.commissioner.SubTaskGroupQueue;
-import com.yugabyte.yw.commissioner.UserTaskDetails;
 import com.yugabyte.yw.commissioner.UserTaskDetails.SubTaskGroupType;
 import com.yugabyte.yw.commissioner.tasks.params.NodeTaskParams;
-import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import com.yugabyte.yw.models.Universe;
 import com.yugabyte.yw.models.helpers.NodeDetails;
 import com.yugabyte.yw.models.helpers.NodeDetails.NodeState;
-import com.yugabyte.yw.commissioner.tasks.UniverseDefinitionTaskBase.ServerType;
 
 import java.util.Arrays;
 import java.util.HashSet;
+
 import static com.yugabyte.yw.common.Util.areMastersUnderReplicated;
 
 /**
  * Class contains the tasks to start a node in a given universe.
  * It starts the tserver process and the master process if needed.
  */
-public class StartNodeInUniverse extends UniverseTaskBase {
+public class StartNodeInUniverse extends UniverseDefinitionTaskBase {
 
   @Override
   protected NodeTaskParams taskParams() {
@@ -40,6 +39,7 @@ public class StartNodeInUniverse extends UniverseTaskBase {
     NodeDetails currentNode = null;
     boolean hitException = false;
     try {
+      checkUniverseVersion();
       // Create the task list sequence.
       subTaskGroupQueue = new SubTaskGroupQueue(userTaskUUID);
       // Set the 'updateInProgress' flag to prevent other updates from happening.
@@ -64,7 +64,6 @@ public class StartNodeInUniverse extends UniverseTaskBase {
       // Update node state to Starting
       createSetNodeStateTask(currentNode, NodeState.Starting)
           .setSubTaskGroupType(SubTaskGroupType.StartingNodeProcesses);
-      UniverseDefinitionTaskParams universeDetails = universe.getUniverseDetails();
 
       // Start the tserver process
       createTServerTaskForNode(currentNode, "start")
@@ -74,7 +73,18 @@ public class StartNodeInUniverse extends UniverseTaskBase {
       createUpdateNodeProcessTask(taskParams().nodeName, ServerType.TSERVER, true)
           .setSubTaskGroupType(SubTaskGroupType.StartingNodeProcesses);
 
+      // Bring up any masters, as needed.
+      boolean masterAdded = false;
       if (areMastersUnderReplicated(currentNode, universe)) {
+        // Clean the master addresses in the conf file for the current node so that
+        // the master comes up as a shell master.
+        createConfigureServerTasks(ImmutableList.of(currentNode), true /* isShell */,
+            true /* updateMasterAddrs */, true /* isMaster */)
+                .setSubTaskGroupType(SubTaskGroupType.ConfigureUniverse);
+
+        // Set gflags for master.
+        createGFlagsOverrideTasks(ImmutableList.of(currentNode), ServerType.MASTER);
+
         // Start a master process.
         createStartMasterTasks(new HashSet<NodeDetails>(Arrays.asList(currentNode)))
             .setSubTaskGroupType(SubTaskGroupType.StartingNodeProcesses);
@@ -89,11 +99,23 @@ public class StartNodeInUniverse extends UniverseTaskBase {
 
         // Add stopped master to the quorum.
         createChangeConfigTask(currentNode, true /* isAdd */, SubTaskGroupType.ConfigureUniverse);
+
+        masterAdded = true;
+      }
+
+      // Update all server conf files with new master information.
+      if (masterAdded) {
+        createMasterInfoUpdateTask(universe, currentNode);
       }
 
       // Update node state to running
       createSetNodeStateTask(currentNode, NodeDetails.NodeState.Live)
           .setSubTaskGroupType(SubTaskGroupType.StartingNode);
+
+      // Update the swamper target file.
+      // It is required because the node could be removed from the swamper file
+      // between the Stop/Start actions as Inactive.
+      createSwamperTargetUpdateTask(false /* removeFile */);
 
       // Mark universe update success to true
       createMarkUniverseUpdateSuccessTasks()

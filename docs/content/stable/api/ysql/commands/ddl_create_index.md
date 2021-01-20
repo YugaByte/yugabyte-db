@@ -110,7 +110,7 @@ By default, YugabyteDB presplits an index into `ysql_num_shards_per_tserver * nu
 
 Create a unique index with hash ordered columns.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE products(id int PRIMARY KEY,
                                  name text,
                                  code text);
@@ -131,7 +131,7 @@ Indexes:
 
 Create an index with ascending ordered key.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE INDEX products_name ON products(name ASC);
 yugabyte=# \d products_name
    Index "public.products_name"
@@ -145,7 +145,7 @@ lsm, for table "public.products
 
 Create an index with ascending ordered key and include other columns as non-key columns
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE INDEX products_name_code ON products(name) INCLUDE (code);
 yugabyte=# \d products_name_code;
  Index "public.products_name_code"
@@ -160,7 +160,7 @@ lsm, for table "public.products"
 
 To specify the number of tablets for an index, you can use the `CREATE INDEX` statement with the [`SPLIT INTO`](#split-into) clause.
 
-```postgresql
+```plpgsql
 CREATE TABLE employees (id int PRIMARY KEY, first_name TEXT, last_name TEXT) SPLIT INTO 10 TABLETS;
 CREATE INDEX ON employees(first_name, last_name) SPLIT INTO 10 TABLETS;
 ```
@@ -169,7 +169,7 @@ CREATE INDEX ON employees(first_name, last_name) SPLIT INTO 10 TABLETS;
 
 Consider an application maintaining shipments information. It has a `shipments` table with a column for `delivery_status`. If the application needs to access in-flight shipments frequently, then it can use a partial index to exclude rows whose shipment status is `delivered`.
 
-```postgresql
+```plpgsql
 yugabyte=# create table shipments(id int, delivery_status text, address text, delivery_date date);
 yugabyte=# create index shipment_delivery on shipments(delivery_status, address, delivery_date) where delivery_status != 'delivered';
 ```

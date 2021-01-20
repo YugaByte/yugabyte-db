@@ -13,6 +13,7 @@ package com.yugabyte.yw.commissioner.tasks.subtasks;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.yugabyte.yw.commissioner.AbstractTaskBase;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.common.TableManager;
 import com.yugabyte.yw.forms.BackupTableParams;
 import com.yugabyte.yw.forms.ITaskParams;
@@ -26,7 +27,7 @@ import java.util.Map;
 
 public class BackupTable extends AbstractTaskBase {
 
-  Backup backup = null;
+  Backup backup;
 
   public BackupTable(Backup backup) {
     this.backup = backup;
@@ -50,24 +51,27 @@ public class BackupTable extends AbstractTaskBase {
     if (backup == null) {
       backup = Backup.fetchByTaskUUID(userTaskUUID);
     }
+
     try {
       Universe universe = Universe.get(taskParams().universeUUID);
       Map<String, String> config = universe.getConfig();
       if (config.isEmpty() || config.getOrDefault(Universe.TAKE_BACKUPS, "true").equals("true")) {
         if (taskParams().backupList != null) {
           for (BackupTableParams backupParams : taskParams().backupList) {
-            ShellProcessHandler.ShellResponse response = tableManager.createBackup(backupParams);
+            ShellResponse response = tableManager.createBackup(backupParams);
             JsonNode jsonNode = Json.parse(response.message);
             if (response.code != 0 || jsonNode.has("error")) {
               LOG.error("Response code={}, hasError={}.", response.code, jsonNode.has("error"));
+
               throw new RuntimeException(response.message);
             } else {
               LOG.info("[" + getName() + "] STDOUT: " + response.message);
             }
           }
+
           backup.transitionState(Backup.BackupState.Completed);
         } else {
-          ShellProcessHandler.ShellResponse response = tableManager.createBackup(taskParams());
+          ShellResponse response = tableManager.createBackup(taskParams());
           JsonNode jsonNode = Json.parse(response.message);
           if (response.code != 0 || jsonNode.has("error")) {
             LOG.error("Response code={}, hasError={}.", response.code, jsonNode.has("error"));

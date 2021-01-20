@@ -15,6 +15,7 @@ import com.google.inject.Inject;
 import com.yugabyte.yw.commissioner.Common;
 import com.yugabyte.yw.common.KubernetesManager;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.common.PlacementInfoUtil;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import org.slf4j.Logger;
@@ -151,14 +152,14 @@ public class MetaMasterController extends Controller {
             String.format("%s-%s", universeDetails.nodePrefix, azName) :
             universeDetails.nodePrefix;
 
-        ShellProcessHandler.ShellResponse r = kubernetesManager.getServiceIPs(
+        ShellResponse r = kubernetesManager.getServiceIPs(
             config, namespace, type == ServerType.MASTER);
         if (r.code != 0 || r.message == null) {
           LOG.warn("Kubernetes getServiceIPs api failed!", r.message);
           return null;
         }
         List<String> ips = Arrays.stream(r.message.split("\\|"))
-            .filter((ip) -> !ip.isEmpty()).collect(Collectors.toList());
+            .filter((ip) -> !ip.trim().isEmpty()).collect(Collectors.toList());
         int rpcPort;
         switch (type) {
           case MASTER:

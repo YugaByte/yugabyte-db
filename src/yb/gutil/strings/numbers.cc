@@ -524,6 +524,12 @@ string Uint128ToHexString(uint128 ui128) {
   return string(buf);
 }
 
+string Uint16ToHexString(uint16_t ui16) {
+  char buf[5];
+  snprintf(buf, sizeof(buf), "%04X", ui16);
+  return string(buf);
+}
+
 namespace {
 
 // Represents integer values of digits.

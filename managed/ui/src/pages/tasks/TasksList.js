@@ -7,7 +7,7 @@ export default class TasksList extends Component {
   render() {
     return (
       <div>
-        <TasksListContainer/>
+        <TasksListContainer />
       </div>
     );
   }

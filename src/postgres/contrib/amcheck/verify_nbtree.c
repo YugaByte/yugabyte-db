@@ -416,7 +416,7 @@ bt_check_every_level(Relation rel, Relation heaprel, bool readonly,
 	}
 
 	/* Create context for page */
-	state->targetcontext = AllocSetContextCreate(CurrentMemoryContext,
+	state->targetcontext = AllocSetContextCreate(GetCurrentMemoryContext(),
 												 "amcheck context",
 												 ALLOCSET_DEFAULT_SIZES);
 	state->checkstrategy = GetAccessStrategy(BAS_BULKREAD);

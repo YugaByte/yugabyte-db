@@ -1,13 +1,13 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../../_style/colors.scss";
+@import '../../../../_style/colors.scss';
 
 /* From gentelella.css need to cleanup */
 
 footer {
   height: 45px;
   margin-left: 90px;
-  background-color: white;
+  background-color: $YB_FOOTER_BACKGROUND;
   line-height: 46px;
   display: flex;
   flex-direction: row;
@@ -17,6 +17,7 @@ footer {
   left: 0;
   right: 0;
   font-weight: 300;
+  z-index: 1;
 
   object {
     margin-right: 20px;

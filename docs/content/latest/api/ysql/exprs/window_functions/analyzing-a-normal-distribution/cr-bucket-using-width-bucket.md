@@ -27,7 +27,6 @@ create or replace function bucket(
   upper_bound  in double precision default 1,
   no_of_values in int              default 10)
   returns int
-  immutable
   language plpgsql
 as $body$
 begin

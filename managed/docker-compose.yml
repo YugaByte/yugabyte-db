@@ -6,8 +6,6 @@ services:
     image: quay.io/yugabyte/yugaware:latest
     volumes:
       - $HOME/.yugabyte:/root/.yugabyte
-      - /var/run/docker.sock:/var/run/docker.sock:rw
-      - /usr/bin/docker:/usr/bin/docker
       - /etc/yugaware
       - app-volume:/opt/yugabyte/
       - thirdparty-deps:/opt/yugabyte/third-party

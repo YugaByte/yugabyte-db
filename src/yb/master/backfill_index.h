@@ -65,7 +65,7 @@ class MultiStageAlterTable {
       const std::unordered_map<TableId, IndexPermissions>& perm_mapping,
       boost::optional<uint32_t> current_version = boost::none);
 
- private:
+  // TODO(jason): make this private when closing issue #6218.
   // Start Index Backfill process/step for the specified table/index.
   static Status
   StartBackfillingData(CatalogManager *catalog_manager,
@@ -323,7 +323,7 @@ class BackfillChunk : public RetryingTSRpcTask {
   std::string type_name() const override { return "Backfill Index Table"; }
 
   std::string description() const override {
-    return yb::Format("Backfilling index_ids $0 : for $1 from $2",
+    return yb::Format("Backfilling index_ids $0 for tablet $1 from key '$2'",
                       backfill_tablet_->index_ids(), tablet_id(),
                       b2a_hex(start_key_));
   }
@@ -345,6 +345,10 @@ class BackfillChunk : public RetryingTSRpcTask {
 
   int num_max_retries() override;
   int max_delay_ms() override;
+
+  TableType GetTableType() const {
+    return backfill_tablet_->tablet()->table()->GetTableType();
+  }
 
   tserver::BackfillIndexResponsePB resp_;
   std::shared_ptr<BackfillTablet> backfill_tablet_;

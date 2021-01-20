@@ -298,7 +298,8 @@ void PgOnConflictTest::TestOnConflict(bool kill_master, const MonoDelta& duratio
               msg.find("Commit of expired transaction") != std::string::npos ||
               msg.find("Catalog Version Mismatch") != std::string::npos ||
               msg.find("Soft memory limit exceeded") != std::string::npos ||
-              msg.find("Missing metadata for transaction") != std::string::npos) {
+              msg.find("Missing metadata for transaction") != std::string::npos ||
+              msg.find("timed out after deadline expired") != std::string::npos) {
             break;
           }
 

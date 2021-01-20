@@ -1,7 +1,16 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../_style/colors.scss";
+@import '../../../_style/colors.scss';
 
+#list-backups-content {
+  .alert {
+    z-index: 3000;
+    a {
+      color: inherit;
+      text-decoration: underline;
+    }
+  }
+}
 .backup-list-table {
   .storage-cell {
     overflow: visible;
@@ -12,14 +21,53 @@
   .cta-button {
     .btn {
       margin-right: 10px !important;
+    }
+  }
+}
 
+.backup-info-table {
+  /* Setting padding to match fixed width columns */
+  padding: 0 100px 0 50px;
+
+  .backup-header {
+    thead {
+      background: #000041;
+      color: #ffffff;
+
+      th {
+        padding: 5px 15px !important;
+
+        .order {
+          margin: 0 10px;
+          vertical-align: middle;
+
+          .orange-icon {
+            color: #ff6e42;
+            font-size: 16px;
+          }
+        }
+      }
     }
   }
 
+  table tr > td,
+  table tr:last-child td {
+    padding: 10px 15px !important;
+  }
+
+  .copy-btn {
+    padding: 5px 12px;
+    border-radius: 5px;
+  }
+
+  .backup-type {
+    width: 200px;
+    text-align: left;
+  }
 }
 
 .modal-body {
-  .storage-location  {
+  .storage-location {
     height: 50px;
   }
   overflow: visible;
@@ -54,4 +102,19 @@
 
 .spacing-top {
   margin-top: 15px;
+}
+
+strong.bold-primary-link {
+  color: #ff6e42;
+  cursor: pointer;
+}
+
+.list-tables-modal__content {
+  ul {
+    padding: 0 10px;
+    overflow: hidden;
+  }
+  li {
+    margin: 8px 0;
+  }
 }

@@ -1,0 +1,66 @@
+@import '../../../../uikit/common';
+
+.wizard-expandable-section {
+  align-items: center;
+
+  &:not(:first-child) {
+    margin-top: 22px;
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+  }
+
+  &__title {
+    font-size: 22px;
+    font-weight: 600;
+    color: $YB_TEXT_2;
+  }
+
+  &__plus-btn {
+    margin-left: 25px;
+    color: $YB_TEXT_1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    width: 32px;
+    height: 32px;
+    background-color: $YB_PAGE_BACKGROUND;
+    border-radius: 50%;
+    font-size: 24px;
+    font-weight: 600;
+    box-shadow: 0 0 10px #00000029;
+  }
+
+  &__line {
+    border-top: 1px solid $YB_BORDER_1;
+    flex-grow: 1;
+    margin-left: 20px;
+  }
+
+  &__edit-link {
+    margin-left: 20px;
+    color: $YB_CTA;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 400;
+    user-select: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  &__body {
+    &--show {
+      display: block;
+    }
+
+    &--hide {
+      display: none;
+    }
+  }
+}

@@ -61,6 +61,34 @@ void SnakeToCamelCase(const std::string &snake_case,
   }
 }
 
+void AllCapsToCamelCase(const std::string &all_caps,
+                        std::string *camel_case) {
+  DCHECK_NE(camel_case, &all_caps) << "Does not support in-place operation";
+  camel_case->clear();
+  camel_case->reserve(all_caps.size());
+
+  bool uppercase_next = true;
+  for (char c : all_caps) {
+    if ((c == '_') ||
+        (c == '-')) {
+      uppercase_next = true;
+      continue;
+    }
+    if (uppercase_next) {
+      camel_case->push_back(c);
+    } else {
+      camel_case->push_back(tolower(c));
+    }
+    uppercase_next = false;
+  }
+}
+
+std::string AllCapsToCamelCase(const std::string &all_caps) {
+  std::string sresult;
+  AllCapsToCamelCase(all_caps, &sresult);
+  return sresult;
+}
+
 void ToLowerCase(const std::string &string,
                  std::string *out) {
   if (out != &string) {

@@ -7,20 +7,20 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yugabyte.yw.common.FakeApiHelper;
 import com.yugabyte.yw.common.FakeDBApplication;
 import com.yugabyte.yw.common.ModelFactory;
+import com.yugabyte.yw.models.Backup;
 import com.yugabyte.yw.models.Customer;
 import com.yugabyte.yw.models.CustomerConfig;
+import com.yugabyte.yw.models.Schedule;
 import com.yugabyte.yw.models.Users;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.Ignore;
 import play.libs.Json;
 import play.mvc.Result;
 
 import java.util.UUID;
 
-import static com.yugabyte.yw.common.AssertHelper.assertBadRequest;
-import static com.yugabyte.yw.common.AssertHelper.assertErrorNodeValue;
-import static com.yugabyte.yw.common.AssertHelper.assertOk;
-import static com.yugabyte.yw.common.AssertHelper.assertAuditEntry;
+import static com.yugabyte.yw.common.AssertHelper.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static play.mvc.Http.Status.BAD_REQUEST;
@@ -145,5 +145,28 @@ public class CustomerConfigControllerTest extends FakeDBApplication {
     assertBadRequest(result, "Invalid configUUID: " + configUUID);
     assertEquals(1, CustomerConfig.getAll(customer.uuid).size());
     assertAuditEntry(0, defaultCustomer.uuid);
+  }
+
+  @Test
+  public void testDeleteInUseStorageConfig() {
+    UUID configUUID = ModelFactory.createS3StorageConfig(defaultCustomer).configUUID;
+    Backup backup = ModelFactory.createBackup(defaultCustomer.uuid, UUID.randomUUID(),
+                                              configUUID);
+    String url = "/api/customers/" + defaultCustomer.uuid + "/configs/" + configUUID;
+    Result result = FakeApiHelper.doRequestWithAuthToken("DELETE", url,
+        defaultUser.createAuthToken());
+    assertInternalServerError(result, "Customer Configuration could not be deleted.");
+    backup.delete();
+    Schedule schedule = ModelFactory.createScheduleBackup(defaultCustomer.uuid, UUID.randomUUID(),
+                                                          configUUID);
+    result = FakeApiHelper.doRequestWithAuthToken("DELETE", url,
+        defaultUser.createAuthToken());
+    assertInternalServerError(result, "Customer Configuration could not be deleted.");
+    schedule.delete();
+    result = FakeApiHelper.doRequestWithAuthToken("DELETE", url,
+        defaultUser.createAuthToken());
+    assertOk(result);
+    assertEquals(0, CustomerConfig.getAll(defaultCustomer.uuid).size());
+    assertAuditEntry(1, defaultCustomer.uuid);
   }
 }

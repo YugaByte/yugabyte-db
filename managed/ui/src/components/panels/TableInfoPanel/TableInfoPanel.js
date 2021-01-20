@@ -11,19 +11,23 @@ export default class TableInfoPanel extends Component {
   };
 
   render() {
-    const {tableInfo} = this.props;
+    const { tableInfo } = this.props;
     const tableInfoItems = [
-      { name: "Table Name", data: isValidObject(tableInfo.tableDetails) ? tableInfo.tableDetails.tableName : ""},
-      { name: "Table Type", data: tableInfo.tableType},
-      { name: "Table UUID", data: tableInfo.tableUUID}
+      {
+        name: 'Table Name',
+        data: isValidObject(tableInfo.tableDetails) ? tableInfo.tableDetails.tableName : ''
+      },
+      { name: 'Table Type', data: tableInfo.tableType },
+      { name: 'Table UUID', data: tableInfo.tableUUID }
     ];
     // Show Key Space if Table is CQL type
-    if (tableInfo.tableType && tableInfo.tableType !== "REDIS_TABLE_TYPE") {
-      tableInfoItems.push({ name: "Key Space", data: tableInfo.tableDetails && tableInfo.tableDetails.keyspace});
+    if (tableInfo.tableType && tableInfo.tableType !== 'REDIS_TABLE_TYPE') {
+      tableInfoItems.push({
+        name: 'Key Space',
+        data: tableInfo.tableDetails && tableInfo.tableDetails.keyspace
+      });
     }
 
-    return (
-      <DescriptionList listItems={tableInfoItems} />
-    );
+    return <DescriptionList listItems={tableInfoItems} />;
   }
 }

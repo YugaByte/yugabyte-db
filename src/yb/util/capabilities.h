@@ -29,16 +29,16 @@ class CapabilityRegisterer {
 std::vector<CapabilityId> Capabilities();
 
 #define DEFINE_CAPABILITY(name, id) \
-  namespace capabilities {                                                                     \
-    static const yb::CapabilityId BOOST_PP_CAT(CAPABILITY_, name) = id;                        \
-    static yb::CapabilityRegisterer BOOST_PP_CAT(reg_, name)(BOOST_PP_CAT(CAPABILITY_, name)); \
-  }                                                                                            \
-  using capabilities::BOOST_PP_CAT(CAPABILITY_, name);                                         \
+  namespace capabilities {                                                                         \
+    yb::CapabilityId BOOST_PP_CAT(CAPABILITY_, name) = id;                                         \
+    static yb::CapabilityRegisterer BOOST_PP_CAT(CAP_REG_, name)(BOOST_PP_CAT(CAPABILITY_, name)); \
+  }                                                                                                \
+  using capabilities::BOOST_PP_CAT(CAPABILITY_, name);                                             \
   /**/
 
 #define DECLARE_CAPABILITY(name) \
-  namespace capabilities { extern CapabilityId BOOST_PP_CAT(CAPABILITY_, name); } \
-  using capabilities::BOOST_PP_CAT(CAPABILITY_, name);                            \
+  namespace capabilities { extern yb::CapabilityId BOOST_PP_CAT(CAPABILITY_, name); } \
+  using capabilities::BOOST_PP_CAT(CAPABILITY_, name);
 
 } // namespace yb
 

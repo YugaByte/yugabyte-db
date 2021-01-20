@@ -28,15 +28,22 @@
 #include "yb/yql/cql/ql/util/errcodes.h"
 #include "yb/yql/cql/ql/util/statement_result.h"
 
+DECLARE_bool(allow_insecure_connections);
+DECLARE_bool(node_to_node_encryption_use_client_certificates);
+DECLARE_bool(TEST_private_broadcast_address);
 DECLARE_bool(use_client_to_server_encryption);
 DECLARE_bool(use_node_to_node_encryption);
-DECLARE_bool(allow_insecure_connections);
+DECLARE_int32(TEST_nodes_per_cloud);
+DECLARE_int32(yb_client_admin_operation_timeout_sec);
 DECLARE_string(certs_dir);
+DECLARE_string(ssl_protocols);
 DECLARE_string(TEST_public_hostname_suffix);
+
+using namespace std::literals;
 
 namespace yb {
 
-class SecureConnectionTest : public client::KeyValueTableTest {
+class SecureConnectionTest : public client::KeyValueTableTest<MiniCluster> {
  public:
   SecureConnectionTest() {
   }
@@ -46,29 +53,48 @@ class SecureConnectionTest : public client::KeyValueTableTest {
     FLAGS_use_client_to_server_encryption = true;
     FLAGS_allow_insecure_connections = false;
     FLAGS_TEST_public_hostname_suffix = ".ip.yugabyte";
+    FLAGS_TEST_private_broadcast_address = true;
     const auto sub_dir = JoinPathSegments("ent", "test_certs");
     auto root_dir = env_util::GetRootDir(sub_dir);
     FLAGS_certs_dir = JoinPathSegments(root_dir, sub_dir);
 
-    client::QLDmlTestBase::SetUp();
+    KeyValueTableTest::SetUp();
 
     DontVerifyClusterBeforeNextTearDown(); // Verify requires insecure connection.
   }
 
   CHECKED_STATUS CreateClient() override {
-    rpc::MessengerBuilder messenger_builder("test_client");
-    secure_context_ = VERIFY_RESULT(server::SetupSecureContext(
-        "", "", server::SecureContextType::kClientToServer, &messenger_builder));
-    auto messenger = VERIFY_RESULT(messenger_builder.Build());
-    messenger->TEST_SetOutboundIpBase(VERIFY_RESULT(HostToAddress("127.0.0.1")));
-    client_ = VERIFY_RESULT(cluster_->CreateClient(std::move(messenger)));
+    auto host = "127.0.0.52";
+    client_ = VERIFY_RESULT(DoCreateClient(host, host, &secure_context_));
     return Status::OK();
   }
 
+  Result<std::unique_ptr<client::YBClient>> CreateBadClient() {
+    google::FlagSaver flag_saver;
+    FLAGS_yb_client_admin_operation_timeout_sec = 5;
+    auto name = "127.0.0.54";
+    auto host = "127.0.0.52";
+    return DoCreateClient(name, host, &bad_secure_context_);
+  }
+
+  Result<std::unique_ptr<client::YBClient>> DoCreateClient(
+      const std::string& name, const std::string& host,
+      std::unique_ptr<rpc::SecureContext>* secure_context) {
+    rpc::MessengerBuilder messenger_builder("test_client");
+    *secure_context = VERIFY_RESULT(server::SetupSecureContext(
+        FLAGS_certs_dir, name, server::SecureContextType::kServerToServer, &messenger_builder));
+    auto messenger = VERIFY_RESULT(messenger_builder.Build());
+    messenger->TEST_SetOutboundIpBase(VERIFY_RESULT(HostToAddress(host)));
+    return cluster_->CreateClient(std::move(messenger));
+  }
+
+  void TestSimpleOps();
+
   std::unique_ptr<rpc::SecureContext> secure_context_;
+  std::unique_ptr<rpc::SecureContext> bad_secure_context_;
 };
 
-TEST_F(SecureConnectionTest, Simple) {
+void SecureConnectionTest::TestSimpleOps() {
   CreateTable(client::Transactional::kFalse);
 
   const int32_t kKey = 1;
@@ -84,6 +110,24 @@ TEST_F(SecureConnectionTest, Simple) {
     auto value = ASSERT_RESULT(SelectRow(NewSession(), kKey));
     ASSERT_EQ(kValue, value);
   }
+}
+
+TEST_F(SecureConnectionTest, Simple) {
+  TestSimpleOps();
+}
+
+class SecureConnectionTLS12Test : public SecureConnectionTest {
+  void SetUp() override {
+    FLAGS_ssl_protocols = "tls12";
+    SecureConnectionTest::SetUp();
+  }
+};
+
+TEST_F_EX(SecureConnectionTest, TLS12, SecureConnectionTLS12Test) {
+  TestSimpleOps();
+
+  FLAGS_ssl_protocols = "ssl2 ssl3,tls10 tls11";
+  ASSERT_NOK(CreateBadClient());
 }
 
 TEST_F(SecureConnectionTest, BigWrite) {
@@ -117,6 +161,20 @@ TEST_F(SecureConnectionTest, BigWrite) {
     ASSERT_EQ(rowblock->row_count(), 1);
     ASSERT_EQ(kValue, rowblock->row(0).column(0).string_value());
   }
+}
+
+class SecureConnectionWithClientCertificatesTest : public SecureConnectionTest {
+  void SetUp() override {
+    FLAGS_TEST_nodes_per_cloud = 100;
+    FLAGS_node_to_node_encryption_use_client_certificates = true;
+    SecureConnectionTest::SetUp();
+  }
+};
+
+TEST_F_EX(SecureConnectionTest, ClientCertificates, SecureConnectionWithClientCertificatesTest) {
+  TestSimpleOps();
+
+  ASSERT_NOK(CreateBadClient());
 }
 
 } // namespace yb

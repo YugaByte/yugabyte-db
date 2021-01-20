@@ -12,14 +12,16 @@ import json
 import logging
 import os
 import socket
-import urllib2
 
 from botocore.utils import InstanceMetadataFetcher
 from botocore.credentials import InstanceMetadataProvider
 
-from utils import get_vpc_for_subnet
+from six.moves.urllib.request import urlopen
+from six.moves.urllib.error import URLError
+
 from ybops.cloud.aws.command import AwsInstanceCommand, AwsNetworkCommand, \
     AwsAccessCommand, AwsQueryCommand, AwsDnsCommand
+from ybops.cloud.aws.utils import get_vpc_for_subnet
 from ybops.cloud.common.cloud import AbstractCloud
 from ybops.utils import is_valid_ip_address, validated_key_file, format_rsa_key, wait_for_ssh
 
@@ -72,7 +74,7 @@ class AwsCloud(AbstractCloud):
         return get_spot_pricing(args.region, args.zone, args.instance_type)
 
     def get_regions(self):
-        return self.metadata.get("regions", {}).keys()
+        return list(self.metadata.get("regions", {}).keys())
 
     def _get_all_regions_or_arg(self, region=None):
         return [region] if region is not None else self.get_regions()
@@ -121,7 +123,7 @@ class AwsCloud(AbstractCloud):
         # TODO: may be add extra validation to see if the key exists in specific region
         # if it doesn't exists in a region add them?. But only after validating the existing
         # is the same key in other regions.
-        result = self.list_key_pair(args).values()[0]
+        result = list(self.list_key_pair(args).values())[0]
         if len(result) > 0:
             raise YBOpsRuntimeError("KeyPair already exists {}".format(key_pair_name))
 
@@ -140,11 +142,11 @@ class AwsCloud(AbstractCloud):
         return result
 
     def _subset_region_data(self, per_region_meta):
-        metadata_subset = {k: v for k, v in self.metadata["regions"].iteritems()
+        metadata_subset = {k: v for k, v in self.metadata["regions"].items()
                            if k in per_region_meta}
         if len(metadata_subset) != len(per_region_meta):
             raise YBOpsRuntimeError("Asked to bootstrap/cleanup {}, only know of {}".format(
-                per_region_meta.keys(), self.metadata["regions"].keys()))
+                list(per_region_meta.keys()), list(self.metadata["regions"].keys())))
         return metadata_subset
 
     def network_cleanup(self, args):
@@ -202,7 +204,7 @@ class AwsCloud(AbstractCloud):
                 components[region] = client.bootstrap_individual_region(region)
             # Cross link all the regions together.
             client.cross_link_regions(components)
-        return {region: c.as_json() for region, c in components.iteritems()}
+        return {region: c.as_json() for region, c in components.items()}
 
     def query_vpc(self, args):
         result = {}
@@ -223,7 +225,7 @@ class AwsCloud(AbstractCloud):
                 metadata[metadata_type] = \
                     self.get_instance_metadata(metadata_type).replace("\n", ",")
             return metadata
-        except (urllib2.URLError, socket.timeout):
+        except (URLError, socket.timeout):
             raise YBOpsRuntimeError("Unable to fetch host metadata")
 
     def get_instance_metadata(self, metadata_type):
@@ -235,15 +237,16 @@ class AwsCloud(AbstractCloud):
             raises a runtime exception.
         """
         if metadata_type in ["mac", "instance-id", "security-groups"]:
-            return urllib2.urlopen(os.path.join(self.INSTANCE_METADATA_API, metadata_type),
-                                   timeout=self.METADATA_API_TIMEOUT_SECONDS).read()
+            return urlopen(os.path.join(self.INSTANCE_METADATA_API, metadata_type),
+                           timeout=self.METADATA_API_TIMEOUT_SECONDS).read().decode('utf-8')
         elif metadata_type in ["vpc-id", "subnet-id"]:
             mac = self.get_instance_metadata("mac")
-            return urllib2.urlopen(os.path.join(self.NETWORK_METADATA_API, mac, metadata_type),
-                                   timeout=self.METADATA_API_TIMEOUT_SECONDS).read()
+            return urlopen(os.path.join(self.NETWORK_METADATA_API, mac, metadata_type),
+                           timeout=self.METADATA_API_TIMEOUT_SECONDS).read().decode('utf-8')
         elif metadata_type in ["region", "privateIp"]:
-            identity_data = urllib2.urlopen(self.INSTANCE_IDENTITY_API,
-                                            timeout=self.METADATA_API_TIMEOUT_SECONDS).read()
+            identity_data = urlopen(self.INSTANCE_IDENTITY_API,
+                                    timeout=self.METADATA_API_TIMEOUT_SECONDS) \
+                                        .read().decode('utf-8')
             return json.loads(identity_data).get(metadata_type) if identity_data else None
         elif metadata_type in ["role"]:
             # Arg timeout is in MS.
@@ -274,7 +277,7 @@ class AwsCloud(AbstractCloud):
             subnet_per_region[r] = host_info["subnet"]
         return subnet_per_region
 
-    def get_host_info(self, args, get_all=False):
+    def get_host_info(self, args, get_all=False, private_ip=None):
         """Override to call the respective AWS specific API for returning hosts by name.
 
         Required fields in args:
@@ -283,9 +286,9 @@ class AwsCloud(AbstractCloud):
         """
         region = args.region
         search_pattern = args.search_pattern
-        return self.get_host_info_specific_args(region, search_pattern, get_all)
+        return self.get_host_info_specific_args(region, search_pattern, get_all, private_ip)
 
-    def get_host_info_specific_args(self, region, search_pattern, get_all=False):
+    def get_host_info_specific_args(self, region, search_pattern, get_all=False, private_ip=None):
         filters = [
             {
                 "Name": "instance-state-name",
@@ -311,6 +314,10 @@ class AwsCloud(AbstractCloud):
         results = []
         for instance in instances:
             data = instance.meta.data
+            if private_ip is not None and private_ip != data["PrivateIpAddress"]:
+                logging.warn("Node name {} is not unique. Expected IP {}, got IP {}".format(
+                    search_pattern, private_ip, data["PrivateIpAddress"]))
+                continue
             zone = data["Placement"]["AvailabilityZone"]
             name_tags = None
             server_tags = None

@@ -80,18 +80,20 @@ class CQLProcessor : public ql::QLProcessor {
   void Reschedule(rpc::ThreadPoolTask* task) override;
 
  private:
+  bool CheckAuthentication(const CQLRequest& req) const;
+
   // Process a CQL request.
-  CQLResponse* ProcessRequest(const CQLRequest& req);
+  std::unique_ptr<CQLResponse> ProcessRequest(const CQLRequest& req);
 
   // Process specific CQL requests.
-  CQLResponse* ProcessRequest(const OptionsRequest& req);
-  CQLResponse* ProcessRequest(const StartupRequest& req);
-  CQLResponse* ProcessRequest(const PrepareRequest& req);
-  CQLResponse* ProcessRequest(const ExecuteRequest& req);
-  CQLResponse* ProcessRequest(const QueryRequest& req);
-  CQLResponse* ProcessRequest(const BatchRequest& req);
-  CQLResponse* ProcessRequest(const AuthResponseRequest& req);
-  CQLResponse* ProcessRequest(const RegisterRequest& req);
+  std::unique_ptr<CQLResponse> ProcessRequest(const OptionsRequest& req);
+  std::unique_ptr<CQLResponse> ProcessRequest(const StartupRequest& req);
+  std::unique_ptr<CQLResponse> ProcessRequest(const PrepareRequest& req);
+  std::unique_ptr<CQLResponse> ProcessRequest(const ExecuteRequest& req);
+  std::unique_ptr<CQLResponse> ProcessRequest(const QueryRequest& req);
+  std::unique_ptr<CQLResponse> ProcessRequest(const BatchRequest& req);
+  std::unique_ptr<CQLResponse> ProcessRequest(const AuthResponseRequest& req);
+  std::unique_ptr<CQLResponse> ProcessRequest(const RegisterRequest& req);
 
   // Get a prepared statement and adds it to the set of statements currently being executed.
   std::shared_ptr<const CQLStatement> GetPreparedStatement(const CQLMessage::QueryId& id);
@@ -100,9 +102,11 @@ class CQLProcessor : public ql::QLProcessor {
   void StatementExecuted(const Status& s, const ql::ExecutedResult::SharedPtr& result = nullptr);
 
   // Process statement execution result and error.
-  CQLResponse* ProcessResult(const ql::ExecutedResult::SharedPtr& result);
-  CQLResponse* ProcessError(const Status& s,
-                            boost::optional<CQLMessage::QueryId> query_id = boost::none);
+  std::unique_ptr<CQLResponse> ProcessResult(const ql::ExecutedResult::SharedPtr& result);
+  std::unique_ptr<CQLResponse> ProcessAuthResult(const string& saved_hash, bool can_login);
+  std::unique_ptr<CQLResponse> ProcessError(
+      const Status& s,
+      boost::optional<CQLMessage::QueryId> query_id = boost::none);
 
   // Send response back to client.
   void PrepareAndSendResponse(const std::unique_ptr<CQLResponse>& response);

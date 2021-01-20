@@ -1,20 +1,41 @@
-@import "../common";
+@import '../common';
 
 .yb-uikit-button {
+  position: relative;
   height: 45px;
+  min-width: 110px;
   padding: 0 20px;
   background-color: $YB_PAGE_BACKGROUND;
   color: $YB_TEXT_1;
   border: 1px solid $YB_BORDER_2;
   font-size: 20px;
   font-weight: 600;
-  border-radius: 23px;
-  transition: color 200ms ease;
+  border-radius: $INPUT_BORDER_RADIUS;
   user-select: none;
 
-  &:hover:not([disabled]) {
-    color: $YB_TEXT_2;
+  &--cta:not([disabled]) {
+    border-color: $YB_CTA;
+    border-width: 2px;
+    color: $YB_CTA;
   }
+
+  &--chevron-left:before {
+    content: '▶';
+    transform: scale(-1, 1);
+    font-size: 14px;
+    margin-right: 5px;
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  &--chevron-right:after {
+    content: '▶';
+    font-size: 14px;
+    margin-left: 5px;
+    display: inline-block;
+    vertical-align: middle;
+  }
+
   &[disabled] {
     background-color: $YB_BORDER_1;
     color: $YB_TEXT_2;

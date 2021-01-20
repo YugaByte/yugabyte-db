@@ -45,6 +45,7 @@ using std::string;
 using std::shared_ptr;
 using namespace std::placeholders;
 
+using audit::AuditLogger;
 using client::YBColumnSpec;
 using client::YBOperation;
 using client::YBqlOpPtr;
@@ -68,8 +69,10 @@ using strings::Substitute;
 
 //--------------------------------------------------------------------------------------------------
 
-Executor::Executor(QLEnv *ql_env, Rescheduler* rescheduler, const QLMetrics* ql_metrics)
+Executor::Executor(QLEnv* ql_env, AuditLogger* audit_logger, Rescheduler* rescheduler,
+                   const QLMetrics* ql_metrics)
     : ql_env_(ql_env),
+      audit_logger_(*audit_logger),
       rescheduler_(rescheduler),
       session_(ql_env_->NewSession()),
       ql_metrics_(ql_metrics) {
@@ -166,6 +169,8 @@ void Executor::ExecuteAsync(const StatementBatch& batch, StatementExecutedCallba
     RETURN_STMT_NOT_OK(Execute(parse_tree, params));
   }
 
+  RETURN_STMT_NOT_OK(audit_logger_.EndBatchRequest());
+
   FlushAsync();
 }
 
@@ -177,7 +182,14 @@ Status Executor::Execute(const ParseTree& parse_tree, const StatementParameters&
   exec_context_ = &exec_contexts_.back();
   auto root_node = parse_tree.root().get();
   RETURN_NOT_OK(PreExecTreeNode(root_node));
-  return ProcessStatementStatus(parse_tree, ExecTreeNode(root_node));
+  RETURN_NOT_OK(audit_logger_.LogStatement(root_node, exec_context_->stmt(),
+                                           false /* is_prepare */));
+  Status s = ExecTreeNode(root_node);
+  if (!s.ok()) {
+    RETURN_NOT_OK(audit_logger_.LogStatementError(root_node, exec_context_->stmt(), s,
+                                                  false /* error_is_formatted */));
+  }
+  return ProcessStatementStatus(parse_tree, s);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1061,6 +1073,7 @@ Result<bool> Executor::FetchMoreRows(const PTSelectStmt* tnode,
       QLPagingStatePB paging_state;
       paging_state.set_total_num_rows_read(total_row_count);
       paging_state.set_total_rows_skipped(total_rows_skipped);
+      paging_state.set_total_rows_skipped(total_rows_skipped);
       paging_state.set_table_id(tnode->table()->id());
 
       // Set the partition to resume from. Relevant for multi-partition selects, i.e. with IN
@@ -1487,6 +1500,14 @@ Status ProcessTnodeContexts(ExecContext* exec_context,
   return Status::OK();
 }
 
+bool NeedsFlush(const client::YBSessionPtr& session) {
+  // We need to flush session even if there are no buffered operations, but there are pending
+  // errors, since some errors are only checked during Session flush and inside flush callback.
+  // And buffered operations could be removed asynchronously after adding and replaced with pending
+  // errors as a result of asynchronous tablet lookup failures for these operations.
+  return session->CountBufferedOperations() + session->CountPendingErrors() > 0;
+}
+
 } // namespace
 
 void Executor::FlushAsync() {
@@ -1504,13 +1525,13 @@ void Executor::FlushAsync() {
   write_batch_.Clear();
   std::vector<std::pair<YBSessionPtr, ExecContext*>> flush_sessions;
   std::vector<ExecContext*> commit_contexts;
-  if (session_->CountBufferedOperations() > 0) {
+  if (NeedsFlush(session_)) {
     flush_sessions.push_back({session_, nullptr});
   }
   for (ExecContext& exec_context : exec_contexts_) {
     if (exec_context.HasTransaction()) {
       auto transactional_session = exec_context.transactional_session();
-      if (transactional_session->CountBufferedOperations() > 0) {
+      if (NeedsFlush(transactional_session)) {
         // In case or retry we should ignore values that could be written by previous attempts
         // of retried operation.
         transactional_session->SetInTxnLimit(transactional_session->read_point()->Now());
@@ -1583,9 +1604,14 @@ void Executor::FlushAsyncDone(Status s, ExecContext* exec_context) {
 
   // When any error occurs during the dispatching of YBOperation, YBSession saves the error and
   // returns IOError. When it happens, retrieves the errors and discard the IOError.
+
+  // We need temp variable here to have ownership of failed ops, so they don't get released
+  // concurrently.
+  client::CollectedErrors pending_errors;
   OpErrors op_errors;
   if (s.IsIOError()) {
-    for (const auto& error : session->GetPendingErrors()) {
+    pending_errors = session->GetAndClearPendingErrors();
+    for (const auto& error : pending_errors) {
       op_errors[static_cast<const client::YBqlOp*>(&error->failed_op())] = error->status();
     }
     s = Status::OK();
@@ -1657,7 +1683,7 @@ void Executor::ProcessAsyncResults(const bool rescheduled) {
   RETURN_STMT_NOT_OK(async_status_);
 
   // Go through each ExecContext and process async results.
-  bool has_buffered_ops = false;
+  bool need_flush = false;
   bool has_restart = false;
   const MonoTime now = (ql_metrics_ != nullptr) ? MonoTime::Now() : MonoTime();
   for (auto exec_itr = exec_contexts_.begin(); exec_itr != exec_contexts_.end(); ) {
@@ -1684,9 +1710,7 @@ void Executor::ProcessAsyncResults(const bool rescheduled) {
       YBSessionPtr session = GetSession(exec_context_);
       session->SetReadPoint(client::Restart::kTrue);
       RETURN_STMT_NOT_OK(ExecTreeNode(root));
-      if (session->CountBufferedOperations() > 0) {
-        has_buffered_ops = true;
-      }
+      need_flush |= NeedsFlush(session);
       exec_itr++;
       continue;
     }
@@ -1699,7 +1723,7 @@ void Executor::ProcessAsyncResults(const bool rescheduled) {
       const Result<bool> result = ProcessTnodeResults(&tnode_context);
       RETURN_STMT_NOT_OK(result);
       if (*result) {
-        has_buffered_ops = true;
+        need_flush = true;
       }
 
       // If this statement is restarted, stop traversing the rest of the statement tnodes.
@@ -1778,7 +1802,7 @@ void Executor::ProcessAsyncResults(const bool rescheduled) {
   // Since restart could happen multiple times, it is possible that we will do it recursively,
   // when local call is enabled.
   // So to avoid stack overflow we use reschedule in this case.
-  if ((has_buffered_ops || has_restart) && !rescheduled) {
+  if ((need_flush || has_restart) && !rescheduled) {
     rescheduler_->Reschedule(&flush_async_task_.Bind(this));
   } else {
     FlushAsync();
@@ -2349,7 +2373,7 @@ void Executor::Reset() {
   exec_context_ = nullptr;
   exec_contexts_.clear();
   write_batch_.Clear();
-  session_->Abort();
+  session_->Reset();
   num_flushes_ = 0;
   result_ = nullptr;
   cb_.Reset();

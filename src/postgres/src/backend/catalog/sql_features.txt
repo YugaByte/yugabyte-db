@@ -507,6 +507,7 @@ T652	SQL-dynamic statements in SQL routines			NO
 T653	SQL-schema statements in external routines			NO	
 T654	SQL-dynamic statements in external routines			NO	
 T655	Cyclically dependent routines			YES	
+T832	SQL/JSON path language: item method			YES	
 M001	Datalinks			NO	
 M002	Datalinks via SQL/CLI			NO	
 M003	Datalinks via Embedded SQL			NO	

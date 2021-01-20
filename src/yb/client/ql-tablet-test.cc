@@ -78,6 +78,8 @@ DECLARE_uint64(sst_files_soft_limit);
 DECLARE_int32(timestamp_history_retention_interval_sec);
 DECLARE_int32(raft_heartbeat_interval_ms);
 DECLARE_int32(history_cutoff_propagation_interval_ms);
+DECLARE_int32(TEST_preparer_batch_inject_latency_ms);
+DECLARE_double(leader_failure_max_missed_heartbeat_periods);
 
 namespace yb {
 namespace client {
@@ -102,7 +104,7 @@ const int kBigSeqNo = 100500;
 
 } // namespace
 
-class QLTabletTest : public QLDmlTestBase {
+class QLTabletTest : public QLDmlTestBase<MiniCluster> {
  protected:
   void SetUp() override {
     server::SkewedClock::Register();
@@ -1237,27 +1239,32 @@ std::vector<OpId> GetLastAppliedOpIds(const std::vector<tablet::TabletPeerPtr>& 
 Result<OpId> GetAllAppliedOpId(const std::vector<tablet::TabletPeerPtr>& peers) {
   for (auto& peer : peers) {
     if (peer->LeaderStatus() == consensus::LeaderStatus::LEADER_AND_READY) {
-      return peer->raft_consensus()->TEST_GetAllAppliedOpId();
+      return peer->raft_consensus()->GetAllAppliedOpId();
     }
   }
   return STATUS(NotFound, "No leader found");
 }
 
-Status WaitForAppliedOpIdsStabilized(
+CHECKED_STATUS WaitForAppliedOpIdsStabilized(
     const std::vector<tablet::TabletPeerPtr>& peers, const MonoDelta& timeout) {
   std::vector<OpId> prev_last_applied_op_ids;
   return WaitFor(
       [&]() {
         std::vector<OpId> last_applied_op_ids = GetLastAppliedOpIds(peers);
-        return last_applied_op_ids == prev_last_applied_op_ids;
+        LOG(INFO) << "last_applied_op_ids: " << AsString(last_applied_op_ids);
+        if (last_applied_op_ids == prev_last_applied_op_ids) {
+          return true;
+        }
+        prev_last_applied_op_ids = last_applied_op_ids;
+        return false;
       },
-      timeout, "Waiting for applied op IDs to stabilize", 500ms * kTimeMultiplier, 1);
+      timeout, "Waiting for applied op IDs to stabilize", 2000ms * kTimeMultiplier, 1);
 }
 
 } // namespace
 
 TEST_F(QLTabletTest, LastAppliedOpIdTracking) {
-  constexpr auto kAppliesTimeout = 5s * kTimeMultiplier;
+  constexpr auto kAppliesTimeout = 10s * kTimeMultiplier;
 
   TableHandle table;
   CreateTable(kTable1Name, &table, /* num_tablets =*/1);
@@ -1273,9 +1280,11 @@ TEST_F(QLTabletTest, LastAppliedOpIdTracking) {
 
   auto peers = ListTabletPeers(cluster_.get(), ListPeersFilter::kAll);
 
-  WaitForAppliedOpIdsStabilized(peers, kAppliesTimeout);
+  ASSERT_OK(WaitForAppliedOpIdsStabilized(peers, kAppliesTimeout));
   auto last_applied_op_ids = GetLastAppliedOpIds(peers);
+  LOG(INFO) << "last_applied_op_ids: " << AsString(last_applied_op_ids);
   auto all_applied_op_id = ASSERT_RESULT(GetAllAppliedOpId(peers));
+  LOG(INFO) << "all_applied_op_id: " << AsString(all_applied_op_id);
   for (const auto& last_applied_op_id : last_applied_op_ids) {
     ASSERT_EQ(last_applied_op_id, all_applied_op_id);
   }
@@ -1291,13 +1300,13 @@ TEST_F(QLTabletTest, LastAppliedOpIdTracking) {
   }
   LOG(INFO) << "Writing completed";
 
-  WaitForAppliedOpIdsStabilized(peers, kAppliesTimeout);
+  ASSERT_OK(WaitForAppliedOpIdsStabilized(peers, kAppliesTimeout));
   auto new_all_applied_op_id = ASSERT_RESULT(GetAllAppliedOpId(peers));
   // We expect turned off TS to lag behind and not let all applied OP ids to advance.
   // In case TS-0 was leader, all_applied_op_id will be 0 on a new leader until it hears from TS-0.
   ASSERT_TRUE(new_all_applied_op_id == all_applied_op_id || new_all_applied_op_id.empty());
 
-  // Remember max applied op ID.
+  // Save max applied op ID.
   last_applied_op_ids = GetLastAppliedOpIds(peers);
   auto max_applied_op_id = OpId::Min();
   for (const auto& last_applied_op_id : last_applied_op_ids) {
@@ -1318,6 +1327,77 @@ TEST_F(QLTabletTest, LastAppliedOpIdTracking) {
   for (const auto& last_applied_op_id : last_applied_op_ids) {
     ASSERT_EQ(last_applied_op_id, max_applied_op_id);
   }
+}
+
+TEST_F(QLTabletTest, SlowPrepare) {
+  FLAGS_TEST_preparer_batch_inject_latency_ms = 100;
+
+  const int kNumTablets = 1;
+
+  auto session = client_->NewSession();
+  session->SetTimeout(60s);
+
+  TestWorkload workload(cluster_.get());
+  workload.set_table_name(kTable1Name);
+  workload.set_write_timeout_millis(30000 * kTimeMultiplier);
+  workload.set_num_tablets(kNumTablets);
+  workload.set_num_write_threads(2);
+  workload.set_write_batch_size(1);
+  workload.Setup();
+  workload.Start();
+
+  std::this_thread::sleep_for(2s);
+  StepDownAllTablets(cluster_.get());
+
+  workload.StopAndJoin();
+}
+
+TEST_F(QLTabletTest, ElectUnsynchronizedFollower) {
+  TableHandle table;
+  CreateTable(kTable1Name, &table, 1);
+
+  auto unsynchronized_follower = cluster_->mini_tablet_server(0)->server()->permanent_uuid();
+  LOG(INFO) << "Unsynchronized follower: " << unsynchronized_follower;
+  cluster_->mini_tablet_server(0)->Shutdown();
+
+  auto session = CreateSession();
+  SetValue(session, 1, -1, table);
+
+  int leader_idx = -1;
+  for (int i = 1; i != cluster_->num_tablet_servers(); ++i) {
+    auto* ts_manager = cluster_->mini_tablet_server(i)->server()->tablet_manager();
+    if (ts_manager->GetLeaderCount() == 1) {
+      leader_idx = i;
+      break;
+    }
+  }
+  ASSERT_GE(leader_idx, 1);
+  LOG(INFO) << "Leader: " << cluster_->mini_tablet_server(leader_idx)->server()->permanent_uuid();
+  int follower_idx = 1 ^ 2 ^ leader_idx;
+  LOG(INFO) << "Turning off follower: "
+            << cluster_->mini_tablet_server(follower_idx)->server()->permanent_uuid();
+  cluster_->mini_tablet_server(follower_idx)->Shutdown();
+  auto peers =
+      cluster_->mini_tablet_server(leader_idx)->server()->tablet_manager()->GetTabletPeers();
+  ASSERT_EQ(peers.size(), 1);
+  {
+    google::FlagSaver flag_saver;
+    consensus::LeaderStepDownRequestPB req;
+    req.set_tablet_id(peers.front()->tablet_id());
+    req.set_force_step_down(true);
+    req.set_new_leader_uuid(unsynchronized_follower);
+    consensus::LeaderStepDownResponsePB resp;
+
+    FLAGS_leader_failure_max_missed_heartbeat_periods = 10000;
+    ASSERT_OK(peers.front()->raft_consensus()->StepDown(&req, &resp));
+    ASSERT_FALSE(resp.has_error()) << resp.error().ShortDebugString();
+  }
+
+  ASSERT_OK(cluster_->mini_tablet_server(0)->Start());
+
+  ASSERT_NO_FATALS(SetValue(session, 2, -2, table));
+
+  ASSERT_OK(cluster_->mini_tablet_server(follower_idx)->Start());
 }
 
 } // namespace client

@@ -56,7 +56,7 @@ Where
 
 - Drop a policy.
 
-```postgresql
+```plpgsql
 yugabyte=# DROP POLICY p1 ON table_foo;
 ```
 

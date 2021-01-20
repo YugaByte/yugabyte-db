@@ -100,6 +100,9 @@ class QLRowBlock {
   // Extend row block by 1 emtpy row and return the new row.
   QLRow& Extend();
 
+  // Optimization to reserve memory for up to this many rows.
+  void Reserve(size_t size);
+
   // Add a row to the rowblock.
   CHECKED_STATUS AddRow(const QLRow& row);
 

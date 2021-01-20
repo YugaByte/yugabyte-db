@@ -1,7 +1,7 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../_style/colors.scss";
-@import "../../../_style/mixins.scss";
+@import '../../../_style/colors.scss';
+@import '../../../_style/mixins.scss';
 
 .graph-panel {
   .filter-container {
@@ -62,8 +62,8 @@
       }
 
       &.rw-state-focus > .rw-widget-container {
-        border-color: rgba($YB_ORANGE, .5);
-        box-shadow: inset 0 1px 1px rgba(0,0,0,.075), 0 0 8px rgba($YB_ORANGE, .2);
+        border-color: rgba($YB_ORANGE, 0.5);
+        box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075), 0 0 8px rgba($YB_ORANGE, 0.2);
       }
 
       &.rw-has-both {
@@ -96,7 +96,8 @@
         border-radius: 7px;
         margin-top: 5px;
 
-        ul.rw-list, .rw-selectlist {
+        ul.rw-list,
+        .rw-selectlist {
           & > li.rw-list-option {
             border-color: transparent;
             border-radius: 0;
@@ -118,7 +119,9 @@
           .rw-btn {
             color: $YB_VIOLET_TEXT;
           }
-          .rw-btn[disabled], .rw-state-disabled .rw-btn, .rw-state-readonly .rw-btn {
+          .rw-btn[disabled],
+          .rw-state-disabled .rw-btn,
+          .rw-state-readonly .rw-btn {
             color: #333;
           }
           .rw-calendar-btn-left {
@@ -135,17 +138,20 @@
             margin: 0 0 0 1.2em;
             width: 60%;
 
-            &, &:hover, &:focus {
+            &,
+            &:hover,
+            &:focus {
               background-color: transparent;
             }
           }
-          .rw-calendar-btn-left, .rw-calendar-btn-right {
+          .rw-calendar-btn-left,
+          .rw-calendar-btn-right {
             &:not(:disabled):hover {
               background-color: $YB_VIOLET_TEXT;
               color: #fff;
             }
             &:disabled {
-              color: #DCE0E0;
+              color: #dce0e0;
             }
           }
         }
@@ -153,12 +159,11 @@
           margin: 0 1em 1em 1em;
 
           thead > tr {
-
             & > th {
               font-size: 0.875em;
               padding-bottom: 10px;
               border: none;
-              color: #8B9898;
+              color: #8b9898;
             }
           }
           tbody {
@@ -167,8 +172,9 @@
                 font-size: 1.3rem;
                 border: none;
 
-                &.rw-cell-off-range, &.rw-state-disabled {
-                  color: #DCE0E0;
+                &.rw-cell-off-range,
+                &.rw-state-disabled {
+                  color: #dce0e0;
                 }
 
                 &.rw-now {
@@ -222,11 +228,12 @@
   }
 }
 
-.refresh-btn {
-  padding-left: 10px;
+.refresh-btn,
+.custom-filter-btn {
+  padding: 10px 12px 9px;
   margin-left: 10px;
-}
 
-.refresh-btn .fa {
-  margin: 0px 10px;
+  .fa {
+    margin: 0px 10px;
+  }
 }

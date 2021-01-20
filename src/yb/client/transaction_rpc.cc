@@ -46,6 +46,7 @@ class TransactionRpcBase : public rpc::Rpc, public internal::TabletRpc {
                  this,
                  this,
                  tablet,
+                 /* table =*/ nullptr,
                  mutable_retrier(),
                  trace_.get()) {
   }

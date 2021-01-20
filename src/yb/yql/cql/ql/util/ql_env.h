@@ -170,6 +170,10 @@ class QLEnv {
   virtual CHECKED_STATUS HasRolePermission(const RoleName& role_name,
                                            const PermissionType permission);
 
+  Result<std::string> RoleSaltedHash(const RoleName& role_name);
+
+  Result<bool> RoleCanLogin(const RoleName& role_name);
+
   //------------------------------------------------------------------------------------------------
   // (User-defined) Type related methods.
 

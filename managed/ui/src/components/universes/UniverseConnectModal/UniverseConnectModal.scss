@@ -1,13 +1,13 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../_style/mixins.scss";
-@import "../../../_style/colors.scss";
+@import '../../../_style/mixins.scss';
+@import '../../../_style/colors.scss';
 
 .btn-group-cnt {
   margin-right: -5px;
   margin-left: -5px;
 
-  [class^=flex] {
+  [class^='flex'] {
     padding: 0px 5px;
   }
 }
@@ -17,7 +17,7 @@
 
   a {
     display: block;
-   
+
     button {
       width: 100%;
     }
@@ -38,7 +38,10 @@
   border-bottom: 1px solid $YB_GRAY;
 
   button {
-    &, &:focus, &:active, &:hover {
+    &,
+    &:focus,
+    &:active,
+    &:hover {
       position: relative;
       border: none;
       background-color: none;
@@ -74,7 +77,7 @@
       @include transition(0.25s);
     }
     code:before {
-      content: "Send a request to endpoint";
+      content: 'Send a request to endpoint';
       opacity: 0.3;
     }
   }

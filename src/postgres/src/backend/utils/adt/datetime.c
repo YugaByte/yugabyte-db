@@ -1869,7 +1869,7 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 
 				/*
 				 * Was this an "ISO time" with embedded field labels? An
-				 * example is "h04m05s06" - thomas 2001-02-04
+				 * example is "h04mm05s06" - thomas 2001-02-04
 				 */
 				if (ptype != 0)
 				{
@@ -1885,6 +1885,7 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 						case DTK_DAY:
 							if (tzp == NULL)
 								return DTERR_BAD_FORMAT;
+							switch_fallthrough();
 						default:
 							break;
 					}
@@ -3148,8 +3149,7 @@ DecodeInterval(char **field, int *ftype, int nf, int range,
 				 * Otherwise, fall through to DTK_NUMBER case, which can
 				 * handle signed float numbers and signed year-month values.
 				 */
-
-				/* FALLTHROUGH */
+				switch_fallthrough();
 
 			case DTK_DATE:
 			case DTK_NUMBER:
@@ -3580,7 +3580,7 @@ DecodeISO8601Interval(char *str,
 						continue;
 					}
 					/* Else fall through to extended alternative format */
-					/* FALLTHROUGH */
+					switch_fallthrough();
 				case '-':		/* ISO 8601 4.4.3.3 Alternative Format,
 								 * Extended */
 					if (havefield)
@@ -3659,7 +3659,7 @@ DecodeISO8601Interval(char *str,
 						return 0;
 					}
 					/* Else fall through to extended alternative format */
-					/* FALLTHROUGH */
+					switch_fallthrough();
 				case ':':		/* ISO 8601 4.4.3.3 Alternative Format,
 								 * Extended */
 					if (havefield)

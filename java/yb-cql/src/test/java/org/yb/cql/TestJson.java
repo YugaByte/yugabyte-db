@@ -97,7 +97,10 @@ public class TestJson extends BaseCQLTest {
     session.execute("INSERT INTO test_json(c1, c2) values (6, 'null');");
     session.execute("INSERT INTO test_json(c1, c2) values (7, '2.0');");
     session.execute("INSERT INTO test_json(c1, c2) values (8, '{\"b\" : 1}');");
-    verifyResultSet(session.execute("SELECT * FROM test_json WHERE c1 = 1"));
+    // SELECT and verify JSONB column content.
+    verifyResultSet(session.execute("SELECT * FROM test_json WHERE c1 = 1;"));
+    // Apply JSONB operators to NULL and singular objects.
+    verifyEmptyRows(session.execute("SELECT c2->>'non_existing_value' FROM test_json;"), 8);
 
     // Invalid inserts.
     runInvalidStmt("INSERT INTO test_json(c1, c2) values (123, abc);");

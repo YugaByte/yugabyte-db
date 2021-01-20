@@ -14,6 +14,7 @@
 #ifndef YB_CONSENSUS_RETRYABLE_REQUESTS_H
 #define YB_CONSENSUS_RETRYABLE_REQUESTS_H
 
+#include "yb/common/wire_protocol.h"
 #include "yb/consensus/consensus_fwd.h"
 
 #include "yb/util/restart_safe_clock.h"
@@ -60,6 +61,8 @@ class RetryableRequests {
 
   // Returns number or running requests and number of ranges of replicated requests.
   RetryableRequestsCounts TEST_Counts();
+
+  Result<RetryableRequestId> MinRunningRequestId(const ClientId& client_id) const;
 
   void SetMetricEntity(const scoped_refptr<MetricEntity>& metric_entity);
 

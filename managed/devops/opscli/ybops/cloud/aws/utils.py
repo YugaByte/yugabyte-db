@@ -14,7 +14,7 @@ import logging
 import os
 import re
 
-from ipaddr import IPNetwork
+from ipaddress import ip_network
 from ybops.utils import get_or_create, get_and_cleanup
 from ybops.common.exceptions import YBOpsRuntimeError
 from ybops.cloud.common.utils import request_retry_decorator
@@ -165,7 +165,7 @@ class YbVpcComponents:
         c.sg_yugabyte = client.SecurityGroup(sg_id)
         c.route_table = client.RouteTable(rt_id)
         c.subnets = {az: client.Subnet(subnet_id)
-                     for az, subnet_id in az_to_subnet_ids.iteritems()}
+                     for az, subnet_id in az_to_subnet_ids.items()}
         return c
 
     @staticmethod
@@ -192,7 +192,7 @@ class YbVpcComponents:
         else:
             az_to_subnet_ids = get_zones(region)
         c.subnets = {az: client.Subnet(subnet_id)
-                     for az, subnet_id in az_to_subnet_ids.iteritems()}
+                     for az, subnet_id in az_to_subnet_ids.items()}
         return c
 
     def as_json(self):
@@ -210,10 +210,10 @@ class AwsBootstrapClient():
         self._validate_cidr_overlap()
 
     def _validate_cidr_overlap(self):
-        region_networks = [IPNetwork(cidr) for cidr in self.region_cidrs.values()]
+        region_networks = [ip_network(cidr.decode('utf-8')) for cidr in self.region_cidrs.values()]
         all_networks = region_networks
-        for i in xrange(len(all_networks)):
-            for j in xrange(i + 1, len(all_networks)):
+        for i in range(len(all_networks)):
+            for j in range(i + 1, len(all_networks)):
                 left = all_networks[i]
                 right = all_networks[j]
                 if left.overlaps(right):
@@ -227,27 +227,31 @@ class AwsBootstrapClient():
         client.bootstrap()
         return YbVpcComponents.from_pieces(
             region, client.vpc.id, client.sg_yugabyte.id, client.route_table.id,
-            {az: s.id for az, s in client.subnets.iteritems()})
+            {az: s.id for az, s in client.subnets.items()})
 
     def cross_link_regions(self, components):
         # Do the cross linking, adding CIDR entries to RTs and SGs, as well as doing vpc peerings.
-        region_and_vpc_tuples = [(r, c.vpc) for r, c in components.iteritems()]
+        region_and_vpc_tuples = [(r, c.vpc) for r, c in components.items()]
         host_vpc = None
         if self.host_vpc_id and self.host_vpc_region:
             host_vpc = get_client(self.host_vpc_region).Vpc(self.host_vpc_id)
-            region_and_vpc_tuples.append((self.host_vpc_region, host_vpc))
+            if self.host_vpc_id not in [c.vpc.id for _, c in components.items()]:
+                region_and_vpc_tuples.append((self.host_vpc_region, host_vpc))
         # Setup VPC peerings.
-        for i in xrange(len(region_and_vpc_tuples) - 1):
+        for i in range(len(region_and_vpc_tuples) - 1):
             i_region, i_vpc = region_and_vpc_tuples[i]
-            for j in xrange(i + 1, len(region_and_vpc_tuples)):
+            for j in range(i + 1, len(region_and_vpc_tuples)):
                 j_region, j_vpc = region_and_vpc_tuples[j]
-                peering = create_vpc_peering(
+                peerings = create_vpc_peering(
                     # i is the host, j is the target.
                     client=get_client(i_region), vpc=j_vpc, host_vpc=i_vpc, target_region=j_region)
-                if len(peering) != 1:
+                if len(peerings) != 1:
                     raise YBOpsRuntimeError(
-                        "Expecting one peering connection, got {}".format(peer_conn))
-                peering = peering[0]
+                        "Expecting one peering connection from {} to {}, got {}".format(
+                            i_vpc.id,
+                            j_vpc.id,
+                            len(peerings)))
+                peering = peerings[0]
                 # Add route i -> j.
                 add_route_to_rt(components[i_region].route_table, j_vpc.cidr_block,
                                 "VpcPeeringConnectionId", peering.id)
@@ -272,7 +276,7 @@ class AwsBootstrapClient():
         # TODO(bogdan): custom CIDR entries
         for cidr in self.metadata.get("custom_network_whitelisted_ip_cidrs", []):
             add_cidr_to_rules(rules, cidr)
-        for region, component in components.iteritems():
+        for region, component in components.items():
             sg = component.sg_yugabyte
             ip_perms = sg.ip_permissions
             for rule in rules:
@@ -345,7 +349,7 @@ def get_clients(regions):
 
 
 def get_available_regions(metadata):
-    return metadata["regions"].keys()
+    return list(metadata["regions"].keys())
 
 
 def get_spot_pricing(region, zone, instance_type):
@@ -698,7 +702,7 @@ def vpc_components_as_json(vpc, sgs, subnets):
     result["vpc_id"] = vpc.id
     result["security_group"] = [{"id": sg.group_id, "name": sg.group_name} for sg in sgs]
     result["zones"] = {}
-    for zone, subnet in subnets.iteritems():
+    for zone, subnet in subnets.items():
         result["zones"][zone] = subnet.id
     return result
 
@@ -718,7 +722,7 @@ def delete_vpc(region, host_vpc_id=None, host_vpc_region=None):
     sg_group_name = get_yb_sg_name(region)
     cleanup_security_group(client=client, group_name=sg_group_name, vpc=region_vpc)
     # Cleanup the subnets.
-    for zone, subnet_id in zones.iteritems():
+    for zone, subnet_id in zones.items():
         vpc_zone_tag = SUBNET_PREFIX_FORMAT.format(zone)
         if subnet_id is not None:
             client.Subnet(subnet_id).delete()
@@ -804,7 +808,6 @@ def cleanup_vpc_peering(vpc_peerings, **kwargs):
 @get_or_create(get_vpc_peerings)
 def create_vpc_peering(client, vpc, host_vpc, target_region):
     """Method would create a vpc peering between the newly created VPC and caller's VPC
-    Also makes sure, if they aren't the same, then there is no need for vpc peering.
     Args:
         client (boto client): Region specific boto client
         vpc (VPC object): Newly created VPC object
@@ -829,7 +832,7 @@ def create_vpc_peering(client, vpc, host_vpc, target_region):
 
 def get_device_names(instance_type, num_volumes):
     device_names = []
-    for i in xrange(num_volumes):
+    for i in range(num_volumes):
         device_name_format = "nvme{}n1" if is_nvme(instance_type) else "xvd{}"
         index = "{}".format(i if is_nvme(instance_type) else chr(ord('b') + i))
         device_names.append(device_name_format.format(index))
@@ -837,11 +840,11 @@ def get_device_names(instance_type, num_volumes):
 
 
 def is_next_gen(instance_type):
-    return instance_type.startswith(("c3", "c4", "c5", "m4", "r4"))
+    return instance_type.startswith(("c3.", "c4.", "c5.", "m4.", "r4."))
 
 
 def is_nvme(instance_type):
-    return instance_type.startswith("i3")
+    return instance_type.startswith(("i3.", "c5d."))
 
 
 def has_ephemerals(instance_type):
@@ -938,13 +941,14 @@ def create_instance(args):
         __create_tag("yb-server-type", args.type)
     ]
     custom_tags = args.instance_tags if args.instance_tags is not None else '{}'
-    for k, v in json.loads(custom_tags).iteritems():
+    for k, v in json.loads(custom_tags).items():
         instance_tags.append(__create_tag(k, v))
     vars["TagSpecifications"] = [{
         "ResourceType": "instance",
         "Tags": instance_tags
     }]
     # TODO: user_data > templates/cloud_init.yml.j2, still needed?
+    logging.info("[app] About to create AWS VM {}. ".format(args.search_pattern))
     instance_ids = client.create_instances(**vars)
     if len(instance_ids) != 1:
         logging.error("Invalid create_instances response: {}".format(instance_ids))
@@ -952,6 +956,7 @@ def create_instance(args):
             len(instance_ids)))
     instance = instance_ids[0]
     instance.wait_until_running()
+    logging.info("[app] AWS VM {} created.".format(args.search_pattern))
 
 
 def modify_tags(region, instance_id, tags_to_set_str, tags_to_remove_str):
@@ -971,7 +976,7 @@ def modify_tags(region, instance_id, tags_to_set_str, tags_to_remove_str):
     # Set all the tags provided.
     tags_to_set = json.loads(tags_to_set_str if tags_to_set_str else "{}")
     customer_tags = []
-    for k, v in tags_to_set.iteritems():
+    for k, v in tags_to_set.items():
         customer_tags.append({"Key": k, "Value": v})
     instance.create_tags(Tags=customer_tags)
 

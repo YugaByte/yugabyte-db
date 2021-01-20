@@ -56,6 +56,9 @@ class CDCWriteRpc : public rpc::Rpc, public client::internal::TabletRpc {
                  this,
                  this,
                  tablet,
+                 // TODO(tsplit): decide whether we need to get info about stale table partitions
+                 // here.
+                 /* table =*/ nullptr,
                  mutable_retrier(),
                  trace_.get()),
         callback_(std::move(callback)) {
@@ -156,6 +159,9 @@ class CDCReadRpc : public rpc::Rpc, public client::internal::TabletRpc {
                  this,
                  this,
                  tablet,
+                 // TODO(tsplit): decide whether we need to get info about stale table partitions
+                 // here.
+                 /* table =*/ nullptr,
                  mutable_retrier(),
                  trace_.get()),
         callback_(std::move(callback)) {
@@ -218,9 +224,10 @@ class CDCReadRpc : public rpc::Rpc, public client::internal::TabletRpc {
     cdc_proxy_ = std::make_shared<CDCServiceProxy>(
        &invoker_.client().proxy_cache(), invoker_.ProxyEndpoint());
 
+    auto self = std::static_pointer_cast<CDCReadRpc>(shared_from_this());
     InvokeAsync(cdc_proxy_.get(),
         PrepareController(),
-        std::bind(&CDCReadRpc::Finished, this, Status::OK()));
+        std::bind(&CDCReadRpc::Finished, self, Status::OK()));
   }
 
  private:

@@ -27,6 +27,7 @@ import com.datastax.driver.core.utils.UUIDs;
 import org.yb.cql.BaseCQLTest;
 import org.yb.minicluster.IOMetrics;
 import org.yb.minicluster.MiniYBCluster;
+import org.yb.minicluster.MiniYBClusterBuilder;
 import org.yb.minicluster.MiniYBDaemon;
 
 import org.apache.commons.lang3.RandomStringUtils;
@@ -54,6 +55,12 @@ import org.junit.runner.RunWith;
 
 @RunWith(value=YBTestRunner.class)
 public class TestLoadBalancingPolicy extends BaseCQLTest {
+  private static final int SYSTEM_PARTITIONS_REFRESH_SECS = 10;
+  @Override
+  protected void customizeMiniClusterBuilder(MiniYBClusterBuilder builder) {
+    super.customizeMiniClusterBuilder(builder);
+    builder.yqlSystemPartitionsVtableRefreshSecs(SYSTEM_PARTITIONS_REFRESH_SECS);
+  }
 
   // Test hash-key function in PartitionAwarePolicy to verify it is consistent with the hash
   // function used in YB (the token() function).
@@ -323,7 +330,7 @@ public class TestLoadBalancingPolicy extends BaseCQLTest {
     // Since partition metadata is refreshed asynchronously after a new table is created, let's
     // wait for a little or else the initial statements will be executed without the partition
     // metadata and will be dispatched to a random node.
-    Thread.sleep(10000);
+    Thread.sleep((long) (1.5 * SYSTEM_PARTITIONS_REFRESH_SECS * 1000));
   }
 
   // Test load-balancing policy with DMLs.

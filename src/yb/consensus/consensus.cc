@@ -75,12 +75,14 @@ void ConsensusRound::NotifyReplicationFinished(
 }
 
 Status ConsensusRound::CheckBoundTerm(int64_t current_term) const {
-  if (PREDICT_FALSE(bound_term_ != kUnboundTerm &&
-                    bound_term_ != current_term)) {
-    return STATUS(Aborted,
-      strings::Substitute(
-        "Operation submitted in term $0 cannot be replicated in term $1",
-        bound_term_, current_term));
+  if (PREDICT_FALSE(bound_term_ != current_term)) {
+    if (bound_term_ == kUnboundTerm) {
+      return STATUS_FORMAT(
+          Aborted, "Attempt to submit operation with unbound term, current term: $0", current_term);
+    }
+    return STATUS_FORMAT(Aborted,
+                         "Operation submitted in term $0 cannot be replicated in term $1",
+                         bound_term_, current_term);
   }
   return Status::OK();
 }

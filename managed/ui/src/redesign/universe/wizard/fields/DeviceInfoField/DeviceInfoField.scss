@@ -1,0 +1,38 @@
+@import '../../../../uikit/common';
+
+.device-info-field {
+  display: flex;
+
+  @include wizard-form-row();
+  @include wizard-form-text-label();
+
+  &__inputs-block {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    &--volume {
+      width: 280px;
+      margin-right: 45px;
+    }
+  }
+
+  &__label--margin-right {
+    margin-right: 20px;
+  }
+
+  &__storage-type {
+    width: 200px;
+    margin-right: 45px;
+  }
+
+  &__x-symbol:before {
+    content: '✕';
+    color: $YB_TEXT_2;
+    font-size: 12px;
+  }
+
+  &__num-input {
+    width: 120px;
+  }
+}

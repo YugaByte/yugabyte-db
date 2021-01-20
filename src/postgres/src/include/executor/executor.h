@@ -441,7 +441,9 @@ extern void ExecScanReScan(ScanState *node);
 /*
  * prototypes from functions in execTuples.c
  */
-extern void ExecInitResultTupleSlotTL(EState *estate, PlanState *planstate);
+extern void ExecInitResultTypeTL(PlanState *planstate);
+extern void ExecInitResultSlot(PlanState *planstate);
+extern void ExecInitResultTupleSlotTL(PlanState *planstate);
 extern void ExecInitScanTupleSlot(EState *estate, ScanState *scanstate, TupleDesc tupleDesc);
 extern TupleTableSlot *ExecInitExtraTupleSlot(EState *estate,
 					   TupleDesc tupleDesc);
@@ -554,7 +556,13 @@ extern void ExecCloseIndices(ResultRelInfo *resultRelInfo);
 extern List *ExecInsertIndexTuples(TupleTableSlot *slot, HeapTuple tuple,
 					  EState *estate, bool noDupErr, bool *specConflict,
 					  List *arbiterIndexes);
+extern List *ExecInsertIndexTuplesOptimized(TupleTableSlot *slot, HeapTuple tuple,
+					  EState *estate, bool noDupErr, bool *specConflict,
+					  List *arbiterIndexes, List *no_update_index_list);
 extern void ExecDeleteIndexTuples(Datum ybctid, HeapTuple tuple, EState *estate);
+extern void ExecDeleteIndexTuplesOptimized(Datum ybctid, HeapTuple tuple, EState *estate,
+					  List *no_update_index_list);
+extern bool ContainsIndexRelation(Oid indexrelid, List *no_update_index_list);
 extern bool ExecCheckIndexConstraints(TupleTableSlot *slot, EState *estate,
 						  ItemPointer conflictTid, List *arbiterIndexes);
 extern void check_exclusion_constraint(Relation heap, Relation index,

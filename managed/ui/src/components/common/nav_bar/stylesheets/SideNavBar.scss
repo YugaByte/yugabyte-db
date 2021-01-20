@@ -1,7 +1,7 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../../_style/colors.scss";
-@import "../../../../_style/mixins.scss";
+@import '../../../../_style/colors.scss';
+@import '../../../../_style/mixins.scss';
 
 .side-nav-container {
   top: 60px;
@@ -15,7 +15,7 @@
 
 /* From gentelella.css need to cleanup */
 .site_title i {
-  border: 1px solid #EAEAEA;
+  border: 1px solid #eaeaea;
   padding: 5px 6px;
   border-radius: 50%;
 }
@@ -37,12 +37,12 @@
   margin-top: 5px;
   font-size: 10px;
   min-width: inherit;
-  color: #C4CFDA;
+  color: #c4cfda;
 }
 
 .main-menu .fa {
   width: 26px;
-  opacity: .99;
+  opacity: 0.99;
   display: inline-block;
   font-family: FontAwesome;
   font-style: normal;
@@ -57,7 +57,8 @@
     position: relative;
     display: block;
 
-    & > a, & > div {
+    & > a,
+    & > div {
       cursor: pointer;
       text-align: center !important;
       font-weight: 300;
@@ -77,15 +78,15 @@
         }
       }
 
-      @media screen and ( max-height: 610px ) {
+      @media screen and (max-height: 610px) {
         span {
           display: none;
         }
       }
-    
-      @media screen and ( max-height: 460px ) {
+
+      @media screen and (max-height: 460px) {
         margin: 0 !important;
-    
+
         i {
           font-size: 18px;
           margin: 0 auto !important;
@@ -101,10 +102,12 @@
         }
       }
 
-      &, &:focus {
+      &,
+      &:focus {
         background: transparent;
 
-        i, span {
+        i,
+        span {
           transition: inherit;
         }
       }
@@ -115,7 +118,8 @@
         text-decoration: none;
         color: $YB_SIDEBAR_TEXT_HOVER;
 
-        i, span {
+        i,
+        span {
           transition: inherit;
         }
 
@@ -128,11 +132,14 @@
     & > div {
       cursor: no-drop;
 
-      &, &:hover, &:focus, &:active {
-          color: $YB_SIDEBAR_ICON;
-          background: transparent;
-          font-weight: 500 !important;
-          background: $YB_VIOLET_DARK;
+      &,
+      &:hover,
+      &:focus,
+      &:active {
+        color: $YB_SIDEBAR_ICON;
+        background: transparent;
+        font-weight: 500 !important;
+        background: $YB_VIOLET_DARK;
 
         i {
           color: $YB_SIDEBAR_ICON;
@@ -143,7 +150,8 @@
 
     &.active {
       & > a {
-        &, &:hover {
+        &,
+        &:hover {
           text-shadow: rgba(0, 0, 0, 0.25) 0 -1px 0;
           color: #fff;
           background: $YB_SIDEBAR_ACTIVE;
@@ -154,10 +162,10 @@
         }
       }
     }
-    & > a[aria-expanded=true] {
+    & > a[aria-expanded='true'] {
       background: $YB_SIDEBAR_ACTIVE;
     }
-  }   
+  }
 }
 
 .nav > li > a:focus {
@@ -179,7 +187,7 @@
     padding-left: 23px;
     color: #fff;
     text-transform: uppercase;
-    letter-spacing: .5px;
+    letter-spacing: 0.5px;
     font-weight: bold;
     font-size: 11px;
     margin-bottom: 0;
@@ -206,7 +214,7 @@
   .dropdown-menu {
     left: 75px;
     min-width: 250px;
-    bottom: calc( 100% - 2px );
+    bottom: calc(100% - 2px);
     text-align: left;
   }
 }
@@ -224,8 +232,8 @@
     top: -5px;
     position: relative;
     background-color: $YB_ORANGE;
-    
-    @media screen and ( max-height: 460px ) {
+
+    @media screen and (max-height: 460px) {
       width: 20px;
       height: 20px;
       font-size: 18px !important;
@@ -234,7 +242,7 @@
   }
 }
 
-#help-dropdown{
+#help-dropdown {
   .caret {
     display: none;
   }

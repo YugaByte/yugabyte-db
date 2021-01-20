@@ -93,6 +93,38 @@ struct ThreadPoolMetrics {
   scoped_refptr<Histogram> run_time_us_histogram;
 };
 
+
+// THREAD_POOL_METRICS_DEFINE / THREAD_POOL_METRICS_INSTANCE are helpers which define the metrics
+// required for a ThreadPoolMetrics object and instantiate said objects, respectively. Example
+// usage:
+// // At the top of the file:
+// THREAD_POOL_METRICS_DEFINE(server, thread_pool_foo, "Thread pool for Foo jobs.")
+// ...
+// // Inline:
+// ThreadPoolBuilder("foo")
+//   .set_metrics(THREAD_POOL_METRICS_INSTANCE(server_->metric_entity(), thread_pool_foo))
+//   ...
+//   .Build(...);
+#define THREAD_POOL_METRICS_DEFINE(entity, name, label) \
+    METRIC_DEFINE_histogram(entity, BOOST_PP_CAT(name, _queue_length), \
+        label " Queue Length", yb::MetricUnit::kMicroseconds, \
+        label " - queue length histogram.", \
+        10000000, 2); \
+    METRIC_DEFINE_histogram(entity, BOOST_PP_CAT(name, _queue_time_us), \
+        label " Queue Time", yb::MetricUnit::kMicroseconds, \
+        label " - queue time histogram, microseconds.", \
+        10000000, 2); \
+    METRIC_DEFINE_histogram(entity, BOOST_PP_CAT(name, _run_time_us), \
+        label " Run Time", yb::MetricUnit::kMicroseconds, \
+        label " - run time histogram, microseconds.", \
+        10000000, 2)
+
+#define THREAD_POOL_METRICS_INSTANCE(entity, name) { \
+      BOOST_PP_CAT(METRIC_, BOOST_PP_CAT(name, _run_time_us)).Instantiate(entity), \
+      BOOST_PP_CAT(METRIC_, BOOST_PP_CAT(name, _queue_time_us)).Instantiate(entity), \
+      BOOST_PP_CAT(METRIC_, BOOST_PP_CAT(name, _run_time_us)).Instantiate(entity) \
+    }
+
 // ThreadPool takes a lot of arguments. We provide sane defaults with a builder.
 //
 // name: Used for debugging output and default names of the worker threads.

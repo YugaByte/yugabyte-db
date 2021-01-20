@@ -366,4 +366,29 @@ public class NodeInstanceControllerTest extends FakeDBApplication {
     assertBadRequest(invalidStop, "Cannot STOP " + curNode.nodeName + " as it will under replicate the masters.");
     assertAuditEntry(0, customer.uuid);
   }
+
+  @Test
+  public void testStartNodeActionPassesClustersAndRootCAInTaskParams() {
+    NodeActionType nodeActionType = NodeActionType.START;
+    UUID fakeTaskUUID = UUID.randomUUID();
+    when(mockCommissioner.submit(any(TaskType.class), any(UniverseDefinitionTaskParams.class)))
+        .thenReturn(fakeTaskUUID);
+    Universe u = ModelFactory.createUniverse(nodeActionType.name(), customer.getCustomerId());
+    assertNotNull(u.getUniverseDetails().clusters);
+    u.getUniverseDetails().rootCA = UUID.randomUUID();
+
+    u = Universe.saveDetails(u.universeUUID, ApiUtils.mockUniverseUpdater());
+    customer.addUniverseUUID(u.universeUUID);
+    customer.save();
+    Result r = performNodeAction(customer.uuid, u.universeUUID, "host-n1", nodeActionType, false);
+    verify(mockCommissioner, times(1)).submit(taskType.capture(), taskParams.capture());
+    assertEquals(nodeActionType.getCommissionerTask(), taskType.getValue());
+    assertOk(r);
+    assertEquals(u.getUniverseDetails().clusters.size(), taskParams.getValue().clusters.size());
+    assertTrue(taskParams.getValue().clusters.size() > 0);
+    assertTrue(
+        u.getUniverseDetails().clusters.get(0).equals(taskParams.getValue().clusters.get(0)));
+    assertEquals(u.getUniverseDetails().rootCA, taskParams.getValue().rootCA);
+    Mockito.reset(mockCommissioner);
+  }
 }

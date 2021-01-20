@@ -21,6 +21,7 @@
 #include "yb/master/master.h"
 #include "yb/master/mini_master.h"
 
+#include "yb/util/async_util.h"
 #include "yb/util/random_util.h"
 #include "yb/util/test_util.h"
 
@@ -96,7 +97,7 @@ TEST_F(NetworkFailureTest, DisconnectMasterLeader) {
     std::deque<client::YBOperationPtr> ops;
 
     while (!stop_flag.load()) {
-      while (!futures.empty() && futures.front().wait_for(0s) == std::future_status::ready) {
+      while (!futures.empty() && IsReady(futures.front())) {
         ASSERT_OK(futures.front().get());
         ASSERT_TRUE(ops.front()->succeeded());
         futures.pop_front();

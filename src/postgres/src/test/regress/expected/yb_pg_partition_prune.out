@@ -1835,10 +1835,6 @@ begin;
 -- Don't select an actual value out of the table as the order of the Append's
 -- subnodes may not be stable.
 declare cur SCROLL CURSOR for select 1 from list_part where a > (select 1) and a < (select 4);
-ERROR:  DECLARE CURSOR not supported yet
-LINE 1: declare cur SCROLL CURSOR for select 1 from list_part where ...
-        ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
 /*
 -- move beyond the final row
 move 3 from cur;

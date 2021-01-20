@@ -24,12 +24,17 @@
 #include "yb/gutil/macros.h"
 #include "yb/tablet/preparer.h"
 #include "yb/tablet/operations/operation_driver.h"
+
+#include "yb/util/flag_tags.h"
 #include "yb/util/logging.h"
 #include "yb/util/threadpool.h"
 #include "yb/util/lockfree.h"
 
 DEFINE_int32(max_group_replicate_batch_size, 16,
              "Maximum number of operations to submit to consensus for replication in a batch.");
+
+DEFINE_test_flag(int32, preparer_batch_inject_latency_ms, 0,
+                 "Inject latency before replicating batch.");
 
 using namespace std::literals;
 using std::vector;
@@ -77,6 +82,13 @@ class PreparerImpl {
   // it was popped.
   // So it always greater than or equal to number of entries in queue.
   std::atomic<int64_t> active_tasks_{0};
+
+  // This flag is used in a sanity check to ensure that after this server becomes a follower,
+  // the earlier leader-side operations that are still in the preparer's queue should fail to get
+  // prepared due to old term. This sanity check will only be performed when an UpdateConsensus
+  // with follower-side operations is received while earlier leader-side operations still have not
+  // been processed, e.g. in an overloaded tablet server with lots of leader changes.
+  std::atomic<bool> prepare_should_fail_{false};
 
   MPSCQueue<OperationDriver> queue_;
 
@@ -139,18 +151,22 @@ Status PreparerImpl::Submit(OperationDriver* operation_driver) {
     return STATUS(IllegalState, "Tablet is shutting down");
   }
 
-  if (!operation_driver->is_leader_side()) {
-    while (active_tasks_.load(std::memory_order_acquire) != 0) {
-      YB_LOG_EVERY_N_SECS(WARNING, 1)
-          << "Waiting for active tasks to become zero: "
-          << active_tasks_.load(std::memory_order_acquire);
-      // It should be very rare case, so could do busy wait.
-      std::this_thread::sleep_for(1ms);
-    }
-    operation_driver->PrepareAndStartTask();
-  } else {
+  const bool leader_side = operation_driver->is_leader_side();
+
+  // When a leader becomes a follower, we expect the leader-side operations still in the preparer's
+  // queue to fail to be prepared because their term will be too old as we try to add them to the
+  // Raft queue.
+  prepare_should_fail_.store(!leader_side, std::memory_order_release);
+
+  if (leader_side) {
+    // Prepare leader-side operations on the "preparer thread" so we can only acquire the
+    // ReplicaState lock once and append multiple operations.
     active_tasks_.fetch_add(1, std::memory_order_release);
     queue_.Push(operation_driver);
+  } else {
+    // For follower-side operations, there would be no benefit in preparing them on the preparer
+    // thread.
+    operation_driver->PrepareAndStartTask();
   }
 
   auto expected = false;
@@ -174,7 +190,7 @@ void PreparerImpl::Run() {
     ProcessAndClearLeaderSideBatch();
     std::unique_lock<std::mutex> stop_lock(stop_mtx_);
     running_.store(false, std::memory_order_release);
-    // Check whether tasks we added while we were setting running to false.
+    // Check whether tasks were added while we were setting running to false.
     if (active_tasks_.load(std::memory_order_acquire)) {
       // Got more operations, try stay in the loop.
       bool expected = false;
@@ -307,6 +323,12 @@ void PreparerImpl::ReplicateSubBatch(
     rounds_to_replicate_.push_back((*batch_iter)->consensus_round());
   }
 
+  AtomicFlagSleepMs(&FLAGS_TEST_preparer_batch_inject_latency_ms);
+  // Have to save this value before calling replicate batch.
+  // Because the following scenario is legal:
+  // Operation successfully processed by ReplicateBatch, but ReplicateBatch did not return yet.
+  // Submit of follower side operation is called from another thread.
+  bool should_fail = prepare_should_fail_.load(std::memory_order_acquire);
   const Status s = consensus_->ReplicateBatch(&rounds_to_replicate_);
   rounds_to_replicate_.clear();
 
@@ -318,6 +340,9 @@ void PreparerImpl::ReplicateSubBatch(
     for (auto batch_iter = batch_begin; batch_iter != batch_end; ++batch_iter) {
       (*batch_iter)->ReplicationFailed(s);
     }
+  } else if (should_fail) {
+    LOG(DFATAL) << "Operations should fail, but was successfully prepared: "
+                << AsString(boost::make_iterator_range(batch_begin, batch_end));
   }
 }
 

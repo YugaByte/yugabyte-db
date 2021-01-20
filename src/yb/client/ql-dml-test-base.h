@@ -38,60 +38,70 @@ namespace client {
 
 extern const client::YBTableName kTableName;
 
-class QLDmlTestBase : public MiniClusterTestWithClient<MiniCluster> {
+template <class MiniClusterType>
+class QLDmlTestBase : public MiniClusterTestWithClient<MiniClusterType> {
  public:
+  QLDmlTestBase();
   void SetUp() override;
   void DoTearDown() override;
 
   virtual ~QLDmlTestBase() {}
 
  protected:
-  MiniClusterOptions mini_cluster_opt_ = MiniClusterOptions(1, 3);
+  void SetFlags();
+  void StartCluster();
+
+  using MiniClusterTestWithClient<MiniClusterType>::client_;
+  typename MiniClusterType::Options mini_cluster_opt_;
 };
 
 YB_STRONGLY_TYPED_BOOL(Transactional);
 YB_DEFINE_ENUM(WriteOpType, (INSERT)(UPDATE)(DELETE));
 YB_STRONGLY_TYPED_BOOL(Flush);
 
-class KeyValueTableTest : public QLDmlTestBase {
- public:
-  static void CreateTable(Transactional transactional, int num_tablets, YBClient* client,
-                          TableHandle* table);
+namespace kv_table_test {
 
-  static void CreateIndex(Transactional transactional, int indexed_column_index,
-                          bool use_mangled_names, const TableHandle& table,
-                          YBClient* client, TableHandle* index);
+constexpr const auto kKeyColumn = "key";
+constexpr const auto kValueColumn = "value";
 
-  // Insert/update a full, single row, equivalent to the statement below. Return a YB write op that
-  // has been applied.
-  // op_type == WriteOpType::INSERT: insert into t values (key, value);
-  // op_type == WriteOpType::UPDATE: update t set v=value where k=key;
-  // op_type == WriteOpType::DELETE: delete from t where k=key; (parameter "value" is unused).
-  static Result<YBqlWriteOpPtr> WriteRow(
-      TableHandle* table, const YBSessionPtr& session, int32_t key, int32_t value,
-      const WriteOpType op_type = WriteOpType::INSERT,
-      Flush flush = Flush::kTrue);
+void CreateTable(
+    Transactional transactional, int num_tablets, YBClient* client, TableHandle* table);
 
-  static Result<YBqlWriteOpPtr> DeleteRow(
-      TableHandle* table, const YBSessionPtr& session, int32_t key);
+void CreateIndex(
+    Transactional transactional, int indexed_column_index, bool use_mangled_names,
+    const TableHandle& table, YBClient* client, TableHandle* index);
 
-  static Result<YBqlWriteOpPtr> UpdateRow(
-      TableHandle* table, const YBSessionPtr& session, int32_t key, int32_t value);
+// Insert/update a full, single row, equivalent to the statement below. Return a YB write op that
+// has been applied.
+// op_type == WriteOpType::INSERT: insert into t values (key, value);
+// op_type == WriteOpType::UPDATE: update t set v=value where k=key;
+// op_type == WriteOpType::DELETE: delete from t where k=key; (parameter "value" is unused).
+Result<YBqlWriteOpPtr> WriteRow(
+    TableHandle* table, const YBSessionPtr& session, int32_t key, int32_t value,
+    const WriteOpType op_type = WriteOpType::INSERT, Flush flush = Flush::kTrue);
 
-  // Select the specified columns of a row using a primary key, equivalent to the select statement
-  // below. Return a YB read op that has been applied.
-  //   select <columns...> from t where h1 = <h1> and h2 = <h2> and r1 = <r1> and r2 = <r2>;
-  static Result<int32_t> SelectRow(
-      TableHandle* table, const YBSessionPtr& session, int32_t key,
-      const std::string& column = kValueColumn);
+Result<YBqlWriteOpPtr> DeleteRow(TableHandle* table, const YBSessionPtr& session, int32_t key);
 
-  // Selects all rows from test table, returning map key => value.
-  static Result<std::map<int32_t, int32_t>> SelectAllRows(
-      TableHandle* table, const YBSessionPtr& session);
+Result<YBqlWriteOpPtr> UpdateRow(
+    TableHandle* table, const YBSessionPtr& session, int32_t key, int32_t value);
 
-  static Result<YBqlWriteOpPtr> Increment(
-      TableHandle* table, const YBSessionPtr& session, int32_t key, int32_t delta = 1);
+// Select the specified columns of a row using a primary key, equivalent to the select statement
+// below. Return a YB read op that has been applied.
+//   select <columns...> from t where h1 = <h1> and h2 = <h2> and r1 = <r1> and r2 = <r2>;
+Result<int32_t> SelectRow(
+    TableHandle* table, const YBSessionPtr& session, int32_t key,
+    const std::string& column = kValueColumn);
 
+// Selects all rows from test table, returning map key => value.
+Result<std::map<int32_t, int32_t>> SelectAllRows(TableHandle* table, const YBSessionPtr& session);
+
+Result<YBqlWriteOpPtr> Increment(
+    TableHandle* table, const YBSessionPtr& session, int32_t key, int32_t delta = 1);
+
+} // namespace kv_table_test
+
+template <class MiniClusterType>
+class KeyValueTableTest : public QLDmlTestBase<MiniClusterType> {
  protected:
   void CreateTable(Transactional transactional);
 
@@ -103,15 +113,15 @@ class KeyValueTableTest : public QLDmlTestBase {
       const YBSessionPtr& session, int32_t key, int32_t value,
       const WriteOpType op_type = WriteOpType::INSERT,
       Flush flush = Flush::kTrue) {
-    return WriteRow(&table_, session, key, value, op_type, flush);
+    return kv_table_test::WriteRow(&table_, session, key, value, op_type, flush);
   }
 
   Result<YBqlWriteOpPtr> DeleteRow(const YBSessionPtr& session, int32_t key) {
-    return DeleteRow(&table_, session, key);
+    return kv_table_test::DeleteRow(&table_, session, key);
   }
 
   Result<YBqlWriteOpPtr> UpdateRow(const YBSessionPtr& session, int32_t key, int32_t value) {
-    return UpdateRow(&table_, session, key, value);
+    return kv_table_test::UpdateRow(&table_, session, key, value);
   }
 
   // Select the specified columns of a row using a primary key, equivalent to the select statement
@@ -119,7 +129,7 @@ class KeyValueTableTest : public QLDmlTestBase {
   //   select <columns...> from t where h1 = <h1> and h2 = <h2> and r1 = <r1> and r2 = <r2>;
   Result<int32_t> SelectRow(const YBSessionPtr& session, int32_t key,
                             const std::string& column = kValueColumn) {
-    return SelectRow(&table_, session, key, column);
+    return kv_table_test::SelectRow(&table_, session, key, column);
   }
 
   YBSessionPtr CreateSession(const YBTransactionPtr& transaction = nullptr,
@@ -127,7 +137,7 @@ class KeyValueTableTest : public QLDmlTestBase {
 
   // Selects all rows from test table, returning map key => value.
   Result<std::map<int32_t, int32_t>> SelectAllRows(const YBSessionPtr& session) {
-    return SelectAllRows(&table_, session);
+    return kv_table_test::SelectAllRows(&table_, session);
   }
 
   virtual int NumTablets();
@@ -137,12 +147,16 @@ class KeyValueTableTest : public QLDmlTestBase {
     num_tablets_ = num_tablets;
   }
 
+  using MiniClusterTestWithClient<MiniClusterType>::client_;
+
   static const std::string kKeyColumn;
   static const std::string kValueColumn;
   TableHandle table_;
   TableHandle index_;
   int num_tablets_ = CalcNumTablets(3);
 };
+
+extern template class KeyValueTableTest<MiniCluster>;
 
 CHECKED_STATUS CheckOp(YBqlOp* op);
 

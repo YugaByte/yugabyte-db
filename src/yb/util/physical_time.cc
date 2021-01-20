@@ -33,7 +33,7 @@ TAG_FLAG(disable_clock_sync_error, advanced);
 TAG_FLAG(max_clock_sync_error_usec, advanced);
 TAG_FLAG(max_clock_sync_error_usec, runtime);
 
-DEFINE_uint64(max_clock_skew_usec, 50000,
+DEFINE_uint64(max_clock_skew_usec, 500 * 1000,
               "Transaction read clock skew in usec. "
               "This is the maximum allowed time delta between servers of a single cluster.");
 

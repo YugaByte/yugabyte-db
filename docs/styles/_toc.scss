@@ -16,11 +16,10 @@ h1 {
 }
 #TableOfContents:before {
   content: 'On this page';
-  font-family: 'Rubik', sans-serif;
   margin-bottom: 7px;
   display: block;
   font-size: 20px;
-  font-weight: 500;
+  font-weight: 600;
   color: $YB_DARK_BLUE;
 }
 #TableOfContents > ul {
@@ -75,7 +74,7 @@ pre code.copy + textarea + button.copy, .copy pre code + textarea + button.copy,
   padding: 3px 8px;
   border-radius: 3px;
   margin: 12px 12px 0 0;
-  color: $YB_GRAY;
+  color: $YB_LIGHT_GRAY_2;
   background-color: transparent;
   overflow: hidden;
 

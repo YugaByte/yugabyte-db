@@ -101,7 +101,7 @@ PMSignalShmemInit(void)
 
 	if (!found)
 	{
-		MemSet(PMSignalState, 0, PMSignalShmemSize());
+		MemSet(unvolatize(PMSignalData *, PMSignalState), 0, PMSignalShmemSize());
 		PMSignalState->num_child_flags = MaxLivePostmasterChildren();
 	}
 }

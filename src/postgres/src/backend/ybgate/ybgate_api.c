@@ -51,6 +51,15 @@ YbgStatus YbgResetMemoryContext()
 	return PG_STATUS_OK;
 }
 
+YbgStatus YbgDeleteMemoryContext()
+{
+	PG_SETUP_ERROR_REPORTING();
+
+	DeleteThreadLocalCurrentMemoryContext();
+
+	return PG_STATUS_OK;
+}
+
 //-----------------------------------------------------------------------------
 // Types
 //-----------------------------------------------------------------------------
@@ -115,10 +124,10 @@ static Datum evalExpr(YbgExprContext ctx, Expr* expr, bool *is_null)
 			}
 
 			FmgrInfo *flinfo = palloc0(sizeof(FmgrInfo));
-			FunctionCallInfoData fcinfo;
+			FunctionCallInfo fcinfo = palloc0(SizeForFunctionCallInfo(args->length));
 
 			fmgr_info(funcid, flinfo);
-			InitFunctionCallInfoData(fcinfo,
+			InitFunctionCallInfoData(*fcinfo,
 			                         flinfo,
 			                         args->length,
 			                         InvalidOid,
@@ -128,19 +137,19 @@ static Datum evalExpr(YbgExprContext ctx, Expr* expr, bool *is_null)
 			foreach(lc, args)
 			{
 				Expr *arg = (Expr *) lfirst(lc);
-				fcinfo.arg[i] = evalExpr(ctx, arg, &fcinfo.argnull[i]);
+				fcinfo->args[i].value = evalExpr(ctx, arg, &fcinfo->args[i].isnull);
 				/*
 				 * Strict functions are guaranteed to return NULL if any of
 				 * their arguments are NULL.
 				 */
-				if (flinfo->fn_strict && fcinfo.argnull[i]) {
+				if (flinfo->fn_strict && fcinfo->args[i].isnull) {
 					*is_null = true;
 					return (Datum) 0;
 				}
 				i++;
 			}
-			Datum result = FunctionCallInvoke(&fcinfo);
-			*is_null = fcinfo.isnull;
+			Datum result = FunctionCallInvoke(fcinfo);
+			*is_null = fcinfo->isnull;
 			return result;
 		}
 		case T_RelabelType:
@@ -188,9 +197,9 @@ YbgStatus YbgExprContextCreate(int32_t min_attno, int32_t max_attno, YbgExprCont
 }
 
 YbgStatus YbgExprContextAddColValue(YbgExprContext expr_ctx,
-                               int32_t attno,
-                               uint64_t datum,
-                               bool is_null)
+                                    int32_t attno,
+                                    uint64_t datum,
+                                    bool is_null)
 {
 	PG_SETUP_ERROR_REPORTING();
 

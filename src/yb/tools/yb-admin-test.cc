@@ -161,10 +161,14 @@ TEST_F(AdminCliTest, TestChangeConfig) {
   FLAGS_num_tablet_servers = 3;
   FLAGS_num_replicas = 2;
 
-  vector<string> ts_flags, master_flags;
-  ts_flags.push_back("--enable_leader_failure_detection=false");
-  master_flags.push_back("--catalog_manager_wait_for_new_tablets_to_elect_leader=false");
-  master_flags.push_back("--replication_factor=2");
+  std::vector<std::string> master_flags = {
+    "--catalog_manager_wait_for_new_tablets_to_elect_leader=false"s,
+    "--replication_factor=2"s,
+    "--use_create_table_leader_hint=false"s,
+  };
+  std::vector<std::string> ts_flags = {
+    "--enable_leader_failure_detection=false"s,
+  };
   BuildAndStart(ts_flags, master_flags);
 
   vector<TServerDetails*> tservers = TServerDetailsVector(tablet_servers_);
@@ -554,6 +558,166 @@ TEST_F(AdminCliTest, TestGetClusterLoadBalancerState) {
       "-master_addresses", master_address, "get_load_balancer_state"), &output));
 
   ASSERT_NE(output.find("ENABLED"), std::string::npos);
+}
+
+TEST_F(AdminCliTest, TestModifyTablePlacementPolicy) {
+  // Start a cluster with 3 tservers, each corresponding to a different zone.
+  FLAGS_num_tablet_servers = 3;
+  FLAGS_num_replicas = 2;
+  std::vector<std::string> master_flags;
+  master_flags.push_back("--enable_load_balancing=true");
+  master_flags.push_back("--catalog_manager_wait_for_new_tablets_to_elect_leader=false");
+  std::vector<std::string> ts_flags;
+  ts_flags.push_back("--placement_cloud=c");
+  ts_flags.push_back("--placement_region=r");
+  ts_flags.push_back("--placement_zone=z${index}");
+  BuildAndStart(ts_flags, master_flags);
+
+  const std::string& master_address = ToString(cluster_->master()->bound_rpc_addr());
+  auto client = ASSERT_RESULT(YBClientBuilder()
+      .add_master_server_addr(master_address)
+      .Build());
+
+  // Modify the cluster placement policy to consist of 2 zones.
+  std::string output;
+  ASSERT_OK(Subprocess::Call(ToStringVector(GetAdminToolPath(),
+   "-master_addresses", master_address, "modify_placement_info", "c.r.z0,c.r.z1", 2, ""),
+   &output));
+
+  // Create a new table.
+  const auto extra_table = YBTableName(YQLDatabase::YQL_DATABASE_CQL,
+                                       kTableName.namespace_name(),
+                                       "extra-table");
+  // Start a workload.
+  TestWorkload workload(cluster_.get());
+  workload.set_table_name(extra_table);
+  workload.set_timeout_allowed(true);
+  workload.Setup();
+  workload.Start();
+
+  // Verify that the table has no custom placement policy set for it.
+  std::shared_ptr<client::YBTable> table;
+  ASSERT_OK(client->OpenTable(extra_table, &table));
+  ASSERT_FALSE(table->replication_info());
+
+  // Use yb-admin_cli to set a custom placement policy different from that of
+  // the cluster placement policy for the new table.
+  ASSERT_OK(Subprocess::Call(ToStringVector(GetAdminToolPath(),
+   "-master_addresses", master_address, "modify_table_placement_info",
+   kTableName.namespace_name(), "extra-table", "c.r.z0,c.r.z1,c.r.z2", 3, ""),
+   &output));
+
+  // Verify that changing the placement _uuid for a table fails if the
+  // placement_uuid does not match the cluster live placement_uuid.
+  const string& random_placement_uuid = "19dfa091-2b53-434f-b8dc-97280a5f8831";
+  ASSERT_NOK(Subprocess::Call(ToStringVector(GetAdminToolPath(),
+   "-master_addresses", master_address, "modify_table_placement_info",
+   kTableName.namespace_name(), "extra-table", "c.r.z0,c.r.z1,c.r.z2", 3, random_placement_uuid),
+   &output));
+
+  ASSERT_OK(client->OpenTable(extra_table, &table));
+  ASSERT_TRUE(table->replication_info().get().live_replicas().placement_uuid().empty());
+
+  // Fetch the placement policy for the table and verify that it matches
+  // the custom info set previously.
+  ASSERT_OK(client->OpenTable(extra_table, &table));
+  vector<bool> found_zones;
+  found_zones.assign(3, false);
+  ASSERT_EQ(table->replication_info().get().live_replicas().placement_blocks_size(), 3);
+  for (int ii = 0; ii < 3; ++ii) {
+    auto pb = table->replication_info().get().live_replicas().placement_blocks(ii).cloud_info();
+    ASSERT_EQ(pb.placement_cloud(), "c");
+    ASSERT_EQ(pb.placement_region(), "r");
+    if (pb.placement_zone() == "z0") {
+      found_zones[0] = true;
+    } else if (pb.placement_zone() == "z1") {
+      found_zones[1] = true;
+    } else {
+      ASSERT_EQ(pb.placement_zone(), "z2");
+      found_zones[2] = true;
+    }
+  }
+  for (const bool found : found_zones) {
+    ASSERT_TRUE(found);
+  }
+
+  // Perform the same test, but use the table-id instead of table name to set the
+  // custom placement policy.
+  const string& id = table->id();
+  ASSERT_OK(Subprocess::Call(ToStringVector(GetAdminToolPath(),
+   "-master_addresses", master_address, "modify_table_placement_info",
+   Format("tableid.$0", id), "c.r.z1", 1, ""),
+   &output));
+
+  // Verify that changing the placement _uuid for a table fails if the
+  // placement_uuid does not match the cluster live placement_uuid.
+  ASSERT_NOK(Subprocess::Call(ToStringVector(GetAdminToolPath(),
+   "-master_addresses", master_address, "modify_table_placement_info",
+   Format("tableid.$0", id), "c.r.z1", 1, random_placement_uuid),
+   &output));
+
+  ASSERT_OK(client->OpenTable(extra_table, &table));
+  ASSERT_TRUE(table->replication_info().get().live_replicas().placement_uuid().empty());
+
+  // Fetch the placement policy for the table and verify that it matches
+  // the custom info set previously.
+  ASSERT_OK(client->OpenTable(extra_table, &table));
+  ASSERT_EQ(table->replication_info().get().live_replicas().placement_blocks_size(), 1);
+  auto pb = table->replication_info().get().live_replicas().placement_blocks(0).cloud_info();
+  ASSERT_EQ(pb.placement_cloud(), "c");
+  ASSERT_EQ(pb.placement_region(), "r");
+  ASSERT_EQ(pb.placement_zone(), "z1");
+
+  // Stop the workload.
+  workload.StopAndJoin();
+  int rows_inserted = workload.rows_inserted();
+  LOG(INFO) << "Number of rows inserted: " << rows_inserted;
+
+  sleep(5);
+
+  // Verify that there was no data loss.
+  ClusterVerifier cluster_verifier(cluster_.get());
+  ASSERT_NO_FATALS(cluster_verifier.CheckCluster());
+  ASSERT_NO_FATALS(cluster_verifier.CheckRowCount(
+    extra_table, ClusterVerifier::EXACTLY, rows_inserted));
+}
+
+TEST_F(AdminCliTest, TestClearPlacementPolicy) {
+  // Start a cluster with 3 tservers.
+  FLAGS_num_tablet_servers = 3;
+  FLAGS_num_replicas = 2;
+  std::vector<std::string> master_flags;
+  master_flags.push_back("--enable_load_balancing=true");
+  std::vector<std::string> ts_flags;
+  ts_flags.push_back("--placement_cloud=c");
+  ts_flags.push_back("--placement_region=r");
+  ts_flags.push_back("--placement_zone=z");
+  BuildAndStart(ts_flags, master_flags);
+
+  std::string output;
+  const std::string& master_address = ToString(cluster_->master()->bound_rpc_addr());
+
+  // Create the placement config.
+  ASSERT_OK(Subprocess::Call(ToStringVector(GetAdminToolPath(),
+   "-master_addresses", master_address, "modify_placement_info", "c.r.z", 3, ""),
+   &output));
+
+  // Ensure that the universe config has placement information.
+  ASSERT_OK(Subprocess::Call(ToStringVector(GetAdminToolPath(),
+   "-master_addresses", master_address, "get_universe_config"),
+   &output));
+  ASSERT_TRUE(output.find("replicationInfo") != std::string::npos);
+
+  // Clear the placement config.
+  ASSERT_OK(Subprocess::Call(ToStringVector(GetAdminToolPath(),
+   "-master_addresses", master_address, "clear_placement_info"),
+   &output));
+
+  // Ensure that the placement config is absent.
+  ASSERT_OK(Subprocess::Call(ToStringVector(GetAdminToolPath(),
+   "-master_addresses", master_address, "get_universe_config"),
+   &output));
+  ASSERT_TRUE(output.find("replicationInfo") == std::string::npos);
 }
 
 }  // namespace tools

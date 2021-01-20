@@ -26,15 +26,18 @@ KeyType GetKeyType(const Slice& slice, StorageDbType db_type) {
     return KeyType::kValueKey;
   }
 
-  if (slice.size() > 0 && slice[0] == ValueTypeAsChar::kTransactionId) {
+  if (slice[0] == ValueTypeAsChar::kTransactionId) {
     if (slice.size() == TransactionId::StaticSize() + 1) {
       return KeyType::kTransactionMetadata;
     } else {
       return KeyType::kReverseTxnKey;
     }
-  } else {
-    return KeyType::kIntentKey;
   }
+  if (slice[0] == ValueTypeAsChar::kExternalTransactionId) {
+    return KeyType::kExternalIntents;
+  }
+
+  return KeyType::kIntentKey;
 }
 
 } // namespace docdb

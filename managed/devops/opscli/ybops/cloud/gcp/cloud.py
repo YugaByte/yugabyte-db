@@ -11,15 +11,11 @@
 import json
 import logging
 
-from ybops.common.exceptions import YBOpsRuntimeError
+from ybops.common.exceptions import YBOpsRuntimeError, get_exception_message
 from ybops.cloud.common.cloud import AbstractCloud
 from ybops.cloud.gcp.command import GcpInstanceCommand, GcpQueryCommand, GcpAccessCommand, \
     GcpNetworkCommand
-from ybops.cloud.gcp.utils import GCP_PERSISTENT, GCP_SCRATCH
-
-from ybops.utils.remote_shell import RemoteShell
-
-from utils import GoogleCloudAdmin, GcpMetadata
+from ybops.cloud.gcp.utils import GCP_PERSISTENT, GCP_SCRATCH, GoogleCloudAdmin, GcpMetadata
 
 
 class GcpCloud(AbstractCloud):
@@ -73,6 +69,10 @@ class GcpCloud(AbstractCloud):
         self.get_admin().mount_disk(args.zone, instance, body)
 
     def delete_instance(self, args):
+        host_info = self.get_host_info(args)
+        if args.node_ip is None or host_info['private_ip'] != args.node_ip:
+            logging.error("Host {} IP does not match.".format(args.search_pattern))
+            return
         self.get_admin().delete_instance(args.zone, args.search_pattern)
 
     def get_regions(self, args):
@@ -80,9 +80,10 @@ class GcpCloud(AbstractCloud):
         if args.network is None:
             return regions_we_know_of
         else:
-            user_regions = self.get_admin().network(
+            # TODO(WESLEY): CHECK ON WHY THIS WASN"T RETURNING ANYTHING
+            return list(self.get_admin().network(
                 per_region_meta=self.get_per_region_meta(args)).get_network_data(
-                    args.network)["regions"].keys()
+                    args.network)["regions"].keys())
 
     def get_zones(self, args):
         """This method returns a map of regions to zones.
@@ -105,7 +106,7 @@ class GcpCloud(AbstractCloud):
         try:
             return GoogleCloudAdmin.get_current_host_info()
         except YBOpsRuntimeError as e:
-            return {"error": e.message}
+            return {"error": get_exception_message(e)}
 
     def get_instance_types_map(self, args):
         """This method returns a dictionary mapping regions to a dictionary of zones
@@ -119,7 +120,7 @@ class GcpCloud(AbstractCloud):
             region_zones_map[r] = self.get_admin().get_zones(r)
 
         result = {}
-        for region, zones in region_zones_map.iteritems():
+        for region, zones in region_zones_map.items():
             result[region] = {}
             for zone in zones:
                 result[region][zone] = self.get_admin().get_instance_types_by_zone(zone)
@@ -165,8 +166,8 @@ class GcpCloud(AbstractCloud):
         pricing_map = self.get_pricing_map()
 
         result = {}
-        for region, zone_instances_map in region_zones_instances_map.iteritems():
-            for zone, instances in zone_instances_map.iteritems():
+        for region, zone_instances_map in region_zones_instances_map.items():
+            for zone, instances in zone_instances_map.items():
                 for instance in instances:
                     name = instance["name"]
                     if name not in result:
@@ -242,7 +243,7 @@ class GcpCloud(AbstractCloud):
             disk_name = "persistent-disk"
             first_disk = 1
         return ["disk/by-id/google-{}-{}".format(
-            disk_name, first_disk + i) for i in xrange(args.num_volumes)]
+            disk_name, first_disk + i) for i in range(args.num_volumes)]
 
     def update_disk(self, args):
         instance = self.get_host_info(args)

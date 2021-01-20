@@ -1,13 +1,13 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../../_style/colors.scss";
+@import '../../../../_style/colors.scss';
 
 .yb-resource-count {
   min-width: 70px;
   white-space: nowrap;
   position: relative;
   padding: 0;
-  
+
   .yb-resource-count-size {
     font-size: 32px;
     line-height: 30px;

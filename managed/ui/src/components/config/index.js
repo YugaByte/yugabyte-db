@@ -16,17 +16,17 @@ export { default as CreateKubernetesConfigurationContainer } from './PublicCloud
 
 export { default as OnPremConfigWizardContainer } from './OnPrem/wizard/OnPremConfigWizardContainer';
 export { default as OnPremConfigJSONContainer } from './OnPrem/json/OnPremConfigJSONContainer';
-export { default as OnPremWizard} from './OnPrem/wizard/OnPremConfigWizard';
-export { default as OnPremProviderAndAccessKey} from './OnPrem/wizard/OnPremProviderAndAccessKey';
-export { default as OnPremRegionsAndZones} from './OnPrem/wizard/OnPremRegionsAndZones';
-export { default as OnPremMachineTypes} from './OnPrem/wizard/OnPremMachineTypes';
-export { default as OnPremProviderAndAccessKeyContainer} from './OnPrem/wizard/OnPremProviderAndAccessKeyContainer';
+export { default as OnPremWizard } from './OnPrem/wizard/OnPremConfigWizard';
+export { default as OnPremProviderAndAccessKey } from './OnPrem/wizard/OnPremProviderAndAccessKey';
+export { default as OnPremRegionsAndZones } from './OnPrem/wizard/OnPremRegionsAndZones';
+export { default as OnPremMachineTypes } from './OnPrem/wizard/OnPremMachineTypes';
+export { default as OnPremProviderAndAccessKeyContainer } from './OnPrem/wizard/OnPremProviderAndAccessKeyContainer';
 export { default as OnPremMachineTypesContainer } from './OnPrem/wizard/OnPremMachineTypesContainer';
 export { default as OnPremRegionsAndZonesContainer } from './OnPrem/wizard/OnPremRegionsAndZonesContainer';
-export { default as OnPremSuccess} from './OnPrem/OnPremSuccess';
+export { default as OnPremSuccess } from './OnPrem/OnPremSuccess';
 export { default as OnPremSuccessContainer } from './OnPrem/OnPremSuccessContainer';
 
-export { default as ProviderConfiguration} from './PublicCloud/ProviderConfiguration';
+export { default as ProviderConfiguration } from './PublicCloud/ProviderConfiguration';
 export { default as ProviderConfigurationContainer } from './PublicCloud/ProviderConfigurationContainer';
 export { default as AWSProviderInitView } from './PublicCloud/views/AWSProviderInitView';
 export { default as GCPProviderInitView } from './PublicCloud/views/GCPProviderInitView';

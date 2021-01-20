@@ -49,7 +49,9 @@ void DisableTransactionTimeout();
 
 YB_STRONGLY_TYPED_BOOL(SetReadTime);
 
-class TransactionTestBase : public KeyValueTableTest {
+
+template <class MiniClusterType>
+class TransactionTestBase : public KeyValueTableTest<MiniClusterType> {
  protected:
   void SetUp() override;
 
@@ -63,7 +65,7 @@ class TransactionTestBase : public KeyValueTableTest {
       Flush flush = Flush::kTrue);
 
   void VerifyRow(int line, const YBSessionPtr& session, int32_t key, int32_t value,
-                 const std::string& column = kValueColumn);
+                 const std::string& column = KeyValueTableTest<MiniClusterType>::kValueColumn);
 
   void WriteData(const WriteOpType op_type = WriteOpType::INSERT, size_t transaction = 0);
 
@@ -78,16 +80,20 @@ class TransactionTestBase : public KeyValueTableTest {
   void VerifyRows(const YBSessionPtr& session,
                   size_t transaction = 0,
                   const WriteOpType op_type = WriteOpType::INSERT,
-                  const std::string& column = kValueColumn);
+                  const std::string& column = KeyValueTableTest<MiniClusterType>::kValueColumn);
 
-  YBqlReadOpPtr ReadRow(const YBSessionPtr& session,
-                        int32_t key,
-                        const std::string& column = kValueColumn);
+  YBqlReadOpPtr ReadRow(
+      const YBSessionPtr& session,
+      int32_t key,
+      const std::string& column = kValueColumn);
 
-  void VerifyData(size_t num_transactions = 1, const WriteOpType op_type = WriteOpType::INSERT,
-                  const std::string& column = kValueColumn);
+  void VerifyData(
+      size_t num_transactions = 1, const WriteOpType op_type = WriteOpType::INSERT,
+      const std::string& column = KeyValueTableTest<MiniClusterType>::kValueColumn);
 
-  void VerifyData(const WriteOpType op_type, const std::string& column = kValueColumn) {
+  void VerifyData(
+      const WriteOpType op_type,
+      const std::string& column = kValueColumn) {
     VerifyData(/* num_transactions= */ 1, op_type, column);
   }
 
@@ -95,13 +101,19 @@ class TransactionTestBase : public KeyValueTableTest {
 
   size_t CountRunningTransactions();
 
-  void CheckNoRunningTransactions();
+  void AssertNoRunningTransactions();
 
   bool CheckAllTabletsRunning();
 
   IsolationLevel GetIsolationLevel();
 
   void SetIsolationLevel(IsolationLevel isolation_level);
+
+  using KeyValueTableTest<MiniClusterType>::kKeyColumn;
+  using KeyValueTableTest<MiniClusterType>::kValueColumn;
+  using KeyValueTableTest<MiniClusterType>::cluster_;
+  using KeyValueTableTest<MiniClusterType>::client_;
+  using KeyValueTableTest<MiniClusterType>::table_;
 
   std::shared_ptr<server::SkewedClock> skewed_clock_{
       std::make_shared<server::SkewedClock>(WallClock())};

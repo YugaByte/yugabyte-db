@@ -112,7 +112,7 @@ void CatalogManagerBgTasks::Run() {
       const auto& ts_manager = catalog_manager_->master_->ts_manager();
       ts_manager->GetAllDescriptors(&descs);
       for (auto& ts_desc : descs) {
-        if (!ts_manager->IsTSLive(ts_desc)) {
+        if (!ts_desc->IsLive()) {
           ts_desc->ClearMetrics();
         }
       }

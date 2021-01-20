@@ -218,7 +218,8 @@ std::string TEST_RpcBindEndpoint(int index, uint16_t port);
 
 // Sets up connectivity in test for specified messenger of server with index.
 void TEST_SetupConnectivity(rpc::Messenger* messenger, int index);
-// Isolates specific messenger, i.e. breaks connectivity with all other servers.
+// Isolates specific messenger, i.e. breaks any of this messengers connections with all other
+// servers.
 void TEST_Isolate(rpc::Messenger* messenger);
 
 } // namespace server

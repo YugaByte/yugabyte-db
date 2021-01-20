@@ -1105,7 +1105,7 @@ file_acquire_sample_rows(Relation onerel, int elevel,
 	List	   *options;
 	CopyState	cstate;
 	ErrorContextCallback errcallback;
-	MemoryContext oldcontext = CurrentMemoryContext;
+	MemoryContext oldcontext = GetCurrentMemoryContext();
 	MemoryContext tupcontext;
 
 	Assert(onerel);
@@ -1128,7 +1128,7 @@ file_acquire_sample_rows(Relation onerel, int elevel,
 	 * Use per-tuple memory context to prevent leak of memory used to read
 	 * rows from the file with Copy routines.
 	 */
-	tupcontext = AllocSetContextCreate(CurrentMemoryContext,
+	tupcontext = AllocSetContextCreate(GetCurrentMemoryContext(),
 									   "file_fdw temporary context",
 									   ALLOCSET_DEFAULT_SIZES);
 

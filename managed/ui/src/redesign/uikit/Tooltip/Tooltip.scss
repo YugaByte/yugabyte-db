@@ -1,0 +1,43 @@
+@import '../common';
+
+.yb-uikit-tooltip {
+  display: inline-flex;
+  margin: 0 10px;
+  position: relative;
+
+  &__handle {
+    &:before {
+      content: '?';
+      user-select: none;
+      color: $YB_CTA;
+      background-color: $YB_PAGE_BACKGROUND;
+      box-shadow: 0 0 10px #00000029;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      font-family: $YB_FONT_FAMILY;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  }
+}
+
+// tooltip popup has standalone styles as it rendered via react portal at the bottom of the document body
+.yb-uikit-tooltip-popup {
+  position: absolute;
+  display: block;
+  opacity: 0;
+  margin-top: 6px; // margin between tooltip handler and its content
+  background-color: $YB_PAGE_BACKGROUND;
+  box-shadow: 0 0 10px #00000029;
+  border-radius: 10px;
+  padding: 20px;
+  max-width: 400px;
+  z-index: 2000;
+  font-size: 14px;
+  transition: opacity 200ms;
+}

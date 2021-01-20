@@ -794,7 +794,7 @@ class DependencyGraphBuilder:
 
             # This is mostly useful during testing. We don't want to generate the list of compile
             # commands by default because it takes a while, so only generate it on demand.
-            os.environ['CMAKE_EXPORT_COMPILE_COMMANDS'] = '1'
+            os.environ['YB_EXPORT_COMPILE_COMMANDS'] = '1'
             mkdir_p(self.conf.build_root)
 
             subprocess.check_call(

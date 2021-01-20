@@ -32,13 +32,35 @@
 # Sets COMPILER_FAMILY to 'clang' or 'gcc'
 # Sets COMPILER_VERSION to the version
 message("YB_COMPILER_TYPE env var: $ENV{YB_COMPILER_TYPE}")
+
+if("$ENV{YB_COMPILER_TYPE}" STREQUAL "")
+  message(FATAL_ERROR "YB_COMPILER_TYPE environment variable is empty or undefined")
+endif()
+
+if("${YB_COMPILER_TYPE}" STREQUAL "")
+  message(FATAL_ERROR "YB_COMPILER_TYPE CMake variable is empty or undefined")
+endif()
+
+if(NOT "$ENV{YB_COMPILER_TYPE}" STREQUAL "${YB_COMPILER_TYPE}")
+  message(FATAL_ERROR
+          "Values of the YB_COMPILER_TYPE environment variable ($ENV{YB_COMPILER_TYPE})"
+          "and the YB_COMPILER_TYPE CMake variable (${YB_COMPILER_TYPE}) do not match.")
+endif()
+
 message("CMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}")
 execute_process(COMMAND "${CMAKE_CXX_COMPILER}" -v
                 ERROR_VARIABLE COMPILER_VERSION_FULL)
 message("Compiler version information:\n${COMPILER_VERSION_FULL}")
 
+if("${COMPILER_VERSION_FULL}" MATCHES ".*clang version ([0-9]+([.][0-9]+)*)[ -].*")
+  set(COMPILER_FAMILY "clang")
+  set(COMPILER_VERSION "${CMAKE_MATCH_1}")
+elseif("${COMPILER_VERSION_FULL}" MATCHES ".*gcc [(]GCC[)] ([0-9]+([.][0-9]+)*)[ -].*")
+  # E.g. gcc (GCC) 8.3.1 20190311 (Red Hat 8.3.1-3)
+  set(COMPILER_FAMILY "gcc")
+  set(COMPILER_VERSION "${CMAKE_MATCH_1}")
 # clang on Linux and Mac OS X before 10.9
-if("${COMPILER_VERSION_FULL}" MATCHES ".*clang version.*")
+elseif("${COMPILER_VERSION_FULL}" MATCHES ".*clang version.*")
   set(COMPILER_FAMILY "clang")
   string(REGEX REPLACE ".*clang version ([0-9]+\\.[0-9]+).*" "\\1"
     COMPILER_VERSION "${COMPILER_VERSION_FULL}")
@@ -61,7 +83,7 @@ elseif("${COMPILER_VERSION_FULL}" MATCHES ".*[(]clang-[0-9.]+[)].*")
 
 # gcc
 elseif("${COMPILER_VERSION_FULL}" MATCHES ".*gcc version 8.*")
-  set(COMPILER_FAMILY "gcc8")
+  set(COMPILER_FAMILY "gcc")
   string(REGEX REPLACE ".*gcc version ([0-9\\.]+).*" "\\1"
     COMPILER_VERSION "${COMPILER_VERSION_FULL}")
 elseif("${COMPILER_VERSION_FULL}" MATCHES ".*gcc version.*")

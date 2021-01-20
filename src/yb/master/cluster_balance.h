@@ -86,6 +86,8 @@ class ClusterLoadBalancer {
 
   bool IsLoadBalancerEnabled() const;
 
+  bool CanBalanceGlobalLoad() const;
+
   CHECKED_STATUS IsIdle() const;
 
   //
@@ -95,6 +97,8 @@ class ClusterLoadBalancer {
   //
   // Indirection methods to CatalogManager that we override in the subclasses (or testing).
   //
+
+  virtual void InitializeTSDescriptors();
 
   // Get the list of all live TSDescriptors which reported their tablets.
   virtual void GetAllReportedDescriptors(TSDescriptorVector* ts_descs) const;
@@ -124,10 +128,10 @@ class ClusterLoadBalancer {
 
   // Increment the provided variables by the number of pending tasks that were found. Do not call
   // more than once for the same table because it also modifies the internal state.
-  virtual void CountPendingTasksUnlocked(const TableId& table_uuid,
-                                 int* pending_add_replica_tasks,
-                                 int* pending_remove_replica_tasks,
-                                 int* pending_stepdown_leader_tasks)
+  virtual CHECKED_STATUS CountPendingTasksUnlocked(const TableId& table_uuid,
+                                                   int* pending_add_replica_tasks,
+                                                   int* pending_remove_replica_tasks,
+                                                   int* pending_stepdown_leader_tasks)
     REQUIRES_SHARED(catalog_manager_->lock_);
 
   // Wrapper around CatalogManager::GetPendingTasks so it can be mocked by TestLoadBalancer.
@@ -154,7 +158,7 @@ class ClusterLoadBalancer {
   //
 
   // Resets the global_state_ object, and the map of per-table states.
-  virtual void ResetGlobalState();
+  virtual void ResetGlobalState(bool initialize_ts_descs = true);
 
 
   // Resets the pointer state_ to point to the correct table's state.
@@ -343,6 +347,12 @@ class ClusterLoadBalancer {
   // Summary of circular buffer of load balancer activity.
   int num_idle_runs_ = 0;
   std::atomic<bool> is_idle_ {true};
+
+  // Check if we are able to balance global load. With the current algorithm, we only allow for
+  // global load balancing once all tables are themselves balanced.
+  // This value is only set to true once is_idle_ becomes true, and this value is only set to false
+  // once we perform a non-global move.
+  bool can_balance_global_load_ = false;
 
   // Record load balancer activity for tables and tservers.
   void RecordActivity(uint32_t master_errors) REQUIRES_SHARED(catalog_manager_->lock_);

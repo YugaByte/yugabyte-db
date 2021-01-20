@@ -73,7 +73,7 @@ $ ./bin/yb-ctl --rf 3 create
 Download the YugabyteDB workload generator JAR file (`yb-sample-apps.jar`).
 
 ```sh
-$ wget https://github.com/yugabyte/yb-sample-apps/releases/download/v1.3.0/yb-sample-apps.jar?raw=true -O yb-sample-apps.jar 
+$ wget https://github.com/yugabyte/yb-sample-apps/releases/download/1.3.1/yb-sample-apps.jar?raw=true -O yb-sample-apps.jar 
 ```
 
 Run the `SqlInserts` workload against the local universe using the following command.

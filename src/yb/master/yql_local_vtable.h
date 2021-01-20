@@ -23,7 +23,9 @@ namespace master {
 // VTable implementation of system.local.
 class LocalVTable : public YQLVirtualTable {
  public:
-  explicit LocalVTable(const Master* const master_);
+  explicit LocalVTable(const TableName &table_name,
+                       const NamespaceName &namespace_name,
+                       Master * const master);
   Result<std::shared_ptr<QLRowBlock>> RetrieveData(const QLReadRequestPB& request) const override;
 
  private:

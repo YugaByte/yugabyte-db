@@ -23,6 +23,7 @@
 #include "access/nbtree.h"
 #include "access/reloptions.h"
 #include "access/spgist.h"
+#include "access/transam.h"
 #include "access/tuptoaster.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
@@ -73,7 +74,7 @@
  * currently executing.
  *
  * Fillfactor can be set because it applies only to subsequent changes made to
- * data blocks, as documented in heapio.c
+ * data blocks, as documented in hio.c
  *
  * n_distinct options can be set at ShareUpdateExclusiveLock because they
  * are only used during ANALYZE, which uses a ShareUpdateExclusiveLock,
@@ -364,10 +365,19 @@ static relopt_int intRelOpts[] =
 		{
 			"tablegroup",
 			"Tablegroup oid for this relation.",
-			RELOPT_KIND_HEAP,
+			RELOPT_KIND_HEAP | RELOPT_KIND_INDEX,
 			AccessExclusiveLock
 		},
 		-1, 0, INT_MAX
+	},
+	{
+		{
+			"table_oid",
+			"Postgres table oid for this relation.",
+			RELOPT_KIND_HEAP | RELOPT_KIND_INDEX,
+			AccessExclusiveLock
+		},
+		-1, FirstNormalObjectId, INT_MAX
 	},
 	/* list terminator */
 	{{NULL}}
@@ -467,6 +477,18 @@ static relopt_string stringRelOpts[] =
 		true,
 		validateWithCheckOption,
 		NULL
+	},
+	{
+		{
+			"replica_placement",
+			"Json formatted string with array of placement policies",
+			RELOPT_KIND_YB_TABLESPACE,
+			AccessExclusiveLock
+		},
+		0 /* default_len */,
+		true /* default_isnull */,
+		validatePlacementConfiguration,
+		NULL /* default_val */
 	},
 	/* list terminator */
 	{{NULL}}
@@ -1406,6 +1428,7 @@ default_reloptions(Datum reloptions, bool validate, relopt_kind kind)
 		{"colocated", RELOPT_TYPE_BOOL,
 		offsetof(StdRdOptions, colocated)},
 		{"tablegroup", RELOPT_TYPE_INT, offsetof(StdRdOptions, tablegroup)},
+		{"table_oid", RELOPT_TYPE_INT, offsetof(StdRdOptions, table_oid)},
 	};
 
 	options = parseRelOptions(reloptions, validate, kind, &numoptions);
@@ -1600,6 +1623,36 @@ tablespace_reloptions(Datum reloptions, bool validate)
 
 	fillRelOptions((void *) tsopts, sizeof(TableSpaceOpts), options, numoptions,
 				   validate, tab, lengthof(tab));
+
+	pfree(options);
+
+	return (bytea *) tsopts;
+}
+
+/*
+ * Option parser for yugabyte tablespace reloptions
+ */
+bytea *
+yb_tablespace_reloptions(Datum reloptions, bool validate)
+{
+	relopt_value *options;
+	YBTableSpaceOpts *tsopts;
+	int     numoptions;
+	static const relopt_parse_elt yb_tab[] = {
+		{"replica_placement", RELOPT_TYPE_STRING, offsetof(YBTableSpaceOpts, placement_offset)}
+	};
+
+	options = parseRelOptions(reloptions, validate, RELOPT_KIND_YB_TABLESPACE, &numoptions);
+
+	/* if none set, we're done */
+	if (numoptions == 0) {
+		return NULL;
+	}
+
+	tsopts = allocateReloptStruct(sizeof(YBTableSpaceOpts), options, numoptions);
+
+	fillRelOptions((void *) tsopts, sizeof(YBTableSpaceOpts), options, numoptions,
+				validate, yb_tab, lengthof(yb_tab));
 
 	pfree(options);
 

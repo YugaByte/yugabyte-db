@@ -568,7 +568,10 @@ class ClusterOptions:
         self.placement_info_raw = ""
         self.placement_info = []
         self.verbose_level = 0
+        self.force = False
         self.use_cassandra_authentication = False
+        self.ysql_hba_conf_csv = None
+        self.ysql_pg_conf_csv = None
         self.node_type = DAEMON_TYPE_TSERVER
         self.is_shell_master = False
         self.is_startup_command = False
@@ -634,6 +637,10 @@ class ClusterOptions:
         self.ysql_num_shards_per_tserver = args.ysql_num_shards_per_tserver
         self.timeout_yb_admin_sec = args.timeout_yb_admin_sec
         self.timeout_processes_running_sec = args.timeout_processes_running_sec
+
+        if hasattr(args, "force"):
+            self.force = args.force
+
         if hasattr(args, "master_memory_limit_ratio"):
             self.master_memory_limit_ratio = args.master_memory_limit_ratio
         if hasattr(args, "tserver_memory_limit_ratio"):
@@ -644,6 +651,12 @@ class ClusterOptions:
 
         if hasattr(args, "use_cassandra_authentication"):
             self.use_cassandra_authentication = args.use_cassandra_authentication
+
+        if hasattr(args, "ysql_hba_conf_csv"):
+            self.ysql_hba_conf_csv = args.ysql_hba_conf_csv
+
+        if hasattr(args, "ysql_pg_conf_csv"):
+            self.ysql_pg_conf_csv = args.ysql_pg_conf_csv
 
         if hasattr(args, "ip_start"):
             self.ip_start = args.ip_start
@@ -1052,6 +1065,21 @@ class ClusterControl:
 
             subparsers[cmd_name] = self.setup_base_parser(cmd_name, help=help)
 
+        # Commands that take --force flag
+        force_commands = [
+            "destroy",
+            "remove_node",
+            "stop",
+            "stop_node",
+            "restart",
+            "wipe_restart",
+            "restart_node",
+        ]
+        for cmd in force_commands:
+            subparsers[cmd].add_argument("--force",
+                                         action='store_true',
+                                         help="%s forcefully" % cmd,)
+
         # commands that take --master
         per_daemon_commands = ["remove_node", "restart_node", "add_node", "start_node", "stop_node"]
         # commands that take node_id
@@ -1104,6 +1132,12 @@ class ClusterControl:
                                          action='store_true',
                                          help="Disable YugaByte SQL API.",
                                          default=None)
+
+            subparsers[cmd].add_argument("--ysql_hba_conf_csv",
+                                         help="Set HBA configuration for YSQL API in CSV format")
+
+            subparsers[cmd].add_argument("--ysql_pg_conf_csv",
+                                         help="Set configuration for YSQL API in CSV format")
 
             subparsers[cmd].add_argument(
                     "--ysql_port",
@@ -1332,6 +1366,12 @@ class ClusterControl:
                 "--pgsql_proxy_bind_address=" +
                 self.options.get_client_listen_host_port(daemon_id, 'ysql')
             ]
+            if (self.options.ysql_hba_conf_csv is not None):
+                command_list.append(
+                    "--ysql_hba_conf_csv='{}'".format(self.options.ysql_hba_conf_csv))
+            if (self.options.ysql_pg_conf_csv is not None):
+                command_list.append(
+                    "--ysql_pg_conf_csv='{}'".format(self.options.ysql_pg_conf_csv))
         else:
             command_list += ["--enable_ysql=false"]
         return self.customize_flags(command_list, self.options.tserver_flags)
@@ -1393,7 +1433,14 @@ class ClusterControl:
         logging.info("Stopping {} PID={}".format(name, pid))
         # Kill the process, if it exists.
         try:
-            os.kill(pid, signal.SIGTERM)
+            if self.options.force:
+                if name.startswith("Postmaster"):
+                    os.kill(pid, signal.SIGQUIT)
+                else:
+                    os.kill(pid, signal.SIGKILL)
+
+            else:
+                os.kill(pid, signal.SIGTERM)
         except OSError as e:
             if e.errno == os.errno.ESRCH:
                 logging.info("{} does not exist; nothing to stop".format(name))

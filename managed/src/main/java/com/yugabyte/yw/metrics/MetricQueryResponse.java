@@ -1,24 +1,56 @@
 // Copyright (c) YugaByte, Inc.
 package com.yugabyte.yw.metrics;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.yugabyte.yw.models.MetricConfig;
-import play.libs.Json;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+
+import com.yugabyte.yw.models.MetricConfig;
+
+import play.libs.Json;
+
+import org.apache.commons.lang3.tuple.ImmutablePair;
+
+
 public class MetricQueryResponse {
+  public static final Logger LOG = LoggerFactory.getLogger(MetricQueryResponse.class);
+
   public static class MetricsData {
     public String resultType;
     public ArrayNode result;
   }
+
   public String status;
   public MetricsData data;
   public String errorType;
   public String error;
+
+  public static class Entry {
+    public HashMap<String, String> labels;
+    public ArrayList<ImmutablePair<Double, Double>> values;
+
+    public String toString() {
+      ObjectMapper objMapper = new ObjectMapper();
+      try {
+        return objMapper.writeValueAsString(this);
+      } catch (JsonProcessingException je) {
+        LOG.error("Invalid object", je);
+        return "ResultEntry: [invalid]";
+      }
+    }
+
+  }
+
 
 
   /**
@@ -122,4 +154,52 @@ public class MetricQueryResponse {
     }
     return metricGraphDataList;
   }
+
+  /**
+   * Converts the JSON result of a prometheus HTTP query call to
+   * the MetricQueryResponse.Entry format.
+   */
+  public ArrayList<MetricQueryResponse.Entry> getValues() {
+    if (this.data == null || this.data.result == null) {
+      return null;
+    }
+    ArrayList<MetricQueryResponse.Entry> result = new ArrayList<>();
+    ObjectMapper objMapper = new ObjectMapper();
+    for (final JsonNode entryNode : this.data.result) {
+      try {
+        final JsonNode metricNode = entryNode.get("metric");
+        final JsonNode valueNode = entryNode.get("value");
+        final JsonNode valuesNode = entryNode.get("values");
+        if (metricNode == null || (valueNode == null && valuesNode == null)) {
+          LOG.trace("Skipping json node while parsing prom response: {}", entryNode);
+          continue;
+        }
+        MetricQueryResponse.Entry entry = new MetricQueryResponse.Entry();
+        entry.labels = objMapper.convertValue(metricNode, HashMap.class);
+        entry.values = new ArrayList<>();
+        if (valueNode != null) {
+          entry.values.add(new ImmutablePair<>(
+            new Double(valueNode.get(0).asText()), // timestamp
+            new Double(valueNode.get(1).asText()) // value
+          ));
+        } else if (valuesNode != null) {
+          entry.values = new ArrayList<>();
+          Iterator<JsonNode> elements = valuesNode.elements();
+          while (elements.hasNext()) {
+            final JsonNode eachValueNode = elements.next();
+            entry.values.add(new ImmutablePair<>(
+              new Double(eachValueNode.get(0).asText()), // timestamp
+              new Double(eachValueNode.get(1).asText()) // value
+            ));
+          }
+        }
+        result.add(entry);
+      } catch (Exception e) {
+        LOG.debug("Skipping json node while parsing prometheus response: {}", entryNode, e);
+      }
+    }
+    return result;
+  }
+
+
 }

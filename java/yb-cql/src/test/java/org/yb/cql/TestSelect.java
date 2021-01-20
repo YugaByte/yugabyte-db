@@ -26,6 +26,7 @@ import org.junit.Test;
 import org.yb.minicluster.IOMetrics;
 import org.yb.minicluster.Metrics;
 import org.yb.minicluster.MiniYBCluster;
+import org.yb.minicluster.MiniYBClusterBuilder;
 import org.yb.minicluster.MiniYBDaemon;
 import org.yb.minicluster.RocksDBMetrics;
 
@@ -45,6 +46,13 @@ import org.junit.runner.RunWith;
 
 @RunWith(value=YBTestRunner.class)
 public class TestSelect extends BaseCQLTest {
+  @Override
+  protected void customizeMiniClusterBuilder(MiniYBClusterBuilder builder) {
+    super.customizeMiniClusterBuilder(builder);
+    // Generate system.partitions table on query.
+    builder.yqlSystemPartitionsVtableRefreshSecs(0);
+  }
+
   @Test
   public void testSimpleQuery() throws Exception {
     LOG.info("TEST CQL SIMPLE QUERY - Start");
@@ -492,8 +500,8 @@ public class TestSelect extends BaseCQLTest {
     session.execute("DROP TABLE test_offset");
     session.execute("CREATE TABLE test_offset (h1 int, r1 int, c1 int, PRIMARY KEY(h1, r1))");
 
-    int totalShards = MiniYBCluster.DEFAULT_NUM_SHARDS_PER_TSERVER * MiniYBCluster
-        .DEFAULT_NUM_TSERVERS;
+    int totalShards = miniCluster.getClusterParameters().numShardsPerTServer *
+        miniCluster.getClusterParameters().numTservers;
     for (int i = 0; i < totalShards; i++) {
       // 1 row per tablet (roughly).
       session.execute(String.format("INSERT INTO test_offset (h1, r1, c1) VALUES (%d, %d, %d)",

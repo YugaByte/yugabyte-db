@@ -1,6 +1,6 @@
 ---
 title: Snapshot and restore data for YCQL
-headerTitle: Snapshot and restore data
+headerTitle: Snapshot and restore data for YCQL
 linkTitle: Snapshot and restore data
 description: Snapshot and restore data in YugabyteDB for YCQL.
 image: /images/section_icons/manage/enterprise.png
@@ -66,13 +66,13 @@ For details on flags, see [yb-ctl reference](../../../admin/yb-ctl).
 
 After [getting started on YCQL API](../../../api/ycql/quick-start/), open `ycqlsh`:
 
-```
+```sh
 $ ./bin/ycqlsh
 ```
 
 Create a keyspace, table, index, and insert some test data.
 
-```sql
+```plpgsql
 ycqlsh> CREATE KEYSPACE ydb;
 ycqlsh> CREATE TABLE IF NOT EXISTS ydb.test_tb(user_id INT PRIMARY KEY, name TEXT) WITH transactions = {'enabled': true};
 ycqlsh> CREATE INDEX test_tb_name ON ydb.test_tb(name);
@@ -81,7 +81,7 @@ ycqlsh> INSERT INTO ydb.test_tb(user_id,name) VALUES (5,'John Doe');
 
 To verify that you have data in the database, run the following `SELECT` statement:
 
-```sql
+```plpgsql
 ycqlsh> SELECT * FROM ydb.test_tb;
 
  user_id | name
@@ -97,6 +97,9 @@ Create a snapshot using the [`yb-admin create_snapshot`](../../../admin/yb-admin
 
 ```sh
 $ ./bin/yb-admin create_snapshot ydb test_tb
+```
+
+```
 Started snapshot creation: a9442525-c7a2-42c8-8d2e-658060028f0e
 ```
 
@@ -104,6 +107,9 @@ To see when your snapshot is ready, run the [`yb-admin list_snapshots`](../../..
 
 ```sh
 ./bin/yb-admin list_snapshots
+```
+
+```
 Snapshot UUID                    	State
 a9442525-c7a2-42c8-8d2e-658060028f0e 	COMPLETE
 No snapshot restorations
@@ -115,6 +121,9 @@ Before exporting the snapshot, you need to export a metadata file that describes
 
 ```sh
 $ ./bin/yb-admin export_snapshot a9442525-c7a2-42c8-8d2e-658060028f0e test_tb.snapshot
+```
+
+```
 Exporting snapshot a9442525-c7a2-42c8-8d2e-658060028f0e (COMPLETE) to file test_tb.snapshot
 Snapshot meta data was saved into file: test_tb.snapshot
 ```
@@ -122,7 +131,7 @@ Snapshot meta data was saved into file: test_tb.snapshot
 Next, you need to copy the actual data from the table and tablets. In this case, you
 have to use a script that copies all data. The file path structure is:
 
-```
+```sh
 <yb_data_dir>/node-<node_number>/disk-<disk_number>/yb-data/tserver/data/rocksdb/table-<table_id>/[tablet-<tablet_id>.snapshots]/<snapshot_id>
 ```
 
@@ -169,6 +178,9 @@ You need to do the same for the index `test_tb_name` that is linked to the table
 
 ```sh
 $ ./bin/yb-admin list_tablets ydb test_tb_name 0
+```
+
+```
 Tablet-UUID                      	Range                                                    	Leader-IP       	Leader-UUID
 fa9feea93b0b410388e9bf383f938039 	partition_key_start: "" partition_key_end: "\177\377"    	127.0.0.1:9100  	8230396013f04c81bf86e684360cc87c
 1ac1047fb3354590968a6780fac89a67 	partition_key_start: "\177\377" partition_key_end: ""    	127.0.0.1:9100  	8230396013f04c81bf86e684360cc87c
@@ -238,6 +250,9 @@ First, import the snapshot file into YugabyteDB.
 
 ```sh
 $ ./bin/yb-admin import_snapshot test_tb.snapshot
+```
+
+```
 Read snapshot meta file test_tb.snapshot
 Importing snapshot a9442525-c7a2-42c8-8d2e-658060028f0e (COMPLETE)
 Table type: table
@@ -266,11 +281,9 @@ After importing the `metadata file`, you see the following changes:
 
 Using these IDs, you can restore the previous `.snapshot` folders to the new paths.
 
-# todo add sample!
+{{< note title="Note" >}}
 
-{{< note title="Tip" >}}
-
-For each tablet, you need to copy the snapshots folder on all replicas.
+For each tablet, you need to copy the snapshots folder on all tablet peers and in any configured read replica cluster. 
 
 {{< /note >}}
 
@@ -278,6 +291,9 @@ You can start restoring the snapshot using the [`yb-admin restore_snapshot`](../
 
 ```sh
 $ ./bin/yb-admin restore_snapshot 27c331c0-4b5c-4027-85f9-75b7545641a7
+```
+
+```
 Started restoring snapshot: 27c331c0-4b5c-4027-85f9-75b7545641a7
 Restoration id: e982fe91-3b34-462a-971b-11d9e2ac1712
 ```
@@ -300,7 +316,7 @@ e982fe91-3b34-462a-971b-11d9e2ac1712 	RESTORED
 $ ./bin/ycqlsh
 ```
 
-```sql
+```plpgsql
 ycqlsh> select * from ydb.test_tb;
 
  user_id | name
@@ -314,6 +330,9 @@ Finally, if no longer needed, you can delete the snapshot and increase disk spac
 
 ```sh
 $ ./bin/yb-admin delete_snapshot 27c331c0-4b5c-4027-85f9-75b7545641a7
+```
+
+```
 Deleted snapshot: 27c331c0-4b5c-4027-85f9-75b7545641a7
 ```
 

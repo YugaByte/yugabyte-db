@@ -43,8 +43,10 @@ const std::string kTokens = "tokens";
 
 } // namespace
 
-PeersVTable::PeersVTable(const Master* const master)
-    : YQLVirtualTable(master::kSystemPeersTableName, master, CreateSchema()) {
+PeersVTable::PeersVTable(const TableName& table_name,
+                         const NamespaceName& namespace_name,
+                         Master* const master)
+    : YQLVirtualTable(table_name, namespace_name, master, CreateSchema()) {
 }
 
 Result<std::shared_ptr<QLRowBlock>> PeersVTable::RetrieveData(

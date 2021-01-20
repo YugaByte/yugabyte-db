@@ -366,7 +366,7 @@ class SessionPool {
     queue_.push(session.get());
   }
  private:
-  client::YBClient* client_;
+  client::YBClient* client_ = nullptr;
   std::mutex mutex_;
   std::vector<std::shared_ptr<client::YBSession>> sessions_;
   boost::lockfree::queue<client::YBSession*> queue_{30};
@@ -460,7 +460,7 @@ class Block : public std::enable_shared_from_this<Block> {
     bool tablet_not_found = false;
     if (!status.ok()) {
       if (session_ != nullptr) {
-        for (const auto& error : session_->GetPendingErrors()) {
+        for (const auto& error : session_->GetAndClearPendingErrors()) {
           if (error->status().IsNotFound()) {
             tablet_not_found = true;
           }
@@ -788,7 +788,7 @@ struct RedisServiceImplData : public RedisServiceData {
   // Mutex that protects the creation of client_ and populating db_to_opened_table_.
   std::mutex yb_mutex_;
   std::atomic<bool> initialized_;
-  client::YBClient* client_;
+  client::YBClient* client_ = nullptr;
   SessionPool session_pool_;
   std::unordered_map<std::string, std::shared_ptr<client::YBTable>> db_to_opened_table_;
   std::shared_ptr<client::YBMetaDataCache> tables_cache_;
@@ -809,8 +809,7 @@ struct RedisServiceImplData : public RedisServiceData {
   MonoTime redis_cached_password_validity_expiry_;
   vector<string> redis_cached_passwords_;
 
-  RedisServer* server_;
-
+  RedisServer* server_ = nullptr;
 };
 
 class BatchContextImpl : public BatchContext {
@@ -823,6 +822,7 @@ class BatchContextImpl : public BatchContext {
         call_(call),
         consumption_(impl_data->server_->mem_tracker(), 0),
         operations_(&arena_),
+        lookups_left_(0),
         tablets_(&arena_) {
   }
 
@@ -880,7 +880,7 @@ class BatchContextImpl : public BatchContext {
     retry_lookups_.store(false, std::memory_order_release);
     for (auto& operation : operations_) {
       impl_data_->client_->LookupTabletByKey(
-          table->get(), operation.partition_key(), deadline,
+          table.get(), operation.partition_key(), deadline,
           std::bind(
               &BatchContextImpl::LookupDone, scoped_refptr<BatchContextImpl>(this), &operation,
               retries, _1));

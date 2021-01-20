@@ -34,9 +34,26 @@
 namespace yb {
 
 class HybridTime;
-struct TransactionMetadata;
 
 namespace client {
+
+struct InFlightOpsGroup {
+  using Iterator = internal::InFlightOps::const_iterator;
+
+  bool need_metadata = false;
+  const Iterator begin;
+  const Iterator end;
+
+  InFlightOpsGroup(const Iterator& group_begin, const Iterator& group_end);
+  std::string ToString() const;
+};
+
+struct InFlightOpsGroupsWithMetadata {
+  static const size_t kPreallocatedCapacity = 40;
+
+  boost::container::small_vector<InFlightOpsGroup, kPreallocatedCapacity> groups;
+  TransactionMetadata metadata;
+};
 
 typedef StatusFunctor Waiter;
 typedef StatusFunctor CommitCallback;
@@ -79,6 +96,8 @@ class YBTransaction : public std::enable_shared_from_this<YBTransaction> {
 
   void SetPriority(uint64_t priority);
 
+  uint64_t GetPriority() const;
+
   // Should be invoked to complete transaction creation.
   // Transaction is unusable before Init is called.
   CHECKED_STATUS Init(
@@ -90,13 +109,11 @@ class YBTransaction : public std::enable_shared_from_this<YBTransaction> {
   // This function is used to init metadata of Write/Read request.
   // If we don't have enough information, then the function returns false and stores
   // the waiter, which will be invoked when we obtain such information.
-  // `ops` should be ordered by tablet.
-  bool Prepare(const internal::InFlightOps& ops,
+  bool Prepare(InFlightOpsGroupsWithMetadata* ops_info,
                ForceConsistentRead force_consistent_read,
                CoarseTimePoint deadline,
                Initial initial,
-               Waiter waiter,
-               TransactionMetadata* metadata);
+               Waiter waiter);
 
   // Ask transaction to expect `count` operations in future. I.e. Prepare will be called with such
   // number of ops.
@@ -154,7 +171,7 @@ class YBTransaction : public std::enable_shared_from_this<YBTransaction> {
   // `result` should be prepared with FinishChild of child transaction.
   CHECKED_STATUS ApplyChildResult(const ChildTransactionResultPB& result);
 
-  std::shared_future<TransactionMetadata> TEST_GetMetadata() const;
+  std::shared_future<Result<TransactionMetadata>> GetMetadata() const;
 
   std::string ToString() const;
 

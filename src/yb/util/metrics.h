@@ -561,6 +561,7 @@ class MetricEntity : public RefCountedThreadSafe<MetricEntity> {
   scoped_refptr<MillisLag> FindOrCreateMillisLag(const MillisLagPrototype* proto);
   scoped_refptr<AtomicMillisLag> FindOrCreateAtomicMillisLag(const MillisLagPrototype* proto);
   scoped_refptr<Histogram> FindOrCreateHistogram(const HistogramPrototype* proto);
+  scoped_refptr<Histogram> FindOrCreateHistogram(std::unique_ptr<HistogramPrototype> proto);
 
   template<typename T>
   scoped_refptr<AtomicGauge<T>> FindOrCreateGauge(const GaugePrototype<T>* proto,
@@ -1345,7 +1346,7 @@ class MillisLag : public Metric {
 
 class AtomicMillisLag : public MillisLag {
  public:
-  explicit AtomicMillisLag(const MillisLagPrototype* proto) : MillisLag(proto) {}
+  explicit AtomicMillisLag(const MillisLagPrototype* proto);
 
   int64_t lag_ms() const override {
     return std::max(static_cast<int64_t>(0),
@@ -1445,6 +1446,8 @@ class Histogram : public Metric {
   FRIEND_TEST(MetricsTest, ResetHistogramTest);
   friend class MetricEntity;
   explicit Histogram(const HistogramPrototype* proto);
+  explicit Histogram(std::unique_ptr<HistogramPrototype> proto, uint64_t highest_trackable_value,
+        int num_significant_digits, ExportPercentiles export_percentiles);
 
   const gscoped_ptr<HdrHistogram> histogram_;
   const ExportPercentiles export_percentiles_;
@@ -1537,6 +1540,22 @@ inline scoped_refptr<Histogram> MetricEntity::FindOrCreateHistogram(
   return m;
 }
 
+inline scoped_refptr<Histogram> MetricEntity::FindOrCreateHistogram(
+    std::unique_ptr<HistogramPrototype> proto) {
+  CheckInstantiation(proto.get());
+  std::lock_guard<simple_spinlock> l(lock_);
+  auto m = down_cast<Histogram*>(FindPtrOrNull(metric_map_, proto.get()).get());
+  if (!m) {
+    uint64_t highest_trackable_value = proto->max_trackable_value();
+    int num_significant_digits = proto->num_sig_digits();
+    const ExportPercentiles export_percentile = proto->export_percentiles();
+    m = new Histogram(std::move(proto), highest_trackable_value, num_significant_digits,
+                      export_percentile);
+    InsertOrDie(&metric_map_, m->prototype(), m);
+  }
+  return m;
+}
+
 template<typename T>
 inline scoped_refptr<AtomicGauge<T> > MetricEntity::FindOrCreateGauge(
     const GaugePrototype<T>* proto,
@@ -1581,25 +1600,26 @@ inline scoped_refptr<FunctionGauge<T> > MetricEntity::FindOrCreateFunctionGauge(
   return m;
 }
 
-struct OwningMetricCtorArgs {
+class OwningMetricCtorArgs {
+ public:
   OwningMetricCtorArgs(
-      std::string entity_type_,
-      std::string name_,
-      std::string label_,
-      MetricUnit::Type unit_,
-      std::string description_,
-      MetricLevel level_,
-      uint32_t flags_ = 0)
-    : entity_type(std::move(entity_type_)), name(std::move(name_)), label(std::move(label_)),
-      unit(unit_), description(std::move(description_)), level(std::move(level_)), flags(flags_) {}
-
-  std::string entity_type;
-  std::string name;
-  std::string label;
-  MetricUnit::Type unit;
-  std::string description;
-  MetricLevel level;
-  uint32_t flags;
+      std::string entity_type,
+      std::string name,
+      std::string label,
+      MetricUnit::Type unit,
+      std::string description,
+      MetricLevel level,
+      uint32_t flags = 0)
+    : entity_type_(std::move(entity_type)), name_(std::move(name)), label_(std::move(label)),
+      unit_(unit), description_(std::move(description)), level_(std::move(level)), flags_(flags) {}
+ protected:
+  std::string entity_type_;
+  std::string name_;
+  std::string label_;
+  MetricUnit::Type unit_;
+  std::string description_;
+  MetricLevel level_;
+  uint32_t flags_;
 };
 
 template <class T>
@@ -1609,9 +1629,31 @@ class OwningGaugePrototype : public OwningMetricCtorArgs, public GaugePrototype<
   explicit OwningGaugePrototype(Args&&... args)
       : OwningMetricCtorArgs(std::forward<Args>(args)...),
         GaugePrototype<T>(MetricPrototype::CtorArgs(
-            OwningMetricCtorArgs::entity_type.c_str(), OwningMetricCtorArgs::name.c_str(),
-            OwningMetricCtorArgs::label.c_str(), unit, OwningMetricCtorArgs::description.c_str(),
-            OwningMetricCtorArgs::level, flags)) {}
+            OwningMetricCtorArgs::entity_type_.c_str(), OwningMetricCtorArgs::name_.c_str(),
+            OwningMetricCtorArgs::label_.c_str(), unit_, OwningMetricCtorArgs::description_.c_str(),
+            OwningMetricCtorArgs::level_, flags_)) {}
+};
+
+class OwningHistogramPrototype : public OwningMetricCtorArgs, public HistogramPrototype {
+ public:
+  template <class... Args>
+  explicit OwningHistogramPrototype(const std::string& entity_type,
+                                    const std::string& name,
+                                    const std::string& label,
+                                    MetricUnit::Type unit,
+                                    const std::string& description,
+                                    MetricLevel level,
+                                    uint32_t flags,
+                                    uint64_t max_trackable_value,
+                                    int num_sig_digits,
+                                    ExportPercentiles export_percentiles =
+                                        ExportPercentiles::kFalse)
+      : OwningMetricCtorArgs(entity_type, name, label, unit, description, level, flags),
+        HistogramPrototype(MetricPrototype::CtorArgs(
+            OwningMetricCtorArgs::entity_type_.c_str(), OwningMetricCtorArgs::name_.c_str(),
+            OwningMetricCtorArgs::label_.c_str(), OwningMetricCtorArgs::unit_,
+            OwningMetricCtorArgs::description_.c_str(), OwningMetricCtorArgs::level_, flags_),
+                           max_trackable_value, num_sig_digits, export_percentiles) {}
 };
 
 // Replace specific chars with underscore to pass PrometheusNameRegex().

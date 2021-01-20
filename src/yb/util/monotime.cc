@@ -137,6 +137,11 @@ double MonoDelta::ToSeconds() const {
   return d;
 }
 
+double MonoDelta::ToMinutes() const {
+  auto seconds = ToSeconds();
+  return seconds / MonoTime::kSecondsPerMinute;
+}
+
 int64_t MonoDelta::ToNanoseconds() const {
   DCHECK(Initialized());
   return nano_delta_;

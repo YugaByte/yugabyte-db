@@ -100,6 +100,7 @@ std::string InternalTypeToCQLString(InternalType internal_type) {
     case InternalType::kDateValue: return "date";
     case InternalType::kTimeValue: return "time";
     case InternalType::kFrozenValue: return "frozen";
+    case InternalType::kVirtualValue: return "virtual";
   }
   LOG (FATAL) << "Invalid datatype: " << internal_type;
   return "Undefined Type";

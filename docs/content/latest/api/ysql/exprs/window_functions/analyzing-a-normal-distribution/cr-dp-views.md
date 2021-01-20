@@ -13,20 +13,14 @@ showAsideToc: true
 ---
 Save this script as `cr_dp_views.sql`.
 ```plpgsql
--- Suppress the spurious warning that is raised
--- when the to-be-deleted view doesn't yet exist.
-set client_min_messages = warning;
-drop view if exists t4_view;
-
-create view t4_view as
+create or replace view t4_view as
 select
   k,
   dp_score as score
 from t4;
 
 -- This very simple view allows updates.
-drop view if exists results;
-create view results as
+create or replace view results as
 select method, bucket, n, min_s, max_s
 from dp_results;
 ```

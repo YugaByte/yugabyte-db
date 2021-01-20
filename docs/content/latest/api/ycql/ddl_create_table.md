@@ -106,6 +106,7 @@ Where
 - Use the `AND` operator to use multiple table properties.
 - The other YCQL table properties are allowed in the syntax but are currently ignored internally (have no effect).
 - The `TABLETS = <num>` property specifies the number of tablets to be used for the specified YCQL table. Setting this property overrides the value from the [`--yb_num_shards_per_tserver`](../../../reference/configuration/yb-tserver/#yb-num-shards-per-tserver) option. For an example, see [Create a table specifying the number of tablets](#create-a-table-specifying-the-number-of-tablets).
+- `COMPACT STORAGE` is only for syntax compatibility with Cassandra. It doesn't affect the underlying storage.
 
 ## Examples
 

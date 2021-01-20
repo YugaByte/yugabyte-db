@@ -292,6 +292,7 @@ std::ostream& operator<<(std::ostream &os, const PRIVATE_ThrottleMsg&);
 #define LOG_WITH_PREFIX(severity) LOG(severity) << LogPrefix()
 #define VLOG_WITH_PREFIX(verboselevel) VLOG(verboselevel) << LogPrefix()
 #define VLOG_WITH_FUNC(verboselevel) VLOG(verboselevel) << __func__ << ": "
+#define VLOG_WITH_PREFIX_AND_FUNC(verboselevel) VLOG_WITH_PREFIX(verboselevel) << __func__ << ": "
 #define DVLOG_WITH_PREFIX(verboselevel) DVLOG(verboselevel) << LogPrefix()
 #define LOG_IF_WITH_PREFIX(severity, condition) LOG_IF(severity, condition) << LogPrefix()
 #define VLOG_IF_WITH_PREFIX(verboselevel, condition) VLOG_IF(verboselevel, condition) << LogPrefix()

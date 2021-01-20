@@ -60,12 +60,22 @@ METRIC_DEFINE_gauge_uint64(server, hybrid_clock_error,
                            "Hybrid Clock Error",
                            yb::MetricUnit::kMicroseconds,
                            "Server clock maximum error.");
+METRIC_DEFINE_gauge_int64(server, hybrid_clock_skew,
+                           "Hybrid Clock Skew",
+                           yb::MetricUnit::kMicroseconds,
+                           "Server clock skew.");
 
 DEFINE_string(time_source, "",
               "The clock source that HybridClock should use (for tests only). "
               "Leave empty for WallClock, other values depend on added clock providers and "
               "specific for appropriate tests, that adds them.");
 TAG_FLAG(time_source, hidden);
+
+DEFINE_bool(fail_on_out_of_range_clock_skew, true,
+            "In case transactional tables are present, crash the process if clock skew greater "
+            "than the configured maximum.");
+
+DECLARE_uint64(max_clock_skew_usec);
 
 using yb::Status;
 using strings::Substitute;
@@ -77,6 +87,8 @@ namespace {
 
 std::mutex providers_mutex;
 std::unordered_map<std::string, PhysicalClockProvider> providers;
+
+std::atomic<bool> clock_skew_control_enabled{false};
 
 // options should be in format clock_name[,extra_data] and extra_data would be passed to
 // clock factory.
@@ -134,6 +146,8 @@ HybridTimeRange HybridClock::NowRange() {
 void HybridClock::NowWithError(HybridTime *hybrid_time, uint64_t *max_error_usec) {
   DCHECK_EQ(state_, kInitialized) << "Clock not initialized. Must call Init() first.";
 
+  HybridClockComponents current_components = components_.load(boost::memory_order_acquire);
+
   auto now = clock_->Now();
   if (PREDICT_FALSE(!now.ok())) {
     LOG(FATAL) << Substitute("Couldn't get the current time: Clock unsynchronized. "
@@ -141,21 +155,37 @@ void HybridClock::NowWithError(HybridTime *hybrid_time, uint64_t *max_error_usec
   }
 
   // If the current time surpasses the last update just return it
-  HybridClockComponents current_components = components_.load(boost::memory_order_acquire);
   HybridClockComponents new_components = { now->time_point, 1 };
 
   VLOG(4) << __func__ << ", new: " << new_components << ", current: " << current_components;
 
-  // Loop over the check in case of concurrent updates making the CAS fail.
-  while (now->time_point > current_components.last_usec) {
-    if (components_.compare_exchange_weak(current_components, new_components)) {
-      *hybrid_time = HybridTimeFromMicroseconds(new_components.last_usec);
-      *max_error_usec = now->max_error;
-      if (PREDICT_FALSE(VLOG_IS_ON(2))) {
-        VLOG(2) << "Current clock is higher than the last one. Resetting logical values."
-            << " Time: " << *hybrid_time << ", Error: " << *max_error_usec;
+  if (now->time_point < current_components.last_usec) {
+    auto delta_us = current_components.last_usec - now->time_point;
+    if (delta_us > FLAGS_max_clock_skew_usec) {
+      auto delta = MonoDelta::FromMicroseconds(delta_us);
+      auto max_allowed = MonoDelta::FromMicroseconds(FLAGS_max_clock_skew_usec);
+      if (ANNOTATE_UNPROTECTED_READ(FLAGS_fail_on_out_of_range_clock_skew) &&
+          clock_skew_control_enabled.load(std::memory_order_acquire)) {
+        LOG(FATAL) << "Too big clock skew is detected: " << delta << ", while max allowed is: "
+                   << max_allowed;
+      } else {
+        YB_LOG_EVERY_N_SECS(ERROR, 1)
+            << "Too big clock skew is detected: " << delta << ", while max allowed is: "
+            << max_allowed;
       }
-      return;
+    }
+  } else {
+    // Loop over the check in case of concurrent updates making the CAS fail.
+    while (now->time_point > current_components.last_usec) {
+      if (components_.compare_exchange_weak(current_components, new_components)) {
+        *hybrid_time = HybridTimeFromMicroseconds(new_components.last_usec);
+        *max_error_usec = now->max_error;
+        if (PREDICT_FALSE(VLOG_IS_ON(2))) {
+          VLOG(2) << "Current clock is higher than the last one. Resetting logical values."
+              << " Time: " << *hybrid_time << ", Error: " << *max_error_usec;
+        }
+        return;
+      }
     }
   }
 
@@ -231,6 +261,19 @@ uint64_t HybridClock::ErrorForMetrics() {
   return error;
 }
 
+int64_t HybridClock::SkewForMetrics() {
+  HybridClockComponents current_components = components_.load(boost::memory_order_acquire);
+  auto now = clock_->Now();
+  if (PREDICT_FALSE(!now.ok())) {
+    LOG(DFATAL) << Substitute("Couldn't get the current time: Clock unsynchronized. "
+        "Status: $0", now.status().ToString());
+    return 0;
+  }
+  // Making sure we don't return a negative value.
+  int64_t potential_skew = current_components.last_usec - now->time_point;
+  return std::max<int64_t>(0, potential_skew);
+}
+
 std::string HybridClockComponents::ToString() const {
   return Format("{ last_usec: $0 logical: $1 }", last_usec, logical);
 }
@@ -262,6 +305,10 @@ void HybridClock::RegisterMetrics(const scoped_refptr<MetricEntity>& metric_enti
   METRIC_hybrid_clock_error.InstantiateFunctionGauge(
       metric_entity,
       Bind(&HybridClock::ErrorForMetrics, Unretained(this)))
+    ->AutoDetachToLastValue(&metric_detacher_);
+  METRIC_hybrid_clock_skew.InstantiateFunctionGauge(
+      metric_entity,
+      Bind(&HybridClock::SkewForMetrics, Unretained(this)))
     ->AutoDetachToLastValue(&metric_detacher_);
 }
 
@@ -324,6 +371,10 @@ int HybridClock::CompareHybridClocksToDelta(const HybridTime& begin,
   } else {
     return -1;
   }
+}
+
+void HybridClock::EnableClockSkewControl() {
+  clock_skew_control_enabled.store(true, std::memory_order_release);
 }
 
 }  // namespace server

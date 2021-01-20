@@ -64,7 +64,7 @@ Use the `CREATE FUNCTION` statement to define a new function in a database.
 
 ### Define a function using the SQL language.
 
-```postgresql
+```plpgsql
 CREATE FUNCTION mul(integer, integer) RETURNS integer
     AS 'SELECT $1 * $2;'
     LANGUAGE SQL
@@ -83,7 +83,7 @@ SELECT mul(2,3), mul(10, 12);
 
 ### Define a function using the PL/pgSQL language.
 
-```postgresql
+```plpgsql
 CREATE OR REPLACE FUNCTION inc(i integer) RETURNS integer AS $$
         BEGIN
                 RAISE NOTICE 'Incrementing %', i ;

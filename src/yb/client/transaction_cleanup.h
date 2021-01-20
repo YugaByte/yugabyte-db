@@ -37,7 +37,7 @@ YB_STRONGLY_TYPED_BOOL(Sealed);
 // sealed - whether transaction was previously sealed.
 void CleanupTransaction(
     YBClient* client, const scoped_refptr<ClockBase>& clock, const TransactionId& transaction_id,
-    Sealed sealed, const std::vector<TabletId>& tablets);
+    Sealed sealed, CleanupType type, const std::vector<TabletId>& tablets);
 
 } // namespace client
 } // namespace yb

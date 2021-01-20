@@ -24,7 +24,7 @@ bool TSDescriptor::IsReadOnlyTS(const ReplicationInfoPB& replication_info) const
   if (placement_info.has_placement_uuid()) {
     return placement_info.placement_uuid() != placement_uuid();
   }
-  return placement_uuid() != "";
+  return !placement_uuid().empty();
 }
 
 bool TSDescriptor::IsAcceptingLeaderLoad(const ReplicationInfoPB& replication_info) const {

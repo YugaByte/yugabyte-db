@@ -56,7 +56,7 @@ See the semantics of each option in the [PostgreSQL docs][postgresql-docs-create
 
 Normal syntax example.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE AGGREGATE sumdouble (float8) (
               STYPE = float8,
               SFUNC = float8pl,
@@ -76,7 +76,7 @@ yugabyte=# SELECT sumdouble(f), sumdouble(i) FROM normal_table;
 
 Order by syntax example.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE AGGREGATE my_percentile_disc(float8 ORDER BY anyelement) (
              STYPE = internal,
              SFUNC = ordered_set_transition,
@@ -91,7 +91,7 @@ yugabyte=# SELECT my_percentile_disc(0.1), my_percentile_disc(0.9)
 
 Old syntax example.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE AGGREGATE oldcnt(
              SFUNC = int8inc,
              BASETYPE = 'ANY',
@@ -103,7 +103,7 @@ yugabyte=# SELECT oldcnt(*) FROM pg_aggregate;
 
 Zero-argument aggregate example.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE AGGREGATE newcnt(*) (
              SFUNC = int8inc,
              STYPE = int8,

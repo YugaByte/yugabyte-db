@@ -18,6 +18,9 @@ import com.yugabyte.yw.models.Universe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Set;
+import java.util.stream.Collectors;
+
 public class BackupUniverse extends UniverseTaskBase {
 
   public static final Logger LOG = LoggerFactory.getLogger(BackupUniverse.class);
@@ -30,6 +33,7 @@ public class BackupUniverse extends UniverseTaskBase {
   @Override
   public void run() {
     try {
+      checkUniverseVersion();
       // Create the task list sequence.
       subTaskGroupQueue = new SubTaskGroupQueue(userTaskUUID);
 
@@ -75,6 +79,13 @@ public class BackupUniverse extends UniverseTaskBase {
       createMarkUniverseUpdateSuccessTasks()
           .setSubTaskGroupType(UserTaskDetails.SubTaskGroupType.ConfigureUniverse);
 
+      Set<String> tableNames = taskParams().getTableNames()
+        .stream()
+        .map(tableName -> taskParams().keyspace + ":" + tableName)
+        .collect(Collectors.toSet());
+
+      taskInfo = String.join(",", tableNames);
+
       // Run all the tasks.
       subTaskGroupQueue.run();
 
@@ -83,6 +94,7 @@ public class BackupUniverse extends UniverseTaskBase {
       }
     } catch (Throwable t) {
       LOG.error("Error executing task {} with error='{}'.", getName(), t.getMessage(), t);
+
       // Run an unlock in case the task failed before getting to the unlock. It is okay if it
       // errors out.
       unlockUniverseForUpdate();
@@ -92,6 +104,7 @@ public class BackupUniverse extends UniverseTaskBase {
         updateBackupState(false);
       }
     }
+
     LOG.info("Finished {} task.", getName());
   }
 }

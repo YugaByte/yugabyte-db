@@ -40,6 +40,8 @@ namespace yb {
 template <class T>
 void YBMiniClusterTestBase<T>::SetUp() {
   YBTest::SetUp();
+  HybridTime::TEST_SetPrettyToString(true);
+
   FLAGS_use_priority_thread_pool_for_flushes = true;
   FLAGS_allow_preempting_compactions = true;
 

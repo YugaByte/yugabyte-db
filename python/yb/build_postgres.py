@@ -30,11 +30,33 @@ import time
 
 from subprocess import check_call
 
-from yugabyte_pycommon import init_logging, run_program, WorkDirContext, mkdir_p, quote_for_bash, \
-        is_verbose_mode
+from yugabyte_pycommon import (
+    init_logging,
+    run_program,
+    WorkDirContext,
+    mkdir_p,
+    quote_for_bash,
+    is_verbose_mode
+)
 
 from yb import common_util
-from yb.common_util import YB_SRC_ROOT, get_build_type_from_build_root, get_bool_env_var
+from yb.tool_base import YbBuildToolBase
+from yb.common_util import (
+    YB_SRC_ROOT,
+    get_build_type_from_build_root,
+    get_bool_env_var,
+    write_json_file,
+    read_json_file,
+    get_absolute_path_aliases,
+    EnvVarContext,
+)
+from yb.compile_commands import (
+    COMBINED_POSTPROCESSED_COMPILE_COMMANDS_FILE_NAME,
+    COMBINED_RAW_COMPILE_COMMANDS_FILE_NAME,
+    create_compile_commands_symlink,
+    CompileCommandProcessor,
+)
+from overrides import overrides
 
 
 ALLOW_REMOTE_COMPILATION = True
@@ -106,17 +128,9 @@ def filter_compiler_flags(compiler_flags, step, language):
     ])
 
 
-def get_path_variants(path):
-    """
-    Returns a list of different variants (just an absolute path vs. all symlinks resolved) for the
-    given path.
-    """
-    return sorted(set([os.path.abspath(path), os.path.realpath(path)]))
-
-
-class PostgresBuilder:
+class PostgresBuilder(YbBuildToolBase):
     def __init__(self):
-        self.args = None
+        super().__init__()
         self.build_root = None
         self.pg_build_root = None
         self.pg_prefix = None
@@ -149,18 +163,17 @@ class PostgresBuilder:
         else:
             self.set_env_var(name, to_append)
 
-    def parse_args(self):
-        parser = argparse.ArgumentParser(
-            description='A tool for building the PostgreSQL code subtree in YugabyteDB codebase')
-        parser.add_argument('--build_root',
-                            default=os.environ.get('BUILD_ROOT'),
-                            help='YugaByte build root directory. The PostgreSQL build/install '
-                                 'directories will be created under here.')
+    @overrides
+    def get_description(self):
+        return __doc__
+
+    @overrides
+    def add_command_line_args(self):
+        parser = self.arg_parser
         parser.add_argument('--cflags', help='C compiler flags')
         parser.add_argument('--clean',
                             action='store_true',
                             help='Clean PostgreSQL build and installation directories.')
-        parser.add_argument('--compiler_type', help='Compiler type, e.g. gcc or clang')
         parser.add_argument('--cxxflags', help='C++ compiler flags')
         parser.add_argument('--ldflags', help='Linker flags for all binaries')
         parser.add_argument('--ldflags_ex', help='Linker flags for executables')
@@ -172,24 +185,20 @@ class PostgresBuilder:
         parser.add_argument('--step',
                             choices=BUILD_STEPS,
                             help='Run a specific step of the build process')
-        parser.add_argument('--thirdparty-dir',
-                            required=True,
-                            help='Yugabyte third-party dependencies directory')
 
-        self.args = parser.parse_args()
+    @overrides
+    def validate_and_process_args(self):
         if not self.args.build_root:
             raise RuntimeError("Neither BUILD_ROOT or --build-root specified")
 
         self.build_root = os.path.abspath(self.args.build_root)
         self.build_root_realpath = os.path.realpath(self.build_root)
-        self.postgres_install_dir_include_realpath = \
-            os.path.join(self.build_root_realpath, 'postgres', 'include')
         self.build_type = get_build_type_from_build_root(self.build_root)
         self.pg_build_root = os.path.join(self.build_root, 'postgres_build')
         self.build_stamp_path = os.path.join(self.pg_build_root, 'build_stamp')
         self.pg_prefix = os.path.join(self.build_root, 'postgres')
         self.postgres_src_dir = os.path.join(YB_SRC_ROOT, 'src', 'postgres')
-        self.compiler_type = self.args.compiler_type or os.getenv('YB_COMPILER_TYPE')
+        self.compiler_type = self.args.compiler_type
         self.openssl_include_dir = self.args.openssl_include_dir
         self.openssl_lib_dir = self.args.openssl_lib_dir
 
@@ -283,12 +292,10 @@ class PostgresBuilder:
 
         # Tell gdb to pretend that we're compiling the code in the $YB_SRC_ROOT/src/postgres
         # directory.
-        build_path_variants = get_path_variants(self.pg_build_root)
-        src_path_variants = get_path_variants(self.postgres_src_dir)
         additional_c_cxx_flags += [
             '-fdebug-prefix-map=%s=%s' % (build_path, source_path)
-            for build_path in build_path_variants
-            for source_path in src_path_variants
+            for build_path in get_absolute_path_aliases(self.pg_build_root)
+            for source_path in get_absolute_path_aliases(self.postgres_src_dir)
         ]
 
         if self.compiler_type == 'gcc':
@@ -396,7 +403,11 @@ class PostgresBuilder:
                 '--prefix', self.pg_prefix,
                 '--with-extra-version=-YB-' + self.get_yb_version(),
                 '--enable-depend',
+                '--with-ldap',
                 '--with-openssl',
+                # Options are ossp (original/old implementation), bsd (BSD) and e2fs
+                # (libuuid-based for Unix/Mac).
+                '--with-uuid=e2fs',
                 '--with-libedit-preferred',
                 '--with-includes=' + self.openssl_include_dir,
                 '--with-libraries=' + self.openssl_lib_dir,
@@ -412,7 +423,10 @@ class PostgresBuilder:
 
         if self.build_type != 'release':
             configure_cmd_line += ['--enable-cassert']
-        configure_result = run_program(configure_cmd_line, error_ok=True)
+        # Unset YB_SHOW_COMPILER_COMMAND_LINE when configuring postgres to avoid unintended side
+        # effects from additional compiler output.
+        with EnvVarContext(YB_SHOW_COMPILER_COMMAND_LINE=None):
+            configure_result = run_program(configure_cmd_line, error_ok=True)
         if configure_result.failure():
             rerun_configure = False
             for line in configure_result.stderr.splitlines():
@@ -424,6 +438,14 @@ class PostgresBuilder:
 
             if not rerun_configure:
                 logging.error("Standard error from configure:\n" + configure_result.stderr)
+                config_log_path = os.path.join(self.pg_build_root, "config.log")
+                if os.path.exists(config_log_path):
+                    with open(config_log_path) as config_log_file:
+                        config_log_str = config_log_file.read()
+                    logging.info(f"Contents of {config_log_path}:")
+                    sys.stderr.write(config_log_str + "\n")
+                else:
+                    logging.warning(f"File not found: {config_log_path}")
                 raise RuntimeError("configure failed")
 
             configure_result = run_program(
@@ -516,9 +538,7 @@ class PostgresBuilder:
 
         compile_commands_files = []
 
-        work_dirs = [self.pg_build_root]
-        if self.build_type != 'compilecmds':
-            work_dirs.append(os.path.join(self.pg_build_root, 'contrib'))
+        work_dirs = [self.pg_build_root, os.path.join(self.pg_build_root, 'contrib')]
 
         for work_dir in work_dirs:
             with WorkDirContext(work_dir):
@@ -537,10 +557,14 @@ class PostgresBuilder:
                 # Actually run Make.
                 if is_verbose_mode():
                     logging.info("Running make in the %s directory", work_dir)
-                run_program(
-                    make_cmd, stdout_stderr_prefix='make', cwd=work_dir, shell=True,
-                    error_ok=True
-                ).print_output_and_raise_error_if_failed()
+
+                make_result = run_program(
+                    make_cmd, stdout_stderr_prefix='make', cwd=work_dir, shell=True, error_ok=True
+                )
+                if make_result.failure():
+                    make_result.print_output_to_stdout()
+                    raise RuntimeError("PostgreSQL compilation failed")
+
                 if self.build_type == 'compilecmds':
                     logging.info(
                             "Not running make install in the %s directory since we are only "
@@ -575,153 +599,46 @@ class PostgresBuilder:
         so that they point to the original source directory, and concatenate with the main
         compilation commands file.
         """
-        new_compile_commands = []
-        for compile_commands_path in (
-                compile_commands_files + [
-                    os.path.join(self.build_root, 'compile_commands.json')
-                ]):
-            with open(compile_commands_path) as compile_commands_file:
-                new_compile_commands += json.load(compile_commands_file)
-
-        new_compile_commands = [
-            self.postprocess_pg_compile_command(item)
-            for item in new_compile_commands
+        all_compile_commands_paths = compile_commands_files + [
+            os.path.join(self.build_root, 'compile_commands.json')
         ]
 
-        output_path = os.path.join(self.build_root, 'combined_compile_commands.json')
-        with open(output_path, 'w') as compile_commands_output_file:
-            json.dump(new_compile_commands, compile_commands_output_file, indent=2)
-        logging.info("Wrote the compilation commands file to: %s", output_path)
+        # -----------------------------------------------------------------------------------------
+        # Combine raw compilation commands in a single file.
+        # -----------------------------------------------------------------------------------------
 
-        dest_link_path = os.path.join(YB_SRC_ROOT, 'compile_commands.json')
-        if (not os.path.exists(dest_link_path) or
-                os.path.realpath(dest_link_path) != os.path.realpath(output_path)):
-            if os.path.exists(dest_link_path):
-                logging.info("Removing the old file/link at %s", dest_link_path)
-                os.remove(dest_link_path)
-            os.symlink(
-                os.path.relpath(
-                    os.path.realpath(output_path),
-                    os.path.realpath(YB_SRC_ROOT)),
-                dest_link_path)
-            logging.info("Created symlink at %s", dest_link_path)
+        combined_raw_compile_commands = []
+        for compile_commands_path in all_compile_commands_paths:
+            combined_raw_compile_commands += read_json_file(compile_commands_path)
 
-    def postprocess_pg_compile_command(self, compile_command_item):
-        directory = compile_command_item['directory']
-        if 'command' not in compile_command_item and 'arguments' not in compile_command_item:
-            raise ValueError(
-                "Invalid compile command item: %s (neither 'command' nor 'arguments' are present)" %
-                json.dumps(compile_command_item))
-        if 'command' in compile_command_item and 'arguments' in compile_command_item:
-            raise ValueError(
-                "Invalid compile command item: %s (both 'command' and 'arguments' are present)" %
-                json.dumps(compile_command_item))
+        write_json_file(
+            combined_raw_compile_commands,
+            os.path.join(self.build_root, COMBINED_RAW_COMPILE_COMMANDS_FILE_NAME),
+            description_for_log='combined raw compilation commands file')
 
-        file_path = compile_command_item['file']
+        # -----------------------------------------------------------------------------------------
+        # Combine post-processed compilation commands in a single file.
+        # -----------------------------------------------------------------------------------------
 
-        new_directory = directory
-        if directory.startswith(self.pg_build_root + '/'):
-            new_directory = os.path.join(YB_SRC_ROOT, 'src', 'postgres',
-                                         os.path.relpath(directory, self.pg_build_root))
-            # Some files only exist in the postgres build directory. We don't switch the work
-            # directory of the compiler to the original source directory in those cases.
-            if (not os.path.isabs(file_path) and
-                    not os.path.isfile(os.path.join(new_directory, file_path))):
-                new_directory = directory
+        compile_command_processor = CompileCommandProcessor(self.build_root)
+        combined_postprocessed_compile_commands = [
+            compile_command_processor.postprocess_compile_command(item)
+            for item in combined_raw_compile_commands
+        ]
 
-        if 'arguments' in compile_command_item:
-            assert 'command' not in compile_command_item
-            arguments = compile_command_item['arguments']
-        else:
-            assert 'arguments' not in compile_command_item
-            arguments = compile_command_item['command'].split()
+        combined_postprocessed_compile_commands_path = os.path.join(
+            self.build_root, COMBINED_POSTPROCESSED_COMPILE_COMMANDS_FILE_NAME)
 
-        new_args = []
-        already_added_include_paths = set()
-        original_include_paths = []
-        additional_postgres_include_paths = []
+        write_json_file(
+            combined_postprocessed_compile_commands,
+            combined_postprocessed_compile_commands_path,
+            description_for_log='combined postprocessed compilation commands file')
 
-        def add_original_include_path(original_include_path):
-            if (original_include_path not in already_added_include_paths and
-                    original_include_path not in original_include_paths):
-                original_include_paths.append(original_include_path)
+        create_compile_commands_symlink(
+            combined_postprocessed_compile_commands_path, self.build_type)
 
-        def handle_original_include_path(include_path):
-            if (os.path.realpath(include_path) == self.postgres_install_dir_include_realpath and
-                    not additional_postgres_include_paths):
-                additional_postgres_include_paths.extend([
-                    os.path.join(YB_SRC_ROOT, 'src', 'postgres', 'src', 'interfaces', 'libpq'),
-                    os.path.join(
-                        self.build_root_realpath, 'postgres_build', 'src', 'include'),
-                    os.path.join(
-                        self.build_root_realpath, 'postgres_build', 'interfaces', 'libpq')
-                ])
-
-        for arg in arguments:
-            if arg.startswith('-I'):
-                include_path = arg[2:]
-                if os.path.isabs(include_path):
-                    # This is already an absolute path, append it as is.
-                    new_args.append(arg)
-                    handle_original_include_path(arg)
-                else:
-                    original_include_path = os.path.realpath(os.path.join(directory, include_path))
-                    # This is a relative path. Try to rewrite it relative to the new directory
-                    # where we are running the compiler.
-                    new_include_path = os.path.join(new_directory, include_path)
-                    if os.path.isdir(new_include_path):
-                        new_args.append('-I' + new_include_path)
-                        # This is to avoid adding duplicate paths.
-                        already_added_include_paths.add(new_include_path)
-                        already_added_include_paths.add(os.path.abspath(new_include_path))
-                    else:
-                        # Append the path as is -- maybe the directory will get created later.
-                        new_args.append(arg)
-
-                    # In any case, for relative paths, add the absolute path in the original
-                    # directory at the end of the compiler command line.
-                    add_original_include_path(original_include_path)
-                    handle_original_include_path(original_include_path)
-
-            else:
-                new_args.append(arg)
-
-            # Replace the compiler path in compile_commands.json according to user preferences.
-            compiler_basename = os.path.basename(new_args[0])
-            new_compiler_path = None
-            if compiler_basename in ['cc', 'gcc', 'clang']:
-                new_compiler_path = os.environ.get('YB_CC_FOR_COMPILE_COMMANDS')
-            elif compiler_basename in ['c++', 'g++', 'clang++']:
-                new_compiler_path = os.environ.get('YB_CXX_FOR_COMPILE_COMMANDS')
-            else:
-                logging.warning(
-                    "Unexpected compiler path: %s. Compile command: %s",
-                    new_args[0], json.dumps(compile_command_item))
-            if new_compiler_path:
-                new_args[0] = new_compiler_path
-
-        new_args += [
-            '-I%s' % include_path
-            for include_path in additional_postgres_include_paths + original_include_paths]
-
-        new_file_path = file_path
-        if not os.path.isabs(file_path):
-            new_file_path = os.path.join(new_directory, file_path)
-            if not os.path.isfile(new_file_path):
-                new_file_path = file_path
-
-        return {
-            'directory': new_directory,
-            'file': new_file_path,
-            'arguments': new_args
-        }
-
-    def run(self):
-        if get_bool_env_var('YB_SKIP_POSTGRES_BUILD'):
-            logging.info("Skipping PostgreSQL build (YB_SKIP_POSTGRES_BUILD is set)")
-            return
-
-        self.parse_args()
+    @overrides
+    def run_impl(self):
         self.build_postgres()
 
     def steps_description(self):
@@ -782,6 +699,13 @@ class PostgresBuilder:
             self.steps_description(), time.time() - start_time_sec)
 
 
-if __name__ == '__main__':
+def main():
     init_logging()
+    if get_bool_env_var('YB_SKIP_POSTGRES_BUILD'):
+        logging.info("Skipping PostgreSQL build (YB_SKIP_POSTGRES_BUILD is set)")
+        return
     PostgresBuilder().run()
+
+
+if __name__ == '__main__':
+    main()

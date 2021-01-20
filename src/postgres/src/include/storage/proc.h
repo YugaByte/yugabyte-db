@@ -296,10 +296,14 @@ extern int	LockTimeout;
 extern int	IdleInTransactionSessionTimeout;
 extern bool log_lock_waits;
 
+extern int	RetryMaxBackoffMsecs;
+extern int	RetryMinBackoffMsecs;
+extern double RetryBackoffMultiplier;
 
 /*
  * Function Prototypes
  */
+
 extern int	ProcGlobalSemas(void);
 extern Size ProcGlobalShmemSize(void);
 extern void InitProcGlobal(void);

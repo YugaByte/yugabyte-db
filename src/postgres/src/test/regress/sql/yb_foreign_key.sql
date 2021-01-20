@@ -368,3 +368,48 @@ SELECT * FROM p2 ORDER BY k;
 SELECT * FROM p3 ORDER BY k;
 SELECT * FROM p4 ORDER BY k;
 SELECT * FROM c ORDER BY k;
+
+CREATE TABLE parent(k INT PRIMARY KEY, v INT UNIQUE);
+CREATE TABLE child_1(k INT PRIMARY KEY, v INT REFERENCES parent(k));
+CREATE TABLE child_2(k INT PRIMARY KEY, v INT REFERENCES parent(k));
+
+DO $$
+BEGIN
+  INSERT INTO parent values(1, 10);
+  INSERT INTO child_1 values(20, 1);
+  DELETE FROM child_1;
+  DELETE FROM parent;
+  INSERT INTO child_2 values(30, 1); -- should fail
+END $$;
+
+DROP TABLE child_1;
+DROP TABLE child_2;
+
+CREATE TABLE child_1(k INT PRIMARY KEY, v INT REFERENCES parent(v));
+CREATE TABLE child_2(k INT PRIMARY KEY, v INT REFERENCES parent(v));
+
+DO $$
+BEGIN
+  INSERT INTO parent values(1, 10);
+  INSERT INTO child_2 values(30, 10);
+  DELETE FROM child_2;
+  DELETE FROM parent;
+  INSERT INTO child_1 values(20, 10); -- should fail
+END $$;
+
+DROP TABLE child_1;
+
+CREATE TABLE child_1(k INT PRIMARY KEY, v INT REFERENCES parent(k));
+
+INSERT INTO parent SELECT s, 1000000 + s FROM generate_series(1, 10000) AS s;
+INSERT INTO child_1 SELECT s, s FROM generate_series(1, 10001) AS s; -- should fail
+INSERT INTO child_2 SELECT s, 1000000 + s FROM generate_series(1, 10001) AS s; -- should fail
+
+INSERT INTO child_1 SELECT s, s FROM generate_series(1, 10000) AS s;
+INSERT INTO child_2 SELECT s, 1000000 + s FROM generate_series(1, 10000) AS s;
+
+UPDATE child_1 SET v = v * 2 WHERE k <= 5001; -- should fail
+UPDATE child_2 SET v = (v - 1000000) * 2 + 1000000 WHERE k <= 5001; -- should fail
+
+UPDATE child_1 SET v = v * 2 WHERE k < 5001;
+UPDATE child_2 SET v = (v - 1000000) * 2 + 1000000 WHERE k < 5001;

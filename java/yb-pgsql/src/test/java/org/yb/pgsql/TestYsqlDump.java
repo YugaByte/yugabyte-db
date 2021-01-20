@@ -38,6 +38,15 @@ import static org.yb.AssertionWrappers.*;
 public class TestYsqlDump extends BasePgSQLTest {
   private static final Logger LOG = LoggerFactory.getLogger(TestYsqlDump.class);
 
+  private static final int TURN_OFF_SEQUENCE_CACHE_FLAG = 0;
+
+  @Override
+  protected Map<String, String> getTServerFlags() {
+    Map<String, String> flagMap = super.getTServerFlags();
+    flagMap.put("ysql_sequence_cache_minval", Integer.toString(TURN_OFF_SEQUENCE_CACHE_FLAG));
+    return flagMap;
+  }
+
   // The following logic is needed to remove the dependency on the exact version number from
   // the ysql_dump output part that looks like this:
   // -- Dumped from database version 11.2-YB-1.3.2.0-b0
@@ -99,7 +108,7 @@ public class TestYsqlDump extends BasePgSQLTest {
 
       while ((actualLine = actualIn.readLine()) != null &&
              (expectedLine = expectedIn.readLine()) != null) {
-        assertEquals(postprocessOutputLine(actualLine), postprocessOutputLine(expectedLine));
+        assertEquals(postprocessOutputLine(expectedLine), postprocessOutputLine(actualLine));
       }
       expectOnlyEmptyLines(actualLine, actualIn);
       expectOnlyEmptyLines(expectedLine, expectedIn);

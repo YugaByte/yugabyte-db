@@ -1,0 +1,35 @@
+name: yugabyted-test
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '**/yugabyted*'
+
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '**/yugabyted*'
+
+jobs:
+  yugabyted-test:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ ubuntu-18.04 ]
+        python-version: [ 2.7, 3.8 ]
+
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: actions/checkout@v2
+
+      - name: Run yugabyte-test-runner
+        run: |
+          scripts/yugabyted/test/yugabyted-test-runner.sh -y bin/yugabyted

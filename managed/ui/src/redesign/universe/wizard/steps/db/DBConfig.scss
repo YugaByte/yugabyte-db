@@ -1,0 +1,20 @@
+@import '../../../../uikit/common';
+
+.db-config {
+  @include wizard-step-form();
+  @include wizard-form-section-title();
+  @include wizard-form-row();
+  @include wizard-form-text-label();
+  @include wizard-form-footer();
+
+  max-height: calc(100vh - 290px);
+  overflow: auto;
+
+  &__row--align-top {
+    align-items: flex-start;
+  }
+
+  &__label--margin-top {
+    margin-top: 20px;
+  }
+}

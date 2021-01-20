@@ -1,7 +1,6 @@
-
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../../_style/colors.scss";
+@import '../../../../_style/colors.scss';
 
 .on-prem-provider-form-container {
   margin-top: 30px;
@@ -24,7 +23,7 @@ label textarea {
   vertical-align: top;
 }
 
-.ssh-key-container  {
+.ssh-key-container {
   height: 200px;
   border: 1px solid $YB_DARK_GRAY;
 }
@@ -101,7 +100,7 @@ label textarea {
   font-weight: 500;
 }
 
-.stepper-cell {    
+.stepper-cell {
   box-sizing: border-box;
   font-size: 16px;
   line-height: 46px;

@@ -2,7 +2,11 @@
 
 import { connect } from 'react-redux';
 
-import { fetchTaskProgress, fetchTaskProgressResponse, resetTaskProgress } from '../../../actions/tasks';
+import {
+  fetchTaskProgress,
+  fetchTaskProgressResponse,
+  resetTaskProgress
+} from '../../../actions/tasks';
 import { TaskProgress } from '../../tasks';
 
 const mapDispatchToProps = (dispatch) => {

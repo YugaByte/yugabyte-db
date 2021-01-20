@@ -71,7 +71,7 @@ CREATE TABLE t2 (h INT, r INT, v1 INT, v2 INT, PRIMARY KEY (h hash, r));
 \d t1
 \d t2
 
-INSERT INTO t1 VALUES (1, 1, 11, 11), (1, 2, 11, 12); 
+INSERT INTO t1 VALUES (1, 1, 11, 11), (1, 2, 11, 12);
 INSERT INTO t2 VALUES (1, 1, 21, 21);
 
 -- The following 2 inserts should produce error due to duplicate primary key / unique index value
@@ -197,6 +197,8 @@ CREATE TABLE test_include (c1 int, c2 int, c3 int);
 INSERT INTO test_include VALUES (1, 1, 1), (1, 2, 2), (2, 2, 2), (3, 3, 3);
 -- Expect duplicate key error
 CREATE UNIQUE INDEX ON test_include (c1) include (c2);
+\d test_include
+DROP INDEX test_include_c1_c2_idx;
 DELETE FROM test_include WHERE c1 = 1 AND c2 = 2;
 CREATE UNIQUE INDEX ON test_include (c1) include (c2);
 EXPLAIN (COSTS OFF) SELECT c1, c2 FROM test_include WHERE c1 = 1;
@@ -311,3 +313,43 @@ EXPLAIN (COSTS OFF) SELECT v FROM tbl WHERE v >= 10 and v < 40 ORDER BY v ASC;
 SELECT v FROM tbl WHERE v >= 10 and v < 40 ORDER BY v ASC;
 EXPLAIN (COSTS OFF) SELECT v FROM tbl WHERE v >= 10 and v < 40 ORDER BY v DESC;
 SELECT v FROM tbl WHERE v >= 10 and v < 40 ORDER BY v DESC;
+
+-- Test creating indexes with (table_oid = x)
+CREATE TABLE test_index_with_oids (v1 INT, v2 INT, v3 INT);
+INSERT INTO test_index_with_oids VALUES (1, 11, 21), (2, 12, 22), (3, 13, 23), (4, 14, 24), (5, 15, 25);
+
+-- Test with variable = false
+CREATE INDEX index_with_table_oid ON test_index_with_oids (v1) with (table_oid = 1111111);
+-- Turn on variable and test
+set yb_enable_create_with_table_oid=1;
+CREATE INDEX index_with_invalid_oid ON test_index_with_oids (v1) with (table_oid = 0);
+CREATE INDEX index_with_invalid_oid ON test_index_with_oids (v1) with (table_oid = -1);
+CREATE INDEX index_with_invalid_oid ON test_index_with_oids (v1) with (table_oid = 123);
+CREATE INDEX index_with_invalid_oid ON test_index_with_oids (v1) with (table_oid = 'test');
+
+CREATE INDEX index_with_table_oid ON test_index_with_oids (v1) with (table_oid = 1111111);
+select relname, oid from pg_class where relname = 'index_with_table_oid';
+SELECT * FROM test_index_with_oids ORDER BY v1;
+
+CREATE INDEX index_with_duplicate_table_oid ON test_index_with_oids (v1) with (table_oid = 1111111);
+set yb_enable_create_with_table_oid=0;
+
+-- Test creating index nonconcurrently (i.e. without index backfill, without
+-- online schema migration)
+CREATE TABLE test_index_nonconcurrently (i INT, t TEXT);
+INSERT INTO test_index_nonconcurrently VALUES (generate_series(1, 10), 'a');
+
+CREATE INDEX NONCONCURRENTLY ON test_index_nonconcurrently (i);
+EXPLAIN (COSTS OFF) SELECT i FROM test_index_nonconcurrently WHERE i = 1;
+SELECT * FROM test_index_nonconcurrently WHERE i = 1;
+DROP INDEX test_index_nonconcurrently_i_idx;
+
+CREATE UNIQUE INDEX NONCONCURRENTLY ON test_index_nonconcurrently (i);
+EXPLAIN (COSTS OFF) SELECT i FROM test_index_nonconcurrently WHERE i = 1;
+INSERT INTO test_index_nonconcurrently VALUES (1, 'b');
+DROP INDEX test_index_nonconcurrently_i_idx;
+
+INSERT INTO test_index_nonconcurrently VALUES (1, 'b');
+CREATE UNIQUE INDEX NONCONCURRENTLY ON test_index_nonconcurrently (i);
+
+DROP TABLE test_index_nonconcurrently;

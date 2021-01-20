@@ -261,6 +261,131 @@ TEST(TestCatalogManager, TestLeaderLoadBalanced) {
   ASSERT_OK(CatalogManagerUtil::AreLeadersOnPreferredOnly(ts_descs, replication_info));
 }
 
+TEST(TestCatalogManager, TestGetPlacementUuidFromRaftPeer) {
+  // Test a voter peer is assigned a live placement.
+  ReplicationInfoPB replication_info;
+  SetupClusterConfigWithReadReplicas({"a", "b", "c"}, {{"d"}}, &replication_info);
+  consensus::RaftPeerPB raft_peer;
+  SetupRaftPeer(consensus::RaftPeerPB::VOTER, "a", &raft_peer);
+  ASSERT_EQ(kLivePlacementUuid, ASSERT_RESULT(
+      CatalogManagerUtil::GetPlacementUuidFromRaftPeer(replication_info, raft_peer)));
+  SetupRaftPeer(consensus::RaftPeerPB::PRE_VOTER, "b", &raft_peer);
+  ASSERT_EQ(kLivePlacementUuid, ASSERT_RESULT(
+      CatalogManagerUtil::GetPlacementUuidFromRaftPeer(replication_info, raft_peer)));
+
+  // Test a observer peer is assigned to the rr placement.
+  SetupRaftPeer(consensus::RaftPeerPB::OBSERVER, "d", &raft_peer);
+  ASSERT_EQ(Format(kReadReplicaPlacementUuidPrefix, 0), ASSERT_RESULT(
+      CatalogManagerUtil::GetPlacementUuidFromRaftPeer(replication_info, raft_peer)));
+
+  // Now test multiple rr placements.
+  SetupClusterConfigWithReadReplicas({"a", "b", "c"}, {{"d"}, {"e"}}, &replication_info);
+  SetupRaftPeer(consensus::RaftPeerPB::PRE_OBSERVER, "d", &raft_peer);
+  ASSERT_EQ(Format(kReadReplicaPlacementUuidPrefix, 0), ASSERT_RESULT(
+      CatalogManagerUtil::GetPlacementUuidFromRaftPeer(replication_info, raft_peer)));
+  SetupRaftPeer(consensus::RaftPeerPB::OBSERVER, "e", &raft_peer);
+  ASSERT_EQ(Format(kReadReplicaPlacementUuidPrefix, 1), ASSERT_RESULT(
+      CatalogManagerUtil::GetPlacementUuidFromRaftPeer(replication_info, raft_peer)));
+
+  // Test peer with invalid cloud info throws error.
+  SetupRaftPeer(consensus::RaftPeerPB::PRE_OBSERVER, "c", &raft_peer);
+  ASSERT_NOK(CatalogManagerUtil::GetPlacementUuidFromRaftPeer(replication_info, raft_peer));
+
+  // Test cluster config with rr placements with same cloud info throws error.
+  SetupClusterConfigWithReadReplicas({"a", "b", "c"}, {{"d"}, {"d"}}, &replication_info);
+  SetupRaftPeer(consensus::RaftPeerPB::OBSERVER, "d", &raft_peer);
+  ASSERT_NOK(CatalogManagerUtil::GetPlacementUuidFromRaftPeer(replication_info, raft_peer));
+}
+
+namespace {
+
+void SetTabletState(TabletInfo* tablet, const SysTabletsEntryPB::State& state) {
+  auto lock = tablet->LockForWrite();
+  lock->mutable_data()->pb.set_state(state);
+  lock->Commit();
+}
+
+const std::string GetSplitKey(const std::string& start_key, const std::string& end_key) {
+  const auto split_key = start_key.length() < end_key.length()
+      ? start_key + static_cast<char>(end_key[start_key.length()] >> 1)
+      : start_key + "m";
+
+  CHECK_LT(start_key, split_key) << " end_key: " << end_key;
+  if (!end_key.empty()) {
+    CHECK_LT(split_key, end_key) << " start_key: " << start_key;
+  }
+
+  return split_key;
+}
+
+std::array<scoped_refptr<TabletInfo>, kNumSplitParts> SplitTablet(
+    const scoped_refptr<TabletInfo>& source_tablet) {
+  const auto partition = source_tablet->LockForRead()->data().pb.partition();
+
+  const auto split_key =
+      GetSplitKey(partition.partition_key_start(), partition.partition_key_end());
+
+  auto child1 = CreateTablet(
+      source_tablet->table(), source_tablet->tablet_id() + ".1", partition.partition_key_start(),
+      split_key);
+  auto child2 = CreateTablet(
+      source_tablet->table(), source_tablet->tablet_id() + ".2", split_key,
+      partition.partition_key_end());
+  return { child1, child2 };
+}
+
+void SplitAndDeleteTablets(const TabletInfos& tablets_to_split, TabletInfos* post_split_tablets) {
+  for (const auto& source_tablet : tablets_to_split) {
+    ASSERT_NOK(CatalogManagerUtil::CheckIfCanDeleteSingleTablet(source_tablet));
+    auto child_tablets = SplitTablet(source_tablet);
+    for (const auto& child : child_tablets) {
+      LOG(INFO) << "Child tablet " << child->tablet_id()
+                << " partition: " << AsString(child->LockForRead()->data().pb.partition())
+                << " state: "
+                << SysTabletsEntryPB_State_Name(child->LockForRead()->data().pb.state());
+      post_split_tablets->push_back(child);
+    }
+    SetTabletState(child_tablets[1].get(), SysTabletsEntryPB::CREATING);
+    // We shouldn't be able to delete source tablet when 2nd child is still creating.
+    ASSERT_NOK(CatalogManagerUtil::CheckIfCanDeleteSingleTablet(source_tablet));
+    SetTabletState(child_tablets[1].get(), SysTabletsEntryPB::RUNNING);
+    ASSERT_OK(CatalogManagerUtil::CheckIfCanDeleteSingleTablet(source_tablet));
+    SetTabletState(source_tablet.get(), SysTabletsEntryPB::DELETED);
+    ASSERT_NOK(CatalogManagerUtil::CheckIfCanDeleteSingleTablet(source_tablet));
+  }
+}
+
+} // namespace
+
+TEST(TestCatalogManager, CheckIfCanDeleteSingleTablet) {
+  const string table_id = CURRENT_TEST_NAME();
+  scoped_refptr<TableInfo> table(new TableInfo(table_id));
+  TabletInfos pre_split_tablets;
+
+  const std::vector<std::string> pre_split_keys = {"a", "b", "c"};
+  const int kNumReplicas = 1;
+
+  CreateTable(pre_split_keys, kNumReplicas, true, table.get(), &pre_split_tablets);
+
+  for (const auto& tablet : pre_split_tablets) {
+    ASSERT_NOK(CatalogManagerUtil::CheckIfCanDeleteSingleTablet(tablet));
+  }
+
+  TabletInfos first_level_splits;
+  NO_FATALS(SplitAndDeleteTablets(pre_split_tablets, &first_level_splits));
+
+  for (const auto& tablet : pre_split_tablets) {
+    SetTabletState(tablet.get(), SysTabletsEntryPB::RUNNING);
+  }
+
+  TabletInfos second_level_splits;
+  NO_FATALS(SplitAndDeleteTablets(first_level_splits, &second_level_splits));
+
+  // We should be able to delete pre split tablets covered by 2nd level split tablets.
+  for (const auto& source_tablet : pre_split_tablets) {
+    ASSERT_OK(CatalogManagerUtil::CheckIfCanDeleteSingleTablet(source_tablet));
+  }
+}
 
 } // namespace master
 } // namespace yb

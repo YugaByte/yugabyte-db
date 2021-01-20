@@ -28,7 +28,8 @@ class MetricEntity;
 namespace client {
 
 // Lookup first tablet of specified table.
-std::future<Result<internal::RemoteTabletPtr>> LookupFirstTabletFuture(const YBTable *table);
+std::future<Result<internal::RemoteTabletPtr>> LookupFirstTabletFuture(
+    const std::shared_ptr<const YBTable>& table);
 
 Result<std::unique_ptr<rpc::Messenger>> CreateClientMessenger(
     const string &client_name,
@@ -36,6 +37,11 @@ Result<std::unique_ptr<rpc::Messenger>> CreateClientMessenger(
     const scoped_refptr<MetricEntity> &metric_entity,
     const std::shared_ptr<MemTracker> &parent_mem_tracker,
     rpc::SecureContext *secure_context = nullptr);
+
+Result<std::vector<internal::RemoteTabletPtr>> FilterTabletsByHashPartitionKeyRange(
+      const std::vector<internal::RemoteTabletPtr>& all_tablets,
+      const std::string& partition_key_start,
+      const std::string& partition_key_end);
 
 } // namespace client
 } // namespace yb

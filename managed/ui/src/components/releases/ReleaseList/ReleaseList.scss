@@ -1,6 +1,6 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../../_style/colors.scss";
+@import '../../../_style/colors.scss';
 
 .release-list-table {
   .storage-cell {
@@ -17,14 +17,45 @@
   tbody {
     .td-column-imported {
       color: white;
-      background-color: $YB_WARNING_COLOR ;
+      background-color: $YB_WARNING_COLOR;
+    }
+
+    > tr > td {
+      vertical-align: middle;
     }
   }
 
+  .state-pill {
+    position: relative;
+    padding: .75rem 1.25rem;
+    width: fit-content;
+    border: 1px solid transparent;
+    border-radius: 25px;
+    margin: 0 auto;
+    font-size: smaller;
+
+    &--success {
+      color: #155724;
+      background-color: #d4edda;
+      border-color: #c3e6cb;
+    }
+
+    &--danger {
+      color: #721c24;
+      background-color: #f8d7da;
+      border-color: #f5c6cb;
+    }
+
+    &--secondary {
+      color: #383d41;
+      background-color: #e2e3e5;
+      border-color: #d6d8db;
+    }
+  }
 }
 
 .modal-body {
-  .storage-location  {
+  .storage-location {
     height: 50px;
   }
   overflow: visible;

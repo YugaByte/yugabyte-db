@@ -12,7 +12,7 @@ menu:
     identifier: benchmark
     weight: 685
 aliases:
- - /stable/benchmark/performance/
+  - /stable/benchmark/performance/
 
 ---
 

@@ -2,8 +2,8 @@
 -- YSQL database dump
 --
 
--- Dumped from database version 11.2-YB-2.0.4.0-b0
--- Dumped by ysql_dump version 11.2-YB-2.0.4.0-b0
+-- Dumped from database version 11.2-YB-2.5.1.0-b0
+-- Dumped by ysql_dump version 11.2-YB-2.5.1.0-b0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -18,6 +18,18 @@ SET row_security = off;
 SET default_tablespace = '';
 
 SET default_with_oids = false;
+
+--
+-- Name: chat_user; Type: TABLE; Schema: public; Owner: yugabyte_test
+--
+
+CREATE TABLE public.chat_user (
+    "chatID" text NOT NULL,
+    PRIMARY KEY(("chatID") HASH)
+);
+
+
+ALTER TABLE public.chat_user OWNER TO yugabyte_test;
 
 --
 -- Name: rls_private; Type: TABLE; Schema: public; Owner: yugabyte_test
@@ -281,6 +293,14 @@ ALTER TABLE ONLY public.tbl1 ALTER COLUMN a SET DEFAULT nextval('public.tbl1_a_s
 --
 
 ALTER TABLE ONLY public.tbl2 ALTER COLUMN a SET DEFAULT nextval('public.tbl2_a_seq'::regclass);
+
+
+--
+-- Data for Name: chat_user; Type: TABLE DATA; Schema: public; Owner: yugabyte_test
+--
+
+COPY public.chat_user ("chatID") FROM stdin;
+\.
 
 
 --

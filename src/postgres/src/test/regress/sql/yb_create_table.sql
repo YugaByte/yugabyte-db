@@ -513,3 +513,30 @@ EXPLAIN (COSTS OFF) SELECT * FROM ordered_desc ORDER BY k DESC;
 SELECT * FROM ordered_desc ORDER BY k DESC;
 EXPLAIN (COSTS OFF) SELECT k FROM ordered_desc WHERE k > 10 and k < 40 ORDER BY k ASC;
 SELECT k FROM ordered_desc WHERE k > 10 and k < 40 ORDER BY k ASC;
+
+-- Test create ... with (table_oid = x)
+set yb_enable_create_with_table_oid=1;
+create table with_invalid_table_oid (a int) with (table_oid = 0);
+create table with_invalid_table_oid (a int) with (table_oid = -1);
+create table with_invalid_table_oid (a int) with (table_oid = 123);
+create table with_invalid_table_oid (a int) with (table_oid = 'test');
+
+create table with_table_oid (a int) with (table_oid = 1234567);
+select relname, oid from pg_class where relname = 'with_table_oid';
+
+create table with_table_oid_duplicate (a int) with (table_oid = 1234567);
+
+-- Test temp tables with (table_oid = x)
+begin;
+create temp table with_table_oid_temp (a int) with (table_oid = 1234568) on commit drop;
+select relname, oid from pg_class where relname = 'with_table_oid_temp';
+end;
+-- Creating a new temp table with that oid will fail
+create temp table with_table_oid_temp_2 (a int) with (table_oid = 1234568);
+-- But creating a regular table with that oid should succeed
+create table with_table_oid_2 (a int) with (table_oid = 1234568);
+select relname, oid from pg_class where relname = 'with_table_oid_2';
+
+-- Test with session variable off
+set yb_enable_create_with_table_oid=0;
+create table with_table_oid_variable_false (a int) with (table_oid = 55555);

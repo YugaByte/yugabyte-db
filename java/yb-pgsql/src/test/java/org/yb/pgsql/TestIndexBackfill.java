@@ -137,6 +137,52 @@ public class TestIndexBackfill extends BasePgSQLTest {
     }
   }
 
+  /**
+   * Same as TestPgUniqueConstraint#createIndexViolatingUniqueness except use
+   * index backfill.
+   */
+  @Test
+  public void createIndexViolatingUniqueness() throws Exception {
+    try (Statement stmt = connection.createStatement()) {
+      stmt.execute("CREATE TABLE test(id int PRIMARY KEY, v int)");
+
+      // Get the OID of the 'test' table from pg_class
+      long tableOid = getRowList(
+          stmt.executeQuery("SELECT oid FROM pg_class WHERE relname = 'test'")).get(0).getLong(0);
+
+      // Two entries in pg_depend table, one for pg_type and the other for pg_constraint
+      assertQuery(stmt, "SELECT COUNT(*) FROM pg_depend WHERE refobjid=" + tableOid,
+          new Row(2));
+
+      stmt.executeUpdate("INSERT INTO test VALUES (1, 1)");
+      stmt.executeUpdate("INSERT INTO test VALUES (2, 1)");
+
+      runInvalidQuery(stmt, "CREATE UNIQUE INDEX test_v on test(v)", "duplicate key");
+
+      // Ensure index exists but is invalid
+      assertQuery(
+          stmt,
+          ("SELECT indisvalid FROM pg_class INNER JOIN pg_index ON oid = indexrelid"
+           + " WHERE relname = 'test_v'"),
+          new Row(false));
+
+      // Clean up invalid index
+      stmt.execute("DROP INDEX test_v");
+
+      // Make sure index has no leftovers
+      assertNoRows(stmt, "SELECT oid FROM pg_class WHERE relname = 'test_v'");
+      assertQuery(stmt, "SELECT COUNT(*) FROM pg_depend WHERE refobjid=" + tableOid,
+          new Row(2));
+      assertQuery(stmt, "SELECT * FROM test WHERE v = 1",
+          new Row(1, 1), new Row(2, 1));
+
+      // We can still insert duplicate elements
+      stmt.executeUpdate("INSERT INTO test VALUES (3, 1)");
+      assertQuery(stmt, "SELECT * FROM test WHERE v = 1",
+          new Row(1, 1), new Row(2, 1), new Row(3, 1));
+    }
+  }
+
   /** Inspect {@code pg_index.indisvalid} column for the given index */
   private boolean isIndexValid(Connection conn, String indexName) throws Exception {
     String selectIndexSql = "SELECT i.indisvalid FROM pg_index i"

@@ -121,6 +121,7 @@ IndexOnlyNext(IndexOnlyScanState *node)
 
 		// TODO(hector) Add row marks for INDEX_ONLY_SCAN
 		scandesc->yb_exec_params->rowmark = -1;
+		scandesc->yb_exec_params->read_from_followers = YBReadFromFollowersEnabled();
 	}
 
 	/*
@@ -213,7 +214,7 @@ IndexOnlyNext(IndexOnlyScanState *node)
 			 */
 			Assert(slot->tts_tupleDescriptor->natts ==
 				   scandesc->xs_hitupdesc->natts);
-			ExecStoreTuple(scandesc->xs_hitup, slot, InvalidBuffer, false);
+			ExecStoreHeapTuple(scandesc->xs_hitup, slot, false);
 		}
 		else if (scandesc->xs_itup)
 			StoreIndexTuple(slot, scandesc->xs_itup, scandesc->xs_itupdesc);
@@ -417,7 +418,8 @@ ExecEndIndexOnlyScan(IndexOnlyScanState *node)
 	/*
 	 * clear out tuple table slots
 	 */
-	ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
+	if (node->ss.ps.ps_ResultTupleSlot)
+		ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
 	ExecClearTuple(node->ss.ss_ScanTupleSlot);
 
 	/*
@@ -552,11 +554,10 @@ ExecInitIndexOnlyScan(IndexOnlyScan *node, EState *estate, int eflags)
 	ExecInitScanTupleSlot(estate, &indexstate->ss, tupDesc);
 
 	/*
-	 * Initialize result slot, type and projection info.  The node's
-	 * targetlist will contain Vars with varno = INDEX_VAR, referencing the
-	 * scan tuple.
+	 * Initialize result type and projection info.  The node's targetlist will
+	 * contain Vars with varno = INDEX_VAR, referencing the scan tuple.
 	 */
-	ExecInitResultTupleSlotTL(estate, &indexstate->ss.ps);
+	ExecInitResultTypeTL(&indexstate->ss.ps);
 	ExecAssignScanProjectionInfoWithVarno(&indexstate->ss, INDEX_VAR);
 
 	/*

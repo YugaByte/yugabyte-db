@@ -68,6 +68,14 @@ DEFINE_test_flag(bool, master_fail_transactional_tablet_lookups, false,
 DEFINE_double(master_slow_get_registration_probability, 0,
               "Probability of injecting delay in GetMasterRegistration.");
 
+DEFINE_int32(tablet_report_limit, 1000,
+             "Max Number of tablets to report during a single heartbeat. "
+             "If this is set to INT32_MAX, then heartbeat will report all dirty tablets.");
+TAG_FLAG(tablet_report_limit, advanced);
+
+DECLARE_CAPABILITY(TabletReportLimit);
+DECLARE_int32(heartbeat_rpc_timeout_ms);
+
 using namespace std::literals;
 
 namespace yb {
@@ -153,9 +161,6 @@ void MasterServiceImpl::TSHeartbeat(const TSHeartbeatRequestPB* req,
     rpc.RespondFailure(s);
   }
 
-  // TODO: KUDU-86 if something fails after this point the TS will not be able
-  //       to register again.
-
   // Look up the TS -- if it just registered above, it will be found here.
   // This allows the TS to register and tablet-report in the same RPC.
   TSDescriptorPtr ts_desc;
@@ -181,6 +186,11 @@ void MasterServiceImpl::TSHeartbeat(const TSHeartbeatRequestPB* req,
   ts_desc->set_num_live_replicas(req->num_live_tablets());
   ts_desc->set_leader_count(req->leader_count());
 
+  // Adjust the table report limit per heartbeat so this can be dynamically changed.
+  if (ts_desc->HasCapability(CAPABILITY_TabletReportLimit)) {
+    resp->set_tablet_report_limit(FLAGS_tablet_report_limit);
+  }
+
   // Set the TServer metrics in TS Descriptor.
   if (req->has_metrics()) {
     ts_desc->UpdateMetrics(req->metrics());
@@ -196,22 +206,27 @@ void MasterServiceImpl::TSHeartbeat(const TSHeartbeatRequestPB* req,
   }
 
   if (!req->has_tablet_report() || req->tablet_report().is_incremental()) {
-    // TODO(tsplit): for now we only do splitting in case there is no full tablet report to
-    // minimize probability of TSHeartbeat RPC timeout and retry.
-    // This will be improved to handle split retries appropriately and then we won't need that
-    // check.
-    for (const auto& tablet : req->tablets_for_split()) {
-      LOG(INFO) << "Got tablet to split: " << AsString(tablet);
-      const auto split_status = server_->catalog_manager()->SplitTablet(
-          tablet.tablet_id(), tablet.split_encoded_key(), tablet.split_partition_key());
-      if (!split_status.ok()) {
-        LOG(WARNING) << split_status;
+    // Only process split tablets if we have plenty of time to process the work (> 50% of timeout).
+    auto safe_time_left = CoarseMonoClock::Now() + (FLAGS_heartbeat_rpc_timeout_ms * 1ms / 2);
+    if (rpc.GetClientDeadline() > safe_time_left) {
+      for (const auto& tablet : req->tablets_for_split()) {
+        VLOG(1) << "Got tablet to split: " << AsString(tablet);
+        const auto split_status = server_->catalog_manager()->SplitTablet(
+            tablet.tablet_id(), tablet.split_encoded_key(), tablet.split_partition_key());
+        if (!split_status.ok()) {
+          if (MasterError(split_status) == MasterErrorPB::REACHED_SPLIT_LIMIT) {
+            YB_LOG_EVERY_N_SECS(WARNING, 60 * 60) << split_status;
+          } else {
+            LOG(WARNING) << split_status;
+          }
+        }
       }
     }
-  }
 
-  if (!ts_desc->has_tablet_report()) {
-    resp->set_needs_full_tablet_report(true);
+    // Only set once. It may take multiple heartbeats to receive a full tablet report.
+    if (!ts_desc->has_tablet_report()) {
+      resp->set_needs_full_tablet_report(true);
+    }
   }
 
   // Retrieve all the nodes known by the master.
@@ -222,8 +237,17 @@ void MasterServiceImpl::TSHeartbeat(const TSHeartbeatRequestPB* req,
   }
 
   // Retrieve the ysql catalog schema version.
-  uint64_t version = server_->catalog_manager()->GetYsqlCatalogVersion();
-  resp->set_ysql_catalog_version(version);
+  uint64_t last_breaking_version = 0;
+  uint64_t catalog_version = 0;
+  s = server_->catalog_manager()->GetYsqlCatalogVersion(&catalog_version,
+                                                        &last_breaking_version);
+  if (s.ok()) {
+    resp->set_ysql_catalog_version(catalog_version);
+    resp->set_ysql_last_breaking_catalog_version(last_breaking_version);
+  } else {
+    LOG(WARNING) << "Could not get YSQL catalog version for heartbeat response: "
+                 << s.ToUserMessage();
+  }
 
   if (FLAGS_tablet_split_size_threshold_bytes > 0) {
     resp->set_tablet_split_size_threshold_bytes(FLAGS_tablet_split_size_threshold_bytes);
@@ -267,9 +291,23 @@ void MasterServiceImpl::GetTabletLocations(const GetTabletLocationsRequestPB* re
     }
   }
 
+  // For now all the tables in the cluster share the same replication information.
+  int expected_live_replicas = 0;
+  int expected_read_replicas = 0;
+  server_->catalog_manager()->GetExpectedNumberOfReplicas(
+      &expected_live_replicas, &expected_read_replicas);
+
+  if (req->has_table_id()) {
+    const auto table_lock =
+        server_->catalog_manager()->GetTableInfo(req->table_id())->LockForRead();
+    resp->set_partitions_version(table_lock->data().pb.partitions_version());
+  }
+
   for (const TabletId& tablet_id : req->tablet_ids()) {
     // TODO: once we have catalog data. ACL checks would also go here, probably.
     TabletLocationsPB* locs_pb = resp->add_tablet_locations();
+    locs_pb->set_expected_live_replicas(expected_live_replicas);
+    locs_pb->set_expected_read_replicas(expected_read_replicas);
     Status s = server_->catalog_manager()->GetTabletLocations(tablet_id, locs_pb);
     if (!s.ok()) {
       resp->mutable_tablet_locations()->RemoveLast();
@@ -305,6 +343,12 @@ void MasterServiceImpl::IsTruncateTableDone(const IsTruncateTableDoneRequestPB* 
                                             IsTruncateTableDoneResponsePB* resp,
                                             RpcContext rpc) {
   HandleIn(req, resp, &rpc, &CatalogManager::IsTruncateTableDone);
+}
+
+void MasterServiceImpl::BackfillIndex(const BackfillIndexRequestPB* req,
+                                      BackfillIndexResponsePB* resp,
+                                      RpcContext rpc) {
+  HandleIn(req, resp, &rpc, &CatalogManager::BackfillIndex);
 }
 
 void MasterServiceImpl::DeleteTable(const DeleteTableRequestPB* req,
@@ -351,6 +395,12 @@ void MasterServiceImpl::GetTableSchema(const GetTableSchemaRequestPB* req,
                                        GetTableSchemaResponsePB* resp,
                                        RpcContext rpc) {
   HandleIn(req, resp, &rpc, &CatalogManager::GetTableSchema);
+}
+
+void MasterServiceImpl::GetColocatedTabletSchema(const GetColocatedTabletSchemaRequestPB* req,
+                                                 GetColocatedTabletSchemaResponsePB* resp,
+                                                 RpcContext rpc) {
+  HandleIn(req, resp, &rpc, &CatalogManager::GetColocatedTabletSchema);
 }
 
 void MasterServiceImpl::CreateNamespace(const CreateNamespaceRequestPB* req,
@@ -566,7 +616,7 @@ void MasterServiceImpl::ListTabletServers(const ListTabletServersRequestPB* req,
     *entry->mutable_instance_id() = std::move(*ts_info.mutable_tserver_instance());
     *entry->mutable_registration() = std::move(*ts_info.mutable_registration());
     entry->set_millis_since_heartbeat(desc->TimeSinceHeartbeat().ToMilliseconds());
-    entry->set_alive(TSManager::IsTSLive(desc));
+    entry->set_alive(desc->IsLive());
     desc->GetMetrics(entry->mutable_metrics());
   }
   rpc.RespondSuccess();
@@ -860,6 +910,11 @@ void MasterServiceImpl::GetUniverseReplication(const GetUniverseReplicationReque
 void MasterServiceImpl::SplitTablet(
     const SplitTabletRequestPB* req, SplitTabletResponsePB* resp, rpc::RpcContext rpc) {
   HandleIn(req, resp, &rpc, &CatalogManager::SplitTablet);
+}
+
+void MasterServiceImpl::DeleteTablet(
+    const DeleteTabletRequestPB* req, DeleteTabletResponsePB* resp, rpc::RpcContext rpc) {
+  HandleIn(req, resp, &rpc, &CatalogManager::DeleteTablet);
 }
 
 } // namespace master

@@ -180,7 +180,6 @@ public class SwamperHelper {
   private void removeUniverseTargetJson(UUID universeUUID, String prefix) {
     String swamperFile = getSwamperFile(universeUUID, prefix);
     if (swamperFile != null) {
-      LOG.info("Going to delete the file... {}", swamperFile);
       File file = new File(swamperFile);
 
       if (file.exists()) {

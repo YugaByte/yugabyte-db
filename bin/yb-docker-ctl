@@ -434,7 +434,7 @@ class YBDockerControl():
                                   ",".join(self.master_addrs),
                                   '--yb_num_shards_per_tserver={}'.format(
                                       self.args.num_shards_per_tserver),
-                                  'setup_redis_table']
+                                  'setup_redis_table', '--minloglevel', '0']
                     result = get_subprocess_result_as_str(docker_cmd)
                     if "created." not in result:
                         continue

@@ -2496,7 +2496,8 @@ AddRelationNewConstraints(Relation rel,
 						  List *newConstraints,
 						  bool allow_merge,
 						  bool is_local,
-						  bool is_internal)
+						  bool is_internal,
+						  const char *queryString)
 {
 	List	   *cookedConstraints = NIL;
 	TupleDesc	tupleDesc;
@@ -2525,6 +2526,7 @@ AddRelationNewConstraints(Relation rel,
 	 * rangetable entry.  We need a ParseState for transformExpr.
 	 */
 	pstate = make_parsestate(NULL);
+	pstate->p_sourcetext = queryString;
 	rte = addRangeTableEntryForRelation(pstate,
 										rel,
 										NULL,

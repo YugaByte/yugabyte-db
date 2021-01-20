@@ -110,7 +110,7 @@ Default: Same value as `--fs_data_dirs`
 
 Specifies the expected maximum clock skew, in microseconds (µs), between any two nodes in your deployment.
 
-Default: `50000` (50,000 µs = 50ms)
+Default: `500000` (500,000 µs = 500ms)
 
 ##### --rpc_bind_addresses
 
@@ -357,7 +357,7 @@ This value must match on all `yb-master` and `yb-tserver` configurations of a Yu
 
 {{< note title="Note" >}}
 
-On a per-table basis, the [`CREATE TABLE ...SPLIT INTO`](../../../api/ysql/commands/ddl_create_table/#split-into) clause can be used to override the `ysql_num_shards_per_tserver` value.
+On a per-table basis, the [`CREATE TABLE ...SPLIT INTO`](../../../api/ysql/the-sql-language/statements/ddl_create_table/#split-into) clause can be used to override the `ysql_num_shards_per_tserver` value.
 
 {{< /note >}}
 
@@ -485,6 +485,16 @@ For details on how online index backfill works, see the [Online Index Backfill](
 
 Default: `true`
 
+##### --ysql_sequence_cache_minval
+
+Specify the minimum number of sequence values to cache in the client for every sequence object.
+
+To turn off the default size of cache flag, set the flag to `0`.
+
+For details on the expected behaviour when used with the sequence cache clause, see the semantics under [CREATE SEQUENCE](../../../api/ysql/the-sql-language/statements/ddl_create_sequence/#cache-cache) and [ALTER SEQUENCE](../../../api/ysql/the-sql-language/statements/ddl_alter_sequence/#cache-cache) pages.
+
+Default: `100`
+
 ##### --ysql_log_statement
 
 Specifies the types of YSQL statements that should be logged. 
@@ -546,6 +556,12 @@ Default: `true`
 Set this flag to `true` to reject [`TRUNCATE`](../../../api/ycql/dml_truncate) statements unless allowed by [`DROP TABLE`](../../../api/ycql/ddl_drop_table) privileges.
 
 Default: `false`
+
+##### --ycql_enable_audit_log
+
+Set this flag to `true` to enable audit logging for the universe.
+
+For details, see [Audit logging for the YCQL API](../../../secure/audit-logging/ycql).
 
 ---
 

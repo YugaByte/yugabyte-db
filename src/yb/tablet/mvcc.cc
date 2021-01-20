@@ -569,17 +569,20 @@ HybridTime MvccManager::DoGetSafeTime(const HybridTime min_allowed,
   CHECK_LE(min_allowed, ht_lease.lease) << InvariantViolationLogPrefix();
 
   const bool has_lease = !ht_lease.empty();
+  // Because different calls that have current hybrid time leader lease as an argument can come to
+  // us out of order, we might see an older value of hybrid time leader lease expiration after a
+  // newer value. We mitigate this by always using the highest value we've seen.
   if (has_lease) {
-    max_ht_lease_seen_ = std::max(ht_lease.lease, max_ht_lease_seen_);
     LOG_IF_WITH_PREFIX(DFATAL, !ht_lease.time.is_valid()) << "Bad ht lease: " << ht_lease;
   }
 
   HybridTime result;
   SafeTimeSource source = SafeTimeSource::kUnknown;
-  auto predicate = [this, &result, &source, min_allowed, time = ht_lease.time, has_lease] {
+  auto predicate = [this, &result, &source, min_allowed, ht_lease, has_lease] {
     if (queue_.empty()) {
-      result = time.is_valid() ? std::max(max_safe_time_returned_with_lease_.safe_time, time)
-                               : clock_->Now();
+      result = ht_lease.time.is_valid()
+          ? std::max(max_safe_time_returned_with_lease_.safe_time, ht_lease.time)
+          : clock_->Now();
       source = SafeTimeSource::kNow;
       VLOG_WITH_PREFIX(2) << "DoGetSafeTime, Now: " << result;
     } else {
@@ -588,9 +591,12 @@ HybridTime MvccManager::DoGetSafeTime(const HybridTime min_allowed,
       VLOG_WITH_PREFIX(2) << "DoGetSafeTime, Queue front (decremented): " << result;
     }
 
-    if (has_lease && result > max_ht_lease_seen_) {
-      result = max_ht_lease_seen_;
-      source = SafeTimeSource::kHybridTimeLease;
+    if (has_lease) {
+      auto used_lease = std::max({ht_lease.lease, max_safe_time_returned_with_lease_.safe_time});
+      if (result > used_lease) {
+        result = used_lease;
+        source = SafeTimeSource::kHybridTimeLease;
+      }
     }
 
     // This function could be invoked at a follower, so it has a very old ht_lease. In this case it
@@ -607,8 +613,8 @@ HybridTime MvccManager::DoGetSafeTime(const HybridTime min_allowed,
   } else if (!cond_.wait_until(*lock, deadline, predicate)) {
     return HybridTime::kInvalid;
   }
-  VLOG_WITH_PREFIX(1) << "DoGetSafeTime(" << min_allowed << ", "
-                      << ht_lease << "), result = " << result;
+  VLOG_WITH_PREFIX_AND_FUNC(1)
+      << "(" << min_allowed << ", " << ht_lease << "),  result = " << result;
 
   auto enforced_min_time = has_lease ? max_safe_time_returned_with_lease_.safe_time
                                      : max_safe_time_returned_without_lease_.safe_time;
@@ -617,7 +623,6 @@ HybridTime MvccManager::DoGetSafeTime(const HybridTime min_allowed,
       << ": " << EXPR_VALUE_FOR_LOG(has_lease)
       << ", " << EXPR_VALUE_FOR_LOG(enforced_min_time.ToUint64() - result.ToUint64())
       << ", " << EXPR_VALUE_FOR_LOG(ht_lease)
-      << ", " << EXPR_VALUE_FOR_LOG(max_ht_lease_seen_)
       << ", " << EXPR_VALUE_FOR_LOG(last_replicated_)
       << ", " << EXPR_VALUE_FOR_LOG(clock_->Now())
       << ", " << EXPR_VALUE_FOR_LOG(ToString(deadline))

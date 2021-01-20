@@ -52,7 +52,7 @@ See the semantics of each option in the [PostgreSQL docs][postgresql-docs-drop-c
 
 Basic example.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE FUNCTION sql_to_date(integer) RETURNS date AS $$
              SELECT $1::text::date
              $$ LANGUAGE SQL IMMUTABLE STRICT;

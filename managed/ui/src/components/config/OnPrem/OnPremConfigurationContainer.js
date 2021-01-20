@@ -3,14 +3,29 @@
 import { connect } from 'react-redux';
 import { isObject } from 'lodash';
 import { OnPremConfiguration } from '../../config';
-import { createInstanceType, createInstanceTypeResponse,
-  createRegion, createRegionResponse, createZones, createZonesResponse, createNodeInstances,
-  createNodeInstancesResponse, createAccessKey, createAccessKeyResponse, createAccessKeyFailure,
-  resetProviderBootstrap, fetchCloudMetadata, getProviderList, getProviderListResponse,
-  resetOnPremConfigData, setOnPremConfigData, createOnPremProvider,
-  createOnPremProviderResponse } from '../../../actions/cloud';
+import {
+  createInstanceType,
+  createInstanceTypeResponse,
+  createRegion,
+  createRegionResponse,
+  createZones,
+  createZonesResponse,
+  createNodeInstances,
+  createNodeInstancesResponse,
+  createAccessKey,
+  createAccessKeyResponse,
+  createAccessKeyFailure,
+  resetProviderBootstrap,
+  fetchCloudMetadata,
+  getProviderList,
+  getProviderListResponse,
+  resetOnPremConfigData,
+  setOnPremConfigData,
+  createOnPremProvider,
+  createOnPremProviderResponse
+} from '../../../actions/cloud';
 import { isNonEmptyArray } from '../../../utils/ObjectUtils';
-import {destroy} from 'redux-form';
+import { destroy } from 'redux-form';
 
 const mapStateToProps = (state) => {
   return {
@@ -32,7 +47,9 @@ const mapDispatchToProps = (dispatch) => {
 
     createOnPremAccessKeys: (providerUUID, regionsMap, config) => {
       if (isObject(config) && isNonEmptyArray(config.regions) && isObject(config.key)) {
-        dispatch(createAccessKey(providerUUID, regionsMap[config.regions[0].code], config.key)).then((response) => {
+        dispatch(
+          createAccessKey(providerUUID, regionsMap[config.regions[0].code], config.key)
+        ).then((response) => {
           if (response.error) {
             dispatch(createAccessKeyFailure(response.payload));
           } else {
@@ -55,7 +72,9 @@ const mapDispatchToProps = (dispatch) => {
     },
 
     createOnPremProvider: (providerType, config) => {
-      dispatch(createOnPremProvider(providerType, config.provider.name, config.provider.config)).then((response) => {
+      dispatch(
+        createOnPremProvider(providerType, config.provider.name, config.provider.config)
+      ).then((response) => {
         dispatch(createOnPremProviderResponse(response.payload));
       });
     },
@@ -64,11 +83,11 @@ const mapDispatchToProps = (dispatch) => {
       if (isObject(config) && isNonEmptyArray(config.regions)) {
         config.regions.forEach((region) => {
           const formValues = {
-            "code": region.code,
-            "hostVPCId": "",
-            "name": region.code,
-            "latitude": region.latitude,
-            "longitude": region.longitude
+            code: region.code,
+            hostVPCId: '',
+            name: region.code,
+            latitude: region.latitude,
+            longitude: region.longitude
           };
           if ((isEdit && region.isBeingEdited) || !isEdit) {
             dispatch(createRegion(providerUUID, formValues)).then((response) => {
@@ -84,9 +103,11 @@ const mapDispatchToProps = (dispatch) => {
         config.regions.forEach((region) => {
           if ((isEdit && region.isBeingEdited) || !isEdit) {
             if (isObject(region) && isNonEmptyArray(region.zones)) {
-              dispatch(createZones(providerUUID, regionsMap[region.code], region.zones)).then((response) => {
-                dispatch(createZonesResponse(response.payload));
-              });
+              dispatch(createZones(providerUUID, regionsMap[region.code], region.zones)).then(
+                (response) => {
+                  dispatch(createZonesResponse(response.payload));
+                }
+              );
             }
           }
         });
@@ -100,7 +121,7 @@ const mapDispatchToProps = (dispatch) => {
         config.nodes.forEach((node) => {
           if (isObject(node)) {
             const zoneUuid = zonesMap[node.zone];
-            node.nodeName = "yb-" + node.zone + "-n" + config.nodes.indexOf(node).toString();
+            node.nodeName = 'yb-' + node.zone + '-n' + config.nodes.indexOf(node).toString();
             zoneToNodeMap[zoneUuid] = zoneToNodeMap[zoneUuid] || [];
             zoneToNodeMap[zoneUuid].push(node);
           }
@@ -115,7 +136,7 @@ const mapDispatchToProps = (dispatch) => {
     },
 
     resetConfigForm: () => {
-      dispatch(destroy("onPremConfigForm"));
+      dispatch(destroy('onPremConfigForm'));
     },
 
     resetOnPremJson: () => {

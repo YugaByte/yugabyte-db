@@ -186,8 +186,6 @@ ADD_YB_TEST(rocksdb_dump_test)
 
 add_executable(run-with-timeout run-with-timeout.cc)
 
-# If ${YB_BASE_LIBS} is removed below, there is an error in static linking mode
-# (but no error with dynamic linking!)
 target_link_libraries(run-with-timeout yb_util ${YB_BASE_LIBS})
 
 # Additional tests

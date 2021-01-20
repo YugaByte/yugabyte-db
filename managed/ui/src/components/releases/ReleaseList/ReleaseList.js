@@ -52,13 +52,13 @@ const sortVersion = (a, b) => {
 
 export default class ReleaseList extends Component {
   static defaultProps = {
-    title : "Releases"
-  }
+    title: 'Releases'
+  };
 
   state = {
     searchResults: null,
     searchTerm: ''
-  }
+  };
 
   componentDidMount() {
     this.props.getYugaByteReleases();
@@ -67,37 +67,51 @@ export default class ReleaseList extends Component {
   refreshRelease = () => {
     this.props.refreshYugaByteReleases();
     this.props.getYugaByteReleases();
-  }
+  };
 
   onModalSubmit = () => {
     this.props.getYugaByteReleases();
-  }
+  };
 
   onSearchVersions = (term) => {
     const { releases } = this.props;
     if (!term) {
-      this.setState({searchResults: null, searchTerm: ''});
+      this.setState({ searchResults: null, searchTerm: '' });
     } else {
       this.setState({
-        searchResults: Object.keys(releases.data).filter(x => x.indexOf(term) > -1),
+        searchResults: Object.keys(releases.data).filter((x) => x.indexOf(term) > -1),
         searchTerm: term
       });
+    }
+  };
+
+  formatReleaseState = (item) => {
+    switch (item) {
+      case 'ACTIVE':
+        return <div className="state-pill state-pill--success">{item}</div>;
+      case 'DISABLED':
+        return <div className="state-pill state-pill--danger">{item}</div>;
+      default:
+        return <div className="state-pill state-pill--secondary">{item}</div>;
     }
   }
 
   render() {
-    const { releases, title, customer: { currentCustomer }} = this.props;
+    const {
+      releases,
+      title,
+      customer: { currentCustomer }
+    } = this.props;
     const { searchTerm, searchResults } = this.state;
-    showOrRedirect(currentCustomer.data.features, "main.releases");
+    showOrRedirect(currentCustomer.data.features, 'main.releases');
 
-    if (getPromiseState(releases).isLoading() ||
-        getPromiseState(releases).isInit()) {
+    if (getPromiseState(releases).isLoading() || getPromiseState(releases).isInit()) {
       return <YBLoadingCircleIcon size="medium" />;
     }
     let releaseStrList = [];
     if (searchResults != null) {
       releaseStrList = searchResults;
-    } else {
+    } else if (releases.data) {
       releaseStrList = Object.keys(releases.data).sort(sortVersion);
     }
     const releaseInfos = releaseStrList.map((version) => {
@@ -106,19 +120,19 @@ export default class ReleaseList extends Component {
       return releaseInfo;
     });
 
-    const rowClassNameFormat = function(row, rowIdx) {
+    const rowClassNameFormat = function (row, rowIdx) {
       return 'td-column-' + row.state.toLowerCase();
     };
     const self = this;
 
-    const formatActionButtons = function(item, row) {
+    const formatActionButtons = function (item, row) {
       let allowedActions = null;
-      switch(item) {
-        case "ACTIVE":
-          allowedActions = ["DISABLE", "DELETE"];
+      switch (item) {
+        case 'ACTIVE':
+          allowedActions = ['DISABLE', 'DELETE'];
           break;
-        case "DISABLED":
-          allowedActions = ["DELETE", "ACTIVE"];
+        case 'DISABLED':
+          allowedActions = ['DELETE', 'ACTIVE'];
           break;
         default:
           break;
@@ -128,13 +142,23 @@ export default class ReleaseList extends Component {
       }
 
       return (
-        <DropdownButton className="btn btn-default"
-          title="Actions" id="bg-nested-dropdown" pullRight>
+        <DropdownButton
+          className="btn btn-default"
+          title="Actions"
+          id="bg-nested-dropdown"
+          pullRight
+        >
           {allowedActions.map((action, idx) => {
-            const actionType = action.toLowerCase() + "-release";
-            return (<TableAction key={action + "-" + idx} currentRow={row} actionType={actionType}
-                     onModalSubmit={self.onModalSubmit}
-                     disabled={!isAvailable(currentCustomer.data.features, "universes.actions")}/>);
+            const actionType = action.toLowerCase() + '-release';
+            return (
+              <TableAction
+                key={action + '-' + idx}
+                currentRow={row}
+                actionType={actionType}
+                onModalSubmit={self.onModalSubmit}
+                disabled={!isAvailable(currentCustomer.data.features, 'universes.actions')}
+              />
+            );
           })}
         </DropdownButton>
       );
@@ -144,51 +168,96 @@ export default class ReleaseList extends Component {
       <YBPanelItem
         header={
           <div>
-            <div className='pull-left'>
-              <YBTextInput placeHolder="Search versions" value={searchTerm} onValueChanged={this.onSearchVersions} />
+            <div className="pull-left">
+              <YBTextInput
+                placeHolder="Search versions"
+                value={searchTerm}
+                onValueChanged={this.onSearchVersions}
+              />
             </div>
-            <div className='pull-right'>
+            <div className="pull-right">
               <div className="release-list-action-btn-group">
-                <YBButton btnText={"Refresh"} btnIcon={"fa fa-refresh"}
-                  btnClass={'btn btn-primary'} onClick={this.refreshRelease}
-                  disabled={!isAvailable(currentCustomer.data.features, "universes.actions")}/>
-                <TableAction className="table-action" btnClass={"btn-default"}
-                  actionType="import-release" isMenuItem={false}
-                  onModalSubmit={self.onModalSubmit}
-                  disabled={!isAvailable(currentCustomer.data.features, "universes.actions")}/>
+                <YBButton
+                  btnText={'Refresh'}
+                  btnIcon={'fa fa-refresh'}
+                  btnClass={'btn btn-orange'}
+                  onClick={this.refreshRelease}
+                  disabled={!isAvailable(currentCustomer.data.features, 'universes.actions')}
+                />
+                <TableAction
+                  className="table-action"
+                  btnClass={'btn-default'}
+                  actionType="import-release"
+                  isMenuItem={false}
+                  onSubmit={self.onModalSubmit}
+                  disabled={!isAvailable(currentCustomer.data.features, 'universes.actions')}
+                />
               </div>
             </div>
-            <h2 className='content-title'>{title}</h2>
+            <h2 className="content-title">{title}</h2>
           </div>
         }
         body={
-          <BootstrapTable data={releaseInfos} className={"release-list-table"}
-            trClassName={rowClassNameFormat} pagination={true}>
-            <TableHeaderColumn dataField="version" isKey={true} width='100'
-                              columnClassName="no-border name-column" className="no-border">
+          <BootstrapTable
+            data={releaseInfos}
+            className={'release-list-table'}
+            trClassName={rowClassNameFormat}
+            pagination={true}
+          >
+            <TableHeaderColumn
+              dataField="version"
+              isKey={true}
+              columnClassName="no-border name-column"
+              className="no-border"
+              width="120px"
+            >
               Version
             </TableHeaderColumn>
-            <TableHeaderColumn dataField="filePath" tdStyle={ { whiteSpace: 'normal' } }
-                              columnClassName="no-border name-column" className="no-border">
+            <TableHeaderColumn
+              dataField="filePath"
+              tdStyle={{ whiteSpace: 'normal' }}
+              columnClassName="no-border name-column"
+              className="no-border"
+              width="550px"
+            >
               File Path
             </TableHeaderColumn>
-            <TableHeaderColumn dataField="imageTag" tdStyle={ { whiteSpace: 'normal' } }
-                              columnClassName="no-border " className="no-border">
+            <TableHeaderColumn
+              dataField="imageTag"
+              tdStyle={{ whiteSpace: 'normal' }}
+              columnClassName="no-border "
+              className="no-border"
+              width="120px"
+            >
               Registry Path
             </TableHeaderColumn>
-            <TableHeaderColumn dataField="notes" tdStyle={ { whiteSpace: 'normal' } }
-                              columnClassName="no-border name-column" className="no-border">
+            <TableHeaderColumn
+              dataField="notes"
+              tdStyle={{ whiteSpace: 'normal' }}
+              columnClassName="no-border name-column"
+              className="no-border"
+            >
               Release Notes
             </TableHeaderColumn>
-            <TableHeaderColumn dataField="state" width='150'
-                              columnClassName="no-border name-column" className="no-border">
+            <TableHeaderColumn
+              dataField="state"
+              dataFormat={this.formatReleaseState}
+              columnClassName="no-border name-column"
+              className="no-border"
+              width="150px"
+              dataAlign="center"
+            >
               State
             </TableHeaderColumn>
-            <TableHeaderColumn dataField="state" dataFormat={ formatActionButtons }
-                              columnClassName={"yb-actions-cell"} className="no-border">
+            <TableHeaderColumn
+              dataField="state"
+              dataFormat={formatActionButtons}
+              columnClassName={'yb-actions-cell'}
+              className="no-border"
+              width="120px"
+            >
               Actions
             </TableHeaderColumn>
-
           </BootstrapTable>
         }
       />

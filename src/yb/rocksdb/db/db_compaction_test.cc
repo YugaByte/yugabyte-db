@@ -709,17 +709,32 @@ TEST_F(DBCompactionTest, BGCompactionsAllowed) {
   }
 }
 
-TEST_F(DBCompactionTest, ClogSingleCompactionQueue) {
-  atomic<int> slowdown_writes{0};
-  atomic<int> stop_writes{0};
+class ThrottlingEventListener : public EventListener {
+ public:
+  void OnFlushCompleted(DB* db, const FlushJobInfo& flush_job_info) override {
+    if (flush_job_info.triggered_writes_slowdown) {
+      ++slowdown_writes_;
+    }
+    if (flush_job_info.triggered_writes_stop) {
+      ++stop_writes_;
+    }
+  }
 
-  rocksdb::SyncPoint::GetInstance()->SetCallBack(
-      "DBImpl::NotifyOnFlushCompleted::TriggeredWriteStop",
-      [&](void *args) { stop_writes++; });
-  rocksdb::SyncPoint::GetInstance()->SetCallBack(
-      "DBImpl::NotifyOnFlushCompleted::TriggeredWriteSlowdown",
-      [&](void *args) { slowdown_writes++; });
-  rocksdb::SyncPoint::GetInstance()->EnableProcessing();
+  int slowdown_writes() const {
+    return slowdown_writes_;
+  }
+
+  int stop_writes() const {
+    return stop_writes_;
+  }
+
+ private:
+  std::atomic<int> slowdown_writes_{0};
+  std::atomic<int> stop_writes_{0};
+};
+
+TEST_F(DBCompactionTest, ClogSingleCompactionQueue) {
+  auto listener = std::make_shared<ThrottlingEventListener>();
   // Create several column families. Make large compactions in all but one
   // of them and see small compactions in the other starve.
   const int kNumKeysPerLargeFile = 100000;
@@ -731,12 +746,12 @@ TEST_F(DBCompactionTest, ClogSingleCompactionQueue) {
   options.compaction_style = kCompactionStyleUniversal;
   // Should speed up compaction when there are 4 files.
   options.level0_file_num_compaction_trigger = 2;
-  options.level0_slowdown_writes_trigger = 10;
+  options.level0_slowdown_writes_trigger = options.level0_file_num_compaction_trigger + 1;
   options.level0_stop_writes_trigger = 20;
   options.soft_pending_compaction_bytes_limit = 1ULL << 63;  // Infinitely large
   options.max_background_compactions = 3;
-  options.memtable_factory.reset(new SpecialSkipListFactory(kNumKeysPerLargeFile));
-  options.listeners.emplace_back(new EventListener());
+  options.memtable_factory = std::make_shared<SpecialSkipListFactory>(kNumKeysPerLargeFile);
+  options.listeners.push_back(listener);
   options = CurrentOptions(options);
 
   // Block all threads in thread pool.
@@ -785,12 +800,10 @@ TEST_F(DBCompactionTest, ClogSingleCompactionQueue) {
 
   rocksdb::SyncPoint::GetInstance()->DisableProcessing();
 
-  ASSERT_GT(slowdown_writes + stop_writes, 0);
+  ASSERT_GT(listener->slowdown_writes() + listener->stop_writes(), 0);
 }
 
 TEST_F(DBCompactionTest, ClogMultipleCompactionQueues) {
-  atomic<int> slowdown_writes{0};
-  atomic<int> stop_writes{0};
   atomic<int> num_large_compactions{0};
   atomic<int> num_small_compactions{0};
 
@@ -811,8 +824,8 @@ TEST_F(DBCompactionTest, ClogMultipleCompactionQueues) {
   options.soft_pending_compaction_bytes_limit = 1ULL << 63;  // Infinitely large
   options.max_background_compactions = 3;
   options.compaction_size_threshold_bytes = 1 << 20;
-  options.memtable_factory.reset(new SpecialSkipListFactory(kNumKeysPerLargeFile));
-  options.listeners.emplace_back(new EventListener());
+  options.memtable_factory = std::make_shared<SpecialSkipListFactory>(kNumKeysPerLargeFile);
+  options.listeners.push_back(std::make_shared<EventListener>());
   options = CurrentOptions(options);
 
   // Block all threads in thread pool.
@@ -825,12 +838,6 @@ TEST_F(DBCompactionTest, ClogMultipleCompactionQueues) {
     sleeping_tasks[i].WaitUntilSleeping();
   }
 
-  rocksdb::SyncPoint::GetInstance()->SetCallBack(
-      "DBImpl::NotifyOnFlushCompleted::TriggeredWriteStop",
-      [&](void *args) { stop_writes++; });
-  rocksdb::SyncPoint::GetInstance()->SetCallBack(
-      "DBImpl::NotifyOnFlushCompleted::TriggeredWriteSlowdown",
-      [&](void *args) { slowdown_writes++; });
   rocksdb::SyncPoint::GetInstance()->EnableProcessing();
 
   CreateAndReopenWithCF({"one", "two", "three"}, options);

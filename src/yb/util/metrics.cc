@@ -780,7 +780,10 @@ scoped_refptr<MillisLag> MillisLagPrototype::Instantiate(
   return entity->FindOrCreateMillisLag(this);
 }
 
-MillisLag::MillisLag(const MillisLagPrototype* proto) : Metric(proto) {
+MillisLag::MillisLag(const MillisLagPrototype* proto)
+  : Metric(proto),
+    timestamp_ms_(static_cast<int64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count())) {
 }
 
 Status MillisLag::WriteAsJson(JsonWriter* writer, const MetricJsonOptions& opts) const {
@@ -807,6 +810,12 @@ Status MillisLag::WriteForPrometheus(
   }
 
   return writer->WriteSingleEntry(attr, prototype_->name(), lag_ms());
+}
+
+AtomicMillisLag::AtomicMillisLag(const MillisLagPrototype* proto)
+  : MillisLag(proto),
+    atomic_timestamp_ms_(static_cast<int64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count())) {
 }
 
 Status AtomicMillisLag::WriteAsJson(JsonWriter* writer, const MetricJsonOptions& opts) const {
@@ -858,6 +867,14 @@ Histogram::Histogram(const HistogramPrototype* proto)
   : Metric(proto),
     histogram_(new HdrHistogram(proto->max_trackable_value(), proto->num_sig_digits())),
     export_percentiles_(proto->export_percentiles()) {
+}
+
+Histogram::Histogram(
+  std::unique_ptr <HistogramPrototype> proto,  uint64_t highest_trackable_value,
+  int num_significant_digits, ExportPercentiles export_percentiles)
+  : Metric(std::move(proto)),
+    histogram_(new HdrHistogram(highest_trackable_value, num_significant_digits)),
+    export_percentiles_(export_percentiles) {
 }
 
 void Histogram::Increment(int64_t value) {

@@ -75,6 +75,8 @@ class PgMiniTest : public PgMiniTestBase {
 
   void TestBigInsert(bool restart);
 
+  void TestConcurrentDeleteRowAndUpdateColumn(bool select_before_update);
+
   void FlushAndCompactTablets() {
     FLAGS_timestamp_history_retention_interval_sec = 0;
     FLAGS_history_cutoff_propagation_interval_ms = 1;
@@ -94,7 +96,14 @@ class PgMiniSingleTServerTest : public PgMiniTest {
   }
 };
 
-TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_SANITIZERS(Simple)) {
+class PgMiniMasterFailoverTest : public PgMiniTest {
+ public:
+  int NumMasters() override {
+    return 3;
+  }
+};
+
+TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_TSAN(Simple)) {
   auto conn = ASSERT_RESULT(Connect());
 
   ASSERT_OK(conn.Execute("CREATE TABLE t (key INT PRIMARY KEY, value TEXT)"));
@@ -104,7 +113,7 @@ TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_SANITIZERS(Simple)) {
   ASSERT_EQ(value, "hello");
 }
 
-TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_SANITIZERS(WriteRetry)) {
+TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_TSAN(WriteRetry)) {
   constexpr int kKeys = 100;
   auto conn = ASSERT_RESULT(Connect());
 
@@ -134,7 +143,7 @@ TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_SANITIZERS(WriteRetry)) {
   ASSERT_STR_CONTAINS(status.ToString(), "duplicate key value violates unique constraint");
 }
 
-TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_SANITIZERS(With)) {
+TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_TSAN(With)) {
   auto conn = ASSERT_RESULT(Connect());
 
   ASSERT_OK(conn.Execute("CREATE TABLE test (k int PRIMARY KEY, v int)"));
@@ -154,8 +163,6 @@ void PgMiniTest::TestReadRestart(const bool deferrable) {
   std::atomic<int> num_read_restarts(0);
   std::atomic<int> num_read_successes(0);
   TestThreadHolder thread_holder;
-
-  SetAtomicFlag(250000ULL, &FLAGS_max_clock_skew_usec);
 
   // Set up table
   auto setup_conn = ASSERT_RESULT(Connect());
@@ -187,6 +194,7 @@ void PgMiniTest::TestReadRestart(const bool deferrable) {
           ASSERT_STR_CONTAINS(result.status().ToString(), "Restart read");
           ++num_read_restarts;
           ASSERT_OK(read_conn.Execute("ABORT"));
+          break;
         } else {
           ASSERT_OK(read_conn.Execute("COMMIT"));
           ++num_read_successes;
@@ -222,11 +230,21 @@ void PgMiniTest::TestReadRestart(const bool deferrable) {
   ASSERT_GT(num_read_successes.load(std::memory_order_acquire), kRequiredNumReads);
 }
 
-TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_SANITIZERS(ReadRestartSerializableDeferrable)) {
+class PgMiniLargeClockSkewTest : public PgMiniTest {
+ public:
+  void SetUp() override {
+    SetAtomicFlag(250000ULL, &FLAGS_max_clock_skew_usec);
+    PgMiniTestBase::SetUp();
+  }
+};
+
+TEST_F_EX(PgMiniTest, YB_DISABLE_TEST_IN_SANITIZERS(ReadRestartSerializableDeferrable),
+          PgMiniLargeClockSkewTest) {
   TestReadRestart(true /* deferrable */);
 }
 
-TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_SANITIZERS(ReadRestartSnapshot)) {
+TEST_F_EX(PgMiniTest, YB_DISABLE_TEST_IN_SANITIZERS(ReadRestartSnapshot),
+          PgMiniLargeClockSkewTest) {
   TestReadRestart(false /* deferrable */);
 }
 
@@ -446,11 +464,11 @@ void PgMiniTest::TestRowLockConflictMatrix() {
   }
 }
 
-TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_SANITIZERS(RowLockConflictMatrix)) {
+TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_TSAN(RowLockConflictMatrix)) {
   TestRowLockConflictMatrix();
 }
 
-TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_SANITIZERS(SerializableReadOnly)) {
+TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_TSAN(SerializableReadOnly)) {
   PGConn read_conn = ASSERT_RESULT(Connect());
   PGConn setup_conn = ASSERT_RESULT(Connect());
   PGConn write_conn = ASSERT_RESULT(Connect());
@@ -520,10 +538,10 @@ TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_SANITIZERS(SerializableReadOnly)) {
 
 void AssertAborted(const Status& status) {
   ASSERT_NOK(status);
-  ASSERT_STR_CONTAINS(status.ToString(), "Transaction aborted");
+  ASSERT_STR_CONTAINS(status.ToString(), "aborted");
 }
 
-TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_SANITIZERS(SelectModifySelect)) {
+TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_TSAN(SelectModifySelect)) {
   {
     auto read_conn = ASSERT_RESULT(Connect());
     auto write_conn = ASSERT_RESULT(Connect());
@@ -880,6 +898,36 @@ TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_TSAN(DropDBWithTables)) {
   ASSERT_EQ(num_tables_before, num_tables_after);
 }
 
+TEST_F_EX(PgMiniTest, YB_DISABLE_TEST_IN_SANITIZERS(DropAllTablesInColocatedDB),
+          PgMiniMasterFailoverTest) {
+  const std::string kDatabaseName = "testdb";
+  // Create a colocated DB, create some tables, delete all of them.
+  {
+    PGConn conn = ASSERT_RESULT(Connect());
+    ASSERT_OK(conn.ExecuteFormat("CREATE DATABASE $0 with colocated=true", kDatabaseName));
+    {
+      PGConn conn_new = ASSERT_RESULT(ConnectToDB(kDatabaseName));
+      ASSERT_OK(conn_new.Execute("CREATE TABLE foo (i int)"));
+      ASSERT_OK(conn_new.Execute("DROP TABLE foo"));
+    }
+  }
+  // Failover to a new master.
+  LOG(INFO) << "Failover to new Master";
+  auto old_master = cluster_->leader_mini_master();
+  cluster_->leader_mini_master()->Shutdown();
+  auto new_master = cluster_->leader_mini_master();
+  ASSERT_NE(nullptr, new_master);
+  ASSERT_NE(old_master, new_master);
+  // Wait for all the TabletServers to report in, so we can run CREATE TABLE with working replicas.
+  ASSERT_OK(cluster_->WaitForAllTabletServers());
+  // Ensure we can still access the colocated DB on restart.
+  {
+    PGConn conn_new = ASSERT_RESULT(ConnectToDB(kDatabaseName));
+    ASSERT_OK(conn_new.Execute("CREATE TABLE foo (i int)"));
+  }
+}
+
+
 TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_TSAN(BigSelect)) {
   auto conn = ASSERT_RESULT(Connect());
 
@@ -1140,24 +1188,26 @@ class PgMiniBackwardIndexScanTest : public PgMiniSingleTServerTest {
       )#"));
     ASSERT_OK(conn.Execute("create index on events_backwardscan (inserted asc);"));
 
-    ASSERT_OK(conn.Execute(R"#(
-        insert into events_backwardscan
+    for (int day = 1; day <= 31; ++day) {
+      ASSERT_OK(conn.ExecuteFormat(R"#(
+          insert into events_backwardscan
 
-        select
-          'log',
-          'src',
-          t,
-          t,
-          '{}'
+          select
+            'log',
+            'src',
+            t,
+            t,
+            '{}'
 
-        from generate_series(
-          timestamp '2020-01-01',
-          timestamp '2020-02-01',
-          interval  '1 minute'
-        )
+          from generate_series(
+            timestamp '2020-01-$0 00:00:00',
+            timestamp '2020-01-$0 23:59:59',
+            interval  '1 minute'
+          )
 
-        as t(day);
-    )#"));
+          as t(day);
+      )#", day));
+    }
 
     boost::optional<PGConn> uncommitted_intents_conn;
     if (uncommitted_intents) {
@@ -1273,6 +1323,43 @@ TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_TSAN(BigInsert)) {
 TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_TSAN(BigInsertWithRestart)) {
   FLAGS_apply_intents_task_injected_delay_ms = 200;
   TestBigInsert(/* restart= */ true);
+}
+
+void PgMiniTest::TestConcurrentDeleteRowAndUpdateColumn(bool select_before_update) {
+  auto conn1 = ASSERT_RESULT(Connect());
+  auto conn2 = ASSERT_RESULT(Connect());
+  ASSERT_OK(conn1.Execute("CREATE TABLE t (i INT PRIMARY KEY, j INT)"));
+  ASSERT_OK(conn1.Execute("INSERT INTO t VALUES (1, 10), (2, 20), (3, 30)"));
+  ASSERT_OK(conn1.StartTransaction(IsolationLevel::SNAPSHOT_ISOLATION));
+  if (select_before_update) {
+    ASSERT_OK(conn1.Fetch("SELECT * FROM t"));
+  }
+  ASSERT_OK(conn2.Execute("DELETE FROM t WHERE i = 2"));
+  auto status = conn1.Execute("UPDATE t SET j = 21 WHERE i = 2");
+  if (select_before_update) {
+    ASSERT_NOK(status);
+    ASSERT_STR_CONTAINS(status.message().ToBuffer(), "Value write after transaction start");
+    return;
+  }
+  ASSERT_OK(status);
+  ASSERT_OK(conn1.CommitTransaction());
+  auto result = ASSERT_RESULT(conn1.FetchMatrix("SELECT * FROM t ORDER BY i", 2, 2));
+  auto value = ASSERT_RESULT(GetInt32(result.get(), 0, 0));
+  ASSERT_EQ(value, 1);
+  value = ASSERT_RESULT(GetInt32(result.get(), 0, 1));
+  ASSERT_EQ(value, 10);
+  value = ASSERT_RESULT(GetInt32(result.get(), 1, 0));
+  ASSERT_EQ(value, 3);
+  value = ASSERT_RESULT(GetInt32(result.get(), 1, 1));
+  ASSERT_EQ(value, 30);
+}
+
+TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_TSAN(ConcurrentDeleteRowAndUpdateColumn)) {
+  TestConcurrentDeleteRowAndUpdateColumn(/* select_before_update= */ false);
+}
+
+TEST_F(PgMiniTest, YB_DISABLE_TEST_IN_TSAN(ConcurrentDeleteRowAndUpdateColumnWithSelect)) {
+  TestConcurrentDeleteRowAndUpdateColumn(/* select_before_update= */ true);
 }
 
 } // namespace pgwrapper

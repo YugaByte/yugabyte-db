@@ -7,17 +7,13 @@ import './stylesheets/YBStatsBlock.scss';
 
 export default class YBStatsBlock extends PureComponent {
   render() {
-    const {value, label} = this.props;
+    const { value, label } = this.props;
     return (
       <div className="tile_stats_count text-center">
         <DescriptionItem>
-          <div className="count">
-            {value}
-          </div>
+          <div className="count">{value}</div>
         </DescriptionItem>
-        <span className="count_top">
-          {label}
-        </span>
+        <span className="count_top">{label}</span>
       </div>
     );
   }

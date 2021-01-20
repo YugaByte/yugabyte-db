@@ -265,6 +265,10 @@ size_t Connection::DoQueueOutboundData(OutboundDataPtr outbound_data, bool batch
     return std::numeric_limits<size_t>::max();
   }
   auto result = stream_->Send(std::move(outbound_data));
+  if (!result.ok()) {
+    Shutdown(result.status());
+    return std::numeric_limits<size_t>::max();
+  }
   s = context_->ReportPendingWriteBytes(stream_->GetPendingWriteBytes());
   if (!s.ok()) {
     Shutdown(s);
@@ -275,7 +279,7 @@ size_t Connection::DoQueueOutboundData(OutboundDataPtr outbound_data, bool batch
     OutboundQueued();
   }
 
-  return result;
+  return *result;
 }
 
 void Connection::ParseReceived() {

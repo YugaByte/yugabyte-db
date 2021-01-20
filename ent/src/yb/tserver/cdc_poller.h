@@ -54,11 +54,12 @@ class CDCPoller : public std::enable_shared_from_this<CDCPoller> {
             std::function<bool(void)> should_continue_polling,
             std::function<void(void)> remove_self_from_pollers_map,
             ThreadPool* thread_pool,
+            rpc::Rpcs* rpcs,
             const std::shared_ptr<CDCClient>& local_client,
             const std::shared_ptr<CDCClient>& producer_client,
             CDCConsumer* cdc_consumer,
             bool use_local_tserver);
-  ~CDCPoller() = default;
+  ~CDCPoller();
 
   // Begins poll process for a producer tablet.
   void Poll();
@@ -95,6 +96,8 @@ class CDCPoller : public std::enable_shared_from_this<CDCPoller> {
   std::shared_ptr<CDCClient> producer_client_;
 
   ThreadPool* thread_pool_;
+  rpc::Rpcs* rpcs_;
+  rpc::Rpcs::Handle poll_handle_;
   CDCConsumer* cdc_consumer_;
 
   std::atomic<bool> is_polling_{true};

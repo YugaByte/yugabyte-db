@@ -49,6 +49,8 @@ char* DupYBStatusMessage(YBCStatus status, bool message_only);
 
 bool YBCIsRestartReadError(uint16_t txn_errcode);
 
+bool YBCIsTxnConflictError(uint16_t txn_errcode);
+
 void YBCResolveHostname();
 
 #define CHECKED_YBCSTATUS __attribute__ ((warn_unused_result)) YBCStatus
@@ -116,6 +118,9 @@ void YBCLogImpl(int severity,
 const char* YBCFormatBytesAsStr(const char* data, size_t size);
 
 const char* YBCGetStackTrace();
+
+// Initializes global state needed for thread management, including CDS library initialization.
+void YBCInitThreading();
 
 #ifdef __cplusplus
 } // extern "C"

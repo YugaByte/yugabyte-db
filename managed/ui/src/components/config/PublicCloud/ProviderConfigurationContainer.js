@@ -3,21 +3,50 @@
 import { connect } from 'react-redux';
 import ProviderConfiguration from './ProviderConfiguration';
 import { reset } from 'redux-form';
-import { createProvider, createProviderResponse, createRegion, createRegionResponse,
-  createAccessKey, createAccessKeyResponse, initializeProvider, initializeProviderSuccess,
-  initializeProviderFailure, deleteProvider, deleteProviderSuccess, deleteProviderFailure,
-  resetProviderBootstrap, fetchCloudMetadata, bootstrapProvider, bootstrapProviderResponse } from '../../../actions/cloud';
+import {
+  createProvider,
+  createProviderResponse,
+  createRegion,
+  createRegionResponse,
+  createAccessKey,
+  createAccessKeyResponse,
+  initializeProvider,
+  initializeProviderSuccess,
+  initializeProviderFailure,
+  deleteProvider,
+  deleteProviderSuccess,
+  deleteProviderFailure,
+  resetProviderBootstrap,
+  fetchCloudMetadata,
+  bootstrapProvider,
+  bootstrapProviderResponse
+} from '../../../actions/cloud';
 import { openDialog, closeDialog } from '../../../actions/modal';
-import {fetchTaskProgress, fetchTaskProgressResponse,fetchCustomerTasks , fetchCustomerTasksFailure, fetchCustomerTasksSuccess }
-  from '../../../actions/tasks';
-import { fetchHostInfo, fetchHostInfoSuccess, fetchHostInfoFailure } from '../../../actions/customers';
+import {
+  fetchTaskProgress,
+  fetchTaskProgressResponse,
+  fetchCustomerTasks,
+  fetchCustomerTasksFailure,
+  fetchCustomerTasksSuccess
+} from '../../../actions/tasks';
+import {
+  fetchHostInfo,
+  fetchHostInfoSuccess,
+  fetchHostInfoFailure
+} from '../../../actions/customers';
 
 const mapDispatchToProps = (dispatch) => {
   return {
     createAWSProvider: (name, config, regionFormVals) => {
-      Object.keys(config).forEach((key) => { if (typeof config[key] === 'string' || config[key] instanceof String) config[key] = config[key].trim(); });
-      Object.keys(regionFormVals).forEach((key) => { if (typeof regionFormVals[key] === 'string' || regionFormVals[key] instanceof String) regionFormVals[key] = regionFormVals[key].trim(); });
-      dispatch(createProvider("aws", name.trim(), config)).then((response) => {
+      Object.keys(config).forEach((key) => {
+        if (typeof config[key] === 'string' || config[key] instanceof String)
+          config[key] = config[key].trim();
+      });
+      Object.keys(regionFormVals).forEach((key) => {
+        if (typeof regionFormVals[key] === 'string' || regionFormVals[key] instanceof String)
+          regionFormVals[key] = regionFormVals[key].trim();
+      });
+      dispatch(createProvider('aws', name.trim(), config)).then((response) => {
         dispatch(createProviderResponse(response.payload));
         if (response.payload.status === 200) {
           dispatch(fetchCloudMetadata());
@@ -30,19 +59,22 @@ const mapDispatchToProps = (dispatch) => {
     },
 
     createGCPProvider: (providerName, providerConfig, perRegionMetadata) => {
-      Object.keys(providerConfig).forEach((key) => { if (typeof providerConfig[key] === 'string' || providerConfig[key] instanceof String) providerConfig[key] = providerConfig[key].trim(); });
-      dispatch(createProvider("gcp", providerName.trim(), providerConfig)).then((response) => {
+      Object.keys(providerConfig).forEach((key) => {
+        if (typeof providerConfig[key] === 'string' || providerConfig[key] instanceof String)
+          providerConfig[key] = providerConfig[key].trim();
+      });
+      dispatch(createProvider('gcp', providerName.trim(), providerConfig)).then((response) => {
         dispatch(createProviderResponse(response.payload));
         if (response.payload.status === 200) {
           dispatch(fetchCloudMetadata());
           const providerUUID = response.payload.data.uuid;
-          const hostNetwork = providerConfig["network"];
+          const hostNetwork = providerConfig['network'];
           const params = {
-            "hostVpcId": hostNetwork,
-            "destVpcId": hostNetwork,
-            "airGapInstall": providerConfig["airGapInstall"],
-            "sshPort": providerConfig["sshPort"],
-            "perRegionMetadata": perRegionMetadata
+            hostVpcId: hostNetwork,
+            destVpcId: hostNetwork,
+            airGapInstall: providerConfig['airGapInstall'],
+            sshPort: providerConfig['sshPort'],
+            perRegionMetadata: perRegionMetadata
           };
           dispatch(bootstrapProvider(providerUUID, params)).then((boostrapResponse) => {
             dispatch(bootstrapProviderResponse(boostrapResponse.payload));
@@ -52,8 +84,14 @@ const mapDispatchToProps = (dispatch) => {
     },
 
     createAzureProvider: (name, config, regionFormVals) => {
-      Object.keys(config).forEach((key) => { if (typeof config[key] === 'string' || config[key] instanceof String) config[key] = config[key].trim(); });
-      Object.keys(regionFormVals).forEach((key) => { if (typeof regionFormVals[key] === 'string' || regionFormVals[key] instanceof String) regionFormVals[key] = regionFormVals[key].trim(); });
+      Object.keys(config).forEach((key) => {
+        if (typeof config[key] === 'string' || config[key] instanceof String)
+          config[key] = config[key].trim();
+      });
+      Object.keys(regionFormVals).forEach((key) => {
+        if (typeof regionFormVals[key] === 'string' || regionFormVals[key] instanceof String)
+          regionFormVals[key] = regionFormVals[key].trim();
+      });
       dispatch(createProvider('azu', name.trim(), config)).then((response) => {
         dispatch(createProviderResponse(response.payload));
         if (response.payload.status === 200) {
@@ -73,7 +111,7 @@ const mapDispatchToProps = (dispatch) => {
     },
 
     createAccessKey: (providerUUID, regionUUID, accessKeyCode) => {
-      const keyInfo = {'code': accessKeyCode};
+      const keyInfo = { code: accessKeyCode };
       dispatch(createAccessKey(providerUUID, regionUUID, keyInfo)).then((response) => {
         dispatch(createAccessKeyResponse(response.payload));
       });
@@ -81,7 +119,7 @@ const mapDispatchToProps = (dispatch) => {
 
     initializeProvider: (providerUUID) => {
       dispatch(initializeProvider(providerUUID)).then((response) => {
-        if(response.payload.status !== 200) {
+        if (response.payload.status !== 200) {
           dispatch(initializeProviderFailure(response.payload));
         } else {
           dispatch(initializeProviderSuccess(response.payload));
@@ -142,17 +180,16 @@ const mapDispatchToProps = (dispatch) => {
       dispatch(closeDialog());
     },
     fetchHostInfo: () => {
-      dispatch(fetchHostInfo()).then((response)=>{
+      dispatch(fetchHostInfo()).then((response) => {
         if (response.payload.status !== 200) {
           dispatch(fetchHostInfoFailure(response.payload));
         } else {
           dispatch(fetchHostInfoSuccess(response.payload));
         }
       });
-    },
+    }
   };
 };
-
 
 const mapStateToProps = (state) => {
   return {
@@ -164,10 +201,8 @@ const mapStateToProps = (state) => {
     hostInfo: state.customer.hostInfo,
     modal: state.modal,
     cloud: state.cloud,
-    tasks: state.tasks,
-    featureFlags: state.customer.currentCustomer?.data?.features,
+    tasks: state.tasks
   };
 };
-
 
 export default connect(mapStateToProps, mapDispatchToProps)(ProviderConfiguration);

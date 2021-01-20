@@ -46,10 +46,10 @@ CHECKED_STATUS GetMasterEntryForHosts(
 const HostPortPB& DesiredHostPort(const TSInfoPB& ts_info, const CloudInfoPB& from);
 
 void TakeRegistration(consensus::RaftPeerPB* source, TSInfoPB* dest);
-void CopyRegistration(consensus::RaftPeerPB source, TSInfoPB* dest);
+void CopyRegistration(const consensus::RaftPeerPB& source, TSInfoPB* dest);
 
 void TakeRegistration(ServerRegistrationPB* source, TSInfoPB* dest);
-void CopyRegistration(ServerRegistrationPB source, TSInfoPB* dest);
+void CopyRegistration(const ServerRegistrationPB& source, TSInfoPB* dest);
 
 bool IsSystemNamespace(const std::string& namespace_name);
 

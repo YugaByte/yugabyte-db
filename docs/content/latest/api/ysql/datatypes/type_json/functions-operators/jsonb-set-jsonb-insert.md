@@ -2,7 +2,7 @@
 title: jsonb_set() and jsonb_insert()
 headerTitle: jsonb_set() and jsonb_insert()
 linkTitle: jsonb_set() and jsonb_insert()
-description: Change an existing JSON value using jsonb_set() and insert a new value using jsonb_insert().
+description: Change a JSON value using jsonb_set() and insert a value using jsonb_insert().
 menu:
   latest:
     identifier: jsonb-set-jsonb-insert
@@ -12,7 +12,7 @@ isTocNested: true
 showAsideToc: true
 ---
 
-**Purpose**: Use `jsonb_set()` to change an existing JSON value that is the value of an existing key-value pair in a JSON _object_ or the value at an existing index in a JSON array. Use `jsonb_insert()` to insert a new value, either as the value for a key that doesn't yet exist in a JSON _object_ or beyond the end or before the start of the index range, for a JSON _array_.
+**Purpose**: Use `jsonb_set()` to change a JSON value that is the value of an existing key-value pair in a JSON _object_ or the value at an existing index in a JSON array. Use `jsonb_insert()` to insert a value, either as the value for a key that doesn't yet exist in a JSON _object_ or beyond the end or before the start of the index range, for a JSON _array_.
 
 **Signature:** For `jsonb_set()`:
 
@@ -187,7 +187,7 @@ The path, for `jsonb_set()`, is taken to mean the as yet nonexistent fifth value
 
 The path, for `jsonb_insert()`, is also taken to mean the as yet nonexistent fifth value. But now, the choice of `TRUE` or `FALSE` for _"insert_after"_ makes no difference because before, or after, a nonexistent element is taken to mean insert it.
 
-Notice that if the path is specified as `-42` (i.e. an impossible _array_ index) the result is to establish the specified new value at the _start_ of the _array_. `jsonb_set` and `jsonb_insert` produce the same result, this:
+Notice that if the path is specified as `-42` (i.e. an impossible _array_ index) the result is to establish the specified value at the _start_ of the _array_. `jsonb_set` and `jsonb_insert` produce the same result, this:
 
 ```plpgsql
 do $body$

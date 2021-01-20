@@ -25,7 +25,7 @@ class TestConsensusContext : public ConsensusContext {
 
   bool ShouldApplyWrite() override { return true; }
 
-  HybridTime PreparePeerRequest() override { return HybridTime(); }
+  Result<HybridTime> PreparePeerRequest() override { return HybridTime(); }
 
   void MajorityReplicated() override {}
 

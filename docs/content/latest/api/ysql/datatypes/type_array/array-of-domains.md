@@ -375,7 +375,6 @@ Typecasting cannot come to the rescue here. But this function produces the requi
 \set VERBOSITY default
 create or replace function array_agg_v()
   returns arrays_t
-  immutable
   language plpgsql
 as $body$
 <<b>>declare

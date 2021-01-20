@@ -172,7 +172,7 @@ Status ChangeMetadataOperation::DoReplicated(int64_t leader_term, Status* comple
     }
   }
 
-  if (state()->request()->has_is_backfilling()) {
+  if (state()->request()->has_mark_backfill_done()) {
     metadata_change = MetadataChange::NONE;
     if (++num_operations == 1) {
       metadata_change = MetadataChange::BACKFILL_DONE;

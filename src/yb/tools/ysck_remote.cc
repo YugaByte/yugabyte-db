@@ -50,6 +50,8 @@ DEFINE_int64(tablets_batch_size_max, 100, "How many tablets to get from the Mast
 DECLARE_int64(outbound_rpc_block_size);
 DECLARE_int64(outbound_rpc_memory_limit);
 
+using namespace std::literals;
+
 namespace yb {
 namespace tools {
 
@@ -255,8 +257,20 @@ Status RemoteYsckMaster::RetrieveTabletsList(const shared_ptr<YsckTable>& table)
   vector<shared_ptr<YsckTablet> > tablets;
   bool more_tablets = true;
   string last_key;
+  auto deadline = CoarseMonoClock::now() + 60s;
   while (more_tablets) {
-    RETURN_NOT_OK(GetTabletsBatch(table->id(), table->name(), &last_key, &tablets, &more_tablets));
+    auto status = GetTabletsBatch(table->id(), table->name(), &last_key, &tablets, &more_tablets);
+    if (status.IsTryAgain()) {
+      if (CoarseMonoClock::now() >= deadline) {
+        return status.CloneAndReplaceCode(Status::kTimedOut);
+      }
+      tablets.clear();
+      last_key.clear();
+      more_tablets = true;
+      std::this_thread::sleep_for(100ms);
+      continue;
+    }
+    RETURN_NOT_OK(status);
   }
 
   table->set_tablets(tablets);
@@ -279,6 +293,9 @@ Status RemoteYsckMaster::GetTabletsBatch(
 
   rpc.set_timeout(GetDefaultTimeout());
   RETURN_NOT_OK(proxy_->GetTableLocations(req, &resp, &rpc));
+  if (resp.creating()) {
+    return STATUS_FORMAT(TryAgain, "Table $0 is being created", table_name);
+  }
   for (const master::TabletLocationsPB& locations : resp.tablet_locations()) {
     shared_ptr<YsckTablet> tablet(new YsckTablet(locations.tablet_id()));
     vector<shared_ptr<YsckTabletReplica> > replicas;

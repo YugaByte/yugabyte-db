@@ -192,11 +192,6 @@ class MvccManager {
   // Special flag for RF==1 mode when propagated_safe_time_ can be not up-to-date.
   bool leader_only_mode_ = false;
 
-  // Because different calls that have current hybrid time leader lease as an argument can come to
-  // us out of order, we might see an older value of hybrid time leader lease expiration after a
-  // newer value. We mitigate this by always using the highest value we've seen.
-  mutable HybridTime max_ht_lease_seen_ = HybridTime::kMin;
-
   mutable SafeTimeWithSource max_safe_time_returned_with_lease_;
   mutable SafeTimeWithSource max_safe_time_returned_without_lease_;
   mutable SafeTimeWithSource max_safe_time_returned_for_follower_ { HybridTime::kMin };

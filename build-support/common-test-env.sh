@@ -1,4 +1,5 @@
-#@IgnoreInspection BashAddShebang
+#!/usr/bin/env bash
+
 # Copyright (c) YugaByte, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -12,16 +13,17 @@
 # the License.
 #
 
-# Common bash code for test scripts/
+# Common bash code for test scripts.
 
 declare -i global_exit_code=0
 
-if [[ $BASH_SOURCE == $0 ]]; then
-  echo "$BASH_SOURCE must be sourced, not executed" >&2
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  echo "${BASH_SOURCE[0]} must be sourced, not executed" >&2
   exit 1
 fi
 
-. "${BASH_SOURCE%/*}/common-build-env.sh"
+# shellcheck source=build-support/common-build-env.sh
+. "${BASH_SOURCE[0]%/*}/common-build-env.sh"
 
 NON_GTEST_TESTS=(
   merge-test
@@ -47,13 +49,14 @@ VALID_TEST_BINARY_DIRS_RE="^${VALID_TEST_BINARY_DIRS_PREFIX}-[0-9a-zA-Z\-]+"
 # http://www.commandlinefu.com/commands/view/6004/print-stack-trace-of-a-core-file-without-needing-to-enter-gdb-interactively
 
 DEFAULT_TEST_TIMEOUT_SEC=${DEFAULT_TEST_TIMEOUT_SEC:-600}
-INCREASED_TEST_TIMEOUT_SEC=$(($DEFAULT_TEST_TIMEOUT_SEC * 2))
+INCREASED_TEST_TIMEOUT_SEC=$(( DEFAULT_TEST_TIMEOUT_SEC * 2 ))
 
 # This timeout will be applied by the process_tree_supervisor.py script.
+# shellcheck disable=SC2034
 PROCESS_TREE_SUPERVISOR_TEST_TIMEOUT_SEC=$(( 30 * 60 ))
 
 # We grep for these log lines and show them in the main log on test failure. This regular expression
-# is used with egrep.
+# is used with "grep -E".
 RELEVANT_LOG_LINES_RE="^[[:space:]]*(Value of|Actual|Expected):|^Expected|^Failed|^Which is:"
 RELEVANT_LOG_LINES_RE+="|: Failure$|ThreadSanitizer: data race|Check failure"
 readonly RELEVANT_LOG_LINES_RE
@@ -74,19 +77,21 @@ readonly INITIAL_SPARK_DRIVER_CORES=8
 # This must match the constant with the same name in run_tests_on_spark.py.
 readonly TEST_DESCRIPTOR_SEPARATOR=":::"
 
-# This directory inside $BUILD_ROOT contains files listing all C++ tests (one file per test
-# program).
-#
-readonly LIST_OF_TESTS_DIR_NAME="list_of_tests"
-
 readonly JENKINS_NFS_BUILD_REPORT_BASE_DIR="/n/jenkins/build_stats"
 
 # https://github.com/google/sanitizers/wiki/SanitizerCommonFlags
 readonly SANITIZER_COMMON_OPTIONS=""
 
+# shellcheck disable=SC2034
 declare -i -r MIN_REPEATED_TEST_PARALLELISM=1
+
+# shellcheck disable=SC2034
 declare -i -r MAX_REPEATED_TEST_PARALLELISM=100
+
+# shellcheck disable=SC2034
 declare -i -r DEFAULT_REPEATED_TEST_PARALLELISM=4
+
+# shellcheck disable=SC2034
 declare -i -r DEFAULT_REPEATED_TEST_PARALLELISM_TSAN=1
 
 readonly MVN_COMMON_SKIPPED_OPTIONS_IN_TEST=(
@@ -102,6 +107,7 @@ sanitize_for_path() {
   echo "$1" | sed 's/\//__/g; s/[:.]/_/g;'
 }
 
+# shellcheck disable=SC2120
 set_common_test_paths() {
   expect_num_args 0 "$@"
 
@@ -159,8 +165,7 @@ validate_abs_test_binary_path() {
 # The test name within the binary is what can be passed to Google Test as the --gtest_filter=...
 # argument. Some test binaries have to be run at once, e.g. non-gtest test binary or
 # test binaries with internal dependencies between tests. For those there is on
-# "$TEST_DESCRIPTOR_SEPARATOR" separator or the <test_name_within_binary> part (e.g.
-# bin/backupable_db_test above).
+# "$TEST_DESCRIPTOR_SEPARATOR" separator or the <test_name_within_binary> part.
 validate_test_descriptor() {
   expect_num_args 1 "$@"
   local test_descriptor=$1
@@ -199,7 +204,8 @@ is_known_non_gtest_test_by_rel_path() {
   local rel_test_path=$1
   validate_relative_test_binary_path "$rel_test_path"
 
-  local test_binary_basename=$( basename "$rel_test_path" )
+  local test_binary_basename=${rel_test_path##*/}
+
   # Remove .sh extensions for bash-based tests.
   local test_binary_basename_no_ext=${test_binary_basename%[.]sh}
 
@@ -241,17 +247,21 @@ collect_gtest_tests() {
      [[ "$rel_test_binary" =~ $TEST_BINARIES_TO_RUN_AT_ONCE_RE ]]; then
     tests+=( "$rel_test_binary" )
     if [ -n "${num_binaries_to_run_at_once:-}" ]; then
-      let num_binaries_to_run_at_once+=1
+      (( num_binaries_to_run_at_once+=1 ))
     fi
     return
   fi
 
-  local gtest_list_stderr_path=$( mktemp -t "gtest_list_tests.stderr.XXXXXXXXXX" )
+  local gtest_list_stderr_path
+  gtest_list_stderr_path=$( mktemp -t "gtest_list_tests.stderr.XXXXXXXXXX" )
 
-  local abs_test_binary_path=$( create_abs_test_binary_path "$rel_test_binary" )
+  local abs_test_binary_path
+  abs_test_binary_path=$( create_abs_test_binary_path "$rel_test_binary" )
   validate_abs_test_binary_path "$abs_test_binary_path"
 
-  local gtest_list_tests_tmp_dir=$( mktemp -t -d "gtest_list_tests_tmp_dir.XXXXXXXXXX" )
+  local gtest_list_tests_tmp_dir
+  gtest_list_tests_tmp_dir=$( mktemp -t -d "gtest_list_tests_tmp_dir.XXXXXXXXXX" )
+
   mkdir_safe "$gtest_list_tests_tmp_dir"  # on Mac OS X, mktemp does not create the directory
   local gtest_list_tests_cmd=( "$abs_test_binary_path" --gtest_list_tests )
   if [[ -n ${YB_GTEST_FILTER:-} ]]; then
@@ -285,10 +295,10 @@ collect_gtest_tests() {
 
   if [[ -z $gtest_list_tests_result ]]; then
     if [[ -s $gtest_list_stderr_path ]]; then
-      log "Standard error from ${gtest_list_tests_cmd[@]}:"
+      log "Standard error from ${gtest_list_tests_cmd[*]}:"
       cat "$gtest_list_stderr_path"
     fi
-    fatal "Empty output from ${gtest_list_tests_cmd[@]}," \
+    fatal "Empty output from ${gtest_list_tests_cmd[*]}," \
           "exit code: $gtest_list_tests_exit_code."
   fi
 
@@ -298,7 +308,7 @@ collect_gtest_tests() {
   # sed '/PATTERN-1/,/PATTERN-2/d' input.txt
   sed '/^Suppressions used:$/,/^-\{53\}$/d' \
     <"$gtest_list_stderr_path" | sed '/^-\{53\}$/d; /^\s*$/d;' | \
-    ( egrep -v "^(\
+    ( grep -Ev "^(\
 Starting tracking the heap|\
 Dumping heap profile to .* \\(Exiting\\))|\
 Shared library .* loaded at address 0x[0-9a-f]+$" || true ) \
@@ -330,6 +340,7 @@ Shared library .* loaded at address 0x[0-9a-f]+$" || true ) \
   fi
 
   local test_list_item
+  local test
   local IFS=$'\n'  # so that we can iterate through lines in $gtest_list_tests_result
   for test_list_item in $gtest_list_tests_result; do
     if [[ "$test_list_item" =~ ^\ \  ]]; then
@@ -338,13 +349,12 @@ Shared library .* loaded at address 0x[0-9a-f]+$" || true ) \
       test=${test_list_item#  }  # Remove two leading spaces
       test=${test%%#*}  # Remove everything after a "#" comment
       test=${test%  }  # Remove two trailing spaces
-      local full_test_name=$test_case$test
       if [[ -n ${total_num_tests:-} ]]; then
-        let total_num_tests+=1
+        (( total_num_tests+=1 ))
       fi
       tests+=( "${rel_test_binary}$TEST_DESCRIPTOR_SEPARATOR$test_case$test" )
       if [[ -n ${num_tests:-} ]]; then
-        let num_tests+=1
+        (( num_tests+=1 ))
       fi
     else
       # This is a "test case", a "container" for a number of tests, as in
@@ -352,7 +362,7 @@ Shared library .* loaded at address 0x[0-9a-f]+$" || true ) \
       test_case=${test_list_item%%#*}  # Remove everything after a "#" comment
       test_case=${test_case%  }  # Remove two trailing spaces
       if [ -n "${num_test_cases:-}" ]; then
-        let num_test_cases+=1
+        (( num_test_cases+=1 ))
       fi
     fi
   done
@@ -434,19 +444,20 @@ prepare_for_running_cxx_test() {
     rel_test_binary=${test_descriptor%$TEST_DESCRIPTOR_SEPARATOR*}
     test_name=${test_descriptor#*$TEST_DESCRIPTOR_SEPARATOR}
     run_at_once=false
-    what_test_str="test $test_name"
     junit_test_case_id=$test_name
   else
     # Run all test cases in the given test binary
     rel_test_binary=$test_descriptor
     test_name=""
     run_at_once=true
-    what_test_str="all tests"
     junit_test_case_id="${rel_test_binary##*/}.all"
   fi
 
-  local test_binary_sanitized=$( sanitize_for_path "$rel_test_binary" )
-  local test_name_sanitized=$( sanitize_for_path "$test_name" )
+  local test_binary_sanitized
+  test_binary_sanitized=$( sanitize_for_path "$rel_test_binary" )
+
+  local test_name_sanitized
+  test_name_sanitized=$( sanitize_for_path "$test_name" )
 
   test_dir=$YB_TEST_LOG_ROOT_DIR/$test_binary_sanitized
   mkdir_safe "$test_dir"
@@ -467,7 +478,11 @@ prepare_for_running_cxx_test() {
   # directory (.tmp), and the XML report (.xml) for this test relative to the yb-test-logs
   # directory.
 
-  local abs_test_binary_path=$( create_abs_test_binary_path "$rel_test_binary" )
+  local abs_test_binary_path
+  abs_test_binary_path=$( create_abs_test_binary_path "$rel_test_binary" )
+
+  # Word splitting is intentional here, so YB_EXTRA_GTEST_FLAGS is not quoted.
+  # shellcheck disable=SC2206
   test_cmd_line=( "$abs_test_binary_path" ${YB_EXTRA_GTEST_FLAGS:-} )
 
   test_log_path_prefix="$YB_TEST_LOG_ROOT_DIR/$rel_test_log_path_prefix"
@@ -516,6 +531,7 @@ set_expected_core_dir() {
   fi
 }
 
+# shellcheck disable=SC2120
 set_debugger_input_for_core_stack_trace() {
   expect_num_args 0 "$@"
   expect_vars_to_be_set \
@@ -551,8 +567,11 @@ analyze_existing_core_file() {
 
   local debugger_cmd debugger_input
 
+  # shellcheck disable=SC2119
   set_debugger_input_for_core_stack_trace
-  local debugger_output=$( echo "$debugger_input" | "${debugger_cmd[@]}" 2>&1 )
+
+  local debugger_output
+  debugger_output=$( echo "$debugger_input" | "${debugger_cmd[@]}" 2>&1 )
   if [[ "$debugger_output" =~ Core\ was\ generated\ by\ .(yb-master|yb-tserver) ]]; then
     # The test program may be launching masters and tablet servers through an ExternalMiniCluster,
     # and the core file was generated by one of those masters and tablet servers.
@@ -600,8 +619,9 @@ process_core_file() {
     # Finding core files on Mac OS X.
     if [[ -f ${test_log_path:-} ]]; then
       set +e
-      local signal_received_line=$(
-        egrep 'SIG[A-Z]+.*received by PID [0-9]+' "$test_log_path" | head -1
+      local signal_received_line
+      signal_received_line=$(
+        grep -E 'SIG[A-Z]+.*received by PID [0-9]+' "$test_log_path" | head -1
       )
       set -e
       local core_pid=""
@@ -621,7 +641,7 @@ process_core_file() {
           log "Core file not found at presumed location '$core_path'."
         fi
       else
-        if egrep -q 'SIG[A-Z]+.*received by PID' "$test_log_path"; then
+        if grep -Eq 'SIG[A-Z]+.*received by PID' "$test_log_path"; then
           log "Warning: could not determine test pid from '$test_log_path'" \
               "(matched log line: $signal_received_line)"
         fi
@@ -635,7 +655,7 @@ process_core_file() {
   else
     # Finding core files on Linux.
     if [[ ! -d $core_dir ]]; then
-      echo "$FUNCNAME: directory '$core_dir' does not exist" >&2
+      echo "${FUNCNAME[0]}: directory '$core_dir' does not exist" >&2
       exit 1
     fi
     local core_path=$core_dir/core
@@ -652,7 +672,7 @@ process_core_file() {
       if [[ ${#core_candidates[@]} -eq 1 ]]; then
         core_path=${core_candidates[0]}
       elif [[ ${#core_candidates[@]} -gt 1 ]]; then
-        log "Found too many core files in '$core_dir', not analyzing: ${core_candidates[@]}"
+        log "Found too many core files in '$core_dir', not analyzing: ${core_candidates[*]}"
         return
       fi
     fi
@@ -667,6 +687,9 @@ process_core_file() {
 
 # Used for both C++ and Java tests.
 stop_process_tree_supervisor() {
+  # process_supervisor_log_path should be set in run-test.sh.
+  expect_vars_to_be_set process_supervisor_log_path
+
   process_supervisor_success=true
   if [[ ${process_tree_supervisor_pid:-0} -eq 0 ]]; then
     return
@@ -693,6 +716,8 @@ stop_process_tree_supervisor() {
     process_supervisor_success=false
   fi
 
+  # process_supervisor_log_path should be set in run-test.sh.
+  # shellcheck disable=SC2154
   if [[ -f $process_supervisor_log_path ]]; then
     if is_jenkins || [[ $process_supervisor_success != "true" ]] || \
        grep -q YB_STRAY_PROCESS "$process_supervisor_log_path"; then
@@ -793,6 +818,7 @@ set_test_log_url_prefix() {
   fi
 }
 
+# shellcheck disable=SC2120
 determine_test_timeout() {
   expect_num_args 0 "$@"
   expect_vars_to_be_set rel_test_binary
@@ -843,10 +869,11 @@ run_one_cxx_test() {
     fatal "Expected test_failed to be false before running test, found: $test_failed"
   fi
 
+  # shellcheck disable=SC2119
   determine_test_timeout
 
   local test_wrapper_cmd_line=(
-    "$BUILD_ROOT"/bin/run-with-timeout $(( $timeout_sec + 1 )) "${test_cmd_line[@]}"
+    "$BUILD_ROOT"/bin/run-with-timeout $(( timeout_sec + 1 )) "${test_cmd_line[@]}"
   )
   if [[ $TEST_TMPDIR == "/" || $TEST_TMPDIR == "/tmp" ]]; then
     # Let's be paranoid because we'll be deleting everything inside this directory.
@@ -861,7 +888,7 @@ run_one_cxx_test() {
   local attempts_left
   for attempts_left in {1..0}; do
     # Clean up anything that might have been left from the previous attempt.
-    rm -rf "$TEST_TMPDIR"/*
+    rm -rf "${TEST_TMPDIR:-/tmp/yb_never_delete_entire_filesystem}"/*
 
     set +e
     (
@@ -871,7 +898,7 @@ run_one_cxx_test() {
         ( set -x; "${test_wrapper_cmd_line[@]}" 2>&1 ) | tee "$test_log_path"
         # Propagate the exit code of the test process, not any of the filters. This will only exit
         # this subshell, not the entire script calling this function.
-        exit ${PIPESTATUS[0]}
+        exit "${PIPESTATUS[0]}"
       else
         "${test_wrapper_cmd_line[@]}" &>"$test_log_path"
       fi
@@ -890,9 +917,9 @@ run_one_cxx_test() {
     # See if the test failed due to "Address already in use" and log a message if we still have more
     # attempts left.
     if [[ $attempts_left -gt 0 ]] && \
-       egrep -q "$TEST_RESTART_PATTERN" "$test_log_path"; then
+       grep -Eq "$TEST_RESTART_PATTERN" "$test_log_path"; then
       log "Found one of the intermittent error patterns in the log, restarting the test (once):"
-      egrep "$TEST_RESTART_PATTERN" "$test_log_path" >&2
+      grep -E "$TEST_RESTART_PATTERN" "$test_log_path" >&2
     else
       # Avoid retrying any other kinds of failures.
       break
@@ -906,6 +933,7 @@ run_one_cxx_test() {
   fi
 }
 
+# shellcheck disable=SC2120
 handle_cxx_test_failure() {
   expect_num_args 0 "$@"
   expect_vars_to_be_set \
@@ -924,7 +952,7 @@ handle_cxx_test_failure() {
     (
       echo
       echo "TEST FAILURE"
-      echo "Test command: ${test_cmd_line[@]}"
+      echo "Test command: ${test_cmd_line[*]}"
       echo "Test exit status: $test_exit_code"
       echo "Log path: $test_log_path"
       if [[ -n ${BUILD_URL:-} ]]; then
@@ -939,9 +967,9 @@ handle_cxx_test_failure() {
       # Show some context from the test log, but only do so if we are not already showing the entire
       # test log when invoking tests directly in yb_build.sh.
       if ! is_ctest_verbose && [[ -f $test_log_path ]] &&
-         egrep -q "$RELEVANT_LOG_LINES_RE" "$test_log_path"; then
+         grep -Eq "$RELEVANT_LOG_LINES_RE" "$test_log_path"; then
         echo "Relevant log lines:"
-        egrep -C 3 "$RELEVANT_LOG_LINES_RE" "$test_log_path"
+        grep -E -C 3 "$RELEVANT_LOG_LINES_RE" "$test_log_path"
       fi
     ) >&2
     set_expected_core_dir "$TEST_TMPDIR"
@@ -998,7 +1026,7 @@ run_cxx_test_and_process_results() {
 }
 
 set_sanitizer_runtime_options() {
-  expect_vars_to_be_set BUILD_ROOT
+  expect_vars_to_be_set BUILD_ROOT YB_COMPILER_TYPE
 
   # Don't allow setting these options directly from outside. We will allow controlling them through
   # our own "extra options" environment variables.
@@ -1009,9 +1037,13 @@ set_sanitizer_runtime_options() {
 
   local -r build_root_basename=${BUILD_ROOT##*/}
 
+  # TODO: is YB_COMPILER_TYPE defined here? We could use it to detect if we are using GCC instead of
+  # parsing the build root basename.
+
   # We don't add a hyphen in the end of the following regex, because there is a "tsan_slow" build
   # type.
-  if [[ $build_root_basename =~ ^(asan|tsan) ]]; then
+  if [[ $build_root_basename =~ ^(asan|tsan) &&
+        ! $build_root_basename =~ ^.*-gcc[0-9]*-.*$ ]]; then
     # Suppressions require symbolization. We'll default to using the symbolizer in thirdparty.
     # If ASAN_SYMBOLIZER_PATH is already set but that file does not exist, we'll report that and
     # still use the default way to find the symbolizer.
@@ -1022,9 +1054,23 @@ set_sanitizer_runtime_options() {
             "exist, reverting to default behavior."
       fi
 
-      for asan_symbolizer_candidate_path in \
-          "$YB_THIRDPARTY_DIR/installed/bin/llvm-symbolizer" \
-          "$YB_THIRDPARTY_DIR/clang-toolchain/bin/llvm-symbolizer"; do
+      local candidate_bin_dirs=(
+        "$YB_THIRDPARTY_DIR/installed/bin"
+        "$YB_THIRDPARTY_DIR/clang-toolchain/bin"
+      )
+      # When building with clang10 or clang11, normally $YB_RESOLVED_CC_COMPILER would contain the
+      # path of clang within LLVM's bin directory.
+      if [[ -z ${cc_executable:-} ]]; then
+        find_compiler_by_type
+        if [[ -z ${cc_executable:-} ]]; then
+          fatal "find_compiler_by_type did not set the cc_executable variable"
+        fi
+      fi
+      if [[ $cc_executable == */clang ]]; then
+        candidate_bin_dirs+=( "${cc_executable%/clang}" )
+      fi
+      for asan_symbolizer_candidate_bin_dir in "${candidate_bin_dirs[@]}"; do
+        local asan_symbolizer_candidate_path=$asan_symbolizer_candidate_bin_dir/llvm-symbolizer
         if [[ -f "$asan_symbolizer_candidate_path" ]]; then
           ASAN_SYMBOLIZER_PATH=$asan_symbolizer_candidate_path
           break
@@ -1101,6 +1147,7 @@ did_test_succeed() {
   local -i -r exit_code=$1
   local -r log_path=$2
   if [[ $exit_code -ne 0 ]]; then
+    log "Test failure reason: exit code: $exit_code"
     return 1  # "false" value in bash, meaning the test failed
   fi
 
@@ -1110,7 +1157,7 @@ did_test_succeed() {
   fi
 
   if grep -q 'Running 0 tests from 0 test cases' "$log_path" && \
-     ! egrep -q 'YOU HAVE [[:digit:]]+ DISABLED TEST' "$log_path"; then
+     ! grep -Eq 'YOU HAVE [[:digit:]]+ DISABLED TEST' "$log_path"; then
     log 'Test failure reason: No tests were run, and no disabled tests found, invalid test filter?'
     return 1
   fi
@@ -1140,17 +1187,17 @@ did_test_succeed() {
     return 1
   fi
 
-  if egrep -q 'Leak check.*detected leaks' "$log_path"; then
+  if grep -Eq 'Leak check.*detected leaks' "$log_path"; then
     log 'Test failure reason: Leak check failures'
     return 1
   fi
 
-  if egrep -q 'Segmentation fault: ' "$log_path"; then
+  if grep -Eq 'Segmentation fault: ' "$log_path"; then
     log 'Test failure reason: Segmentation fault'
     return 1
   fi
 
-  if egrep -q '^\[  FAILED  \]' "$log_path"; then
+  if grep -Eq '^\[  FAILED  \]' "$log_path"; then
     log 'Test failure reason: GTest failures'
     return 1
   fi
@@ -1200,7 +1247,7 @@ did_test_succeed() {
     return 1
   fi
 
-  if egrep -q '^\[INFO\] BUILD FAILURE$' "$log_path"; then
+  if grep -Eq '^\[INFO\] BUILD FAILURE$' "$log_path"; then
     log "Test failure reason: Java build or tests failed"
     return 1
   fi
@@ -1212,9 +1259,14 @@ find_test_binary() {
   expect_num_args 1 "$@"
   local binary_name=$1
   expect_vars_to_be_set BUILD_ROOT
-  result=$(find $BUILD_ROOT/$VALID_TEST_BINARY_DIRS_PREFIX-* -name $binary_name -print -quit)
+  result=$(
+    find "$BUILD_ROOT/$VALID_TEST_BINARY_DIRS_PREFIX-"* \
+         -name "$binary_name" \
+         -print \
+         -quit
+  )
   if [[ -f $result ]]; then
-    echo $result
+    echo "$result"
     return
   else
     fatal "Could not find test binary '$binary_name' inside $BUILD_ROOT"
@@ -1284,9 +1336,9 @@ run_tests_on_spark() {
       --driver-cores "$INITIAL_SPARK_DRIVER_CORES" \
       "$YB_SRC_ROOT/build-support/run_tests_on_spark.py" \
       "${run_tests_args[@]}" "$@" 2>&1 | \
-      egrep -v "TaskSetManager: (Starting task|Finished task .* \([0-9]+[1-9]/[0-9]+\))" \
-            --line-buffered
-    exit ${PIPESTATUS[0]}
+      grep -Ev "TaskSetManager: (Starting task|Finished task .* \([0-9]+[1-9]/[0-9]+\))" \
+           --line-buffered
+    exit "${PIPESTATUS[0]}"
   )
   return_code=$?
   set -e
@@ -1300,10 +1352,10 @@ run_tests_on_spark() {
 check_test_existence() {
   set +e
   local pattern=${1:-Failed}
-  YB_CHECK_TEST_EXISTENCE_ONLY=1 ctest -j "$YB_NUM_CPUS" "$@" 2>&1 | egrep "$pattern"
+  YB_CHECK_TEST_EXISTENCE_ONLY=1 ctest -j "$YB_NUM_CPUS" "$@" 2>&1 | grep -E "$pattern"
   local ctest_exit_code=${PIPESTATUS[0]}
   set -e
-  return $ctest_exit_code
+  return "$ctest_exit_code"
 }
 
 # Validate and adjust the cxx_test_name variable if necessary, by adding a prefix based on the
@@ -1315,7 +1367,7 @@ fix_cxx_test_name() {
   local possible_binary_paths=()
   if [[ ! -f $BUILD_ROOT/tests-$dir_prefix/$test_binary_name ]]; then
     local tests_dir
-    for tests_dir in $BUILD_ROOT/tests-*; do
+    for tests_dir in "$BUILD_ROOT/tests-"*; do
       local test_binary_path=$tests_dir/$cxx_test_name
       if [[ -f $test_binary_path ]]; then
         local new_cxx_test_name=${tests_dir##*/tests-}_$cxx_test_name
@@ -1335,7 +1387,11 @@ fix_cxx_test_name() {
         cxx_test_name=${possible_corrections[0]}
       ;;
       *)
-        local most_recent_binary_path=$( ls -t "${possible_binary_paths[@]}" | head -1 )
+        local most_recent_binary_path
+        # We are OK with using the ls command here and not the find command to find the latest
+        # file.
+        # shellcheck disable=SC2012
+        most_recent_binary_path=$( ls -t "${possible_binary_paths[@]}" | head -1 )
         if [[ ! -f $most_recent_binary_path ]]; then
           fatal "Failed to detect the most recently modified file out of:" \
                 "${possible_binary_paths[@]}"
@@ -1356,8 +1412,10 @@ fix_gtest_cxx_test_name() {
     return
   fi
   local gtest_name=${cxx_test_name#*_}
-  local targets=$("$make_program" -t targets all)
-  while read line; do
+  local targets
+  targets=$("$make_program" -t targets all)
+  local IFS=""
+  while read -r line; do
     # Sample lines from "ninja -t targets all"
     # CMakeFiles/latest_symlink: CUSTOM_COMMAND
     # src/yb/rocksdb/CMakeFiles/edit_cache.util: CUSTOM_COMMAND
@@ -1368,7 +1426,7 @@ fix_gtest_cxx_test_name() {
     if [[ ${line#*:} == " phony" ]]; then
       local target_name=${line%%:*}
       local stripped_target_name="${target_name//[_-]/}"
-      if [[ $stripped_target_name == $gtest_name ]]; then
+      if [[ $stripped_target_name == "$gtest_name" ]]; then
         log "Found target $target_name for $gtest_name"
         cxx_test_name=$target_name
         return
@@ -1397,14 +1455,14 @@ about_to_start_running_test() {
 # - yb-client org.yb.client.TestYBClient#testAllMasterChangeConfig
 #
 # <maven_module_name> could also be the module directory relative to $YB_SRC_ROOT, e.g.
-# java/yb-cql or ent/java/<enterprise_module_name>.
+# java/yb-cql.
 run_java_test() {
   expect_num_args 2 "$@"
   local module_name_or_rel_module_dir=$1
   local test_class_and_maybe_method=${2%.java}
   test_class_and_maybe_method=${test_class_and_maybe_method%.scala}
   if [[ $module_name_or_rel_module_dir == */* ]]; then
-    # E.g. java/yb-cql or ent/java/<enterprise_module_name>.
+    # E.g. java/yb-cql.
     local module_dir=$YB_SRC_ROOT/$module_name_or_rel_module_dir
     module_name=${module_name_or_rel_module_dir##*/}
   else
@@ -1437,10 +1495,12 @@ run_java_test() {
   # Maven processes were killed, although it is not clear why, because they should have already
   # completed by the time we start looking for $YB_TEST_INVOCATION_ID in test names and killing
   # processes.
-  local timestamp=$( get_timestamp_for_filenames )
+  local timestamp
+  timestamp=$( get_timestamp_for_filenames )
+
   local surefire_rel_tmp_dir=surefire${timestamp}_${RANDOM}_${RANDOM}_${RANDOM}_$$
 
-  # This should change the directory to either "java" or "ent/java".
+  # This should change the directory to "java".
   cd "$module_dir"/..
 
   # We specify tempDir to use a separate temporary directory for each test.
@@ -1539,20 +1599,19 @@ run_java_test() {
     if [[ ! -f $test_log_path ]]; then
       log "Warning: test log path not found: $test_log_path, not re-trying the test."
       break
-    elif egrep -q "$TEST_RESTART_PATTERN" "$test_log_path"; then
+    elif grep -Eq "$TEST_RESTART_PATTERN" "$test_log_path"; then
       log "Found an intermittent error in $test_log_path, retrying the test"
-      egrep "$TEST_RESTART_PATTERN" "$test_log_path" >&2
+      grep -E "$TEST_RESTART_PATTERN" "$test_log_path" >&2
     else
       break
     fi
   done
 
-  local xml_valid=true
   if [[ -f $junit_xml_path ]]; then
     # No reason to include mini cluster logs in the JUnit XML. In fact, these logs can interfere
     # with XML parsing by Jenkins.
     local filtered_junit_xml_path=$junit_xml_path.filtered
-    egrep -v "\
+    grep -Ev "\
 ^(m|ts|initdb|postgres)[0-9]*[|]pid[0-9]+[|]|\
 ^[[:space:]]+at|\
 ^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2},[0-9]{3} |\
@@ -1570,7 +1629,6 @@ run_java_test() {
         log "JUnit XML file '$junit_xml_path' is valid with no filtering done"
       else
         log "JUnit XML file '$junit_xml_path' is already invalid even with no filtering!"
-        xml_valid=false
       fi
       rm -f "$filtered_junit_xml_path"
     fi
@@ -1593,13 +1651,13 @@ run_java_test() {
     # If the test is successful, all expected files exist, and no failures are found in the JUnit
     # test XML, delete the test log files to save disk space in the Jenkins archive.
     #
-    # We redirect both stdout and stderr for egrep commands to /dev/null because the files we are
-    # looking for might not exist. There could be a better way to do this that would not hide
+    # We redirect both stdout and stderr for "grep -E" commands to /dev/null because the files we
+    # are looking for might not exist. There could be a better way to do this that would not hide
     # real errors.
     if [[ -f $test_log_path && -f $junit_xml_path ]] && \
-       ! egrep "YB Java test failed" \
+       ! grep -E "YB Java test failed" \
          "$test_log_path" "$log_files_path_prefix".*.{stdout,stderr}.txt &>/dev/null && \
-       ! egrep "(errors|failures)=\"?[1-9][0-9]*\"?" "$junit_xml_path" &>/dev/null; then
+       ! grep -E "(errors|failures)=\"?[1-9][0-9]*\"?" "$junit_xml_path" &>/dev/null; then
       log "Removing $test_log_path and related per-test-method logs: test succeeded."
       (
         set -x
@@ -1642,7 +1700,6 @@ run_java_test() {
 collect_java_tests() {
   set_common_test_paths
   log "Collecting the list of all Java test methods and parameterized test methods"
-  local old_surefire_reports_dir=${YB_SUREFIRE_REPORTS_DIR:-}
   unset YB_SUREFIRE_REPORTS_DIR
   local mvn_opts=(
     -DcollectTests
@@ -1665,6 +1722,7 @@ collect_java_tests() {
     echo "$log_msg" >>"$stderr_log"
     set +e
     (
+      # shellcheck disable=SC2030
       export YB_RUN_JAVA_TEST_METHODS_SEPARATELY=1
       set -x
       # The string "YUGABYTE_JAVA_TEST: " is specified in the Java code as COLLECTED_TESTS_PREFIX.
@@ -1672,9 +1730,10 @@ collect_java_tests() {
       time mvn "${mvn_opts[@]}" surefire:test \
         2>>"$stderr_log" | \
         tee -a "$stdout_log" | \
-        egrep '^YUGABYTE_JAVA_TEST: ' | \
+        grep -E '^YUGABYTE_JAVA_TEST: ' | \
         sed 's/^YUGABYTE_JAVA_TEST: //g' >>"$java_test_list_path"
     )
+    # shellcheck disable=SC2181
     if [[ $? -ne 0 ]]; then
       local log_file_path
       for log_file_path in "$stdout_log" "$stderr_log"; do
@@ -1696,27 +1755,31 @@ collect_java_tests() {
 run_all_java_test_methods_separately() {
   # Create a subshell to be able to export environment variables temporarily.
   (
+    # shellcheck disable=SC2030,SC2031
     export YB_RUN_JAVA_TEST_METHODS_SEPARATELY=1
     export YB_REDIRECT_MVN_OUTPUT_TO_FILE=1
     declare -i num_successes=0
     declare -i num_failures=0
     declare -i total_tests=0
     collect_java_tests
-    declare -i start_time_sec=$(date +%s)
-    for java_test_name in $( cat "$java_test_list_path" | sort ); do
+    declare -i start_time_sec
+    start_time_sec=$(date +%s)
+    while IFS='' read -r java_test_name; do
       if resolve_and_run_java_test "$java_test_name"; then
         log "Java test succeeded: $java_test_name"
-        let num_successes+=1
+        (( num_successes+=1 ))
       else
         log "Java test failed: $java_test_name"
+        # shellcheck disable=SC2034
         global_exit_code=1
-        let num_failures+=1
+        (( num_failures+=1 ))
       fi
-      let total_tests+=1
-      declare -i success_pct=$(( $num_successes * 100 / $total_tests ))
-      declare -i current_time_sec=$(date +%s)
-      declare -i elapsed_time_sec=$(( $current_time_sec - $start_time_sec ))
-      declare -i avg_test_time_sec=$(( $elapsed_time_sec / $total_tests ))
+      (( total_tests+=1 ))
+      declare -i success_pct=$(( num_successes * 100 / total_tests ))
+      declare -i current_time_sec
+      current_time_sec=$(date +%s)
+      declare -i elapsed_time_sec=$(( current_time_sec - start_time_sec ))
+      declare -i avg_test_time_sec=$(( elapsed_time_sec / total_tests ))
       heading "Current Java test stats: " \
               "$num_successes successful," \
               "$num_failures failed," \
@@ -1724,7 +1787,7 @@ run_all_java_test_methods_separately() {
               "success rate: $success_pct%," \
               "elapsed time: $elapsed_time_sec sec," \
               "avg test time: $avg_test_time_sec sec"
-    done
+    done < <( sort "$java_test_list_path" )
   )
 }
 
@@ -1734,7 +1797,8 @@ run_python_doctest() {
   export PYTHONPATH=$python_root
 
   local IFS=$'\n'
-  local file_list=$( cd "$YB_SRC_ROOT" && git ls-files '*.py' )
+  local file_list
+  file_list=$( cd "$YB_SRC_ROOT" && git ls-files '*.py' )
 
   local python_file
   for python_file in $file_list; do
@@ -1765,6 +1829,7 @@ run_python_tests() {
 }
 
 should_run_java_test_methods_separately() {
+  # shellcheck disable=SC2031
   [[ ${YB_RUN_JAVA_TEST_METHODS_SEPARATELY:-0} == "1" ]]
 }
 
@@ -1775,6 +1840,7 @@ should_run_java_test_methods_separately() {
 resolve_and_run_java_test() {
   expect_num_args 1 "$@"
   local java_test_name=$1
+  # shellcheck disable=SC2119
   set_common_test_paths
   log "Running Java test $java_test_name"
   local module_dir
@@ -1806,7 +1872,7 @@ resolve_and_run_java_test() {
             local current_module_name=${module_dir##*/}
             if [[ -n $module_name ]]; then
               fatal "Could not determine module for Java/Scala test '$java_test_name': both" \
-                    "'$module_name' and '$current_moudle_name' are valid candidates."
+                    "'$module_name' and '$current_module_name' are valid candidates."
             fi
             module_name=$current_module_name
             rel_module_dir=${module_dir##$YB_SRC_ROOT/}
@@ -1816,7 +1882,6 @@ resolve_and_run_java_test() {
     done
   done
 
-  local IFS=$'\n'
   if [[ -z $module_name ]]; then
     # Could not find the test source assuming we are given the complete package. Let's assume we
     # only have the class name.
@@ -1831,11 +1896,13 @@ resolve_and_run_java_test() {
         if [[ -d $module_dir ]]; then
           local module_test_src_root="$module_dir/src/test"
           if [[ -d $module_test_src_root ]]; then
-            local candidate_files=(
-              $(
-                cd "$module_test_src_root" &&
-                find . \( -name "$java_test_class.java" -or -name "$java_test_class.scala" \)
-              )
+            local candidate_files=()
+            local line
+            while IFS='' read -r line; do
+              candidate_files+=( "$line" )
+            done < <(
+              cd "$module_test_src_root" &&
+              find . '(' -name "$java_test_class.java" -or -name "$java_test_class.scala" ')'
             )
             if [[ ${#candidate_files[@]} -gt 0 ]]; then
               local current_module_name=${module_dir##*/}
@@ -1907,8 +1974,48 @@ register_test_artifact_files() {
   fi
 }
 
+run_cmake_unit_tests() {
+  local old_dir=$PWD
+  cd "$YB_SRC_ROOT"
+
+  ( set -x; cmake -P cmake_modules/YugabyteCMakeUnitTest.cmake )
+
+  local cmake_files=( CMakeLists.txt )
+  local IFS=$'\n'
+  local src_subdir
+  local line
+  for src_subdir in src ent/src; do
+    ensure_directory_exists "$YB_SRC_ROOT/$src_subdir"
+    while IFS='' read -r line; do
+      cmake_files+=( "$line" )
+    done < <( find "$YB_SRC_ROOT/$src_subdir" -name "CMakeLists*.txt" )
+  done
+  while IFS='' read -r line; do
+    cmake_files+=( "$line" )
+  done < <( find "$YB_SRC_ROOT/cmake_modules" -name "*.cmake" )
+
+  local error=false
+  for cmake_file in "${cmake_files[@]}"; do
+    ensure_file_exists "$cmake_file"
+    local disallowed_pattern
+    for disallowed_pattern in YB_USE_ASAN YB_USE_UBSAN YB_USE_TSAN; do
+      if grep -q "$disallowed_pattern" "$cmake_file"; then
+        log "Found disallowed pattern $disallowed_pattern in $cmake_file"
+        error=true
+      fi
+    done
+  done
+  if "$error"; then
+    fatal "Found some disallowed patterns in CMake files"
+  else
+    log "Validated ${#cmake_files[@]} CMake files using light-weight grep checks"
+  fi
+  cd "$old_dir"
+}
+
 # -------------------------------------------------------------------------------------------------
 # Initialization
 # -------------------------------------------------------------------------------------------------
 
+# shellcheck disable=SC2034
 readonly jenkins_job_and_build=${JOB_NAME:-unknown_job}__${BUILD_NUMBER:-unknown_build}

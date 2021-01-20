@@ -195,6 +195,9 @@ class percpu_rwlock {
     int cpu = reinterpret_cast<uintptr_t>(this) % n_cpus_;
 #else
     int cpu = sched_getcpu();
+    if (cpu < 0) {
+      LOG(FATAL) << ErrnoToString(errno);
+    }
     CHECK_LT(cpu, n_cpus_);
 #endif  // defined(__APPLE__)
     return locks_[cpu].lock;

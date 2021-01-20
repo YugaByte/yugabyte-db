@@ -1,6 +1,6 @@
 // Copyright (c) YugaByte, Inc.
 
-@import "../../_style/colors.scss";
+@import '../../_style/colors.scss';
 
 .import-universe-form {
   .form-right-aligned-labels {
@@ -43,15 +43,14 @@
           transform: translateY(-5px);
         }
 
-
         i.fa-check {
           background-color: $YB_SUCCESS_COLOR;
-          color:#ffffff;
+          color: #ffffff;
         }
 
         i.fa-times {
-          background-color:$YB_FAIL_COLOR;
-          color:#ffffff;
+          background-color: $YB_FAIL_COLOR;
+          color: #ffffff;
         }
       }
     }

@@ -64,7 +64,7 @@ class YBClientBuilder::Data {
   // This bool determines whether to use FLAGS_flagfile as an override of client-entered data.
   bool skip_master_flagfile_ = false;
 
-  int32_t num_reactors_;
+  int32_t num_reactors_ = 0;
 
   MonoDelta default_admin_operation_timeout_;
   MonoDelta default_rpc_timeout_;

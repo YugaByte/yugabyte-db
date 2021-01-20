@@ -52,7 +52,7 @@ Use the `REASSIGN OWNED` statement to change the ownership of database objects o
 
 - Reassign all objects owned by john to yugabyte.
 
-```postgresql
+```plpgsql
 yugabyte=# reassign owned by john to yugabyte;
 ```
 

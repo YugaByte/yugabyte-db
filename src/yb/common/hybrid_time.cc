@@ -124,6 +124,17 @@ Status HybridTime::FromUint64(uint64_t value) {
   return Status::OK();
 }
 
+MicrosTime HybridTime::CeilPhysicalValueMicros() const {
+  if (*this == kMin) {
+    return 0;
+  }
+  auto result = GetPhysicalValueMicros();
+  if (GetLogicalValue()) {
+    ++result;
+  }
+  return result;
+}
+
 const char* const HybridTime::kHybridTimeDebugStrPrefix = "HT";
 
 }  // namespace yb

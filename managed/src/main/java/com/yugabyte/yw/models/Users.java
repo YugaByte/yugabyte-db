@@ -11,8 +11,6 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Enumerated;
 import javax.persistence.EnumType;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
 import javax.persistence.Id;
 
 import org.joda.time.DateTime;
@@ -26,7 +24,6 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.common.base.Joiner;
 
 import play.data.validation.Constraints;
 import play.libs.Json;
@@ -91,6 +88,7 @@ public class Users extends Model {
     return this.email;
   }
 
+  @JsonIgnore
   @Column(length = 256, nullable = false)
   public String passwordHash;
 
@@ -107,6 +105,7 @@ public class Users extends Model {
   @Column(nullable = true)
   private Date authTokenIssueDate;
 
+  @JsonIgnore
   @Column(nullable = true)
   private String apiToken;
 

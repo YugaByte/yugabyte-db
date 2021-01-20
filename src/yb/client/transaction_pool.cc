@@ -112,10 +112,10 @@ class TransactionPool::Impl {
       ++preparing_transactions_;
     }
     IncrementGauge(gauge_preparing_);
+    InFlightOpsGroupsWithMetadata ops_info;
     if (new_txn->Prepare(
-        /* ops= */{}, ForceConsistentRead::kFalse, TransactionRpcDeadline(), Initial::kFalse,
-        std::bind(&Impl::TransactionReady, this, _1, new_txn, old_taken),
-        nullptr /* metadata */)) {
+        &ops_info, ForceConsistentRead::kFalse, TransactionRpcDeadline(), Initial::kFalse,
+        std::bind(&Impl::TransactionReady, this, _1, new_txn, old_taken))) {
       TransactionReady(Status::OK(), new_txn, old_taken);
     }
     return result;

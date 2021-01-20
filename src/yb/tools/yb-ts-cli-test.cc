@@ -50,6 +50,8 @@ using yb::itest::TServerDetails;
 using strings::Split;
 using strings::Substitute;
 
+constexpr int kTabletTimeout = 30;
+
 namespace yb {
 namespace tools {
 
@@ -67,10 +69,14 @@ string YBTsCliTest::GetTsCliToolPath() const {
 
 // Test deleting a tablet.
 TEST_F(YBTsCliTest, TestDeleteTablet) {
-  MonoDelta timeout = MonoDelta::FromSeconds(30);
-  vector<string> ts_flags, master_flags;
-  ts_flags.push_back("--enable_leader_failure_detection=false");
-  master_flags.push_back("--catalog_manager_wait_for_new_tablets_to_elect_leader=false");
+  MonoDelta timeout = MonoDelta::FromSeconds(kTabletTimeout);
+  std::vector<std::string> ts_flags = {
+    "--enable_leader_failure_detection=false"s,
+  };
+  std::vector<std::string> master_flags = {
+    "--catalog_manager_wait_for_new_tablets_to_elect_leader=false"s,
+    "--use_create_table_leader_hint=false"s,
+  };
   ASSERT_NO_FATALS(StartCluster(ts_flags, master_flags));
 
   TestWorkload workload(cluster_.get());
@@ -101,6 +107,42 @@ TEST_F(YBTsCliTest, TestDeleteTablet) {
   ASSERT_OK(inspect_->WaitForTabletDataStateOnTS(0, tablet_id, tablet::TABLET_DATA_TOMBSTONED));
   TServerDetails* ts = ts_map_[cluster_->tablet_server(0)->uuid()].get();
   ASSERT_OK(itest::WaitUntilTabletInState(ts, tablet_id, tablet::SHUTDOWN, timeout));
+}
+
+// Test readiness check before and after a tablet server is done bootstrapping.
+TEST_F(YBTsCliTest, TestTabletServerReadiness) {
+  MonoDelta timeout = MonoDelta::FromSeconds(kTabletTimeout);
+  ASSERT_NO_FATALS(StartCluster({ "--TEST_tablet_bootstrap_delay_ms=2000"s }));
+
+  TestWorkload workload(cluster_.get());
+  workload.Setup(); // Easy way to create a new tablet.
+
+  vector<tserver::ListTabletsResponsePB::StatusAndSchemaPB> tablets;
+  for (const auto& entry : ts_map_) {
+    TServerDetails* ts = entry.second.get();
+    ASSERT_OK(itest::WaitForNumTabletsOnTS(ts, 1, timeout, &tablets));
+  }
+  string tablet_id = tablets[0].tablet_status().tablet_id();
+
+  for (int i = 0; i < cluster_->num_tablet_servers(); i++) {
+    ASSERT_OK(itest::WaitUntilTabletRunning(ts_map_[cluster_->tablet_server(i)->uuid()].get(),
+                                            tablet_id, timeout));
+  }
+
+  ASSERT_NO_FATALS(cluster_->tablet_server(0)->Shutdown());
+  ASSERT_OK(cluster_->tablet_server(0)->Restart());
+
+  string exe_path = GetTsCliToolPath();
+  vector<string> argv;
+  argv.push_back(exe_path);
+  argv.push_back("--server_address");
+  argv.push_back(yb::ToString(cluster_->tablet_server(0)->bound_rpc_addr()));
+  argv.push_back("is_server_ready");
+  ASSERT_NOK(Subprocess::Call(argv));
+
+  ASSERT_OK(WaitFor([&]() {
+    return Subprocess::Call(argv).ok();
+  }, MonoDelta::FromSeconds(10), "Wait for tablet bootstrap to finish"));
 }
 
 } // namespace tools

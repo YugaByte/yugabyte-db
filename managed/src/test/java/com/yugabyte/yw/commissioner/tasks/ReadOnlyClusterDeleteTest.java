@@ -10,6 +10,7 @@ import com.yugabyte.yw.commissioner.tasks.subtasks.UpdatePlacementInfo.ModifyUni
 import com.yugabyte.yw.common.ApiUtils;
 import com.yugabyte.yw.common.PlacementInfoUtil;
 import com.yugabyte.yw.common.ShellProcessHandler;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.ClusterType;
@@ -46,7 +47,7 @@ public class ReadOnlyClusterDeleteTest extends CommissionerBaseTest {
   @InjectMocks
   Commissioner commissioner;
   Universe defaultUniverse;
-  ShellProcessHandler.ShellResponse dummyShellResponse;
+  ShellResponse dummyShellResponse;
   YBClient mockClient;
   ModifyUniverseConfig modifyUC;
   AbstractModifyMasterClusterConfig amuc;
@@ -84,7 +85,7 @@ public class ReadOnlyClusterDeleteTest extends CommissionerBaseTest {
     mockClient = mock(YBClient.class);
     when(mockYBClient.getClient(any(), any())).thenReturn(mockClient);
     when(mockClient.waitForServer(any(), anyLong())).thenReturn(true);
-    dummyShellResponse = new ShellProcessHandler.ShellResponse();
+    dummyShellResponse = new ShellResponse();
     dummyShellResponse.message = "true";
     when(mockNodeManager.nodeCommand(any(), any())).thenReturn(dummyShellResponse);
     modifyUC = mock(ModifyUniverseConfig.class);

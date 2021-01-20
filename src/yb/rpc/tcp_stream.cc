@@ -440,7 +440,7 @@ void TcpStream::ClearSending(const Status& status) {
   queued_bytes_to_send_ = 0;
 }
 
-size_t TcpStream::Send(OutboundDataPtr data) {
+Result<size_t> TcpStream::Send(OutboundDataPtr data) {
   // In case of TcpStream handle is absolute index of data block, since stream start.
   // So it could be cacluated as index in sending_ plus number of data blocks that were already
   // transferred.

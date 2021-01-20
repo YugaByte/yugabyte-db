@@ -34,7 +34,7 @@ class MemTracker;
 namespace rpc {
 
 struct ProcessDataResult {
-  size_t consumed;
+  size_t consumed = 0;
   Slice buffer;
   size_t bytes_to_skip = 0;
 
@@ -108,7 +108,7 @@ class Stream {
   // Returns handle to block associated with this data. This handle could be used to cancel
   // transfer of this block using Cancelled.
   // For instance when unsent call times out.
-  virtual size_t Send(OutboundDataPtr data) = 0;
+  virtual Result<size_t> Send(OutboundDataPtr data) = 0;
 
   virtual CHECKED_STATUS TryWrite() = 0;
   virtual void ParseReceived() = 0;

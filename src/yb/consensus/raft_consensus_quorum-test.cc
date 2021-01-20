@@ -197,7 +197,7 @@ class RaftConsensusQuorumTest : public YBTest {
           Bind(&DoNothing),
           DEFAULT_TABLE_TYPE,
           nullptr /* retryable_requests */,
-          yb::OpId() /* split_op_id */));
+          SplitOpInfo()));
 
       operation_factory->SetConsensus(peer.get());
       operation_factories_.emplace_back(operation_factory);
@@ -268,6 +268,7 @@ class RaftConsensusQuorumTest : public YBTest {
         [sync = sync.get()](const Status& status, int64_t, OpIds*) {
       sync->StatusCB(status);
     });
+    (**round).BindToTerm(peer->LeaderTerm());
     InsertOrDie(&syncs_, round->get(), sync.release());
     RETURN_NOT_OK_PREPEND(peer->TEST_Replicate(round->get()),
                           Substitute("Unable to replicate to peer $0", peer_idx));
@@ -369,7 +370,7 @@ class RaftConsensusQuorumTest : public YBTest {
                                    int leader_idx,
                                    ReplicateWaitMode wait_mode,
                                    CommitMode commit_mode,
-      OpIdPB* last_op_id,
+                                   OpIdPB* last_op_id,
                                    vector<scoped_refptr<ConsensusRound> >* rounds) {
     for (int i = 0; i < seq_size; i++) {
       scoped_refptr<ConsensusRound> round;

@@ -107,7 +107,7 @@ class TabletServer : public server::RpcAndWebServerBase, public TabletServerIf {
   MetricsSnapshotter* metrics_snapshotter() { return metrics_snapshotter_.get(); }
 
   void set_fail_heartbeats_for_tests(bool fail_heartbeats_for_tests) {
-    base::subtle::NoBarrier_Store(&fail_heartbeats_for_tests_, 1);
+    base::subtle::NoBarrier_Store(&fail_heartbeats_for_tests_, fail_heartbeats_for_tests);
   }
 
   bool fail_heartbeats_for_tests() const {
@@ -171,11 +171,17 @@ class TabletServer : public server::RpcAndWebServerBase, public TabletServerIf {
     return publish_service_ptr_.get();
   }
 
-  void SetYSQLCatalogVersion(uint64_t new_version);
+  void SetYSQLCatalogVersion(uint64_t new_version, uint64_t new_breaking_version);
 
-  uint64_t ysql_catalog_version() const override {
+  void get_ysql_catalog_version(uint64_t* current_version,
+                                uint64_t* last_breaking_version) const override {
     std::lock_guard<simple_spinlock> l(lock_);
-    return ysql_catalog_version_;
+    if (current_version) {
+      *current_version = ysql_catalog_version_;
+    }
+    if (last_breaking_version) {
+      *last_breaking_version = ysql_last_breaking_catalog_version_;
+    }
   }
 
   virtual Env* GetEnv();
@@ -187,6 +193,8 @@ class TabletServer : public server::RpcAndWebServerBase, public TabletServerIf {
 
   // Returns the file descriptor of this tablet server's shared memory segment.
   int GetSharedMemoryFd();
+
+  uint64_t GetSharedMemoryPostgresAuthKey();
 
   // Currently only used by cdc.
   virtual int32_t cluster_config_version() const {
@@ -255,6 +263,7 @@ class TabletServer : public server::RpcAndWebServerBase, public TabletServerIf {
 
   // Latest known version from the YSQL catalog (as reported by last heartbeat response).
   uint64_t ysql_catalog_version_ = 0;
+  uint64_t ysql_last_breaking_catalog_version_ = 0;
 
   // An instance to tablet server service. This pointer is no longer valid after RpcAndWebServerBase
   // is shut down.

@@ -30,15 +30,19 @@ class TransactionCleanup : public std::enable_shared_from_this<TransactionCleanu
  public:
   TransactionCleanup(
       YBClient* client, const scoped_refptr<ClockBase>& clock, const TransactionId& transaction_id,
-      Sealed sealed)
-      : client_(client), clock_(clock), transaction_id_(transaction_id), sealed_(sealed) {
+      Sealed sealed, CleanupType type)
+      : client_(client), clock_(clock), transaction_id_(transaction_id), sealed_(sealed),
+        type_(type) {
   }
 
   void Perform(const std::vector<TabletId>& tablet_ids) {
     auto self = shared_from_this();
     for (const auto& tablet_id : tablet_ids) {
+      // TODO(tsplit): pass table if needed as a part of
+      // https://github.com/yugabyte/yugabyte-db/issues/4942.
       client_->LookupTabletById(
           tablet_id,
+          /* table =*/ nullptr,
           TransactionRpcDeadline(),
           std::bind(&TransactionCleanup::LookupTabletDone, this, _1, self),
           client::UseCache::kTrue);
@@ -81,7 +85,8 @@ class TransactionCleanup : public std::enable_shared_from_this<TransactionCleanu
       request.set_propagated_hybrid_time(now);
       auto& state = *request.mutable_state();
       state.set_transaction_id(transaction_id_.data(), transaction_id_.size());
-      state.set_status(TransactionStatus::CLEANUP);
+      state.set_status(type_ == CleanupType::kImmediate ? TransactionStatus::IMMEDIATE_CLEANUP
+                                                        : TransactionStatus::GRACEFUL_CLEANUP);
       state.set_sealed(sealed_);
 
       call.controller.set_timeout(kCallTimeout);
@@ -109,6 +114,7 @@ class TransactionCleanup : public std::enable_shared_from_this<TransactionCleanu
   const scoped_refptr<ClockBase> clock_;
   const TransactionId transaction_id_;
   const Sealed sealed_;
+  const CleanupType type_;
 
   std::mutex mutex_;
   boost::container::stable_vector<Call> calls_ GUARDED_BY(mutex_);
@@ -118,8 +124,9 @@ class TransactionCleanup : public std::enable_shared_from_this<TransactionCleanu
 
 void CleanupTransaction(
     YBClient* client, const scoped_refptr<ClockBase>& clock, const TransactionId& transaction_id,
-    Sealed sealed, const std::vector<TabletId>& tablets) {
-  auto cleanup = std::make_shared<TransactionCleanup>(client, clock, transaction_id, sealed);
+    Sealed sealed, CleanupType type, const std::vector<TabletId>& tablets) {
+  auto cleanup = std::make_shared<TransactionCleanup>(
+      client, clock, transaction_id, sealed, type);
   cleanup->Perform(tablets);
 }
 

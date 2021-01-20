@@ -26,6 +26,10 @@
 #include "yb/common/pg_system_attr.h"
 #include "yb/docdb/doc_key.h"
 #include "yb/docdb/primitive_value.h"
+#include "yb/util/flag_tags.h"
+
+DEFINE_test_flag(int32, user_ddl_operation_timeout_sec, 0,
+                 "Adjusts the timeout for a DDL operation from the YBClient default, if non-zero.");
 
 namespace yb {
 namespace pggate {
@@ -64,8 +68,12 @@ PgCreateDatabase::~PgCreateDatabase() {
 }
 
 Status PgCreateDatabase::Exec() {
+  boost::optional<TransactionMetadata> txn;
+  if (txn_future_) {
+    txn = VERIFY_RESULT((*txn_future_).get()); // Ensure the future has been executed by this time.
+  }
   return pg_session_->CreateDatabase(database_name_, database_oid_, source_database_oid_,
-                                     next_oid_, colocated_);
+                                     next_oid_, txn, colocated_);
 }
 
 PgDropDatabase::PgDropDatabase(PgSession::ScopedRefPtr pg_session,
@@ -232,27 +240,16 @@ size_t PgCreateTable::PrimaryKeyRangeColumnCount() const {
   return range_columns_.size();
 }
 
-Status PgCreateTable::AddSplitRow(int num_cols, YBCPgTypeEntity **types, uint64_t *data) {
-  SCHECK(!hash_schema_.is_initialized(),
-      InvalidArgument,
-      "Hash columns cannot have split points");
-  const auto key_column_count = PrimaryKeyRangeColumnCount();
-  SCHECK(num_cols && num_cols <= key_column_count,
-      InvalidArgument,
-      "Split points cannot be more than number of primary key columns");
-
-  std::vector<QLValuePB> row;
-  row.reserve(key_column_count);
-  for (size_t i = 0; i < key_column_count; ++i) {
-    QLValuePB ql_value;
-    if (i < num_cols) {
-      PgConstant point(types[i], data[i], false);
-      RETURN_NOT_OK(point.Eval(&ql_value));
-    }
-    row.push_back(std::move(ql_value));
+Status PgCreateTable::AddSplitBoundary(PgExpr **exprs, int expr_count) {
+  if (hash_schema_.is_initialized()) {
+    return STATUS(InvalidArgument,
+                  "SPLIT AT option is not yet supported for hash partitioned tables");
   }
-
-  split_rows_.push_back(std::move(row));
+  std::vector<QLValuePB> bounds(expr_count);
+  for (int i = 0; i < expr_count; ++i) {
+    RETURN_NOT_OK(exprs[i]->Eval(&bounds[i]));
+  }
+  split_rows_.push_back(std::move(bounds));
   return Status::OK();
 }
 
@@ -349,11 +346,17 @@ Status PgCreateTable::Exec() {
     }
     if (skip_index_backfill()) {
       table_creator->skip_index_backfill(true);
-    } else if (!FLAGS_ysql_disable_index_backfill) {
-      // For online index backfill, don't wait for backfill to finish because waiting on index
-      // permissions is done anyway.
-      table_creator->wait(false);
     }
+  }
+
+  boost::optional<TransactionMetadata> txn;
+  if (txn_future_) {
+    txn = VERIFY_RESULT((*txn_future_).get());
+    table_creator->part_of_transaction(&*txn);
+  }
+
+  if (PREDICT_FALSE(FLAGS_TEST_user_ddl_operation_timeout_sec > 0)) {
+    table_creator->timeout(MonoDelta::FromSeconds(FLAGS_TEST_user_ddl_operation_timeout_sec));
   }
 
   const Status s = table_creator->Create();
@@ -510,12 +513,12 @@ PgDropIndex::~PgDropIndex() {
 Status PgDropIndex::Exec() {
   client::YBTableName indexed_table_name;
   Status s = pg_session_->DropIndex(table_id_, &indexed_table_name);
-  DSCHECK(!indexed_table_name.empty(), Uninitialized, "indexed_table_name uninitialized");
-  PgObjectId indexed_table_id(indexed_table_name.table_id());
-
-  pg_session_->InvalidateTableCache(table_id_);
-  pg_session_->InvalidateTableCache(indexed_table_id);
   if (s.ok() || (s.IsNotFound() && if_exist_)) {
+    RSTATUS_DCHECK(!indexed_table_name.empty(), Uninitialized, "indexed_table_name uninitialized");
+    PgObjectId indexed_table_id(indexed_table_name.table_id());
+
+    pg_session_->InvalidateTableCache(table_id_);
+    pg_session_->InvalidateTableCache(indexed_table_id);
     return Status::OK();
   }
   return s;
@@ -534,12 +537,10 @@ PgAlterTable::PgAlterTable(PgSession::ScopedRefPtr pg_session,
 
 Status PgAlterTable::AddColumn(const char *name,
                                const YBCPgTypeEntity *attr_type,
-                               int order,
-                               bool is_not_null) {
+                               int order) {
   shared_ptr<QLType> yb_type = QLType::Create(static_cast<DataType>(attr_type->yb_type));
-
-  client::YBColumnSpec* column = table_alterer->AddColumn(name)->Type(yb_type)->Order(order);
-  if (is_not_null) column->NotNull();
+  table_alterer->AddColumn(name)->Type(yb_type)->Order(order);
+  // Do not set 'nullable' attribute as PgCreateTable::AddColumn() does not do it.
 
   return Status::OK();
 }

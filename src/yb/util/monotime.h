@@ -81,6 +81,7 @@ class MonoDelta {
   bool IsNegative() const;
   std::string ToString() const;
   double ToSeconds() const;
+  double ToMinutes() const;
   int64_t ToMilliseconds() const;
   int64_t ToMicroseconds() const;
   int64_t ToNanoseconds() const;
@@ -145,6 +146,7 @@ class MonoTime {
   static constexpr int64_t kNanosecondsPerMicrosecond = 1000L;
   static constexpr int64_t kMicrosecondsPerMillisecond = 1000L;
   static constexpr int64_t kMillisecondsPerSecond = 1000L;
+  static constexpr int64_t kSecondsPerMinute = 60L;
 
   static constexpr int64_t kNanosecondsPerMillisecond =
       kNanosecondsPerMicrosecond * kMicrosecondsPerMillisecond;

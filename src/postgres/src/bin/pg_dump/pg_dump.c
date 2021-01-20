@@ -2716,6 +2716,10 @@ dumpDatabase(Archive *fout)
 				minmxid;
 	char	   *qdatname;
 
+#ifndef DISABLE_YB_EXTENTIONS
+	bool		isColocated;
+#endif  /* DISABLE_YB_EXTENTIONS */
+
 	if (g_verbose)
 		write_msg(NULL, "saving database definition\n");
 
@@ -2777,6 +2781,16 @@ dumpDatabase(Archive *fout)
 		appendPQExpBufferStr(creaQry, " LC_CTYPE = ");
 		appendStringLiteralAH(creaQry, ctype, fout);
 	}
+
+#ifndef DISABLE_YB_EXTENTIONS
+
+	HandleYBStatus(YBCPgIsDatabaseColocated(dopt->db_oid, &isColocated));
+	if (isColocated)
+	{
+		appendPQExpBufferStr(creaQry, " colocated = true");
+	}
+
+#endif  /* DISABLE_YB_EXTENTIONS */
 
 	/*
 	 * Note: looking at dopt->outputNoTablespaces here is completely the wrong
@@ -15509,6 +15523,11 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
 	char	   *ftoptions;
 	int			j,
 				k;
+	PQExpBuffer yb_reloptions = createPQExpBuffer();
+#ifndef DISABLE_YB_EXTENTIONS
+	YBCPgTableDesc ybc_tabledesc = NULL;
+	YBCPgTableProperties yb_table_properties;
+#endif  /* DISABLE_YB_EXTENTIONS */
 
 	qrelname = pg_strdup(fmtId(tbinfo->dobj.name));
 	qualrelname = pg_strdup(fmtQualifiedDumpable(tbinfo));
@@ -15797,7 +15816,7 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
 						doing_hash = true;
 					}
 
-					appendPQExpBuffer(q, "%s", col_name);
+					appendPQExpBuffer(q, "%s", fmtId(col_name));
 					if (indoption & INDOPTION_DESC)
 						appendPQExpBuffer(q, " DESC");
 					else if (!doing_hash)
@@ -15853,8 +15872,66 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
 				appendPQExpBuffer(q, "\nSERVER %s", fmtId(srvname));
 		}
 
+		/*
+		 * Construct the reloptions array for Yugabyte reloptions. If YB is
+		 * disabled, then the array will be empty ('{}').
+		 */
+		appendPQExpBuffer(yb_reloptions, "{");
+#ifndef DISABLE_YB_EXTENTIONS
+		if (dopt->include_yb_metadata &&
+			(tbinfo->relkind == RELKIND_RELATION || tbinfo->relkind == RELKIND_INDEX))
+		{
+			/* Get the table properties from YugaByte. */
+			HandleYBStatus(YBCPgGetTableDesc(dopt->db_oid, tbinfo->dobj.catId.oid, &ybc_tabledesc));
+			HandleYBStatus(YBCPgGetTableProperties(ybc_tabledesc, &yb_table_properties));
+
+			if (yb_table_properties.is_colocated)
+			{
+				/* First check through reloptions to see if table_oid is already set. */
+				bool addtableoid = true;
+				if (nonemptyReloptions(tbinfo->reloptions))
+				{
+					char  **options;
+					int		noptions;
+					if (parsePGArray(tbinfo->reloptions, &options, &noptions))
+					{
+						for (int i = 0; i < noptions; ++i)
+						{
+							if (strncmp(options[i], "table_oid", 9) == 0)
+							{
+								addtableoid = false;
+								break;
+							}
+						}
+					}
+					if (options)
+					{
+						free(options);
+					}
+				}
+				/*
+				 * For colocated tables, we need to set the new table to have the same table_oid
+				 * since we store the table_oid in our DocKeys.
+				 * TODO: What happens if there is a collision here?
+				 */
+				if (addtableoid)
+				{
+					appendPQExpBuffer(yb_reloptions, "table_oid=%d", tbinfo->dobj.catId.oid);
+				}
+			}
+
+			/*
+			 * Note: We don't need to handle non-colocated tables in colocated
+			 * databases since they will already have 'colocated=false' in their
+			 * table reloptions.
+			 */
+		}
+#endif  /* DISABLE_YB_EXTENTIONS */
+		appendPQExpBuffer(yb_reloptions, "}");
+
 		if (nonemptyReloptions(tbinfo->reloptions) ||
-			nonemptyReloptions(tbinfo->toast_reloptions))
+			nonemptyReloptions(tbinfo->toast_reloptions) ||
+			nonemptyReloptions(yb_reloptions->data))
 		{
 			bool		addcomma = false;
 
@@ -15871,31 +15948,27 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
 				appendReloptionsArrayAH(q, tbinfo->toast_reloptions, "toast.",
 										fout);
 			}
+			if (nonemptyReloptions(yb_reloptions->data))
+			{
+				if (addcomma)
+					appendPQExpBufferStr(q, ", ");
+				appendReloptionsArrayAH(q, yb_reloptions->data, "",
+										fout);
+			}
 			appendPQExpBufferChar(q, ')');
 		}
+
+		destroyPQExpBuffer(yb_reloptions);
 
 #ifndef DISABLE_YB_EXTENTIONS
 		/* Additional properties for YB table or index. */
 		if (dopt->include_yb_metadata &&
 			(tbinfo->relkind == RELKIND_RELATION || tbinfo->relkind == RELKIND_INDEX))
 		{
-			/* Get the table properties from YugaByte. */
-			YBCPgTableDesc ybc_tabledesc = NULL;
-			YBCPgTableProperties properties;
-			HandleYBStatus(YBCPgGetTableDesc(dopt->db_oid, tbinfo->dobj.catId.oid, &ybc_tabledesc));
-			HandleYBStatus(YBCPgGetTableProperties(ybc_tabledesc, &properties));
-
-			if(properties.is_colocated)
-			{
-				/* For colocated-table. */
-				fprintf(stderr, "Colocated tables are not supported yet.\n");
-				exit_nicely(1);
-			}
-
-			if (properties.num_hash_key_columns > 0)
+			if (yb_table_properties.num_hash_key_columns > 0)
 				/* For hash-table. */
-				appendPQExpBuffer(q, "\nSPLIT INTO %u TABLETS", properties.num_tablets);
-			else if(properties.num_tablets > 1)
+				appendPQExpBuffer(q, "\nSPLIT INTO %u TABLETS", yb_table_properties.num_tablets);
+			else if(yb_table_properties.num_tablets > 1)
 			{
 				/* For range-table. */
 				fprintf(stderr, "Pre-split range tables are not supported yet.\n");

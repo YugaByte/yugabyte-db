@@ -53,12 +53,14 @@ import org.yb.Common.HostPortPB;
 @InterfaceAudience.Public
 @InterfaceStability.Evolving
 public class LocatedTablet {
+  private final TabletLocationsPB pb;
   private final Partition partition;
   private final byte[] tabletId;
 
   private final List<Replica> replicas;
 
   LocatedTablet(TabletLocationsPB pb) {
+    this.pb = pb;
     this.partition = ProtobufHelper.pbToPartition(pb.getPartition());
     this.tabletId = pb.getTabletId().toByteArray();
 
@@ -117,6 +119,10 @@ public class LocatedTablet {
   @Override
   public String toString() {
     return Bytes.pretty(tabletId) + " " + partition.toString();
+  }
+
+  public String toDebugString() {
+    return pb.toString();
   }
 
   /**

@@ -2,12 +2,12 @@
 import { ROOT_URL } from '../config';
 
 export function getProviderEndpoint(providerUUID) {
-  const customerUUID = localStorage.getItem("customerId");
+  const customerUUID = localStorage.getItem('customerId');
   return `${ROOT_URL}/customers/${customerUUID}/providers/${providerUUID}`;
 }
 
 export function getCustomerEndpoint() {
-  const customerUUID = localStorage.getItem("customerId");
+  const customerUUID = localStorage.getItem('customerId');
   return `${ROOT_URL}/customers/${customerUUID}`;
 }
 

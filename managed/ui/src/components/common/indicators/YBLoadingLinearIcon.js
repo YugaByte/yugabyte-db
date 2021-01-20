@@ -7,13 +7,16 @@ import './stylesheets/YBLoadingIcon.scss';
 
 export default class YBLoadingLinearIcon extends Component {
   static propTypes = {
-    size: PropTypes.oneOf(['xsmall', 'small', 'medium', 'large', 'inline']),
+    size: PropTypes.oneOf(['xsmall', 'small', 'medium', 'large', 'inline'])
   };
 
   render() {
-    const className = "yb-loader-linear" + (this.props.size ? " yb-loader-linear-"+this.props.size : "");
+    const className =
+      'yb-loader-linear' + (this.props.size ? ' yb-loader-linear-' + this.props.size : '');
     return (
-      <div className={className}><div></div></div>
+      <div className={className}>
+        <div></div>
+      </div>
     );
   }
 }

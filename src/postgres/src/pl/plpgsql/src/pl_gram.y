@@ -510,10 +510,6 @@ decl_statement	: decl_varname decl_const decl_datatype decl_collate decl_notnull
 							$3->collation = $4;
 						}
 
-						if ($3->typoid == REFCURSOROID) {
-							ybc_not_support(@1, "Declare Cursor Variable", -1);
-						}
-
 						var = plpgsql_build_variable($1.name, $1.lineno,
 													 $3, true);
 						var->isconst = $2;
@@ -538,7 +534,6 @@ decl_statement	: decl_varname decl_const decl_datatype decl_collate decl_notnull
 					}
 				| decl_varname opt_scrollable K_CURSOR
 					{
-						ybc_not_support(@1, "Declare Cursor Variable", -1);
 						plpgsql_ns_push($1.name, PLPGSQL_LABEL_OTHER);
 					}
 				  decl_cursor_args decl_is_for decl_cursor_query
@@ -2051,7 +2046,6 @@ stmt_dynexecute : K_EXECUTE
 
 stmt_open		: K_OPEN cursor_variable
 					{
-						ybc_not_support(@1, "OPEN cursor", -1);
 						PLpgSQL_stmt_open *new;
 						int				  tok;
 
@@ -2129,7 +2123,6 @@ stmt_open		: K_OPEN cursor_variable
 
 stmt_fetch		: K_FETCH opt_fetch_direction cursor_variable K_INTO
 					{
-						ybc_not_support(@1, "FETCH", -1);
 						PLpgSQL_stmt_fetch *fetch = $2;
 						PLpgSQL_variable *target;
 
@@ -2179,7 +2172,6 @@ opt_fetch_direction	:
 
 stmt_close		: K_CLOSE cursor_variable ';'
 					{
-						ybc_not_support(@1, "CLOSE cursor", -1);
 						PLpgSQL_stmt_close *new;
 
 						new = palloc(sizeof(PLpgSQL_stmt_close));
@@ -3667,7 +3659,7 @@ plpgsql_sql_error_callback(void *arg)
 			internalerrposition(myerrpos + errpos - cbarg->leaderlen - 1);
 	}
 
-	/* In any case, flush errposition --- we want internalerrpos only */
+	/* In any case, flush errposition --- we want internalerrposition only */
 	errposition(0);
 }
 

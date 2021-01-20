@@ -37,6 +37,7 @@
 #include "yb/server/hybrid_clock.h"
 #include "yb/util/priority_thread_pool.h"
 #include "yb/util/size_literals.h"
+#include "yb/util/status.h"
 #include "yb/util/trace.h"
 #include "yb/gutil/sysinfo.h"
 
@@ -44,7 +45,7 @@ using namespace yb::size_literals;  // NOLINT.
 using namespace std::literals;
 
 DEFINE_int32(rocksdb_max_background_flushes, -1, "Number threads to do background flushes.");
-DEFINE_bool(rocksdb_disable_compactions, false, "Disable background compactions.");
+DEFINE_bool(rocksdb_disable_compactions, false, "Disable rocksdb compactions.");
 DEFINE_bool(rocksdb_compaction_measure_io_stats, false, "Measure stats for rocksdb compactions.");
 DEFINE_int32(rocksdb_base_background_compactions, -1,
              "Number threads to do background compactions.");
@@ -379,6 +380,12 @@ rocksdb::InternalIterator* WrapIterator(
   return iterator;
 }
 
+void AddSupportedFilterPolicy(
+    const rocksdb::BlockBasedTableOptions::FilterPolicyPtr& filter_policy,
+    rocksdb::BlockBasedTableOptions* table_options) {
+  table_options->supported_filter_policies->emplace(filter_policy->Name(), filter_policy);
+}
+
 } // namespace
 
 void InitRocksDBOptions(
@@ -436,13 +443,14 @@ void InitRocksDBOptions(
   // Set our custom bloom filter that is docdb aware.
   if (FLAGS_use_docdb_aware_bloom_filter) {
     const auto filter_block_size_bits = table_options.filter_block_size * 8;
-    table_options.filter_policy = std::make_unique<const DocDbAwareV2FilterPolicy>(
+    table_options.filter_policy = std::make_unique<const DocDbAwareV3FilterPolicy>(
         filter_block_size_bits, options->info_log.get());
     table_options.supported_filter_policies =
         std::make_shared<rocksdb::BlockBasedTableOptions::FilterPoliciesMap>();
-    const auto supported_policy = std::make_shared<const DocDbAwareHashedComponentsFilterPolicy>(
-            filter_block_size_bits, options->info_log.get());
-    table_options.supported_filter_policies->emplace(supported_policy->Name(), supported_policy);
+    AddSupportedFilterPolicy(std::make_shared<const DocDbAwareHashedComponentsFilterPolicy>(
+            filter_block_size_bits, options->info_log.get()), &table_options);
+    AddSupportedFilterPolicy(std::make_shared<const DocDbAwareV2FilterPolicy>(
+            filter_block_size_bits, options->info_log.get()), &table_options);
   }
 
   if (FLAGS_use_multi_level_index) {
@@ -507,6 +515,99 @@ void SetLogPrefix(rocksdb::Options* options, const std::string& log_prefix) {
   options->info_log = std::make_shared<YBRocksDBLogger>(options->log_prefix);
 }
 
+namespace {
+
+// Helper class for RocksDBPatcher.
+class RocksDBPatcherHelper {
+ public:
+  explicit RocksDBPatcherHelper(rocksdb::VersionSet* version_set)
+      : version_set_(version_set), cfd_(version_set->GetColumnFamilySet()->GetDefault()),
+        delete_edit_(cfd_), add_edit_(cfd_) {
+  }
+
+  int Levels() const {
+    return cfd_->NumberLevels();
+  }
+
+  const std::vector<rocksdb::FileMetaData*>& LevelFiles(int level) {
+    return cfd_->current()->storage_info()->LevelFiles(level);
+  }
+
+  template <class F>
+  void IterateFiles(const F& f) {
+    for (int level = 0; level < Levels(); ++level) {
+      for (const auto* file : LevelFiles(level)) {
+        f(level, *file);
+      }
+    }
+  }
+
+  void ModifyFile(int level, const rocksdb::FileMetaData& fmd) {
+    delete_edit_->DeleteFile(level, fmd.fd.GetNumber());
+    add_edit_->AddCleanedFile(level, fmd);
+  }
+
+  rocksdb::VersionEdit& Edit() {
+    return *add_edit_;
+  }
+
+  CHECKED_STATUS Apply(
+      const rocksdb::Options& options, const rocksdb::ImmutableCFOptions& imm_cf_options) {
+    if (!delete_edit_.modified() && !add_edit_.modified()) {
+      return Status::OK();
+    }
+
+    rocksdb::MutableCFOptions mutable_cf_options(options, imm_cf_options);
+    {
+      rocksdb::InstrumentedMutex mutex;
+      rocksdb::InstrumentedMutexLock lock(&mutex);
+      for (auto* edit : {&delete_edit_, &add_edit_}) {
+        if (edit->modified()) {
+          RETURN_NOT_OK(version_set_->LogAndApply(cfd_, mutable_cf_options, edit->get(), &mutex));
+        }
+      }
+    }
+
+    return Status::OK();
+  }
+
+ private:
+  class TrackedEdit {
+   public:
+    explicit TrackedEdit(rocksdb::ColumnFamilyData* cfd) {
+      edit_.SetColumnFamily(cfd->GetID());
+    }
+
+    rocksdb::VersionEdit* get() {
+      modified_ = true;
+      return &edit_;
+    }
+
+    rocksdb::VersionEdit* operator->() {
+      return get();
+    }
+
+    rocksdb::VersionEdit& operator*() {
+      return *get();
+    }
+
+    bool modified() const {
+      return modified_;
+    }
+
+   private:
+    rocksdb::VersionEdit edit_;
+    bool modified_ = false;
+  };
+
+  rocksdb::VersionSet* version_set_;
+  rocksdb::ColumnFamilyData* cfd_;
+  TrackedEdit delete_edit_;
+  TrackedEdit add_edit_;
+};
+
+} // namespace
+
 class RocksDBPatcher::Impl {
  public:
   Impl(const std::string& dbpath, const rocksdb::Options& options)
@@ -525,39 +626,54 @@ class RocksDBPatcher::Impl {
   }
 
   CHECKED_STATUS SetHybridTimeFilter(HybridTime value) {
-    rocksdb::VersionEdit delete_edit;
-    rocksdb::VersionEdit add_edit;
-    auto cfd = version_set_.GetColumnFamilySet()->GetDefault();
-    delete_edit.SetColumnFamily(cfd->GetID());
-    add_edit.SetColumnFamily(cfd->GetID());
+    RocksDBPatcherHelper helper(&version_set_);
 
-    for (int level = 0; level < cfd->NumberLevels(); level++) {
-      for (const auto* file : cfd->current()->storage_info()->LevelFiles(level)) {
-        rocksdb::FileMetaData fmd = *file;
-        if (fmd.largest.user_frontier) {
-          auto& consensus_frontier = down_cast<ConsensusFrontier&>(*fmd.largest.user_frontier);
-          if (consensus_frontier.hybrid_time() > value) {
-            consensus_frontier.set_hybrid_time_filter(value);
-            delete_edit.DeleteFile(level, fmd.fd.GetNumber());
-            add_edit.AddCleanedFile(level, fmd);
-          }
+    helper.IterateFiles([&helper, value](int level, const rocksdb::FileMetaData& file) {
+      if (!file.largest.user_frontier) {
+        return;
+      }
+      if (down_cast<ConsensusFrontier&>(*file.largest.user_frontier).hybrid_time() <= value) {
+        return;
+      }
+      rocksdb::FileMetaData fmd = file;
+      down_cast<ConsensusFrontier&>(*fmd.largest.user_frontier).set_hybrid_time_filter(value);
+      helper.ModifyFile(level, fmd);
+    });
+
+    return helper.Apply(options_, imm_cf_options_);
+  }
+
+  CHECKED_STATUS ModifyFlushedFrontier(const ConsensusFrontier& frontier) {
+    RocksDBPatcherHelper helper(&version_set_);
+
+    docdb::ConsensusFrontier final_frontier = frontier;
+
+    auto* existing_frontier = down_cast<docdb::ConsensusFrontier*>(version_set_.FlushedFrontier());
+    if (existing_frontier) {
+      final_frontier.set_history_cutoff(existing_frontier->history_cutoff());
+    }
+
+    helper.Edit().ModifyFlushedFrontier(
+        final_frontier.Clone(), rocksdb::FrontierModificationMode::kForce);
+
+    helper.IterateFiles([&helper](int level, rocksdb::FileMetaData fmd) {
+      bool modified = false;
+      for (auto* user_frontier : {&fmd.smallest.user_frontier, &fmd.largest.user_frontier}) {
+        if (!*user_frontier) {
+          continue;
+        }
+        auto& consensus_frontier = down_cast<ConsensusFrontier&>(**user_frontier);
+        if (!consensus_frontier.op_id().empty()) {
+          consensus_frontier.set_op_id(OpId());
+          modified = true;
         }
       }
-    }
+      if (modified) {
+        helper.ModifyFile(level, fmd);
+      }
+    });
 
-    if (add_edit.GetNewFiles().empty()) {
-      return Status::OK();
-    }
-
-    rocksdb::MutableCFOptions mutable_cf_options(options_, imm_cf_options_);
-    {
-      rocksdb::InstrumentedMutex mutex;
-      rocksdb::InstrumentedMutexLock lock(&mutex);
-      RETURN_NOT_OK(version_set_.LogAndApply(cfd, mutable_cf_options, &delete_edit, &mutex));
-      RETURN_NOT_OK(version_set_.LogAndApply(cfd, mutable_cf_options, &add_edit, &mutex));
-    }
-
-    return Status::OK();
+    return helper.Apply(options_, imm_cf_options_);
   }
 
  private:
@@ -587,24 +703,15 @@ Status RocksDBPatcher::SetHybridTimeFilter(HybridTime value) {
   return impl_->SetHybridTimeFilter(value);
 }
 
-void ForceRocksDBCompact(rocksdb::DB* db) {
-  auto status = db->CompactRange(
-      rocksdb::CompactRangeOptions(), /* begin = */ nullptr, /* end = */ nullptr);
-  if (!status.ok()) {
-    LOG(WARNING) << "Compact range failed: " << status;
-    return;
-  }
-  while (true) {
-    uint64_t compaction_pending = 0;
-    uint64_t running_compactions = 0;
-    db->GetIntProperty("rocksdb.compaction-pending", &compaction_pending);
-    db->GetIntProperty("rocksdb.num-running-compactions", &running_compactions);
-    if (!compaction_pending && !running_compactions) {
-      return;
-    }
+Status RocksDBPatcher::ModifyFlushedFrontier(const ConsensusFrontier& frontier) {
+  return impl_->ModifyFlushedFrontier(frontier);
+}
 
-    std::this_thread::sleep_for(10ms);
-  }
+Status ForceRocksDBCompact(rocksdb::DB* db) {
+  RETURN_NOT_OK_PREPEND(
+      db->CompactRange(rocksdb::CompactRangeOptions(), /* begin = */ nullptr, /* end = */ nullptr),
+      "Compact range failed:");
+  return Status::OK();
 }
 
 }  // namespace docdb

@@ -31,7 +31,7 @@ public class DnsManager extends DevopsBase {
     return YB_CLOUD_COMMAND_TYPE;
   }
 
-  public ShellProcessHandler.ShellResponse manipulateDnsRecord(
+  public ShellResponse manipulateDnsRecord(
       DnsCommandType type, UUID providerUUID, String hostedZoneId,
       String domainNamePrefix, String nodeIpCsv) {
     List<String> commandArgs = new ArrayList<>();
@@ -45,7 +45,7 @@ public class DnsManager extends DevopsBase {
         commandArgs, new ArrayList<>());
   }
 
-  public ShellProcessHandler.ShellResponse listDnsRecord(UUID providerUUID, String hostedZoneId) {
+  public ShellResponse listDnsRecord(UUID providerUUID, String hostedZoneId) {
     List<String> commandArgs = new ArrayList<>();
     commandArgs.add("--hosted_zone_id");
     commandArgs.add(hostedZoneId);

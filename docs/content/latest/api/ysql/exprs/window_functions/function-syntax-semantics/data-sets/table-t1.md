@@ -2,7 +2,7 @@
 title: table t1
 linkTitle: table t1
 headerTitle: Create and populate table t1
-description: Creates and populate table t1 with data that allows the demonstration of the YSQL's window functions.
+description: Creates and populate table t1 with data that allows the demonstration of the YSQL window functions.
 menu:
   latest:
     identifier: table-t1

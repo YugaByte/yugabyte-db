@@ -20,6 +20,7 @@
 
 #include "yb/common/ql_value.h"
 
+#include "yb/util/monotime.h"
 #include "yb/yql/redis/redisserver/redis_parser.h"
 #include "yb/yql/redis/redisserver/redis_constants.h"
 #include "yb/util/curl_util.h"
@@ -63,7 +64,10 @@ int YBTableTestBase::session_timeout_ms() {
 }
 
 YBTableName YBTableTestBase::table_name() {
-  return kDefaultTableName;
+  if (table_names_.empty()) {
+    table_names_.push_back(kDefaultTableName);
+  }
+  return table_names_[0];
 }
 
 bool YBTableTestBase::need_redis_table() {
@@ -76,6 +80,10 @@ int YBTableTestBase::client_rpc_timeout_ms() {
 
 bool YBTableTestBase::use_external_mini_cluster() {
   return kDefaultUsingExternalMiniCluster;
+}
+
+bool YBTableTestBase::use_yb_admin_client() {
+  return false;
 }
 
 bool YBTableTestBase::enable_ysql() {
@@ -119,6 +127,7 @@ void YBTableTestBase::SetUp() {
   ASSERT_OK(mini_cluster_status);
 
   CreateClient();
+  CreateAdminClient();
 
   BeforeCreateTable();
 
@@ -133,6 +142,9 @@ void YBTableTestBase::TearDown() {
   FetchTSMetricsPage();
 
   client_.reset();
+  if (use_yb_admin_client()) {
+    yb_admin_client_.reset();
+  }
   if (use_external_mini_cluster()) {
     external_mini_cluster_->Shutdown();
   } else {
@@ -160,6 +172,21 @@ std::unique_ptr<YBClient> YBTableTestBase::CreateYBClient() {
     return CHECK_RESULT(external_mini_cluster_->CreateClient(&builder));
   } else {
     return CHECK_RESULT(mini_cluster_->CreateClient(&builder));
+  }
+}
+
+void YBTableTestBase::CreateAdminClient() {
+  if (use_yb_admin_client()) {
+    string addrs;
+    if (use_external_mini_cluster()) {
+      addrs = external_mini_cluster_->GetMasterAddresses();
+    }  else {
+      addrs = mini_cluster_->GetMasterAddresses();
+    }
+    yb_admin_client_ = std::make_unique<tools::enterprise::ClusterAdminClient>(
+        addrs, MonoDelta::FromMilliseconds(client_rpc_timeout_ms()));
+
+    ASSERT_OK(yb_admin_client_->Init());
   }
 }
 
@@ -225,6 +252,58 @@ void YBTableTestBase::RestartCluster() {
   ASSERT_NO_FATALS(OpenTable());
 }
 
+Result<std::shared_ptr<master::MasterServiceProxy>> YBTableTestBase::GetMasterLeaderProxy() {
+  DCHECK(use_external_mini_cluster());
+  int idx;
+  RETURN_NOT_OK(external_mini_cluster_->GetLeaderMasterIndex(&idx));
+  return external_mini_cluster_->master_proxy(idx);
+}
+
+Result<std::vector<uint32_t>> YBTableTestBase::GetTserverLoads(const std::vector<int>& ts_idxs) {
+  std::vector<uint32_t> tserver_loads;
+  for (const auto& ts_idx : ts_idxs) {
+    tserver_loads.push_back(
+        VERIFY_RESULT(GetLoadOnTserver(external_mini_cluster_->tablet_server(ts_idx))));
+  }
+  return tserver_loads;
+}
+
+Result<uint32_t> YBTableTestBase::GetLoadOnTserver(ExternalTabletServer* server) {
+  auto proxy = VERIFY_RESULT(GetMasterLeaderProxy());
+  uint32_t count = 0;
+  std::vector<string> replicas;
+  // Need to get load from each table.
+  for (const auto& table_name : table_names_) {
+    master::GetTableLocationsRequestPB req;
+    if (table_name.namespace_type() == YQL_DATABASE_PGSQL) {
+      // Use table_id/namespace_id for SQL tables.
+      req.mutable_table()->set_table_id(table_name.table_id());
+      req.mutable_table()->mutable_namespace_()->set_id(table_name.namespace_id());
+    } else {
+      req.mutable_table()->set_table_name(table_name.table_name());
+      req.mutable_table()->mutable_namespace_()->set_name(table_name.namespace_name());
+    }
+    master::GetTableLocationsResponsePB resp;
+
+    rpc::RpcController rpc;
+    rpc.set_timeout(MonoDelta::FromMilliseconds(client_rpc_timeout_ms()));
+    RETURN_NOT_OK(proxy->GetTableLocations(req, &resp, &rpc));
+
+    for (const auto& loc : resp.tablet_locations()) {
+      for (const auto& replica : loc.replicas()) {
+        if (replica.ts_info().permanent_uuid() == server->instance_id().permanent_uuid()) {
+          replicas.push_back(loc.tablet_id());
+          count++;
+        }
+      }
+    }
+  }
+
+  LOG(INFO) << Format("For ts $0, tablets are $1 with count $2",
+                      server->instance_id().permanent_uuid(), VectorToString(replicas), count);
+  return count;
+}
+
 std::vector<std::pair<std::string, std::string>> YBTableTestBase::GetScanResults(
     const client::TableRange& range) {
   std::vector<std::pair<std::string, std::string>> result;
@@ -255,6 +334,17 @@ void YBTableTestBase::FetchTSMetricsPage() {
     LOG(INFO) << "Fetching metrics from " << addr;
     ASSERT_OK(c.FetchURL(Substitute("http://$0/metrics", addr), &buf));
   }
+}
+
+void YBTableTestBase::WaitForLoadBalanceCompletion(yb::MonoDelta timeout) {
+  ASSERT_OK(WaitFor([&]() -> Result<bool> {
+    bool is_idle = VERIFY_RESULT(client_->IsLoadBalancerIdle());
+    return !is_idle;
+  }, timeout, "IsLoadBalancerActive"));
+
+  ASSERT_OK(WaitFor([&]() -> Result<bool> {
+    return client_->IsLoadBalancerIdle();
+  }, timeout, "IsLoadBalancerIdle"));
 }
 
 std::unique_ptr<client::YBTableCreator> YBTableTestBase::NewTableCreator() {

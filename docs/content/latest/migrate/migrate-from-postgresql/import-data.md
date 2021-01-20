@@ -38,7 +38,7 @@ The `ysqlsh` tool is a derivative of the PostgreSQL tool, `psql`. All `psql` com
 Importing a single table (or a partial export from a table) can be done by running the COPY FROM command, and providing it the location of the export file prepared in a previous step. This should look as shown below.
 
 ```
-COPY country FROM 'export.csv';
+COPY country FROM 'export.csv' DELIMITER ',' CSV HEADER;
 ```
 
 

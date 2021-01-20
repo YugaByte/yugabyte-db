@@ -26,6 +26,7 @@ import org.yb.client.*;
 import org.yb.cql.BaseCQLTest;
 import org.yb.minicluster.Metrics;
 import org.yb.minicluster.MiniYBCluster;
+import org.yb.minicluster.MiniYBClusterBuilder;
 import org.yb.minicluster.MiniYBDaemon;
 
 import java.util.*;
@@ -88,6 +89,12 @@ public class TestClusterBase extends BaseCQLTest {
   public int getTestMethodTimeoutSec() {
     // No need to adjust for TSAN vs. non-TSAN here, it will be done automatically.
     return TEST_TIMEOUT_SEC;
+  }
+
+  @Override
+  protected void customizeMiniClusterBuilder(MiniYBClusterBuilder builder) {
+    super.customizeMiniClusterBuilder(builder);
+    builder.tserverHeartbeatTimeoutMs(5000);
   }
 
   void updateMiniClusterClient() throws Exception {
@@ -293,7 +300,7 @@ public class TestClusterBase extends BaseCQLTest {
 
       LOG.info("Added new master to config: " + masterRpcHostPort.toString());
 
-      // Wait for hearbeat interval to ensure tservers pick up the new masters.
+      // Wait for heartbeat interval to ensure tservers pick up the new masters.
       Thread.sleep(2 * MiniYBCluster.TSERVER_HEARTBEAT_INTERVAL_MS);
 
       LOG.info("Done waiting for new leader");
@@ -347,7 +354,7 @@ public class TestClusterBase extends BaseCQLTest {
 
     updateMiniClusterClient();
 
-    // Wait for hearbeat interval to ensure tservers pick up the new masters.
+    // Wait for heartbeat interval to ensure tservers pick up the new masters.
     Thread.sleep(4 * MiniYBCluster.TSERVER_HEARTBEAT_INTERVAL_MS);
   }
 
@@ -454,12 +461,23 @@ public class TestClusterBase extends BaseCQLTest {
       removeMaster(leaderHostPort);
 
       long totalAfterKillMaster = client.getLoadMoveCompletion().getTotal();
+      long remainingAfterKillMaster = client.getLoadMoveCompletion().getRemaining();
 
-      // Killing master leader should reset the total count to be the same as remaining.
-      // Hence the new total should be strictly less than old total.
-      assertLessThan(totalAfterKillMaster, totalBeforeKillMaster);
+      // TODO(sanket): We should ideally ensure here that there has been at least
+      // one TS HB to the new leader master otherwise remaining load could be 0.
+      // After failover, the remaining load should be less than the initial load.
+      assertLessThan(remainingAfterKillMaster, totalAfterKillMaster);
+
+      // Killing master leader will set the total count to be the same as the
+      // initial total count during failover.
+      assertEquals(totalAfterKillMaster, totalBeforeKillMaster);
+
+      // The remaining work in the new leader will be less than the total
+      // in the original leader.
+      assertLessThan(remainingAfterKillMaster, totalBeforeKillMaster);
+
       // And there should be work remaining to do.
-      assertLessThan((long)0, client.getLoadMoveCompletion().getRemaining());
+      assertLessThan((long)0, remainingAfterKillMaster);
     }
 
     // Wait for the move to complete.
@@ -487,7 +505,7 @@ public class TestClusterBase extends BaseCQLTest {
     }
 
     // Wait for heartbeats to expire.
-    Thread.sleep(MiniYBCluster.TSERVER_HEARTBEAT_TIMEOUT_MS * 2);
+    Thread.sleep(miniCluster.getClusterParameters().getTServerHeartbeatTimeoutMs() * 2);
 
     // Verify live tservers.
     verifyExpectedLiveTServers(NUM_TABLET_SERVERS);
@@ -683,7 +701,7 @@ public class TestClusterBase extends BaseCQLTest {
     verifyMetrics(NUM_OPS_INCREMENT / numTabletServers);
 
     // Wait for heartbeats to expire.
-    Thread.sleep(MiniYBCluster.TSERVER_HEARTBEAT_TIMEOUT_MS * 2);
+    Thread.sleep(miniCluster.getClusterParameters().getTServerHeartbeatTimeoutMs() * 2);
 
     // Verify live tservers.
     verifyExpectedLiveTServers(numTabletServers);

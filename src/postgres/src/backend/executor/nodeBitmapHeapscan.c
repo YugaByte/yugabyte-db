@@ -340,10 +340,9 @@ BitmapHeapNext(BitmapHeapScanState *node)
 			 * Set up the result slot to point to this tuple.  Note that the
 			 * slot acquires a pin on the buffer.
 			 */
-			ExecStoreTuple(&scan->rs_ctup,
-						   slot,
-						   scan->rs_cbuf,
-						   false);
+			ExecStoreBufferHeapTuple(&scan->rs_ctup,
+									 slot,
+									 scan->rs_cbuf);
 
 			/*
 			 * If we are using lossy info, we have to recheck the qual
@@ -803,7 +802,8 @@ ExecEndBitmapHeapScan(BitmapHeapScanState *node)
 	/*
 	 * clear out tuple table slots
 	 */
-	ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
+	if (node->ss.ps.ps_ResultTupleSlot)
+		ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
 	ExecClearTuple(node->ss.ss_ScanTupleSlot);
 
 	/*
@@ -928,9 +928,9 @@ ExecInitBitmapHeapScan(BitmapHeapScan *node, EState *estate, int eflags)
 
 
 	/*
-	 * Initialize result slot, type and projection.
+	 * Initialize result type and projection.
 	 */
-	ExecInitResultTupleSlotTL(estate, &scanstate->ss.ps);
+	ExecInitResultTypeTL(&scanstate->ss.ps);
 	ExecAssignScanProjectionInfo(&scanstate->ss);
 
 	/*

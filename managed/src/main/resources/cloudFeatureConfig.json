@@ -1,7 +1,7 @@
 {
   "universe": {
-      "import": "disabled",
-      "create": "disabled"
+    "import": "disabled",
+    "create": "disabled"
   },
   "config": {
     "infra": "disabled",
@@ -22,6 +22,7 @@
         "readReplica": "hidden",
         "editUniverse": "hidden",
         "manageEncryption": "hidden",
+        "restartUniverse": "hidden",
         "deleteUniverse": "hidden"
       },
       "pageActions": "hidden",

@@ -56,7 +56,6 @@ struct CDCClient {
   std::unique_ptr<rpc::Messenger> messenger;
   std::unique_ptr<rpc::SecureContext> secure_context;
   std::shared_ptr<client::YBClient> client;
-  std::shared_ptr<rpc::Rpcs> rpcs = std::make_shared<rpc::Rpcs>();
 
   ~CDCClient();
   void Shutdown();
@@ -140,6 +139,7 @@ class CDCConsumer {
                      GUARDED_BY(producer_pollers_map_mutex_);
 
   std::unique_ptr<ThreadPool> thread_pool_;
+  std::unique_ptr<rpc::Rpcs> rpcs_;
 
   std::string log_prefix_;
   std::shared_ptr<CDCClient> local_client_;

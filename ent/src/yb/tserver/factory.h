@@ -23,6 +23,8 @@
 
 #include "yb/tserver/ts_tablet_manager.h"
 
+DECLARE_string(cert_node_filename);
+
 namespace yb {
 
 namespace cqlserver {
@@ -51,9 +53,19 @@ class CQLServerEnt : public cqlserver::CQLServer {
  private:
   CHECKED_STATUS SetupMessengerBuilder(rpc::MessengerBuilder* builder) override {
     RETURN_NOT_OK(CQLServer::SetupMessengerBuilder(builder));
-    secure_context_ = VERIFY_RESULT(server::SetupSecureContext(
-        options_.rpc_opts.rpc_bind_addresses, *fs_manager_,
-        server::SecureContextType::kClientToServer, builder));
+    if (!FLAGS_cert_node_filename.empty()) {
+      secure_context_ = VERIFY_RESULT(server::SetupSecureContext(
+          server::DefaultRootDir(*fs_manager_),
+          FLAGS_cert_node_filename,
+          server::SecureContextType::kClientToServer,
+          builder));
+    } else {
+      const string &hosts = !options_.server_broadcast_addresses.empty()
+                          ? options_.server_broadcast_addresses
+                          : options_.rpc_opts.rpc_bind_addresses;
+      secure_context_ = VERIFY_RESULT(server::SetupSecureContext(
+          hosts, *fs_manager_, server::SecureContextType::kClientToServer, builder));
+    }
     return Status::OK();
   }
 

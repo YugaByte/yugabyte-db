@@ -2,7 +2,12 @@
 
 import React, { Component } from 'react';
 import { Row, Col } from 'react-bootstrap';
-import { YBFormInput, YBButton, YBToggle, YBControlledSelectWithLabel } from '../common/forms/fields';
+import {
+  YBFormInput,
+  YBButton,
+  YBToggle,
+  YBControlledSelectWithLabel
+} from '../common/forms/fields';
 import { Formik, Form, Field } from 'formik';
 import { isDisabled, showOrRedirect } from '../../utils/LayoutUtils';
 import * as Yup from 'yup';
@@ -21,7 +26,8 @@ const validationSchema = Yup.object().shape({
     alertingEmail: Yup.string().nullable(), // This field can be one or more emails separated by commas
     checkIntervalMs: Yup.number().typeError('Must specify a number'),
     statusUpdateIntervalMs: Yup.number().typeError('Must specify a number'),
-    reportOnlyErrors: Yup.boolean().default(false).nullable()
+    reportOnlyErrors: Yup.boolean().default(false).nullable(),
+    reportBackupFailures: Yup.boolean().default(false).nullable()
   }),
   customSmtp: Yup.boolean(),
   smtpData: Yup.object().when('customSmtp', {
@@ -40,10 +46,18 @@ const validationSchema = Yup.object().shape({
 });
 
 const callhomeOptions = [
-  <option value="NONE" key={0}>None</option>,
-  <option value="LOW" key={1}>Low</option>,
-  <option value="MEDIUM" key={2}>Medium</option>,
-  <option value="HIGH" key={3}>High</option>
+  <option value="NONE" key={0}>
+    None
+  </option>,
+  <option value="LOW" key={1}>
+    Low
+  </option>,
+  <option value="MEDIUM" key={2}>
+    Medium
+  </option>,
+  <option value="HIGH" key={3}>
+    High
+  </option>
 ];
 
 export default class AlertProfileForm extends Component {
@@ -58,7 +72,8 @@ export default class AlertProfileForm extends Component {
     const { customerProfile, handleProfileUpdate } = this.props;
     const { statusUpdated } = this.state;
     if (
-      statusUpdated && (getPromiseState(customerProfile).isSuccess() || getPromiseState(customerProfile).isError())
+      statusUpdated &&
+      (getPromiseState(customerProfile).isSuccess() || getPromiseState(customerProfile).isError())
     ) {
       handleProfileUpdate(customerProfile.data);
       this.setState({ statusUpdated: false });
@@ -66,44 +81,46 @@ export default class AlertProfileForm extends Component {
   }
 
   render() {
-    const {
-      customer = {},
-      users = [],
-      updateCustomerDetails
-    } = this.props;
+    const { customer = {}, users = [], updateCustomerDetails } = this.props;
 
     showOrRedirect(customer.data.features, 'main.profile');
 
     // Filter users for userUUID set during login
     const loginUserId = localStorage.getItem('userId');
-    const getCurrentUser = isNonEmptyArray(users) ? users.filter(u => u.uuid === loginUserId) : [];
+    const getCurrentUser = isNonEmptyArray(users)
+      ? users.filter((u) => u.uuid === loginUserId)
+      : [];
     const initialValues = {
       name: customer.data.name || '',
       email: (getCurrentUser.length && getCurrentUser[0].email) || '',
       code: customer.data.code || '',
 
       alertingData: {
-        alertingEmail: customer.data.alertingData ?
-          customer.data.alertingData.alertingEmail || '' :
-          '',
-        checkIntervalMs: getPromiseState(customer).isSuccess() ? (
-          isNonEmptyObject(customer.data.alertingData) ?
-          customer.data.alertingData.checkIntervalMs :
-          CHECK_INTERVAL_MS) : '',
-        statusUpdateIntervalMs: getPromiseState(customer).isSuccess() ? (
-          isNonEmptyObject(customer.data.alertingData) ?
-          customer.data.alertingData.statusUpdateIntervalMs :
-          STATUS_UPDATE_INTERVAL_MS) : '',
+        alertingEmail: customer.data.alertingData
+          ? customer.data.alertingData.alertingEmail || ''
+          : '',
+        checkIntervalMs: getPromiseState(customer).isSuccess()
+          ? isNonEmptyObject(customer.data.alertingData)
+            ? customer.data.alertingData.checkIntervalMs
+            : CHECK_INTERVAL_MS
+          : '',
+        statusUpdateIntervalMs: getPromiseState(customer).isSuccess()
+          ? isNonEmptyObject(customer.data.alertingData)
+            ? customer.data.alertingData.statusUpdateIntervalMs
+            : STATUS_UPDATE_INTERVAL_MS
+          : '',
         sendAlertsToYb: customer.data.alertingData && customer.data.alertingData.sendAlertsToYb,
-        reportOnlyErrors: customer.data.alertingData && customer.data.alertingData.reportOnlyErrors
+        reportOnlyErrors: customer.data.alertingData && customer.data.alertingData.reportOnlyErrors,
+        reportBackupFailures: customer.data.alertingData && customer.data.alertingData.reportBackupFailures
       },
       customSmtp: isNonEmptyObject(_.get(customer, 'data.smtpData', {})),
       smtpData: {
         smtpServer: _.get(customer, 'data.smtpData.smtpServer', ''),
         smtpPort: _.get(customer, 'data.smtpData.smtpPort', DEFAULT_SMTP_PORT),
         emailFrom: _.get(customer, 'data.smtpData.emailFrom', ''),
-        smtpUsername: _.get(customer, 'data.smtpData.smtpUsername', ''),
-        smtpPassword: _.get(customer, 'data.smtpData.smtpPassword', ''),
+        // ensure username and password are always strings, even if API returns "null" as a value
+        smtpUsername: _.get(customer, 'data.smtpData.smtpUsername') || '',
+        smtpPassword: _.get(customer, 'data.smtpData.smtpPassword') || '',
         useSSL: _.get(customer, 'data.smtpData.useSSL', false),
         useTLS: _.get(customer, 'data.smtpData.useTLS', false)
       },
@@ -120,8 +137,10 @@ export default class AlertProfileForm extends Component {
             const data = _.omit(values, 'customSmtp'); // don't submit internal helper field
             if (values.customSmtp) {
               // due to smtp specifics have to remove smtpUsername/smtpPassword props from payload when they are empty
-              if (!data.smtpData.smtpUsername) data.smtpData = _.omit(data.smtpData, 'smtpUsername');
-              if (!data.smtpData.smtpPassword) data.smtpData = _.omit(data.smtpData, 'smtpPassword');
+              if (!data.smtpData.smtpUsername)
+                data.smtpData = _.omit(data.smtpData, 'smtpUsername');
+              if (!data.smtpData.smtpPassword)
+                data.smtpData = _.omit(data.smtpData, 'smtpPassword');
             } else {
               data.smtpData = null; // this will revert smtp settings to default presets
             }
@@ -194,6 +213,20 @@ export default class AlertProfileForm extends Component {
                         }}
                         label="Only include errors in alert emails"
                         subLabel="Whether or not to include errors in alert emails."
+                      />
+                    )}
+                  </Field>
+                  <Field name="alertingData.reportBackupFailures">
+                    {({ field }) => (
+                      <YBToggle
+                        onToggle={handleChange}
+                        name="alertingData.reportBackupFailures"
+                        input={{
+                          value: field.value,
+                          onChange: field.onChange
+                        }}
+                        label="Send backup failure notification"
+                        subLabel="Whether or not to send an email if a backup task fails."
                       />
                     )}
                   </Field>
@@ -289,7 +322,7 @@ export default class AlertProfileForm extends Component {
                   <YBButton
                     btnText="Save"
                     btnType="submit"
-                    disabled={isSubmitting || isDisabled(customer.data.features, "universe.create")}
+                    disabled={isSubmitting || isDisabled(customer.data.features, 'universe.create')}
                     btnClass="btn btn-orange pull-right"
                   />
                 </Col>

@@ -31,7 +31,7 @@ DECLARE_int64(transaction_rpc_timeout_ms);
 namespace yb {
 namespace client {
 
-class SealTxnTest : public TransactionTestBase {
+class SealTxnTest : public TransactionTestBase<MiniCluster> {
  protected:
   void SetUp() override {
     FLAGS_enable_transaction_sealing = true;
@@ -123,7 +123,7 @@ TEST_F(SealTxnTest, Simple) {
   LOG(INFO) << "Committed: " << txn->id();
   ASSERT_NO_FATALS(VerifyData());
   ASSERT_OK(cluster_->RestartSync());
-  CheckNoRunningTransactions();
+  AssertNoRunningTransactions();
 }
 
 TEST_F(SealTxnTest, Update) {
@@ -141,7 +141,7 @@ TEST_F(SealTxnTest, Update) {
   LOG(INFO) << "Committed: " << txn->id();
   ASSERT_NO_FATALS(VerifyData(1, WriteOpType::UPDATE));
   ASSERT_OK(cluster_->RestartSync());
-  CheckNoRunningTransactions();
+  AssertNoRunningTransactions();
 }
 
 } // namespace client

@@ -84,13 +84,13 @@ Specifies that `ysqlsh` is to execute the given command string, *command*. This 
 
 The command (*command*) must be either a command string that is completely parsable by the server (that is, it contains no `ysqlsh`-specific features), or a single backslash (`\`) command. Thus, you cannot mix SQL and `ysqlsh` meta-commands within a `-c` flag. To achieve that, you could use repeated `-c` flags or pipe the string into `ysqlsh`, for example:
 
-```postgresql
+```plpgsql
 ysqlsh -c '\x' -c 'SELECT * FROM foo;'
 ```
 
 or
 
-```postgresql
+```plpgsql
 echo '\x \\ SELECT * FROM foo;' | ./bin/ysqlsh
 ```
 
@@ -100,7 +100,7 @@ Each SQL statement string passed to `-c` is sent to the server as a single query
 
 Because of this behavior, putting more than one SQL statement in a single `-c` string often has unexpected results. It's better to use repeated `-c` commands or feed multiple commands to `ysqlsh`'s standard input, either using `echo` as illustrated above, or using a shell here-document, for example:
 
-```postgresql
+```plpgsql
 ./bin/ysqlsh<<EOF
 \x
 SELECT * FROM foo;
@@ -269,7 +269,7 @@ When the defaults aren't quite right, you can save yourself some typing by setti
 
 An alternative way to specify connection parameters is in a *conninfo* string or a URI, which is used instead of a database name. This mechanism gives you wide control over the connection. For example:
 
-```postgresql
+```plpgsql
 $ ysqlsh "service=myservice sslmode=require"
 $ ysqlsh postgresql://dbmaster:5433/mydb?sslmode=require
 ```
@@ -282,7 +282,7 @@ If both standard input and standard output are a terminal, then `ysql` sets the 
 
 In normal operation, `ysqlsh` provides a prompt with the name of the database to which `ysqlsh` is currently connected, followed by the string `=>`. For example:
 
-```postgresql
+```plpgsql
 $ ysqlsh testdb
 ysqlsh ()
 Type "help" for help.
@@ -342,7 +342,7 @@ If the new connection is successfully made, the previous connection is closed. I
 
 Examples:
 
-```postgresql
+```plpgsql
 => \c mydb myuser host.dom 6432
 => \c service=foo
 => \c "host=localhost port=5432 dbname=mydb connect_timeout=10 sslmode=disable"
@@ -649,7 +649,7 @@ If the argument begins with `|`, then the entire remainder of the line is taken 
 
 Sends the current query buffer to the server, then treats each column of each row of the query's output (if any) as a SQL statement to be executed. For example, to create an index on each column of `my_table`:
 
-```postgresql
+```plpgsql
 => SELECT format('create index on my_table(%I)', attname)
 -> FROM pg_attribute
 -> WHERE attrelid = 'my_table'::regclass AND attnum > 0
@@ -669,7 +669,7 @@ If the current query buffer is empty, the most recently sent query is re-execute
 
 Sends the current query buffer to the server and stores the query's output into `ysqlsh` variables (see [Variables](#variables)). The query to be executed must return exactly one row. Each column of the row is stored into a separate variable, named the same as the column. For example:
 
-```postgresql
+```plpgsql
 => SELECT 'hello' AS var1, 10 AS var2
 -> \gset
 => \echo :var1 :var2
@@ -678,7 +678,7 @@ hello 10
 
 If you specify a *prefix*, that string is prepended to the query's column names to create the variable names to use:
 
-```postgresql
+```plpgsql
 => SELECT 'hello' AS var1, 10 AS var2
 -> \gset result_
 => \echo :result_var1 :result_var2
@@ -739,7 +739,7 @@ All the backslash commands of a given conditional block must appear in the same 
 
 Here is an example:
 
-```postgresql
+```plpgsql
 -- check for the existence of two separate records in the database and store
 -- the results in separate "ysqlsh" variables
 SELECT
@@ -1255,7 +1255,7 @@ These variables are set at program start-up to reflect `ysqlsh`'s version, respe
 
 A key feature of `ysqlsh` variables is that you can substitute (“interpolate”) them into regular SQL statements, as well as the arguments of meta-commands. Furthermore, `ysqlsh` provides facilities for ensuring that variable values used as SQL literals and identifiers are properly quoted. The syntax for interpolating a value without any quoting is to prepend the variable name with a colon (`:`). For example,
 
-```postgresql
+```plpgsql
 testdb=> \set foo 'my_table'
 testdb=> SELECT * FROM :foo;
 ```
@@ -1264,7 +1264,7 @@ would query the table `my_table`. Note that this may be unsafe: the value of the
 
 When a value is to be used as an SQL literal or identifier, it is safest to arrange for it to be quoted. To quote the value of a variable as an SQL literal, write a colon followed by the variable name in single quotes. To quote the value as an SQL identifier, write a colon followed by the variable name in double quotes. These constructs deal correctly with quotes and other special characters embedded within the variable value. The previous example would be more safely written this way:
 
-```postgresql
+```plpgsql
 testdb=> \set foo 'my_table'
 testdb=> SELECT * FROM :"foo";
 ```
@@ -1273,7 +1273,7 @@ Variable interpolation will not be performed within quoted SQL literals and iden
 
 One example use of this mechanism is to copy the contents of a file into a table column. First, load the file into a variable, and then interpolate the variable's value as a quoted string:
 
-```postgresql
+```plpgsql
 testdb=> \set content `cat my_file.txt`
 testdb=> INSERT INTO my_table VALUES (:'content');
 ```
@@ -1350,7 +1350,7 @@ The output of *command*, similar to ordinary “back-tick” substitution.
 
 Prompts can contain terminal control characters which, for example, change the color, background, or style of the prompt text, or change the title of the terminal window. In order for the line editing features of Readline to work properly, these non-printing control characters must be designated as invisible by surrounding them with `%[` and `%]`. Multiple pairs of these can occur within the prompt. For example:
 
-```postgresql
+```plpgsql
 testdb=> \set PROMPT1 '%[%033[1;33;40m%]%n@%/%R%[%033[0m%]%# '
 ```
 
@@ -1455,7 +1455,7 @@ If you want to use `ysqlsh` to connect to several servers of different major ver
 
 The first example shows how to spread a SQL statement over several lines of input. Notice the changing prompt:
 
-```postgresql
+```plpgsql
 testdb=> CREATE TABLE my_table (
 testdb(>  first integer not null default 0,
 testdb(>  second text)
@@ -1465,7 +1465,7 @@ CREATE TABLE
 
 Now look at the table definition again:
 
-```postgresql
+```plpgsql
 testdb=> \d my_table
               Table "public.my_table"
  Column |  Type   | Collation | Nullable | Default
@@ -1476,14 +1476,14 @@ testdb=> \d my_table
 
 Now you change the prompt to something more interesting:
 
-```postgresql
+```plpgsql
 testdb=> \set PROMPT1 '%n@%m %~%R%# '
 peter@localhost testdb=>
 ```
 
 Let's assume you have filled the table with data and want to take a look at it:
 
-```postgresql
+```plpgsql
 peter@localhost testdb=> SELECT * FROM my_table;
  first | second
 -------+--------
@@ -1496,7 +1496,7 @@ peter@localhost testdb=> SELECT * FROM my_table;
 
 You can display tables in different ways by using the [`\pset`](#pset-option-value) command:
 
-```postgresql
+```plpgsql
 peter@localhost testdb=> \pset border 2
 Border style is 2.
 peter@localhost testdb=> SELECT * FROM my_table;
@@ -1511,7 +1511,7 @@ peter@localhost testdb=> SELECT * FROM my_table;
 (4 rows)
 ```
 
-```postgresql
+```plpgsql
 peter@localhost testdb=> \pset border 0
 Border style is 0.
 peter@localhost testdb=> SELECT * FROM my_table;
@@ -1524,7 +1524,7 @@ first second
 (4 rows)
 ```
 
-```postgresql
+```plpgsql
 peter@localhost testdb=> \pset border 1
 Border style is 1.
 peter@localhost testdb=> \pset format unaligned
@@ -1542,7 +1542,7 @@ four,4
 
 Alternatively, use the short commands:
 
-```postgresql
+```plpgsql
 peter@localhost testdb=> \a \t \x
 Output format is aligned.
 Tuples only is off.
@@ -1564,7 +1564,7 @@ second | four
 
 When suitable, query results can be shown in a crosstab representation with the `\crosstabview` command:
 
-```postgresql
+```plpgsql
 testdb=> SELECT first, second, first > 2 AS gt2 FROM my_table;
  first | second | gt2 
 -------+--------+-----
@@ -1586,7 +1586,7 @@ testdb=> \crosstabview first second
 
 This second example shows a multiplication table with rows sorted in reverse numerical order and columns with an independent, ascending numerical order.
 
-```postgresql
+```plpgsql
 testdb=> SELECT t1.first as "A", t2.first+100 AS "B", t1.first*(t2.first+100) as "AxB",
 testdb(> row_number() over(order by t2.first) AS ord
 testdb(> FROM my_table t1 CROSS JOIN my_table t2 ORDER BY 1 DESC

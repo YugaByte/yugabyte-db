@@ -16,9 +16,10 @@
 
 #include <memory>
 
+#include "yb/docdb/docdb_fwd.h"
+
 #include "yb/util/result.h"
 #include "yb/util/status.h"
-#include "yb/docdb/doc_key.h"
 
 namespace yb {
 

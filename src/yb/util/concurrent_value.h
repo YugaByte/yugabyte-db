@@ -26,6 +26,8 @@ namespace yb {
 namespace internal {
 typedef decltype(std::this_thread::get_id()) ThreadId;
 
+const auto kNullThreadId = ThreadId();
+
 // Tracks list of threads that is using URCU.
 template<class T>
 class ThreadList {
@@ -33,14 +35,38 @@ class ThreadList {
   typedef T Data;
 
   ~ThreadList() {
-    while (allocated_.load(std::memory_order_acquire) != 0) {
+    const auto current_thread_id = std::this_thread::get_id();
+    destructor_thread_id_.store(current_thread_id, std::memory_order_relaxed);
+
+    // Check if the current thread has an associated URCUThreadData object that has not been
+    // retired yet. We are doing it by traversing the linked list because the thread local
+    // variable might have been destructed already.
+    size_t desired_allocated_threads = 0;
+    for (auto* p = head_.load(std::memory_order_acquire); p;) {
+      if (p->owner.load(std::memory_order_acquire) == current_thread_id) {
+        desired_allocated_threads = 1;
+        break;
+      }
+      p = p->next.load(std::memory_order_acquire);
+    }
+
+    // Wait for all threads holding URCUThreadData objects, except maybe for this thread, to call
+    // Retire(). This thread might have to do that later, depending on the destruction orders of
+    // statics.
+    while (allocated_.load(std::memory_order_acquire) != desired_allocated_threads) {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
+    // At this point no other threads should be touching the linked list. We are not enforcing that,
+    // but we assume that if the ThreadList destructor is being called, the system has already
+    // almost shut down.
     for (auto* p = head_.exchange(nullptr, std::memory_order_acquire); p;) {
       auto* n = p->next.load(std::memory_order_relaxed);
-
-      delete p;
+      if (p->owner.load(std::memory_order_relaxed) != current_thread_id) {
+        // If the current thread has not called Retire() on its URCUThreadData object, then we will
+        // defer deleting that object until Retire() is called.
+        delete p;
+      }
       p = n;
     }
   }
@@ -49,12 +75,11 @@ class ThreadList {
     allocated_.fetch_add(1, std::memory_order_relaxed);
     Data* data;
     const auto current_thread_id = std::this_thread::get_id();
-    const auto null_thread_id = ThreadId();
 
     // First, try to reuse a retired (non-active) HP record.
     for (data = head_.load(std::memory_order_acquire); data;
          data = data->next.load(std::memory_order_relaxed)) {
-      auto old_value = null_thread_id;
+      auto old_value = kNullThreadId;
       if (data->owner.compare_exchange_strong(old_value,
                                               current_thread_id,
                                               std::memory_order_seq_cst,
@@ -78,9 +103,15 @@ class ThreadList {
 
   void Retire(Data* data) {
     DCHECK_ONLY_NOTNULL(data);
-    const auto null_thread_id = decltype(std::this_thread::get_id())();
-    data->owner.store(null_thread_id, std::memory_order_release);
+    auto old_thread_id = data->owner.exchange(kNullThreadId, std::memory_order_acq_rel);
     allocated_.fetch_sub(1, std::memory_order_release);
+
+    // Using relaxed memory order because we only need to delete the URCUThreadData object here
+    // in case we set destructor_thread_id_ earlier on the same thread. If we are in a different
+    // thread, then the thread id will not match anyway.
+    if (old_thread_id == destructor_thread_id_.load(std::memory_order_relaxed)) {
+      delete data;
+    }
   }
 
   Data* Head(std::memory_order mo) const {
@@ -91,11 +122,13 @@ class ThreadList {
     static ThreadList<T> result;
     return result;
   }
+
  private:
   ThreadList() {}
 
   std::atomic<Data*> head_{nullptr};
   std::atomic<size_t> allocated_{0};
+  std::atomic<ThreadId> destructor_thread_id_{kNullThreadId};
 };
 
 // URCU data associated with thread.
@@ -168,13 +201,12 @@ class URCU {
   }
 
   void FlipAndWait() {
-    const auto null_thread_id = ThreadId();
     global_control_word_.fetch_xor(kControlBit, std::memory_order_seq_cst);
 
     for (auto* data = ThreadList<URCUThreadData>::Instance().Head(std::memory_order_acquire);
          data;
          data = data->next.load(std::memory_order_acquire)) {
-      while (data->owner.load(std::memory_order_acquire) != null_thread_id &&
+      while (data->owner.load(std::memory_order_acquire) != kNullThreadId &&
              CheckGracePeriod(data)) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         std::atomic_thread_fence(std::memory_order_seq_cst);

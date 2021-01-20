@@ -104,7 +104,7 @@ $ ./bin/ysqlsh -h 127.0.0.1
 
 Run the following `CREATE TABLE` statement.
 
-```postgresql
+```plpgsql
 CREATE TABLE users (
     email varchar(35) PRIMARY KEY,
     username varchar(20)
@@ -121,7 +121,7 @@ $ ./bin/ysqlsh -h 127.0.0.2
 
 Run the following `CREATE TABLE` statement.
 
-```postgresql
+```plpgsql
 CREATE TABLE users (
     email varchar(35) PRIMARY KEY,
     username varchar(20)
@@ -171,7 +171,7 @@ To add data to the "Data Center - East" cluster, open `ysqlsh` by running the fo
 $ ./bin/ysqlsh -host 127.0.0.1
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# INSERT INTO users(email, username) VALUES ('hector@example.com', 'hector'), ('steve@example.com', 'steve');
 ```
 
@@ -181,7 +181,7 @@ On the consumer "Data Center - West" cluster, open `ysqlsh` and run the followin
 $ ./bin/ysqlsh -host 127.0.0.2
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT * FROM users;
 ```
 
@@ -227,7 +227,7 @@ To add data to the "Data Center - West" cluster, open `ysqlsh` by running the fo
 $ ./bin/ysqlsh -host 127.0.0.2
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# INSERT INTO users(email, username) VALUES ('neha@example.com', 'neha'), ('mikhail@example.com', 'mikhail');
 ```
 
@@ -237,7 +237,7 @@ On the new "consumer" cluster, open `ysqlsh` and run the following to quickly se
 $ ./bin/ysqlsh -host 127.0.0.1
 ```
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT * FROM users;
 ```
 

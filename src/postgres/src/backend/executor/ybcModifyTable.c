@@ -41,10 +41,10 @@
 #include "catalog/pg_attribute.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_database.h"
+#include "catalog/ybc_catalog_version.h"
 #include "utils/catcache.h"
 #include "utils/inval.h"
 #include "utils/relcache.h"
-#include "utils/rel.h"
 #include "executor/tuptable.h"
 #include "executor/ybcExpr.h"
 #include "optimizer/ybcplan.h"
@@ -136,17 +136,14 @@ Datum YBCGetYBTupleIdFromSlot(TupleTableSlot *slot)
  * meaning the ybctid will be unique. Therefore you should only use this if the relation has
  * a primary key or you're doing an insert.
  */
-Datum YBCGetYBTupleIdFromTuple(YBCPgStatement pg_stmt,
-							   Relation rel,
+Datum YBCGetYBTupleIdFromTuple(Relation rel,
 							   HeapTuple tuple,
 							   TupleDesc tupleDesc) {
 	Bitmapset *pkey    = YBGetTableFullPrimaryKeyBms(rel);
 	AttrNumber minattr = YBSystemFirstLowInvalidAttributeNumber + 1;
-	const int nattrs = bms_num_members(pkey);
-	YBCPgAttrValueDescriptor *attrs =
-			(YBCPgAttrValueDescriptor*)palloc(nattrs * sizeof(YBCPgAttrValueDescriptor));
-	uint64_t tuple_id = 0;
-	YBCPgAttrValueDescriptor *next_attr = attrs;
+	YBCPgYBTupleIdDescriptor *descr = YBCCreateYBTupleIdDescriptor(
+		YBCGetDatabaseOid(rel), RelationGetRelid(rel), bms_num_members(pkey));
+	YBCPgAttrValueDescriptor *next_attr = descr->attrs;
 	int col = -1;
 	while ((col = bms_next_member(pkey, col)) >= 0) {
 		AttrNumber attnum = col + minattr;
@@ -168,8 +165,10 @@ Datum YBCGetYBTupleIdFromTuple(YBCPgStatement pg_stmt,
 		}
 		++next_attr;
 	}
-	HandleYBStatus(YBCPgDmlBuildYBTupleId(pg_stmt, attrs, nattrs, &tuple_id));
-	pfree(attrs);
+	bms_free(pkey);
+	uint64_t tuple_id = 0;
+	HandleYBStatus(YBCPgBuildYBTupleId(descr, &tuple_id));
+	pfree(descr);
 	return (Datum)tuple_id;
 }
 
@@ -183,42 +182,17 @@ static void YBCBindTupleId(YBCPgStatement pg_stmt, Datum tuple_id) {
 }
 
 /*
- * Check if operation changes a system table, ignore changes during
- * initialization (bootstrap mode).
- */
-static bool IsSystemCatalogChange(Relation rel)
-{
-	return IsSystemRelation(rel) && !IsBootstrapProcessingMode();
-}
-
-/*
- * Utility method to execute a prepared write statement.
+ * Utility method to execute a prepared write statement and clean it up.
  * Will handle the case if the write changes the system catalogs meaning
  * we need to increment the catalog versions accordingly.
  */
-static void YBCExecWriteStmt(YBCPgStatement ybc_stmt, Relation rel, int *rows_affected_count)
+static void YBCExecWriteStmt(YBCPgStatement ybc_stmt,
+                             Relation rel,
+                             int *rows_affected_count)
 {
-	bool is_syscatalog_change = IsSystemCatalogChange(rel);
-	bool modifies_row = false;
-	HandleYBStatus(YBCPgDmlModifiesRow(ybc_stmt, &modifies_row));
-
-	/*
-	 * If this write may invalidate catalog cache tuples (i.e. UPDATE or DELETE),
-	 * or this write may insert into a cached list, we must increment the
-	 * cache version so other sessions can invalidate their caches.
-	 * NOTE: If this relation caches lists, an INSERT could effectively be
-	 * UPDATINGing the list object.
-	 */
-	bool is_syscatalog_version_change = is_syscatalog_change
-			&& (modifies_row || RelationHasCachedLists(rel));
-
-	/* Let the master know if this should increment the catalog version. */
-	if (is_syscatalog_version_change)
-	{
-		HandleYBStatus(YBCPgSetIsSysCatalogVersionChange(ybc_stmt));
-	}
-
 	HandleYBStatus(YBCPgSetCatalogCacheVersion(ybc_stmt, yb_catalog_cache_version));
+
+	bool is_syscatalog_version_inc = YBCMarkStatementIfCatalogVersionIncrement(ybc_stmt, rel);
 
 	/* Execute the insert. */
 	HandleYBStatus(YBCPgDmlExecWriteOp(ybc_stmt, rows_affected_count));
@@ -233,11 +207,12 @@ static void YBCExecWriteStmt(YBCPgStatement ybc_stmt, Relation rel, int *rows_af
 	 * other backends).
 	 * If changes occurred, then a cache refresh will be needed as usual.
 	 */
-	if (is_syscatalog_version_change)
+	if (is_syscatalog_version_inc)
 	{
 		// TODO(shane) also update the shared memory catalog version here.
 		yb_catalog_cache_version += 1;
 	}
+	YBCPgDeleteStatement(ybc_stmt);
 }
 
 /*
@@ -270,7 +245,7 @@ static Oid YBCExecuteInsertInternal(Relation rel,
 	                              &insert_stmt));
 
 	/* Get the ybctid for the tuple and bind to statement */
-	tuple->t_ybctid = YBCGetYBTupleIdFromTuple(insert_stmt, rel, tuple, tupleDesc);
+	tuple->t_ybctid = YBCGetYBTupleIdFromTuple(rel, tuple, tupleDesc);
 	YBCBindTupleId(insert_stmt, tuple->t_ybctid);
 
 	for (AttrNumber attnum = minattr; attnum <= natts; attnum++)
@@ -307,6 +282,9 @@ static Oid YBCExecuteInsertInternal(Relation rel,
 		MarkCurrentCommandUsed();
 		CacheInvalidateHeapTuple(rel, tuple, NULL);
 	}
+
+	/* Delete row from foreign key cache */
+	YBCPgDeleteFromForeignKeyReferenceCache(relid, tuple->t_ybctid);
 
 	/* Execute the insert */
 	YBCExecWriteStmt(insert_stmt, rel, NULL /* rows_affected_count */);
@@ -430,11 +408,55 @@ Oid YBCHeapInsert(TupleTableSlot *slot,
 	}
 }
 
+static YBCPgYBTupleIdDescriptor*
+YBCBuildNonNullUniqueIndexYBTupleId(Relation unique_index, Datum *values)
+{
+	TupleDesc tupdesc = RelationGetDescr(unique_index);
+	const int nattrs = IndexRelationGetNumberOfKeyAttributes(unique_index);
+	YBCPgYBTupleIdDescriptor* result = YBCCreateYBTupleIdDescriptor(
+		YBCGetDatabaseOid(unique_index), RelationGetRelid(unique_index), nattrs + 1);
+	YBCPgAttrValueDescriptor *next_attr = result->attrs;
+	for (AttrNumber attnum = 1; attnum <= nattrs; ++attnum)
+	{
+		Oid type_id = GetTypeId(attnum, tupdesc);
+		next_attr->type_entity = YBCDataTypeFromOidMod(attnum, type_id);
+		next_attr->attr_num = attnum;
+		next_attr->datum = values[attnum - 1];
+		next_attr->is_null = false;
+		++next_attr;
+	}
+	YBCFillUniqueIndexNullAttribute(result);
+	return result;
+}
+
+static void
+YBCForeignKeyReferenceCacheDeleteIndex(Relation index, Datum *values, bool *isnulls)
+{
+	Assert(index->rd_rel->relkind == RELKIND_INDEX);
+	/* Only unique index can be used in foreign key constraints */
+	if (!index->rd_index->indisprimary && index->rd_index->indisunique)
+	{
+		const int nattrs = IndexRelationGetNumberOfKeyAttributes(index);
+		/*
+		 * Index with at least one NULL value can't be referenced by foreign key constraint,
+		 * and can't be stored in cache, so ignore it.
+		 */
+		for (int i = 0; i < nattrs; ++i)
+			if (isnulls[i])
+				return;
+
+		YBCPgYBTupleIdDescriptor* descr = YBCBuildNonNullUniqueIndexYBTupleId(index, values);
+		HandleYBStatus(YBCPgForeignKeyReferenceCacheDelete(descr));
+		pfree(descr);
+	}
+}
+
 void YBCExecuteInsertIndex(Relation index,
 						   Datum *values,
 						   bool *isnull,
 						   Datum ybctid,
-						   bool is_backfill)
+						   bool is_backfill,
+						   uint64_t *write_time)
 {
 	Assert(index->rd_rel->relkind == RELKIND_INDEX);
 	Assert(ybctid != 0);
@@ -465,12 +487,19 @@ void YBCExecuteInsertIndex(Relation index,
 		HandleYBStatus(YBCPgInsertStmtSetUpsertMode(insert_stmt));
 	}
 
-	/* For index backfill, set write hybrid time to a time in the past.  This
-	 * is to guarantee that backfilled writes are temporally before any online
-	 * writes. */
-	/* TODO(jason): don't hard-code 50. */
 	if (is_backfill)
-		HandleYBStatus(YBCPgInsertStmtSetWriteTime(insert_stmt, 50));
+	{
+		Assert(write_time);
+		HandleYBStatus(YBCPgInsertStmtSetIsBackfill(insert_stmt,
+													true /* is_backfill */));
+		/*
+		 * For index backfill, set write hybrid time to a time in the past.
+		 * This is to guarantee that backfilled writes are temporally before
+		 * any online writes.
+		 */
+		HandleYBStatus(YBCPgInsertStmtSetWriteTime(insert_stmt,
+												   *write_time));
+	}
 
 	/* Execute the insert and clean up. */
 	YBCExecWriteStmt(insert_stmt, index, NULL /* rows_affected_count */);
@@ -499,10 +528,7 @@ bool YBCExecuteDelete(Relation rel, TupleTableSlot *slot, EState *estate, Modify
 	if (isSingleRow)
 	{
 		HeapTuple tuple = ExecMaterializeSlot(slot);
-		ybctid = YBCGetYBTupleIdFromTuple(delete_stmt,
-										  rel,
-										  tuple,
-										  slot->tts_tupleDescriptor);
+		ybctid = YBCGetYBTupleIdFromTuple(rel, tuple, slot->tts_tupleDescriptor);
 	}
 	else
 	{
@@ -522,7 +548,7 @@ bool YBCExecuteDelete(Relation rel, TupleTableSlot *slot, EState *estate, Modify
 	HandleYBStatus(YBCPgDmlBindColumn(delete_stmt, YBTupleIdAttributeNumber, ybctid_expr));
 
 	/* Delete row from foreign key cache */
-	HandleYBStatus(YBCPgDeleteFromForeignKeyReferenceCache(relid, ybctid));
+	YBCPgDeleteFromForeignKeyReferenceCache(relid, ybctid);
 
 	/* Execute the statement. */
 	int rows_affected_count = 0;
@@ -552,8 +578,7 @@ void YBCExecuteDeleteIndex(Relation index, Datum *values, bool *isnull, Datum yb
 	                      IndexRelationGetNumberOfKeyAttributes(index),
 	                      ybctid, false /* ybctid_as_value */);
 
-	/* Delete row from foreign key cache */
-	HandleYBStatus(YBCPgDeleteFromForeignKeyReferenceCache(relid, ybctid));
+	YBCForeignKeyReferenceCacheDeleteIndex(index, values, isnull);
 
 	YBCExecWriteStmt(delete_stmt, index, NULL /* rows_affected_count */);
 }
@@ -586,10 +611,7 @@ bool YBCExecuteUpdate(Relation rel,
 	 */
 	if (isSingleRow)
 	{
-		ybctid = YBCGetYBTupleIdFromTuple(update_stmt,
-										  rel,
-										  tuple,
-										  slot->tts_tupleDescriptor);
+		ybctid = YBCGetYBTupleIdFromTuple(rel, tuple, slot->tts_tupleDescriptor);
 	}
 	else
 	{
@@ -645,7 +667,11 @@ bool YBCExecuteUpdate(Relation rel,
 			Expr *expr = copyObject(tle->expr);
 			YBCExprInstantiateParams(expr, estate->es_param_list_info);
 
-			YBCPgExpr ybc_expr = YBCNewEvalExprCall(update_stmt, expr, attnum, type_id, type_mod);
+			YBCPgExpr ybc_expr = YBCNewEvalSingleParamExprCall(update_stmt,
+			                                                   expr,
+			                                                   attnum,
+			                                                   type_id,
+			                                                   type_mod);
 
 			HandleYBStatus(YBCPgDmlAssignColumn(update_stmt, attnum, ybc_expr));
 
@@ -664,7 +690,13 @@ bool YBCExecuteUpdate(Relation rel,
 
 	/* Execute the statement. */
 	int rows_affected_count = 0;
-	YBCExecWriteStmt(update_stmt, rel, isSingleRow ? &rows_affected_count : NULL);
+
+	/* Currently only allows batching of single row updates for PGSQL procedures. */
+	bool can_batch_update = !isSingleRow ||
+							(YBCGetEnableUpdateBatching() && estate->yb_can_batch_updates);
+
+	/* If update batching is allowed, then ignore rows_affected_count. */
+	YBCExecWriteStmt(update_stmt, rel, can_batch_update ? NULL : &rows_affected_count);
 
 	/* Cleanup. */
 	update_stmt = NULL;
@@ -717,7 +749,7 @@ void YBCDeleteSysCatalogTuple(Relation rel, HeapTuple tuple)
 										   false /* is_null */);
 
 	/* Delete row from foreign key cache */
-	HandleYBStatus(YBCPgDeleteFromForeignKeyReferenceCache(relid, tuple->t_ybctid));
+	YBCPgDeleteFromForeignKeyReferenceCache(relid, tuple->t_ybctid);
 
 	HandleYBStatus(YBCPgDmlBindColumn(delete_stmt, YBTupleIdAttributeNumber, ybctid_expr));
 

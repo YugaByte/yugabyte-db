@@ -1,0 +1,263 @@
+/* Copyright (c) YugaByte, Inc. */
+
+@import '../../_style/colors.scss';
+
+.live-queries {
+  &__loading-indicator > .yb-loader-circle {
+    margin: 0 20px;
+    display: inline-block;
+  }
+
+  &__container-title {
+    margin-bottom: 85px;
+
+    .pull-right {
+      > div {
+        display: inline-block;
+        margin-left: 15px;
+      }
+    }
+  }
+
+  &__dropdown-label {
+    font-size: 14px;
+    margin-bottom: 5px;
+    font-weight: 500;
+  }
+
+  &__table {
+    .react-bs-table-bordered {
+      overflow-x: auto;
+
+      .react-bs-container-header {
+        overflow: unset;
+
+        .react-bs-select-all {
+          display: none;
+        }
+      }
+      .react-bs-container-body {
+        overflow: unset !important;
+      }
+    }
+
+    .toolbar-container {
+      width: 100%;
+      margin-top: -80px;
+      display: flex;
+
+      div {
+        height: auto;
+      }
+
+      .search-bar-container {
+        position: relative;
+        margin-right: 20px;
+        flex-grow: 1;
+
+        .search-bar {
+          width: 100%;
+          background: $YB_WHITE;
+          border: 1px solid $YB_GRAY_BORDER;
+          border-radius: 1px;
+          height: 44px;
+          padding: 7px 40px 7px 15px;
+          display: flex;
+
+          > input {
+            border: none;
+            flex-grow: 1;
+          }
+
+          .chip {
+            height: auto;
+            font-size: 12px;
+            line-height: 14px;
+            padding-top: 7px;
+            padding-bottom: 7px;
+            padding-left: 8px;
+            padding-right: 24px;
+            margin: 0 5px 0 0;
+            display: inline-block;
+            color: $YB_TEXT_BLACK;
+            position: relative;
+            background-color: rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+
+            .key {
+              color: $YB_DARK_GRAY;
+            }
+
+            .remove-chip {
+              color: rgba(0, 0, 0, 0.38);
+              position: absolute;
+              right: 7px;
+              font-size: 15px;
+              cursor: pointer;
+            }
+
+            .remove-chip:hover {
+              color: $YB_TEXT_BLACK;
+            }
+          }
+        }
+
+        .fa-times {
+          color: $YB_DARK_GRAY;
+          position: absolute;
+          top: 0;
+          right: 0;
+          background: none;
+          border: none;
+          margin-right: 16px;
+          margin-left: 16px;
+          padding-top: 13px;
+          padding-bottom: 12px;
+          font-size: 18px;
+          cursor: pointer;
+
+          &:hover {
+            color: $YB_DARK_GRAY_2;
+          }
+        }
+
+        .autocomplete-wrapper {
+          background: $YB_WHITE;
+          z-index: 700;
+          border: 1px solid $YB_GRAY_BORDER;
+          position: relative;
+          width: 300px;
+
+          ul {
+            padding: 0;
+            margin: 5px 0;
+
+            li {
+              padding: 5px 15px;
+              cursor: pointer;
+            }
+            li:hover {
+              background: rgba(0, 0, 0, 0.05);
+            }
+          }
+        }
+      }
+
+      .slow-time-filter {
+        input {
+          display: block;
+          height: 30px;
+          width: 60px;
+          padding: 3px 6px;
+        }
+      }
+    }
+
+    .react-bs-table table td {
+      vertical-align: middle;
+    }
+
+    .query-container {
+      cursor: pointer;
+      position: relative;
+      overflow: visible;
+
+      pre {
+        margin: 0 15px 0 0 !important;
+        .hljs {
+          background: $YB_SUCCESS_COLOR_LIGHT;
+        }
+      }
+    }
+
+    .query-start-cell {
+      vertical-align: middle;
+
+      .time-icon {
+        margin-left: 6px;
+        font-size: 16px;
+        padding: 10px 0;
+      }
+    }
+  }
+}
+#universe-tab-panel-pane-queries {
+  .side-panel {
+    background: $YB_BG_WHITE_2;
+    height: 100%;
+    width: 400px;
+    position: fixed;
+    z-index: 1;
+    top: 0;
+    right: 0;
+    border-left: 1px solid $YB_BACKGROUND;
+    overflow: scroll;
+    max-height: 100%;
+
+    &__header {
+      margin-top: 119px;
+      display: flex;
+      position: relative;
+
+      .side-panel__icon--close {
+        position: absolute;
+        top: 0;
+        left: 20px;
+        padding: 10px 0;
+        cursor: pointer;
+      }
+
+      .side-panel__title {
+        padding-top: 35px;
+        color: $YB_ORANGE;
+        border-bottom: 4px solid $YB_ORANGE;
+        flex: 1 0 33%;
+        max-width: 200px;
+        text-align: center;
+        padding-bottom: 16px;
+        font-weight: 700;
+      }
+    }
+
+    &__content {
+      padding: 15px 30px;
+
+      .side-panel__query {
+        background: $YB_WHITE;
+        overflow-y: auto;
+        max-height: 400px;
+        width: 100%;
+        padding: 5px 10px;
+        border: 1px solid $YB_GRAY_BORDER;
+        border-radius: 7px;
+        
+        pre {
+          white-space: pre-wrap;       /* Since CSS 2.1 */
+          white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+          word-wrap: break-word;       /* Internet Explorer 5.5+ */
+        }
+      }
+
+      .side-panel__details {
+        padding: 30px 0;
+
+        li {
+          display: flex;
+
+          span {
+            margin-left: auto;
+            text-align: right;
+          }
+        }
+      }
+
+      .copy-btn-container {
+        margin-top: 15px;
+      }
+    }
+  }
+
+  .side-panel.hidden {
+    width: 0;
+  }
+}

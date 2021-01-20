@@ -3,18 +3,18 @@
 import React, { Component } from 'react';
 import { YBModal } from '../../common/forms/fields';
 import PropTypes from 'prop-types';
-import _ from 'lodash';
 import { browserHistory } from 'react-router';
+import { NodeAction } from '../../universes';
 
 export default class NodeActionModal extends Component {
   static propTypes = {
     nodeInfo: PropTypes.object.isRequired,
     actionType: PropTypes.string
-  }
+  };
 
   performNodeAction = () => {
     const {
-      universe: {currentUniverse} ,
+      universe: { currentUniverse },
       nodeInfo,
       actionType,
       performUniverseNodeAction,
@@ -23,7 +23,7 @@ export default class NodeActionModal extends Component {
     const universeUUID = currentUniverse.data.universeUUID;
     performUniverseNodeAction(universeUUID, nodeInfo.name, actionType);
     onHide();
-    browserHistory.push('/universes/' + universeUUID + "/nodes");
+    browserHistory.push('/universes/' + universeUUID + '/nodes');
   };
 
   render() {
@@ -34,12 +34,14 @@ export default class NodeActionModal extends Component {
 
     return (
       <div className="universe-apps-modal">
-        <YBModal title={`Perform Node Action: ${_.capitalize(actionType.toLowerCase())} `}
-                 visible={visible}
-                 onHide={onHide}
-                 showCancelButton={true}
-                 cancelLabel={"Cancel"}
-                 onFormSubmit={this.performNodeAction}>
+        <YBModal
+          title={`Perform Node Action: ${NodeAction.getCaption(actionType)} `}
+          visible={visible}
+          onHide={onHide}
+          showCancelButton={true}
+          cancelLabel={'Cancel'}
+          onFormSubmit={this.performNodeAction}
+        >
           Are you sure you want to {actionType.toLowerCase()} {nodeInfo.name}?
         </YBModal>
       </div>

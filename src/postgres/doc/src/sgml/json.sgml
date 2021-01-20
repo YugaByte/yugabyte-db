@@ -22,8 +22,16 @@
  </para>
 
  <para>
-  There are two JSON data types: <type>json</type> and <type>jsonb</type>.
-  They accept <emphasis>almost</emphasis> identical sets of values as
+  <productname>PostgreSQL</productname> offers two types for storing JSON
+  data: <type>json</type> and <type>jsonb</type>. To implement effective query
+  mechanisms for these data types, <productname>PostgreSQL</productname>
+  also provides the <type>jsonpath</type> data type described in
+  <xref linkend="datatype-jsonpath"/>.
+ </para>
+
+ <para>
+  The <type>json</type> and <type>jsonb</type> data types
+  accept <emphasis>almost</emphasis> identical sets of values as
   input.  The major practical difference is one of efficiency.  The
   <type>json</type> data type stores an exact copy of the input text,
   which processing functions must reparse on each execution; while
@@ -216,6 +224,11 @@ SELECT '{"reading": 1.230e-5}'::json, '{"reading": 1.230e-5}'::jsonb;
    However, <type>jsonb</type> will preserve trailing fractional zeroes, as seen
    in this example, even though those are semantically insignificant for
    purposes such as equality checks.
+  </para>
+
+  <para>
+    For the list of built-in functions and operators available for
+    constructing and processing JSON values, see <xref linkend="functions-json"/>.
   </para>
  </sect2>
 
@@ -468,6 +481,22 @@ CREATE INDEX idxgintags ON api USING GIN ((jdoc -&gt; 'tags'));
     linkend="indexes-expressional"/>.)
   </para>
   <para>
+    Also, GIN index supports <literal>@@</literal> and <literal>@?</literal>
+    operators, which perform <literal>jsonpath</literal> matching.
+<programlisting>
+SELECT jdoc->'guid', jdoc->'name' FROM api WHERE jdoc @@ '$.tags[*] == "qui"';
+</programlisting>
+<programlisting>
+SELECT jdoc->'guid', jdoc->'name' FROM api WHERE jdoc @@ '$.tags[*] ? (@ == "qui")';
+</programlisting>
+    GIN index extracts statements of following form out of
+    <literal>jsonpath</literal>: <replaceable>accessors_chain</replaceable> = <replaceable>const</replaceable>.
+    Accessors chain may consist of <literal>.key</literal>,
+    <literal>[*]</literal>, and <literal>[<replaceable>index</replaceable>]</literal> accessors.
+    <literal>jsonb_ops</literal> additionally supports <literal>.*</literal>
+    and <literal>.**</literal> accessors.
+  </para>
+  <para>
     Another approach to querying is to exploit containment, for example:
 <programlisting>
 -- Find documents in which the key "tags" contains array element "qui"
@@ -485,7 +514,8 @@ SELECT jdoc-&gt;'guid', jdoc-&gt;'name' FROM api WHERE jdoc @&gt; '{"tags": ["qu
 
   <para>
     Although the <literal>jsonb_path_ops</literal> operator class supports
-    only queries with the <literal>@&gt;</literal> operator, it has notable
+    only queries with the <literal>@&gt;</literal>, <literal>@@</literal>
+    and <literal>@?</literal> operators, it has notable
     performance advantages over the default operator
     class <literal>jsonb_ops</literal>.  A <literal>jsonb_path_ops</literal>
     index is usually much smaller than a <literal>jsonb_ops</literal>
@@ -592,5 +622,274 @@ SELECT jdoc-&gt;'guid', jdoc-&gt;'name' FROM api WHERE jdoc @&gt; '{"tags": ["qu
    use them, <type>jsonb</type> values are mapped to Python dictionaries,
    lists, and scalars, as appropriate.
   </para>
+ </sect2>
+
+ <sect2 id="datatype-jsonpath">
+  <title>jsonpath Type</title> 
+
+  <indexterm zone="datatype-jsonpath">
+   <primary>jsonpath</primary>
+  </indexterm>
+
+  <para>
+   The <type>jsonpath</type> type implements support for the SQL/JSON path language
+   in <productname>PostgreSQL</productname> to effectively query JSON data.
+   It provides a binary representation of the parsed SQL/JSON path
+   expression that specifies the items to be retrieved by the path
+   engine from the JSON data for further processing with the
+   SQL/JSON query functions.
+  </para>
+
+  <para>
+   The semantics of SQL/JSON path predicates and operators generally follow SQL.
+   At the same time, to provide a most natural way of working with JSON data,
+   SQL/JSON path syntax uses some of the JavaScript conventions:
+  </para>
+
+  <itemizedlist>
+   <listitem>
+    <para>
+     Dot (<literal>.</literal>) is used for member access.
+    </para>
+   </listitem>
+   <listitem>
+    <para>
+     Square brackets (<literal>[]</literal>) are used for array access.
+    </para>
+   </listitem>
+   <listitem>
+    <para>
+     SQL/JSON arrays are 0-relative, unlike regular SQL arrays that start from 1.
+    </para>
+   </listitem>
+  </itemizedlist>
+
+  <para>
+   An SQL/JSON path expression is typically written in an SQL query as an
+   SQL character string literal, so it must be enclosed in single quotes,
+   and any single quotes desired within the value must be doubled
+   (see <xref linkend="sql-syntax-strings"/>).
+   Some forms of path expressions require string literals within them.
+   These embedded string literals follow JavaScript/ECMAScript conventions:
+   they must be surrounded by double quotes, and backslash escapes may be
+   used within them to represent otherwise-hard-to-type characters.
+   In particular, the way to write a double quote within an embedded string
+   literal is <literal>\"</literal>, and to write a backslash itself, you
+   must write <literal>\\</literal>.  Other special backslash sequences
+   include those recognized in JSON strings:
+   <literal>\b</literal>,
+   <literal>\f</literal>,
+   <literal>\n</literal>,
+   <literal>\r</literal>,
+   <literal>\t</literal>,
+   <literal>\v</literal>
+   for various ASCII control characters, and
+   <literal>\u<replaceable>NNNN</replaceable></literal> for a Unicode
+   character identified by its 4-hex-digit code point.  The backslash
+   syntax also includes two cases not allowed by JSON:
+   <literal>\x<replaceable>NN</replaceable></literal> for a character code
+   written with only two hex digits, and
+   <literal>\u{<replaceable>N...</replaceable>}</literal> for a character
+   code written with 1 to 6 hex digits.
+  </para>
+
+  <para>
+   A path expression consists of a sequence of path elements,
+   which can be the following:
+   <itemizedlist>
+    <listitem>
+     <para>
+      Path literals of JSON primitive types:
+      Unicode text, numeric, true, false, or null.
+     </para>
+    </listitem>
+    <listitem>
+     <para>
+      Path variables listed in <xref linkend="type-jsonpath-variables"/>.
+     </para>
+    </listitem>
+    <listitem>
+     <para>
+      Accessor operators listed in <xref linkend="type-jsonpath-accessors"/>.
+     </para>
+    </listitem>
+    <listitem>
+     <para>
+      <type>jsonpath</type> operators and methods listed
+      in <xref linkend="functions-sqljson-path-operators"/>
+     </para>
+    </listitem>
+    <listitem>
+     <para>
+      Parentheses, which can be used to provide filter expressions
+      or define the order of path evaluation.
+     </para>
+    </listitem>
+   </itemizedlist>
+  </para>
+
+  <para>
+   For details on using <type>jsonpath</type> expressions with SQL/JSON
+   query functions, see <xref linkend="functions-sqljson-path"/>.
+  </para>
+
+  <table id="type-jsonpath-variables">
+   <title><type>jsonpath</type> Variables</title>
+   <tgroup cols="2">
+    <thead>
+     <row>
+      <entry>Variable</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row>
+      <entry><literal>$</literal></entry>
+      <entry>A variable representing the JSON text to be queried
+      (the <firstterm>context item</firstterm>).
+      </entry>
+     </row>
+     <row>
+      <entry><literal>$varname</literal></entry>
+      <entry>
+        A named variable. Its value can be set by the parameter
+        <parameter>vars</parameter> of several JSON processing functions.
+        See <xref linkend="functions-json-processing-table"/> and
+        its notes for details.
+        <!-- TODO: describe PASSING clause once implemented !-->
+      </entry>
+     </row>
+     <row>
+      <entry><literal>@</literal></entry>
+      <entry>A variable representing the result of path evaluation
+      in filter expressions.
+      </entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table>
+
+  <table id="type-jsonpath-accessors">
+   <title><type>jsonpath</type> Accessors</title>
+   <tgroup cols="2">
+    <thead>
+     <row>
+      <entry>Accessor Operator</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row>
+      <entry>
+       <para>
+        <literal>.<replaceable>key</replaceable></literal>
+       </para>
+       <para>
+        <literal>."$<replaceable>varname</replaceable>"</literal>
+       </para>
+      </entry>
+      <entry>
+       <para>
+        Member accessor that returns an object member with
+        the specified key. If the key name is a named variable
+        starting with <literal>$</literal> or does not meet the
+        JavaScript rules of an identifier, it must be enclosed in
+        double quotes as a character string literal.
+       </para>
+      </entry>
+     </row>
+     <row>
+      <entry>
+       <para>
+        <literal>.*</literal>
+       </para>
+      </entry>
+      <entry>
+       <para>
+        Wildcard member accessor that returns the values of all
+        members located at the top level of the current object.
+       </para>
+      </entry>
+     </row>
+     <row>
+      <entry>
+       <para>
+        <literal>.**</literal>
+       </para>
+      </entry>
+      <entry>
+       <para>
+        Recursive wildcard member accessor that processes all levels
+        of the JSON hierarchy of the current object and returns all
+        the member values, regardless of their nesting level. This
+        is a <productname>PostgreSQL</productname> extension of
+        the SQL/JSON standard.
+       </para>
+      </entry>
+     </row>
+     <row>
+      <entry>
+       <para>
+        <literal>.**{<replaceable>level</replaceable>}</literal>
+       </para>
+       <para>
+        <literal>.**{<replaceable>start_level</replaceable> to
+        <replaceable>end_level</replaceable>}</literal>
+       </para>
+      </entry>
+      <entry>
+       <para>
+        Same as <literal>.**</literal>, but with a filter over nesting
+        levels of JSON hierarchy. Nesting levels are specified as integers.
+        Zero level corresponds to the current object. To access the lowest
+        nesting level, you can use the <literal>last</literal> keyword.
+        This is a <productname>PostgreSQL</productname> extension of
+        the SQL/JSON standard.
+       </para>
+      </entry>
+     </row>
+     <row>
+      <entry>
+       <para>
+        <literal>[<replaceable>subscript</replaceable>, ...]</literal>
+       </para>
+      </entry>
+      <entry>
+       <para>
+        Array element accessor.
+        <literal><replaceable>subscript</replaceable></literal> can be
+        given in two forms: <literal><replaceable>index</replaceable></literal>
+        or <literal><replaceable>start_index</replaceable> to <replaceable>end_index</replaceable></literal>.
+        The first form returns a single array element by its index. The second
+        form returns an array slice by the range of indexes, including the
+        elements that correspond to the provided
+        <replaceable>start_index</replaceable> and <replaceable>end_index</replaceable>.
+       </para>
+       <para>
+        The specified <replaceable>index</replaceable> can be an integer, as
+        well as an expression returning a single numeric value, which is
+        automatically cast to integer. Index zero corresponds to the first
+        array element. You can also use the <literal>last</literal> keyword
+        to denote the last array element, which is useful for handling arrays
+        of unknown length.
+       </para>
+      </entry>
+     </row>
+     <row>
+      <entry>
+       <para>
+        <literal>[*]</literal>
+       </para>
+      </entry>
+      <entry>
+       <para>
+        Wildcard array element accessor that returns all array elements.
+       </para>
+      </entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table>
+
  </sect2>
 </sect1>

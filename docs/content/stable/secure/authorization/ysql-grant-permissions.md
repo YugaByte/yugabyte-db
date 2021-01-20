@@ -49,7 +49,7 @@ $ ysqlsh
 
 Create a database `dev_database`.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE database dev_database;
 ```
 
@@ -61,7 +61,7 @@ yugabyte=# \c dev_database
 
 Create the `integration_tests` table:
 
-```postgresql
+```plpgsql
 dev_database=# CREATE TABLE integration_tests (
                  id UUID PRIMARY KEY,
                  time TIMESTAMP,
@@ -72,7 +72,7 @@ dev_database=# CREATE TABLE integration_tests (
 
 Next, create roles `engineering`, `developer`, `qa`, and `db_admin`.
 
-```postgresql
+```plpgsql
 dev_database=# CREATE ROLE engineering;
                  CREATE ROLE developer;
                  CREATE ROLE qa;
@@ -81,7 +81,7 @@ dev_database=# CREATE ROLE engineering;
 
 Grant the `engineering` role to `developer`, `qa`, and `db_admin` roles since they are all a part of the engineering organization.
 
-```postgresql
+```plpgsql
 dev_database=# GRANT engineering TO developer;
                  GRANT engineering TO qa;
                  GRANT engineering TO db_admin;
@@ -144,7 +144,7 @@ In this section, you will grant privileges to achieve the following as mentioned
 
 All members of engineering should be able to read data from any database and table. Use the `GRANT` statement to grant `SELECT` (or read) access on the existing table (`integration_tests`) to the `engineering` role. This can be done as follows:
 
-```postgresql
+```plpgsql
 dev_database=# GRANT SELECT ON ALL TABLE integration_tests to engineering;
 dev_database=# GRANT USAGE ON SCHEMA public TO engineering;
 ```
@@ -172,7 +172,7 @@ Granting the role `engineering` to any other role will cause all those roles to 
 
 Both `developers` and `qa` should be able to modify data existing tables in the database `dev_database`. They should be able to execute statements such as `INSERT`, `UPDATE`, `DELETE` or `TRUNCATE` in order to modify data on existing tables. This can be done as follows:
 
-```postgresql
+```plpgsql
 dev_database=# GRANT INSERT, UPDATE, DELETE, TRUNCATE ON table integration_tests TO developer;
 dev_database=# GRANT INSERT, UPDATE, DELETE, TRUNCATE ON table integration_tests TO qa;
 ```
@@ -199,13 +199,13 @@ Now `developer` and `qa` roles have the access privileges `awdD` (append/insert,
 
 QA (`qa`) should be able to alter the table `integration_tests` in the database `dev_database`. This can be done as follows.
 
-```postgresql
+```plpgsql
 yugabyte=# ALTER TABLE integration_tests OWNER TO qa;
 ```
 
 Once again, run the following command to verify the privileges.
 
-```postgresql
+```plpgsql
 yugabyte=# SELECT * FROM system_auth.role_privileges;
 ```
 
@@ -231,13 +231,13 @@ DB admins should be able to perform all operations on any database. There are tw
 
 2. Grant `ALL` privileges to the `db_admin` role. This can be achieved as follows.
 
-```postgresql
+```plpgsql
 dev_database=# ALTER USER db_admin WITH SUPERUSER;
 ```
 
 Run the following command to verify the privileges:
 
-```postgresql
+```plpgsql
 dev_database=# \du
 ```
 
@@ -260,13 +260,13 @@ We should see the following, which grants the `Superuser` privileges on the  to 
 
 Let us say you want to revoke the `Superuser` privilege from the DB admins so that they can no longer change privileges for other roles. This can be done as follows.
 
-```postgresql
+```plpgsql
 yugabyte=# ALTER USER db_admin WITH NOSUPERUSER;
 ```
 
 Run the following command to verify the privileges.
 
-```postgresql
+```plpgsql
 yugabyte=# \du
 ```
 

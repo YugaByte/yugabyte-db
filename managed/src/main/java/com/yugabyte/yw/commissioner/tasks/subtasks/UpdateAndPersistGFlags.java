@@ -12,7 +12,7 @@ package com.yugabyte.yw.commissioner.tasks.subtasks;
 
 import java.util.Map;
 
-import com.yugabyte.yw.commissioner.AbstractTaskBase;
+import com.yugabyte.yw.commissioner.tasks.UniverseTaskBase;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.UserIntent;
@@ -23,7 +23,7 @@ import com.yugabyte.yw.models.Universe.UniverseUpdater;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class UpdateAndPersistGFlags extends AbstractTaskBase {
+public class UpdateAndPersistGFlags extends UniverseTaskBase {
   public static final Logger LOG = LoggerFactory.getLogger(UpdateAndPersistGFlags.class);
 
   // Parameters for setting and persisting universe gflags.
@@ -72,7 +72,7 @@ public class UpdateAndPersistGFlags extends AbstractTaskBase {
       };
       // Perform the update. If unsuccessful, this will throw a runtime exception which we do not
       // catch as we want to fail.
-      Universe.saveDetails(taskParams().universeUUID, updater);
+      saveUniverseDetails(updater);
     } catch (Exception e) {
       String msg = getName() + " failed with exception "  + e.getMessage();
       LOG.warn(msg, e.getMessage());

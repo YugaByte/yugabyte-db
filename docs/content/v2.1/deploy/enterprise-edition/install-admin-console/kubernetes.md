@@ -67,7 +67,7 @@ $ kubectl create namespace yw-test
 namespace/yw-test created
 ```
 
-2. Run the following `kubectl apply` command to apply the secret. To get the secret, contact Yugabyte Support.
+2. Run the following `kubectl apply` command to apply the secret. To get the secret, contact [Yugabyte](https://www.yugabyte.com/platform/#request-trial-form).
 
 ```sh
 $ kubectl apply -f ~/Desktop/K8s/yugabyte-k8s-secret.yml -n yw-test

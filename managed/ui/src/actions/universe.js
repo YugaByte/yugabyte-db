@@ -2,7 +2,7 @@
 
 import axios from 'axios';
 import { ROOT_URL } from '../config';
-import { getCustomerEndpoint } from "./common";
+import { getCustomerEndpoint } from './common';
 
 // Create Universe
 export const CREATE_UNIVERSE = 'CREATE_NEW_UNIVERSE';
@@ -114,7 +114,7 @@ export const UPDATE_BACKUP_STATE = 'UPDATE_BACKUP_STATE';
 export const UPDATE_BACKUP_STATE_RESPONSE = 'UPDATE_BACKUP_STATE_RESPONSE';
 
 export function createUniverse(formValues) {
-  const customerUUID = localStorage.getItem("customerId");
+  const customerUUID = localStorage.getItem('customerId');
   const request = axios.post(`${ROOT_URL}/customers/${customerUUID}/universes`, formValues);
   return {
     type: CREATE_UNIVERSE,
@@ -130,7 +130,7 @@ export function createUniverseResponse(response) {
 }
 
 export function fetchUniverseInfo(universeUUID) {
-  const cUUID = localStorage.getItem("customerId");
+  const cUUID = localStorage.getItem('customerId');
   const request = axios.get(`${ROOT_URL}/customers/${cUUID}/universes/${universeUUID}`);
   return {
     type: FETCH_UNIVERSE_INFO,
@@ -166,7 +166,7 @@ export function fetchUniverseInfoResponse(response) {
 }
 
 export function fetchUniverseList() {
-  const cUUID = localStorage.getItem("customerId");
+  const cUUID = localStorage.getItem('customerId');
   const request = axios.get(`${ROOT_URL}/customers/${cUUID}/universes`);
 
   return {
@@ -203,9 +203,11 @@ export function resetUniverseList() {
 }
 
 export function deleteUniverse(universeUUID, isForceDelete) {
-  const customerUUID = localStorage.getItem("customerId");
-  const deleteRequestPayload = {isForceDelete: isForceDelete};
-  const request = axios.delete(`${ROOT_URL}/customers/${customerUUID}/universes/${universeUUID}`, {params: deleteRequestPayload});
+  const customerUUID = localStorage.getItem('customerId');
+  const deleteRequestPayload = { isForceDelete: isForceDelete };
+  const request = axios.delete(`${ROOT_URL}/customers/${customerUUID}/universes/${universeUUID}`, {
+    params: deleteRequestPayload
+  });
   return {
     type: DELETE_UNIVERSE,
     payload: request
@@ -219,9 +221,8 @@ export function deleteUniverseResponse(response) {
   };
 }
 
-
 export function editUniverse(formValues, universeUUID) {
-  const cUUID = localStorage.getItem("customerId");
+  const cUUID = localStorage.getItem('customerId');
   const request = axios.put(`${ROOT_URL}/customers/${cUUID}/universes/${universeUUID}`, formValues);
   return {
     type: EDIT_UNIVERSE,
@@ -237,8 +238,11 @@ export function editUniverseResponse(response) {
 }
 
 export function addUniverseReadReplica(formValues, universeUUID) {
-  const cUUID = localStorage.getItem("customerId");
-  const request = axios.post(`${ROOT_URL}/customers/${cUUID}/universes/${universeUUID}/cluster`, formValues);
+  const cUUID = localStorage.getItem('customerId');
+  const request = axios.post(
+    `${ROOT_URL}/customers/${cUUID}/universes/${universeUUID}/cluster`,
+    formValues
+  );
   return {
     type: ADD_READ_REPLICA,
     payload: request
@@ -253,7 +257,7 @@ export function addUniverseReadReplicaResponse(response) {
 }
 
 export function editUniverseReadReplica(formValues, universeUUID) {
-  const cUUID = localStorage.getItem("customerId");
+  const cUUID = localStorage.getItem('customerId');
   const request = axios.put(`${ROOT_URL}/customers/${cUUID}/universes/${universeUUID}`, formValues);
   return {
     type: EDIT_READ_REPLICA,
@@ -269,9 +273,12 @@ export function editUniverseReadReplicaResponse(response) {
 }
 
 export function deleteUniverseReadReplica(clusterUUID, universeUUID, isForceDelete) {
-  const cUUID = localStorage.getItem("customerId");
-  const deleteRequestPayload = {isForceDelete: isForceDelete};
-  const request = axios.delete(`${ROOT_URL}/customers/${cUUID}/universes/${universeUUID}/cluster/${clusterUUID}`, {params: deleteRequestPayload});
+  const cUUID = localStorage.getItem('customerId');
+  const deleteRequestPayload = { isForceDelete: isForceDelete };
+  const request = axios.delete(
+    `${ROOT_URL}/customers/${cUUID}/universes/${universeUUID}/cluster/${clusterUUID}`,
+    { params: deleteRequestPayload }
+  );
   return {
     type: DELETE_READ_REPLICA,
     payload: request
@@ -286,8 +293,10 @@ export function deleteUniverseReadReplicaResponse(response) {
 }
 
 export function fetchUniverseTasks(universeUUID) {
-  const customerUUID = localStorage.getItem("customerId");
-  const request = axios.get(`${ROOT_URL}/customers/${customerUUID}/universes/${universeUUID}/tasks`);
+  const customerUUID = localStorage.getItem('customerId');
+  const request = axios.get(
+    `${ROOT_URL}/customers/${customerUUID}/universes/${universeUUID}/tasks`
+  );
   return {
     type: FETCH_UNIVERSE_TASKS,
     payload: request
@@ -314,8 +323,11 @@ export function closeUniverseDialog() {
 }
 
 export function rollingUpgrade(values, universeUUID) {
-  const customerUUID = localStorage.getItem("customerId");
-  const request = axios.post(`${ROOT_URL}/customers/${customerUUID}/universes/${universeUUID}/upgrade`, values);
+  const customerUUID = localStorage.getItem('customerId');
+  const request = axios.post(
+    `${ROOT_URL}/customers/${customerUUID}/universes/${universeUUID}/upgrade`,
+    values
+  );
   return {
     type: ROLLING_UPGRADE,
     payload: request
@@ -336,7 +348,7 @@ export function configureUniverseTemplateLoading() {
 }
 
 export function configureUniverseTemplate(values) {
-  const customerUUID = localStorage.getItem("customerId");
+  const customerUUID = localStorage.getItem('customerId');
   const request = axios.post(`${ROOT_URL}/customers/${customerUUID}/universe_configure`, values);
   return {
     type: CONFIGURE_UNIVERSE_TEMPLATE,
@@ -359,7 +371,7 @@ export function configureUniverseTemplateSuccess(result) {
 }
 
 export function configureUniverseResources(values) {
-  const customerUUID = localStorage.getItem("customerId");
+  const customerUUID = localStorage.getItem('customerId');
   const request = axios.post(`${ROOT_URL}/customers/${customerUUID}/universe_resources`, values);
   return {
     type: CONFIGURE_UNIVERSE_RESOURCES,
@@ -407,9 +419,8 @@ export function getUniversePerNodeMetricsResponse(response) {
 }
 
 export function performUniverseNodeAction(universeUUID, nodeName, actionType) {
-  const requestUrl =
-    `${getCustomerEndpoint()}/universes/${universeUUID}/nodes/${nodeName}`;
-  const request = axios.put(requestUrl, {nodeAction: actionType});
+  const requestUrl = `${getCustomerEndpoint()}/universes/${universeUUID}/nodes/${nodeName}`;
+  const request = axios.put(requestUrl, { nodeAction: actionType });
   return {
     type: PERFORM_UNIVERSE_NODE_ACTION,
     payload: request
@@ -445,7 +456,7 @@ export function resetMasterLeader() {
 }
 
 export function checkIfUniverseExists(universeName) {
-  const customerUUID = localStorage.getItem("customerId");
+  const customerUUID = localStorage.getItem('customerId');
   const requestUrl = `${ROOT_URL}/customers/${customerUUID}/universes/find/${universeName}`;
   const request = axios.get(requestUrl);
   return {
@@ -487,7 +498,7 @@ export function fetchUniverseMetadata() {
 }
 
 export function fetchUniverseBackups(universeUUID) {
-  const cUUID = localStorage.getItem("customerId");
+  const cUUID = localStorage.getItem('customerId');
   const request = axios.get(`${ROOT_URL}/customers/${cUUID}/universes/${universeUUID}/backups`);
   return {
     type: FETCH_UNIVERSE_BACKUPS,
@@ -509,7 +520,7 @@ export function resetUniverseBackups() {
 }
 
 export function createUniverseBackup(universeUUID, formValues) {
-  const cUUID = localStorage.getItem("customerId");
+  const cUUID = localStorage.getItem('customerId');
   const request = axios.put(
     `${ROOT_URL}/customers/${cUUID}/universes/${universeUUID}/multi_table_backup`,
     formValues
@@ -528,8 +539,10 @@ export function createUniverseBackupResponse(response) {
 }
 
 export function getHealthCheck(universeUUID) {
-  const customerUUID = localStorage.getItem("customerId");
-  const request = axios.get(`${ROOT_URL}/customers/${customerUUID}/universes/${universeUUID}/health_check`);
+  const customerUUID = localStorage.getItem('customerId');
+  const request = axios.get(
+    `${ROOT_URL}/customers/${customerUUID}/universes/${universeUUID}/health_check`
+  );
   return {
     type: GET_HEALTH_CHECK,
     payload: request
@@ -544,7 +557,7 @@ export function getHealthCheckResponse(response) {
 }
 
 export function setEncryptionKey(universeUUID, data) {
-  const customerUUID = localStorage.getItem("customerId");
+  const customerUUID = localStorage.getItem('customerId');
   const endpoint = `${ROOT_URL}/customers/${customerUUID}/universes/${universeUUID}/set_key`;
   const request = axios.post(endpoint, data);
   return {
@@ -562,12 +575,12 @@ export function setEncryptionKeyResponse(response) {
 
 export function importUniverseInit() {
   return {
-    type: IMPORT_UNIVERSE_INIT,
+    type: IMPORT_UNIVERSE_INIT
   };
 }
 
 export function importUniverse(values) {
-  const customerUUID = localStorage.getItem("customerId");
+  const customerUUID = localStorage.getItem('customerId');
   const request = axios.post(`${ROOT_URL}/customers/${customerUUID}/universes/import`, values);
   return {
     type: IMPORT_UNIVERSE,
@@ -589,7 +602,7 @@ export function importUniverseReset() {
 }
 
 export function setAlertsConfig(universeUUID, data) {
-  const customerUUID = localStorage.getItem("customerId");
+  const customerUUID = localStorage.getItem('customerId');
   const endpoint = `${ROOT_URL}/customers/${customerUUID}/universes/${universeUUID}/config_alerts`;
   const request = axios.post(endpoint, data);
   return {
@@ -606,7 +619,7 @@ export function setAlertsConfigResponse(response) {
 }
 
 export function updateBackupState(universeUUID, flag) {
-  const customerUUID = localStorage.getItem("customerId");
+  const customerUUID = localStorage.getItem('customerId');
   const endpoint = `${ROOT_URL}/customers/${customerUUID}/universes/${universeUUID}/update_backup_state?markActive=${flag}`;
   const request = axios.put(endpoint);
 
@@ -621,4 +634,38 @@ export function updateBackupStateResponse(response) {
     type: UPDATE_BACKUP_STATE_RESPONSE,
     payload: response
   };
+}
+
+export function fetchLiveQueries(universeUUID, cancelFn) {
+  const customerUUID = localStorage.getItem("customerId");
+  const endpoint = `${ROOT_URL}/customers/${customerUUID}/universes/${universeUUID}/live_queries`;
+  let request;
+  if (cancelFn) {
+    const CancelToken = axios.CancelToken;
+    request = axios.get(endpoint, {
+      cancelToken: new CancelToken(cancelFn)
+    });
+  } else {
+    request = axios.get(endpoint);
+  }
+
+  return request;
+}
+
+export function createAlertDefinition(universeUUID, data) {
+  const customerUUID = localStorage.getItem('customerId');
+  const endpoint = `${ROOT_URL}/customers/${customerUUID}/universes/${universeUUID}/alert_definitions`;
+  return axios.post(endpoint, data);
+}
+
+export function getAlertDefinition(universeUUID, alertName) {
+  const customerUUID = localStorage.getItem('customerId');
+  const endpoint = `${ROOT_URL}/customers/${customerUUID}/alert_definitions/${universeUUID}/${alertName}`;
+  return axios.get(endpoint).then(resp => resp.data);
+}
+
+export function updateAlertDefinition(alertDefinitionUUID, data) {
+  const customerUUID = localStorage.getItem('customerId');
+  const endpoint = `${ROOT_URL}/customers/${customerUUID}/alert_definitions/${alertDefinitionUUID}`;
+  return axios.put(endpoint, data);
 }

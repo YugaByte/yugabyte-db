@@ -81,7 +81,7 @@ yugabyte-operator.v0.0.1   Yugabyte Operator   0.0.1                Succeeded
 3. Create YugabyteDB Custom Resource to create YugabyteDB cluster using operator deployed above
 
 ```sh
-$ kubectl create namespace yb-operator && kubectl create -f https://raw.githubusercontent.com/yugabyte/yugabyte-operator/master/deploy/crds/yugabyte_v1alpha1_ybcluster_cr.yaml
+$ kubectl create namespace yb-operator && kubectl create -f https://raw.githubusercontent.com/yugabyte/yugabyte-operator/master/deploy/crds/yugabyte.com_v1alpha1_ybcluster_cr.yaml
 ```
 
 Watch your YugabyteDB cluster pods come up.
@@ -122,7 +122,7 @@ To remove the YugabyteDB cluster and operator resources, run the following comma
 **NOTE:** This will destroy your database and delete all of its data.
 
 ```console
-kubectl delete -f https://raw.githubusercontent.com/yugabyte/yugabyte-operator/master/deploy/crds/yugabyte_v1alpha1_ybcluster_cr.yaml
+kubectl delete -f https://raw.githubusercontent.com/yugabyte/yugabyte-operator/master/deploy/crds/yugabyte.com_v1alpha1_ybcluster_cr.yaml
 kubectl delete namespace yb-operator
 kubectl delete -f https://operatorhub.io/install/yugabyte-operator.yaml
 ```

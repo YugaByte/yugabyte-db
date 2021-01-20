@@ -12,20 +12,39 @@ import { isKubernetesUniverse } from '../../../utils/UniverseUtils';
 import './UniverseAppsModal.scss';
 
 const appTypes = [
-  { code: "SqlInserts", type: "ysql", title: "YSQL",
-    description: "This app writes out 1M unique string keys each with a string value. There are multiple "+
-        "readers and writers that write these keys and read them indefinitely. Note that the number of " +
-        "reads and writes to perform can be specified as a parameter.",
-    options: [{"num_unique_keys": "1000000"}, {"num_reads": "-1"}, {"num_writes": "-1"},
-        {"num_threads_read": "32"}, {"num_threads_write": "2"}]
+  {
+    code: 'SqlInserts',
+    type: 'ysql',
+    title: 'YSQL',
+    description:
+      'This app writes out 1M unique string keys each with a string value. There are multiple ' +
+      'readers and writers that write these keys and read them indefinitely. Note that the number of ' +
+      'reads and writes to perform can be specified as a parameter.',
+    options: [
+      { num_unique_keys: '1000000' },
+      { num_reads: '-1' },
+      { num_writes: '-1' },
+      { num_threads_read: '32' },
+      { num_threads_write: '2' }
+    ]
   },
-  { code: "CassandraKeyValue", type: "cassandra", title: "YCQL",
-    description: "This app writes out 1M unique string keys " +
-    "each with a string value. There are multiple readers and writers that update these " +
-    "keys and read them indefinitely. Note that the number of reads and writes to " +
-    "perform can be specified as a parameter.",
-    options: [{"num_unique_keys": "1000000"}, {"num_reads": "-1"}, {"num_writes": "-1"},
-    {"num_threads_read": "24"}, {"num_threads_write": "2"}, {"table_ttl_seconds": "-1"}]
+  {
+    code: 'CassandraKeyValue',
+    type: 'cassandra',
+    title: 'YCQL',
+    description:
+      'This app writes out 1M unique string keys ' +
+      'each with a string value. There are multiple readers and writers that update these ' +
+      'keys and read them indefinitely. Note that the number of reads and writes to ' +
+      'perform can be specified as a parameter.',
+    options: [
+      { num_unique_keys: '1000000' },
+      { num_reads: '-1' },
+      { num_writes: '-1' },
+      { num_threads_read: '24' },
+      { num_threads_write: '2' },
+      { table_ttl_seconds: '-1' }
+    ]
   }
 ];
 
@@ -37,65 +56,89 @@ export default class UniverseAppsModal extends Component {
   };
 
   render() {
-    const { currentUniverse: {universeDetails}, button, closeModal, modal: { showModal, visibleModal } } = this.props;
+    const {
+      currentUniverse: { universeDetails },
+      button,
+      closeModal,
+      modal: { showModal, visibleModal }
+    } = this.props;
     const enableYSQL = universeDetails.clusters[0].userIntent.enableYSQL;
     const isItKubernetesUniverse = isKubernetesUniverse(this.props.currentUniverse);
-    const nodeDetails = universeDetails.nodeDetailsSet ?
-      universeDetails.nodeDetailsSet.filter((nodeDetails) => nodeDetails.isTserver) :
-      [];
+    const nodeDetails = universeDetails.nodeDetailsSet
+      ? universeDetails.nodeDetailsSet.filter((nodeDetails) => nodeDetails.isTserver)
+      : [];
 
-    const getHost = function(host) {
-      return host !== "127.0.0.1" ? host : "host.docker.internal";
+    const getHost = function (host) {
+      return host !== '127.0.0.1' ? host : 'host.docker.internal';
     };
 
-    const cassandraHosts = nodeDetails.map(function(nodeDetail) {
-      if (nodeDetail.state === "Live" && nodeDetail.cloudInfo && isValidObject(nodeDetail.cloudInfo.private_ip))
-        return getHost(nodeDetail.cloudInfo.private_ip) + ":" + nodeDetail.yqlServerRpcPort;
-      else
-        return null;
-    }).filter(Boolean).join(",");
-    const redisHosts = nodeDetails.map(function(nodeDetail) {
-      if (nodeDetail.state === "Live" && nodeDetail.cloudInfo && isValidObject(nodeDetail.cloudInfo.private_ip))
-        return getHost(nodeDetail.cloudInfo.private_ip) + ":" + nodeDetail.redisServerRpcPort;
-      else
-        return null;
-    }).filter(Boolean).join(",");
-    const ysqlHosts = nodeDetails.map(function(nodeDetail) {
-      if (nodeDetail.state === "Live" && nodeDetail.cloudInfo && isValidObject(nodeDetail.cloudInfo.private_ip))
-        return getHost(nodeDetail.cloudInfo.private_ip) + ":" + nodeDetail.ysqlServerRpcPort;
-      else
-        return null;
-    }).filter(Boolean).join(",");
+    const cassandraHosts = nodeDetails
+      .map(function (nodeDetail) {
+        if (
+          nodeDetail.state === 'Live' &&
+          nodeDetail.cloudInfo &&
+          isValidObject(nodeDetail.cloudInfo.private_ip)
+        )
+          return getHost(nodeDetail.cloudInfo.private_ip) + ':' + nodeDetail.yqlServerRpcPort;
+        else return null;
+      })
+      .filter(Boolean)
+      .join(',');
+    const redisHosts = nodeDetails
+      .map(function (nodeDetail) {
+        if (
+          nodeDetail.state === 'Live' &&
+          nodeDetail.cloudInfo &&
+          isValidObject(nodeDetail.cloudInfo.private_ip)
+        )
+          return getHost(nodeDetail.cloudInfo.private_ip) + ':' + nodeDetail.redisServerRpcPort;
+        else return null;
+      })
+      .filter(Boolean)
+      .join(',');
+    const ysqlHosts = nodeDetails
+      .map(function (nodeDetail) {
+        if (
+          nodeDetail.state === 'Live' &&
+          nodeDetail.cloudInfo &&
+          isValidObject(nodeDetail.cloudInfo.private_ip)
+        )
+          return getHost(nodeDetail.cloudInfo.private_ip) + ':' + nodeDetail.ysqlServerRpcPort;
+        else return null;
+      })
+      .filter(Boolean)
+      .join(',');
 
-    const appTabs = appTypes.map(function(appType, idx) {
+    const appTabs = appTypes.map(function (appType, idx) {
       let hostPorts;
-      let betaFeature = "";
+      let betaFeature = '';
 
       switch (appType.type) {
-        case "cassandra":
+        case 'cassandra':
           hostPorts = cassandraHosts;
           break;
-        case "redis":
+        case 'redis':
           hostPorts = redisHosts;
           break;
-        case "ysql":
+        case 'ysql':
           hostPorts = ysqlHosts;
           if (!enableYSQL)
-            betaFeature = "NOTE: This is a beta feature. If you want to try out the app, " +
-                          "create a universe with YSQL enabled.";
+            betaFeature =
+              'NOTE: This is a beta feature. If you want to try out the app, ' +
+              'create a universe with YSQL enabled.';
           break;
         default:
           break;
       }
 
-      const appOptions = appType.options.map(function(option, idx) {
+      const appOptions = appType.options.map(function (option, idx) {
         const option_data = Array.shift(Object.entries(option));
-        return <p key={idx}>--{ option_data[0] + " " + option_data[1]}</p>;
+        return <p key={idx}>--{option_data[0] + ' ' + option_data[1]}</p>;
       });
 
-      const commandSyntax = isItKubernetesUniverse ?
-        'kubectl run --image=yugabytedb/yb-sample-apps yb-sample-apps --':
-        'docker run -d yugabytedb/yb-sample-apps';
+      const commandSyntax = isItKubernetesUniverse
+        ? 'kubectl run --image=yugabytedb/yb-sample-apps yb-sample-apps --'
+        : 'docker run -d yugabytedb/yb-sample-apps';
       return (
         <Tab eventKey={idx} title={appType.title} key={appType.code}>
           {betaFeature}
@@ -103,20 +146,28 @@ export default class UniverseAppsModal extends Component {
           <YBCodeBlock label="Usage:">
             {commandSyntax} --workload {appType.code} --nodes {hostPorts}
           </YBCodeBlock>
-          <YBCodeBlock label="Other options (with default values):">
-            {appOptions}
-          </YBCodeBlock>
-        </Tab>);
+          <YBCodeBlock label="Other options (with default values):">{appOptions}</YBCodeBlock>
+        </Tab>
+      );
     });
 
     return (
       <Fragment>
-        {isEmptyObject(button)
-          ? <YBButton btnText={"Run Sample Apps"} btnClass={"btn btn-default open-modal-btn"} onClick={this.toggleAppsModal}/>
-          : button
-        }
-        <YBModal className="universe-apps-modal" title={"Run Sample Apps"} visible={showModal && visibleModal === "runSampleAppsModal"}
-                onHide={closeModal}>
+        {isEmptyObject(button) ? (
+          <YBButton
+            btnText={'Run Sample Apps'}
+            btnClass={'btn btn-default open-modal-btn'}
+            onClick={this.toggleAppsModal}
+          />
+        ) : (
+          button
+        )}
+        <YBModal
+          className="universe-apps-modal"
+          title={'Run Sample Apps'}
+          visible={showModal && visibleModal === 'runSampleAppsModal'}
+          onHide={closeModal}
+        >
           <Tabs defaultActiveKey={0} id="apps-modal">
             {appTabs}
           </Tabs>

@@ -38,6 +38,7 @@
 #include "yb/docdb/docdb_rocksdb_util.h"
 #include "yb/docdb/docdb.h"
 
+#include "yb/rpc/poller.h"
 #include "yb/rpc/rpc.h"
 #include "yb/rpc/rpc_context.h"
 #include "yb/rpc/thread_pool.h"
@@ -47,6 +48,7 @@
 #include "yb/tablet/operations/update_txn_operation.h"
 #include "yb/tablet/running_transaction.h"
 #include "yb/tablet/tablet.h"
+#include "yb/tablet/transaction_loader.h"
 #include "yb/tablet/transaction_status_resolver.h"
 
 #include "yb/tserver/tserver_service.pb.h"
@@ -55,11 +57,13 @@
 #include "yb/util/delayer.h"
 #include "yb/util/flag_tags.h"
 #include "yb/util/locks.h"
+#include "yb/util/lru_cache.h"
 #include "yb/util/monotime.h"
 #include "yb/util/pb_util.h"
 #include "yb/util/random_util.h"
 #include "yb/util/scope_exit.h"
 #include "yb/util/thread_restrictions.h"
+#include "yb/util/tsan_util.h"
 
 using namespace std::literals;
 using namespace std::placeholders;
@@ -80,19 +84,20 @@ DEFINE_test_flag(double, transaction_ignore_applying_probability_in_tests, 0,
                  "Probability to ignore APPLYING update in tests.");
 DEFINE_test_flag(bool, fail_in_apply_if_no_metadata, false,
                  "Fail when applying intents if metadata is not found.");
-DEFINE_test_flag(int32, inject_load_transaction_delay_ms, 0,
-                 "Inject delay before loading each transaction at startup.");
-
-DECLARE_bool(TEST_fail_on_replicated_batch_idx_set_in_txn_record);
 
 DEFINE_uint64(max_transactions_in_status_request, 128,
               "Request status for at most specified number of transactions at once. "
                   "0 disables load time transaction status resolution.");
 
-METRIC_DEFINE_simple_counter(
-    tablet, transaction_load_attempts,
-    "Total number of tries to load transaction metadata from the intents RocksDB",
-    yb::MetricUnit::kTransactions);
+DEFINE_uint64(transactions_cleanup_cache_size, 64, "Transactions cleanup cache size.");
+
+DEFINE_uint64(transactions_status_poll_interval_ms, 500 * yb::kTimeMultiplier,
+              "Transactions poll interval.");
+
+DEFINE_bool(transactions_poll_check_aborted, true, "Check aborted transactions during poll.");
+
+DECLARE_int64(transaction_abort_check_timeout_ms);
+
 METRIC_DEFINE_simple_counter(
     tablet, transaction_not_found,
     "Total number of missing transactions during load",
@@ -109,25 +114,6 @@ namespace {
 
 YB_STRONGLY_TYPED_BOOL(PostApplyCleanup);
 
-struct ApplyStateWithCommitHt {
-  docdb::ApplyTransactionState state;
-  HybridTime commit_ht;
-
-  std::string ToString() const {
-    return YB_STRUCT_TO_STRING(state, commit_ht);
-  }
-};
-
-using ApplyStatesMap = std::unordered_map<
-    TransactionId, ApplyStateWithCommitHt, TransactionIdHash>;
-
-std::unique_ptr<docdb::BoundedRocksDbIterator> CreateFullScanIterator(rocksdb::DB* db) {
-  return std::make_unique<docdb::BoundedRocksDbIterator>(docdb::CreateRocksDBIterator(
-      db, &docdb::KeyBounds::kNoBounds,
-      docdb::BloomFilterMode::DONT_USE_BLOOM_FILTER,
-      /* user_key_for_filter= */ boost::none, rocksdb::kDefaultQueryId));
-}
-
 } // namespace
 
 std::string TransactionApplyData::ToString() const {
@@ -135,18 +121,17 @@ std::string TransactionApplyData::ToString() const {
       leader_term, transaction_id, op_id, commit_ht, log_ht, sealed, status_tablet, apply_state);
 }
 
-class TransactionParticipant::Impl : public RunningTransactionContext {
+class TransactionParticipant::Impl
+    : public RunningTransactionContext, public TransactionLoaderContext {
  public:
   Impl(TransactionParticipantContext* context, TransactionIntentApplier* applier,
        const scoped_refptr<MetricEntity>& entity)
       : RunningTransactionContext(context, applier),
         log_prefix_(context->LogPrefix()),
-        status_resolver_(context, &rpcs_, FLAGS_max_transactions_in_status_request,
-                         std::bind(&Impl::TransactionsStatus, this, _1)),
-        last_loaded_(TransactionId::Nil()) {
+        loader_(this, entity),
+        poller_(log_prefix_, std::bind(&Impl::Poll, this)) {
     LOG_WITH_PREFIX(INFO) << "Create";
     metric_transactions_running_ = METRIC_transactions_running.Instantiate(entity, 0);
-    metric_transaction_load_attempts_ = METRIC_transaction_load_attempts.Instantiate(entity);
     metric_transaction_not_found_ = METRIC_transaction_not_found.Instantiate(entity);
   }
 
@@ -165,6 +150,8 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
       return false;
     }
 
+    poller_.Shutdown();
+
     if (start_latch_.count()) {
       start_latch_.CountDown();
     }
@@ -176,18 +163,20 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
   void CompleteShutdown() {
     LOG_IF_WITH_PREFIX(DFATAL, !closing_.load()) << __func__ << " w/o StartShutdown";
 
+    decltype(status_resolvers_) status_resolvers;
     {
       MinRunningNotifier min_running_notifier(nullptr /* applier */);
       std::lock_guard<std::mutex> lock(mutex_);
       transactions_.clear();
       TransactionsModifiedUnlocked(&min_running_notifier);
+      status_resolvers.swap(status_resolvers_);
     }
 
     rpcs_.Shutdown();
-    if (load_thread_.joinable()) {
-      load_thread_.join();
+    loader_.Shutdown();
+    for (auto& resolver : status_resolvers) {
+      resolver.Shutdown();
     }
-    status_resolver_.Shutdown();
     shutdown_done_.store(true, std::memory_order_release);
   }
 
@@ -207,7 +196,7 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
       LOG_WITH_PREFIX(DFATAL) << "Invalid transaction id: " << metadata.status().ToString();
       return false;
     }
-    WaitLoaded(metadata->transaction_id);
+    loader_.WaitLoaded(metadata->transaction_id);
     bool store = false;
     {
       MinRunningNotifier min_running_notifier(&applier_);
@@ -217,9 +206,12 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
         if (WasTransactionRecentlyRemoved(metadata->transaction_id)) {
           return false;
         }
+        if (cleanup_cache_.Erase(metadata->transaction_id) != 0) {
+          return false;
+        }
         VLOG_WITH_PREFIX(4) << "Create new transaction: " << metadata->transaction_id;
         transactions_.insert(std::make_shared<RunningTransaction>(
-            *metadata, TransactionalBatchData(), OneWayBitmap(), this));
+            *metadata, TransactionalBatchData(), OneWayBitmap(), metadata->start_time, this));
         TransactionsModifiedUnlocked(&min_running_notifier);
         store = true;
       }
@@ -370,17 +362,32 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
   void CleanTransactionsUnlocked(MinRunningNotifier* min_running_notifier) REQUIRES(mutex_) {
     ProcessRemoveQueueUnlocked(min_running_notifier);
 
+    CleanTransactionsQueue(&immediate_cleanup_queue_, min_running_notifier);
+    CleanTransactionsQueue(&graceful_cleanup_queue_, min_running_notifier);
+  }
+
+  template <class Queue>
+  void CleanTransactionsQueue(
+      Queue* queue, MinRunningNotifier* min_running_notifier) REQUIRES(mutex_) {
     int64_t min_request = running_requests_.empty() ? std::numeric_limits<int64_t>::max()
                                                     : running_requests_.front();
-    while (!cleanup_queue_.empty() && cleanup_queue_.front().request_id < min_request) {
-      const auto& id = cleanup_queue_.front().transaction_id;
+    HybridTime safe_time;
+    while (!queue->empty()) {
+      const auto& front = queue->front();
+      if (front.request_id >= min_request) {
+        break;
+      }
+      if (!front.Ready(&participant_context_, &safe_time)) {
+        break;
+      }
+      const auto& id = front.transaction_id;
       auto it = transactions_.find(id);
       if (it != transactions_.end()) {
         (**it).ScheduleRemoveIntents(*it);
         RemoveTransaction(it, min_running_notifier);
       }
       VLOG_WITH_PREFIX(2) << "Cleaned from queue: " << id;
-      cleanup_queue_.pop_front();
+      queue->pop_front();
     }
   }
 
@@ -427,20 +434,25 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
   }
 
   void Handle(std::unique_ptr<tablet::UpdateTxnOperationState> state, int64_t term) {
-    if (state->request()->status() == TransactionStatus::APPLYING) {
+    auto txn_status = state->request()->status();
+    if (txn_status == TransactionStatus::APPLYING) {
       HandleApplying(std::move(state), term);
       return;
     }
 
-    if (state->request()->status() == TransactionStatus::CLEANUP) {
-      HandleCleanup(std::move(state), term);
+    if (txn_status == TransactionStatus::IMMEDIATE_CLEANUP ||
+        txn_status == TransactionStatus::GRACEFUL_CLEANUP) {
+      auto cleanup_type = txn_status == TransactionStatus::IMMEDIATE_CLEANUP
+          ? CleanupType::kImmediate
+          : CleanupType::kGraceful;
+      HandleCleanup(std::move(state), term, cleanup_type);
       return;
     }
 
-    auto status = STATUS_FORMAT(
+    auto error_status = STATUS_FORMAT(
         InvalidArgument, "Unexpected status in transaction participant Handle: $0", *state);
-    LOG_WITH_PREFIX(DFATAL) << status;
-    state->CompleteWithStatus(status);
+    LOG_WITH_PREFIX(DFATAL) << error_status;
+    state->CompleteWithStatus(error_status);
   }
 
   CHECKED_STATUS ProcessReplicated(const ReplicatedData& data) {
@@ -472,7 +484,13 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
   CHECKED_STATUS ProcessApply(const TransactionApplyData& data) {
     VLOG_WITH_PREFIX(2) << "Apply: " << data.ToString();
 
-    WaitLoaded(data.transaction_id);
+    loader_.WaitLoaded(data.transaction_id);
+
+    ScopedRWOperation operation(pending_op_counter_);
+    if (!operation.ok()) {
+      LOG_WITH_PREFIX(WARNING) << "Process apply rejected";
+      return Status::OK();
+    }
 
     bool was_applied = false;
 
@@ -502,7 +520,9 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
             << "Transaction was previously applied with another commit ht: " << existing_commit_ht
             << ", new commit ht: " << data.commit_ht;
       } else {
-        lock_and_iterator.transaction().SetLocalCommitTime(data.commit_ht);
+        transactions_.modify(lock_and_iterator.iterator, [&data](auto& txn) {
+          txn->SetLocalCommitTime(data.commit_ht);
+        });
 
         LOG_IF_WITH_PREFIX(DFATAL, data.log_ht < last_safe_time_)
             << "Apply transaction before last safe time " << data.transaction_id
@@ -574,20 +594,32 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
     }
   }
 
-  CHECKED_STATUS ProcessCleanup(
-      const TransactionApplyData& data, PostApplyCleanup post_apply_cleanup) {
-    WaitLoaded(data.transaction_id);
+  CHECKED_STATUS ProcessCleanup(const TransactionApplyData& data, CleanupType cleanup_type) {
+    loader_.WaitLoaded(data.transaction_id);
 
     MinRunningNotifier min_running_notifier(&applier_);
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = transactions_.find(data.transaction_id);
     if (it == transactions_.end()) {
+      if (cleanup_type == CleanupType::kImmediate) {
+        cleanup_cache_.Insert(data.transaction_id);
+      }
+
       return Status::OK();
     }
 
-    if (!post_apply_cleanup && (**it).ProcessingApply()) {
+    if ((**it).ProcessingApply()) {
       VLOG_WITH_PREFIX(2) << "Don't cleanup transaction because it is applying intents: "
                           << data.transaction_id;
+      return Status::OK();
+    }
+
+    if (cleanup_type == CleanupType::kGraceful) {
+      graceful_cleanup_queue_.push_back(GracefulCleanupQueueEntry{
+        .request_id = request_serial_,
+        .transaction_id = data.transaction_id,
+        .required_safe_time = participant_context_.Now(),
+      });
       return Status::OK();
     }
 
@@ -605,19 +637,20 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
     bool had_db = db_.intents != nullptr;
     db_ = db;
     key_bounds_ = key_bounds;
+    pending_op_counter_ = pending_op_counter;
 
-    // In case of truncate we should not reload transactions.
+    // We should only load transactions on the initial call to SetDB (when opening the tablet), not
+    // in case of truncate/restore.
     if (!had_db) {
-      auto scoped_pending_operation = std::make_unique<ScopedRWOperation>(pending_op_counter);
-      if (scoped_pending_operation->ok()) {
-        auto regular_iterator = CreateFullScanIterator(db_.regular);
-        auto intents_iterator = CreateFullScanIterator(db_.intents);
-        load_thread_ = std::thread(
-            &Impl::LoadTransactions, this,
-            regular_iterator.release(), intents_iterator.release(),
-            scoped_pending_operation.release());
-      }
+      loader_.Start(pending_op_counter, db_);
+      return;
     }
+
+    loader_.WaitAllLoaded();
+    MinRunningNotifier min_running_notifier(&applier_);
+    std::lock_guard<std::mutex> lock(mutex_);
+    transactions_.clear();
+    TransactionsModifiedUnlocked(&min_running_notifier);
   }
 
   void GetStatus(
@@ -740,6 +773,9 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
               }
             }
           });
+      auto se = ScopeExit([&resolver] {
+        resolver.Shutdown();
+      });
       {
         std::lock_guard <std::mutex> lock(mutex_);
         if (recheck_ids.empty() && committed_ids.empty()) {
@@ -787,7 +823,11 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
 
   size_t TEST_GetNumRunningTransactions() {
     std::lock_guard<std::mutex> lock(mutex_);
-    VLOG_WITH_PREFIX(4) << "Transactions: " << yb::ToString(transactions_);
+    auto txn_to_id = [](const RunningTransactionPtr& txn) {
+      return txn->id();
+    };
+    VLOG_WITH_PREFIX(4) << "Transactions: " << AsString(transactions_, txn_to_id)
+                        << ", requests: " << AsString(running_requests_);
     return transactions_.size();
   }
 
@@ -869,6 +909,7 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
   }
 
  private:
+  class AbortCheckTimeTag;
   class StartTimeTag;
 
   typedef boost::multi_index_container<RunningTransactionPtr,
@@ -881,13 +922,60 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
               boost::multi_index::tag<StartTimeTag>,
               boost::multi_index::const_mem_fun <
                   RunningTransaction, HybridTime, &RunningTransaction::start_ht>
+          >,
+          boost::multi_index::ordered_non_unique <
+              boost::multi_index::tag<AbortCheckTimeTag>,
+              boost::multi_index::const_mem_fun <
+                  RunningTransaction, HybridTime, &RunningTransaction::abort_check_ht>
           >
       >
   > Transactions;
 
+  void CompleteLoad(const std::function<void()>& functor) override {
+    MinRunningNotifier min_running_notifier(&applier_);
+    std::lock_guard<std::mutex> lock(mutex_);
+    functor();
+    TransactionsModifiedUnlocked(&min_running_notifier);
+  }
+
+  void LoadFinished(const ApplyStatesMap& pending_applies) override {
+    start_latch_.Wait();
+    if (closing_.load(std::memory_order_acquire)) {
+      LOG_WITH_PREFIX(INFO) << __func__ << ": closing, not starting transaction status resolution";
+      return;
+    }
+
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      for (const auto& p : pending_applies) {
+        auto it = transactions_.find(p.first);
+        if (it == transactions_.end()) {
+          LOG_WITH_PREFIX(INFO) << "Unknown transaction for pending apply: " << AsString(p.first);
+          continue;
+        }
+
+        TransactionApplyData apply_data;
+        apply_data.transaction_id = p.first;
+        apply_data.commit_ht = p.second.commit_ht;
+        (**it).SetApplyData(p.second.state, &apply_data);
+      }
+    }
+
+    {
+      LOG_WITH_PREFIX(INFO) << __func__ << ": starting transaction status resolution";
+      std::lock_guard<std::mutex> lock(status_resolvers_mutex_);
+      for (auto& status_resolver : status_resolvers_) {
+        status_resolver.Start(CoarseTimePoint::max());
+      }
+    }
+
+    poller_.Start(
+        &participant_context_.scheduler(), 1ms * FLAGS_transactions_status_poll_interval_ms);
+  }
+
   void TransactionsModifiedUnlocked(MinRunningNotifier* min_running_notifier) REQUIRES(mutex_) {
     metric_transactions_running_->set_value(transactions_.size());
-    if (!all_loaded_.load(std::memory_order_acquire)) {
+    if (!loader_.complete()) {
       return;
     }
 
@@ -999,7 +1087,10 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
     // Since we try to remove the transaction after all its records are removed from the provisional
     // DB, it is safe to complete removal at this point, because it means that there will be no more
     // queries to status of this transactions.
-    cleanup_queue_.push_back({request_serial_, (**it).id()});
+    immediate_cleanup_queue_.push_back(ImmediateCleanupQueueEntry{
+      .request_id = request_serial_,
+      .transaction_id = (**it).id(),
+    });
     VLOG_WITH_PREFIX(2) << "Queued for cleanup: " << (**it).id() << ", reason: " << reason;
     return false;
   }
@@ -1023,22 +1114,9 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
     }
   };
 
-  void WaitLoaded(const TransactionId& id) {
-    if (all_loaded_.load(std::memory_order_acquire)) {
-      return;
-    }
-    std::unique_lock<std::mutex> lock(mutex_);
-    while (!all_loaded_.load(std::memory_order_acquire)) {
-      if (last_loaded_ >= id) {
-        break;
-      }
-      load_cond_.wait(lock);
-    }
-  }
-
   LockAndFindResult LockAndFind(
       const TransactionId& id, const std::string& reason, TransactionLoadFlags flags) {
-    WaitLoaded(id);
+    loader_.WaitLoaded(id);
     bool recently_removed;
     {
       std::unique_lock<std::mutex> lock(mutex_);
@@ -1073,239 +1151,24 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
     return LockAndFindResult{};
   }
 
-  void LoadPendingApplies(std::unique_ptr<docdb::BoundedRocksDbIterator> iter) {
-    std::array<char, 1 + sizeof(TransactionId) + 1> seek_buffer;
-    seek_buffer[0] = docdb::ValueTypeAsChar::kTransactionApplyState;
-    seek_buffer[seek_buffer.size() - 1] = docdb::ValueTypeAsChar::kMaxByte;
-    iter->Seek(Slice(seek_buffer.data(), 1));
-
-    while (iter->Valid()) {
-      auto key = iter->key();
-      if (!key.TryConsumeByte(docdb::ValueTypeAsChar::kTransactionApplyState)) {
-        break;
-      }
-      auto txn_id = DecodeTransactionId(&key);
-      if (!txn_id.ok() || !key.TryConsumeByte(docdb::ValueTypeAsChar::kGroupEnd)) {
-        LOG_WITH_PREFIX(DFATAL) << "Wrong txn id: " << iter->key().ToDebugString();
-        iter->Next();
-        continue;
-      }
-      Slice value = iter->value();
-      if (value.TryConsumeByte(docdb::ValueTypeAsChar::kString)) {
-        auto pb = pb_util::ParseFromSlice<docdb::ApplyTransactionStatePB>(value);
-        if (!pb.ok()) {
-          LOG_WITH_PREFIX(DFATAL) << "Failed to decode apply state " << key.ToDebugString() << ": "
-                                  << pb.status();
-          iter->Next();
-          continue;
-        }
-
-        auto it = pending_applies_.emplace(*txn_id, ApplyStateWithCommitHt {
-          .state = docdb::ApplyTransactionState::FromPB(*pb),
-          .commit_ht = HybridTime(pb->commit_ht())
-        }).first;
-
-        VLOG_WITH_PREFIX(4) << "Loaded pending apply for " << *txn_id << ": "
-                            << it->second.ToString();
-      } else if (value.TryConsumeByte(docdb::ValueTypeAsChar::kTombstone)) {
-        VLOG_WITH_PREFIX(4) << "Found deleted large apply for " << *txn_id;
-      } else {
-        LOG_WITH_PREFIX(DFATAL)
-            << "Unexpected value type in apply state: " << value.ToDebugString();
-      }
-
-      memcpy(seek_buffer.data() + 1, txn_id->data(), txn_id->size());
-      ROCKSDB_SEEK(iter.get(), Slice(seek_buffer));
-    }
-  }
-
-  void LoadTransactions(
-      docdb::BoundedRocksDbIterator* regular_iterator,
-      docdb::BoundedRocksDbIterator* intents_iterator,
-      ScopedRWOperation* scoped_pending_operation) {
-    LOG_WITH_PREFIX(INFO) << __func__ << " start";
-
-    CDSAttacher attacher;
-
-    size_t loaded_transactions = 0;
-    {
-      std::unique_ptr<ScopedRWOperation> scoped_pending_operation_holder(
-          scoped_pending_operation);
-      LoadPendingApplies(
-          std::unique_ptr<docdb::BoundedRocksDbIterator>(regular_iterator));
-
-      std::unique_ptr<docdb::BoundedRocksDbIterator> intents_iterator_holder(intents_iterator);
-
-      docdb::KeyBytes key_bytes;
-      TransactionId id = TransactionId::Nil();
-      AppendTransactionKeyPrefix(id, &key_bytes);
-      intents_iterator->Seek(key_bytes.AsSlice());
-      while (intents_iterator->Valid()) {
-        auto key = intents_iterator->key();
-        if (!key.TryConsumeByte(docdb::ValueTypeAsChar::kTransactionId)) {
-          break;
-        }
-        auto decode_id_result = DecodeTransactionId(&key);
-        if (!decode_id_result.ok()) {
-          LOG_WITH_PREFIX(DFATAL)
-              << "Failed to decode transaction id from: " << key.ToDebugHexString();
-          break;
-        }
-        id = *decode_id_result;
-        key_bytes.Clear();
-        AppendTransactionKeyPrefix(id, &key_bytes);
-        if (key.empty()) { // Key fully consists of transaction id - it is metadata record.
-          if (FLAGS_TEST_inject_load_transaction_delay_ms > 0) {
-            std::this_thread::sleep_for(FLAGS_TEST_inject_load_transaction_delay_ms * 1ms);
-          }
-          LoadTransaction(intents_iterator, id, intents_iterator->value(), &key_bytes);
-          ++loaded_transactions;
-        }
-        key_bytes.AppendValueType(docdb::ValueType::kMaxByte);
-        intents_iterator->Seek(key_bytes.AsSlice());
-      }
-    }
-
-    {
-      MinRunningNotifier min_running_notifier(&applier_);
-      std::lock_guard<std::mutex> lock(mutex_);
-      all_loaded_.store(true, std::memory_order_release);
-      TransactionsModifiedUnlocked(&min_running_notifier);
-    }
-    load_cond_.notify_all();
-    LOG_WITH_PREFIX(INFO) << __func__ << " done: loaded " << loaded_transactions << " transactions";
-
-    start_latch_.Wait();
-    if (closing_.load(std::memory_order_acquire)) {
-      LOG_WITH_PREFIX(INFO) << __func__ << ": closing, not starting transaction status resolution";
-      return;
-    }
-
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      for (const auto& p : pending_applies_) {
-        auto it = transactions_.find(p.first);
-        if (it == transactions_.end()) {
-          LOG_WITH_PREFIX(INFO) << "Unknown transaction for pending apply: " << AsString(p.first);
-          continue;
-        }
-
-        TransactionApplyData apply_data;
-        apply_data.transaction_id = p.first;
-        apply_data.commit_ht = p.second.commit_ht;
-        (**it).SetApplyData(p.second.state, &apply_data);
-      }
-      pending_applies_.clear();
-    }
-
-    LOG_WITH_PREFIX(INFO) << __func__ << ": starting transaction status resolution";
-    status_resolver_.Start(CoarseTimePoint::max());
-  }
-
-  // iterator - rocks db iterator, that should be used for write id resolution.
-  // id - transaction id to load.
-  // value - transaction metadata record value.
-  // key_bytes - buffer that contains key of current record, i.e. value type + transaction id.
   void LoadTransaction(
-      docdb::BoundedRocksDbIterator* iterator, const TransactionId& id, const Slice& value,
-      docdb::KeyBytes* key_bytes) {
-    metric_transaction_load_attempts_->Increment();
-    VLOG_WITH_PREFIX(1) << "Loading transaction: " << id;
-
-    TransactionMetadataPB metadata_pb;
-
-    if (!metadata_pb.ParseFromArray(value.cdata(), value.size())) {
-      LOG_WITH_PREFIX(DFATAL) << "Unable to parse stored metadata: "
-                              << value.ToDebugHexString();
-      return;
+      TransactionMetadata&& metadata,
+      TransactionalBatchData&& last_batch_data,
+      OneWayBitmap&& replicated_batches,
+      const ApplyStateWithCommitHt* pending_apply) override {
+    MinRunningNotifier min_running_notifier(&applier_);
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto txn = std::make_shared<RunningTransaction>(
+        std::move(metadata), std::move(last_batch_data), std::move(replicated_batches),
+        participant_context_.Now().AddDelta(1ms * FLAGS_transaction_abort_check_timeout_ms), this);
+    if (pending_apply) {
+      VLOG_WITH_PREFIX(4) << "Apply state found for " << txn->id() << ": "
+                          << pending_apply->ToString();
+      txn->SetLocalCommitTime(pending_apply->commit_ht);
+      txn->SetApplyData(pending_apply->state);
     }
-
-    auto metadata = TransactionMetadata::FromPB(metadata_pb);
-    if (!metadata.ok()) {
-      LOG_WITH_PREFIX(DFATAL) << "Loaded bad metadata: " << metadata.status();
-      return;
-    }
-
-    if (!metadata->start_time.is_valid()) {
-      metadata->start_time = HybridTime::kMin;
-      LOG_WITH_PREFIX(INFO) << "Patched start time " << metadata->transaction_id << ": "
-                            << metadata->start_time;
-    }
-
-    key_bytes->AppendValueType(docdb::ValueType::kMaxByte);
-    iterator->Seek(key_bytes->AsSlice());
-    if (iterator->Valid()) {
-      iterator->Prev();
-    } else {
-      iterator->SeekToLast();
-    }
-    key_bytes->Truncate(key_bytes->size() - 1);
-    TransactionalBatchData last_batch_data;
-    OneWayBitmap replicated_batches;
-    while (iterator->Valid() && iterator->key().starts_with(*key_bytes)) {
-      auto decoded_key = docdb::DecodeIntentKey(iterator->value());
-      LOG_IF_WITH_PREFIX(DFATAL, !decoded_key.ok())
-          << "Failed to decode intent while loading transaction " << id << ", "
-          << iterator->key().ToDebugHexString() << " => "
-          << iterator->value().ToDebugHexString() << ": " << decoded_key.status();
-      if (decoded_key.ok() && docdb::HasStrong(decoded_key->intent_types)) {
-        last_batch_data.hybrid_time = decoded_key->doc_ht.hybrid_time();
-        Slice rev_key_slice(iterator->value());
-        if (!rev_key_slice.empty() && rev_key_slice[0] == docdb::ValueTypeAsChar::kBitSet) {
-          CHECK(!FLAGS_TEST_fail_on_replicated_batch_idx_set_in_txn_record);
-          rev_key_slice.remove_prefix(1);
-          auto result = OneWayBitmap::Decode(&rev_key_slice);
-          if (result.ok()) {
-            replicated_batches = std::move(*result);
-            VLOG_WITH_PREFIX(1) << "Decoded replicated batches for " << id << ": "
-                                << replicated_batches.ToString();
-          } else {
-            LOG_WITH_PREFIX(DFATAL)
-                << "Failed to decode replicated batches from "
-                << iterator->value().ToDebugHexString() << ": " << result.status();
-          }
-        }
-        std::string rev_key = rev_key_slice.ToBuffer();
-        iterator->Seek(rev_key);
-        // Delete could run in parallel to this load, since our deletes break snapshot read
-        // we could get into situation when metadata and reverse record were successfully read,
-        // but intent record could not be found.
-        if (iterator->Valid() && iterator->key().starts_with(rev_key)) {
-          VLOG_WITH_PREFIX(1)
-              << "Found latest record for " << id
-              << ": " << docdb::SubDocKey::DebugSliceToString(iterator->key())
-              << " => " << iterator->value().ToDebugHexString();
-          auto status = docdb::DecodeIntentValue(
-              iterator->value(), id.AsSlice(), &last_batch_data.write_id, nullptr /* body */);
-          LOG_IF_WITH_PREFIX(DFATAL, !status.ok())
-              << "Failed to decode intent value: " << status << ", "
-              << docdb::SubDocKey::DebugSliceToString(iterator->key()) << " => "
-              << iterator->value().ToDebugHexString();
-          ++last_batch_data.write_id;
-        }
-        break;
-      }
-      iterator->Prev();
-    }
-
-    {
-      MinRunningNotifier min_running_notifier(&applier_);
-      std::lock_guard<std::mutex> lock(mutex_);
-      last_loaded_ = metadata->transaction_id;
-      status_resolver_.Add(metadata->status_tablet, metadata->transaction_id);
-      auto txn = std::make_shared<RunningTransaction>(
-          std::move(*metadata), last_batch_data, std::move(replicated_batches), this);
-      transactions_.insert(txn);
-      auto pending_apply_it = pending_applies_.find(txn->id());
-      if (pending_apply_it != pending_applies_.end()) {
-        VLOG_WITH_PREFIX(4) << "Apply state found for " << txn->id() << ": "
-                            << pending_apply_it->second.ToString();
-        txn->SetLocalCommitTime(pending_apply_it->second.commit_ht);
-        txn->SetApplyData(pending_apply_it->second.state);
-      }
-      TransactionsModifiedUnlocked(&min_running_notifier);
-    }
-    load_cond_.notify_all();
+    transactions_.insert(txn);
+    TransactionsModifiedUnlocked(&min_running_notifier);
   }
 
   Result<client::YBClient*> client() const {
@@ -1365,9 +1228,18 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
   void TransactionsStatus(const std::vector<TransactionStatusInfo>& status_infos) {
     MinRunningNotifier min_running_notifier(&applier_);
     std::lock_guard<std::mutex> lock(mutex_);
+    HybridTime now = participant_context_.Now();
     for (const auto& info : status_infos) {
-      if (info.status == TransactionStatus::ABORTED) {
+      auto it = transactions_.find(info.transaction_id);
+      if (it == transactions_.end()) {
+        continue;
+      }
+      if ((**it).UpdateStatus(info.status, info.status_ht)) {
         EnqueueRemoveUnlocked(info.transaction_id, &min_running_notifier);
+      } else {
+        transactions_.modify(it, [now](const auto& txn) {
+          txn->UpdateAbortCheckHT(now, UpdateAbortCheckHTMode::kStatusResponseReceived);
+        });
       }
     }
   }
@@ -1384,7 +1256,9 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
     participant_context_.SubmitUpdateTransaction(std::move(state), term);
   }
 
-  void HandleCleanup(std::unique_ptr<tablet::UpdateTxnOperationState> state, int64_t term) {
+  void HandleCleanup(
+      std::unique_ptr<tablet::UpdateTxnOperationState> state, int64_t term,
+      CleanupType cleanup_type) {
     VLOG_WITH_PREFIX(3) << "Cleanup";
     auto id = FullyDecodeTransactionId(state->request()->transaction_id());
     if (!id.ok()) {
@@ -1399,9 +1273,9 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
         .commit_ht = HybridTime(),
         .log_ht = HybridTime(),
         .sealed = state->request()->sealed(),
-        .status_tablet = std::string() };
-    WARN_NOT_OK(ProcessCleanup(data, PostApplyCleanup::kTrue),
-                "Process cleanup failed");
+        .status_tablet = std::string()
+    };
+    WARN_NOT_OK(ProcessCleanup(data, cleanup_type), "Process cleanup failed");
     state->CompleteWithStatus(Status::OK());
   }
 
@@ -1420,7 +1294,7 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
       return ProcessApply(apply_data);
     }
     if (!data.sealed) {
-      return ProcessCleanup(apply_data, PostApplyCleanup::kFalse);
+      return ProcessCleanup(apply_data, CleanupType::kImmediate);
     }
     return Status::OK();
   }
@@ -1437,7 +1311,7 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
         .priority = 0
       };
       it = transactions_.insert(std::make_shared<RunningTransaction>(
-          metadata, TransactionalBatchData(), OneWayBitmap(), this)).first;
+          metadata, TransactionalBatchData(), OneWayBitmap(), HybridTime::kMax, this)).first;
       TransactionsModifiedUnlocked(&min_running_notifier);
     }
 
@@ -1447,15 +1321,96 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
     return Status::OK();
   }
 
-  struct CleanupQueueEntry {
+  void Poll() {
+    {
+      MinRunningNotifier min_running_notifier(&applier_);
+      std::lock_guard<std::mutex> lock(mutex_);
+
+      ProcessRemoveQueueUnlocked(&min_running_notifier);
+      if (ANNOTATE_UNPROTECTED_READ(FLAGS_transactions_poll_check_aborted)) {
+        CheckForAbortedTransactions();
+      }
+    }
+    CleanupStatusResolvers();
+  }
+
+  void CheckForAbortedTransactions() REQUIRES(mutex_) {
+    if (transactions_.empty()) {
+      return;
+    }
+    auto now = participant_context_.Now();
+    auto& index = transactions_.get<AbortCheckTimeTag>();
+    TransactionStatusResolver* resolver = nullptr;
+    for (;;) {
+      auto& txn = **index.begin();
+      if (txn.abort_check_ht() > now) {
+        break;
+      }
+      if (!resolver) {
+        resolver = &AddStatusResolver();
+      }
+      const auto& metadata = txn.metadata();
+      VLOG_WITH_PREFIX(4)
+          << "Check aborted: " << metadata.status_tablet << ", " << metadata.transaction_id;
+      resolver->Add(metadata.status_tablet, metadata.transaction_id);
+      index.modify(index.begin(), [now](const auto& txn) {
+        txn->UpdateAbortCheckHT(now, UpdateAbortCheckHTMode::kStatusRequestSent);
+      });
+    }
+
+    // We don't introduce limit on number of status resolutions here, because we cannot predict
+    // transactions throughput. And we rely the logic that we cannot start multiple resolutions
+    // for single transaction because we set abort check hybrid time to the same value as
+    // status resolution deadline.
+    if (resolver) {
+      resolver->Start(CoarseMonoClock::now() + 1ms * FLAGS_transaction_abort_check_timeout_ms);
+    }
+  }
+
+  void CleanupStatusResolvers() EXCLUDES(status_resolvers_mutex_) {
+    std::lock_guard<std::mutex> lock(status_resolvers_mutex_);
+    while (!status_resolvers_.empty() && !status_resolvers_.front().Running()) {
+      status_resolvers_.front().Shutdown();
+      status_resolvers_.pop_front();
+    }
+  }
+
+  TransactionStatusResolver& AddStatusResolver() override EXCLUDES(status_resolvers_mutex_) {
+    std::lock_guard<std::mutex> lock(status_resolvers_mutex_);
+    status_resolvers_.emplace_back(&
+        participant_context_, &rpcs_, FLAGS_max_transactions_in_status_request,
+        std::bind(&Impl::TransactionsStatus, this, _1));
+    return status_resolvers_.back();
+  }
+
+  struct ImmediateCleanupQueueEntry {
     int64_t request_id;
     TransactionId transaction_id;
+
+    bool Ready(TransactionParticipantContext* participant_context, HybridTime* safe_time) const {
+      return true;
+    }
+  };
+
+  struct GracefulCleanupQueueEntry {
+    int64_t request_id;
+    TransactionId transaction_id;
+    HybridTime required_safe_time;
+
+    bool Ready(TransactionParticipantContext* participant_context, HybridTime* safe_time) const {
+      if (!*safe_time) {
+        *safe_time = participant_context->SafeTimeForTransactionParticipant();
+      }
+      return *safe_time >= required_safe_time;
+    }
   };
 
   std::string log_prefix_;
 
   docdb::DocDB db_;
   const docdb::KeyBounds* key_bounds_;
+  // Owned externally, should be guaranteed that would not be destroyed before this.
+  RWOperationCounter* pending_op_counter_ = nullptr;
 
   Transactions transactions_;
   // Ids of running requests, stored in increasing order.
@@ -1465,10 +1420,12 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
   // from both collections.
   std::priority_queue<int64_t, std::vector<int64_t>, std::greater<void>> complete_requests_;
 
-  // Queue of transaction ids that should be cleaned, paired with request that should be completed
+  // Queues of transaction ids that should be cleaned, paired with request that should be completed
   // in order to be able to do clean.
-  // Guarded by RunningTransactionContext::mutex_
-  std::deque<CleanupQueueEntry> cleanup_queue_;
+  // Immediate cleanup is performed as soon as possible.
+  // Graceful cleanup is performed after safe time becomes greater than cleanup request hybrid time.
+  std::deque<ImmediateCleanupQueueEntry> immediate_cleanup_queue_ GUARDED_BY(mutex_);
+  std::deque<GracefulCleanupQueueEntry> graceful_cleanup_queue_ GUARDED_BY(mutex_);
 
   // Remove queue maintains transactions that could be cleaned when safe time for follower reaches
   // appropriate time for an entry.
@@ -1495,16 +1452,13 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
   };
   std::deque<RecentlyRemovedTransaction> recently_removed_transactions_cleanup_queue_;
 
-  TransactionStatusResolver status_resolver_;
+  std::mutex status_resolvers_mutex_;
+  std::deque<TransactionStatusResolver> status_resolvers_ GUARDED_BY(status_resolvers_mutex_);
 
   scoped_refptr<AtomicGauge<uint64_t>> metric_transactions_running_;
-  scoped_refptr<Counter> metric_transaction_load_attempts_;
   scoped_refptr<Counter> metric_transaction_not_found_;
 
-  std::thread load_thread_;
-  std::condition_variable load_cond_;
-  TransactionId last_loaded_;
-  std::atomic<bool> all_loaded_{false};
+  TransactionLoader loader_;
   std::atomic<bool> closing_{false};
   CountDownLatch start_latch_{1};
 
@@ -1515,7 +1469,9 @@ class TransactionParticipant::Impl : public RunningTransactionContext {
 
   mutable std::atomic<client::YBClient*> client_cache_{nullptr};
 
-  ApplyStatesMap pending_applies_;
+  LRUCache<TransactionId> cleanup_cache_{FLAGS_transactions_cleanup_cache_size};
+
+  rpc::Poller poller_;
 };
 
 TransactionParticipant::TransactionParticipant(
@@ -1662,6 +1618,10 @@ Status TransactionParticipant::StopActiveTxnsPriorTo(HybridTime cutoff, CoarseTi
 
 std::string TransactionParticipantContext::LogPrefix() const {
   return consensus::MakeTabletLogPrefix(tablet_id(), permanent_uuid());
+}
+
+HybridTime TransactionParticipantContext::Now() {
+  return clock_ptr()->Now();
 }
 
 } // namespace tablet

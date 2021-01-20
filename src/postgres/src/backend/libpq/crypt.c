@@ -27,6 +27,8 @@
 #include "utils/syscache.h"
 #include "utils/timestamp.h"
 
+#include "yb/yql/pggate/ybc_pggate.h"
+
 
 /*
  * Fetch stored password for a user, for authentication.
@@ -82,6 +84,34 @@ get_role_password(const char *role, char **logdetail)
 	}
 
 	return shadow_pass;
+}
+
+/*
+ * Fetch stored key from Yugabyte tserver shared memory, for authentication.
+ *
+ * On success, return a palloc'd pointer to the key.
+ *
+ * On error, returns NULL, and stores a palloc'd string describing the reason,
+ * for the postmaster log, in *logdetail.  The error reason should *not* be
+ * sent to the client, to avoid giving away user information!
+ */
+uint64_t *
+yb_get_role_password(const char *role, char **logdetail)
+{
+	uint64_t   *auth_key = NULL;
+
+	/* Currently disallow any role but "postgres" */
+	if (strncmp(role, "postgres", 8))
+	{
+		*logdetail = psprintf(_("Role must be \"postgres\": got \"%s\"."),
+							  role);
+		return NULL;			/* invalid user */
+	}
+
+	auth_key = palloc(sizeof(uint64_t));
+	YBCGetSharedAuthKey(auth_key);
+
+	return auth_key;
 }
 
 /*
@@ -281,4 +311,39 @@ plain_crypt_verify(const char *role, const char *shadow_pass,
 	*logdetail = psprintf(_("Password of user \"%s\" is in unrecognized format."),
 						  role);
 	return STATUS_ERROR;
+}
+
+/*
+ * Check given auth key for given user, and return STATUS_OK or STATUS_ERROR.
+ *
+ * 'server_auth_key' is the user's correct authentication key, as stored in
+ * tserver shared memory.
+ * 'client_auth_key' is the auth key given by the remote user.
+ *
+ * In the error case, optionally store a palloc'd string at *logdetail
+ * that will be sent to the postmaster log (but not the client).
+ */
+int
+yb_plain_key_verify(const char *role,
+					const uint64_t server_auth_key,
+					const uint64_t client_auth_key,
+					char **logdetail)
+{
+	/* Currently disallow any role but "postgres" */
+	if (strncmp(role, "postgres", 8))
+	{
+		*logdetail = psprintf(_("Role must be \"postgres\": got \"%s\"."),
+							  role);
+		return STATUS_ERROR;	/* invalid user */
+	}
+
+	/* Simply compare the plain auth keys */
+	if (server_auth_key == client_auth_key)
+		return STATUS_OK;
+	else
+	{
+		*logdetail = psprintf(_("Auth key does not match for user \"%s\"."),
+							  role);
+		return STATUS_ERROR;
+	}
 }

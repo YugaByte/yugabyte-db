@@ -62,13 +62,13 @@ When revoking privileges on a table, the corresponding column privileges (if any
 
 - Revoke SELECT privilege for PUBLIC on table 'stores'
 
-```postgresql
+```plpgsql
 yugabyte=# REVOKE SELECT ON stores FROM PUBLIC;
 ```
 
 - Remove user John from SysAdmins group.
 
-```postgresql
+```plpgsql
 yugabyte=# REVOKE SysAdmins FROM John;
 ```
 

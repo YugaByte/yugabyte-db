@@ -59,7 +59,7 @@ To avoid clutter in the tables, only the `jsonb` variants of the function names 
 | [`#-`](./remove-operators) | yes | | Remove a single key-value pair from an _object_ or a single value from an _array_ at the specified path. |
 | [`jsonb_extract_path()`](./jsonb-extract-path/) | yes | yes | Provide the identical functionality to the `#>` operator. The path is presented as a variadic list of steps that must all be `text` values. Its invocation more verbose than that of the `#>` operator and there is no reason to prefer the function form to the operator form. |
 | [`jsonb_strip_nulls()`](./jsonb-strip-nulls/) | yes | yes | Find all key-value pairs at any depth in the hierarchy of the supplied JSON compound value (such a pair can occur only as an element of an _object_) and return a JSON value where each pair whose value is _null_ has been removed. |
-| [`jsonb_set()` and `jsonb_insert()`](./jsonb-set-jsonb-insert/) | yes | | Use `jsonb_set()` to change an existing JSON value, i.e. the value of an existing key-value pair in a JSON _object_ or the value at an existing index in a JSON array. Use `jsonb_insert()` to insert a new value, either as the value for a key that doesn't yet exist in a JSON _object_ or beyond the end or before the start of the index range for a JSON _array_. |
+| [`jsonb_set()` and `jsonb_insert()`](./jsonb-set-jsonb-insert/) | yes | | Use `jsonb_set()` to change a JSON value, i.e. the value of an existing key-value pair in a JSON _object_ or the value at an existing index in a JSON array. Use `jsonb_insert()` to insert a value, either as the value for a key that doesn't yet exist in a JSON _object_ or beyond the end or before the start of the index range for a JSON _array_. |
 
 ## Convert a JSON value to a SQL value
 

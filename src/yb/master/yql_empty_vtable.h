@@ -26,6 +26,7 @@ namespace master {
 class YQLEmptyVTable : public YQLVirtualTable {
  public:
   explicit YQLEmptyVTable(const TableName& table_name,
+                          const NamespaceName& namespace_name,
                           const Master* const master,
                           const Schema& schema);
   Result<std::shared_ptr<QLRowBlock>> RetrieveData(const QLReadRequestPB& request) const override;

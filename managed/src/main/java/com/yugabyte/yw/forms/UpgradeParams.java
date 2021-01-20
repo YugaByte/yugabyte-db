@@ -17,6 +17,11 @@ public class UpgradeParams extends UniverseDefinitionTaskParams {
   // The software version to install. Do not set this value if no software needs to be installed.
   public String ybSoftwareVersion = null;
 
+  // The certificate that needs to be used.
+  public UUID certUUID = null;
+  // If the root certificate needs to be rotated.
+  public boolean rotateRoot = false;
+
   @Deprecated
   // This is deprecated use cluster.userIntent.masterGFlags
   public Map<String, String> masterGFlags = new HashMap<String, String>();

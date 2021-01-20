@@ -24,6 +24,7 @@ string(REPLACE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/ent
 
 set(INTEGRATION_TESTS_SRCS_EXTENSIONS
   ${YB_ENT_CURRENT_SOURCE_DIR}/external_mini_cluster_ent.cc
+  ${YB_ENT_CURRENT_SOURCE_DIR}/twodc_test_base.cc
   PARENT_SCOPE)
 
 # Additional tests support.
@@ -41,5 +42,6 @@ set(INTEGRATION_TESTS_EXTENSIONS_TESTS
   encryption-test
   cdc_service-int-test
   cdc_service-txn-test
+  twodc_ysql-test
   twodc-test
   PARENT_SCOPE)

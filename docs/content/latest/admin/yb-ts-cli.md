@@ -48,6 +48,19 @@ $ yb-ts-cli [ --server_address=<host>:<port> ] are_tablets_running
 
 - *host*:*port*: The *host* and *port* of the tablet server. Default is `localhost:9100`.
 
+##### is_server_ready
+
+Prints the number of tablets that have not yet bootstrapped.
+If all tablets have bootstrapped, returns "Tablet server is ready".
+
+**Syntax**
+
+```sh
+$ yb-ts-cli [ --server_address=<host>:<port> ] is_server_ready
+```
+
+- *host*:*port*: The *host* and *port* of the tablet server. Default is `localhost:9100`.
+
 ##### compact_all_tablets
 
 Compact all tablets on the tablet server.

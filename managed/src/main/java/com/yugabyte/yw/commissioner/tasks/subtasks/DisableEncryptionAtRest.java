@@ -54,6 +54,7 @@ public class DisableEncryptionAtRest extends AbstractTaskBase {
             LOG.info("Running {}: hostPorts={}.", getName(), hostPorts);
             client = ybService.getClient(hostPorts, certificate);
             client.disableEncryptionAtRestInMemory();
+            universe.incrementVersion();
         } catch (Exception e) {
             LOG.error("{} hit error : {}", getName(), e.getMessage());
             throw new RuntimeException(e);

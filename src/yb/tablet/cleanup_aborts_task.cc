@@ -54,8 +54,9 @@ void CleanupAbortsTask::Run() {
   // Wait for the propagated time to reach the current hybrid time.
   const MonoDelta kMaxTotalSleep = 10s;
   auto safetime = applier_->ApplierSafeTime(now, CoarseMonoClock::now() + kMaxTotalSleep);
-  if (!safetime) {
-    LOG_WITH_PREFIX(WARNING) << "Tablet application did not catch up in: " << kMaxTotalSleep;
+  if (!safetime.ok()) {
+    LOG_WITH_PREFIX(WARNING) << "Tablet application did not catch up in " << kMaxTotalSleep << ": "
+                             << safetime.status();
     return;
   }
 

@@ -10,6 +10,7 @@
   assert:
     that:
       - instance_name is defined
+      - private_ip is defined
       - cloud_region is defined
       - cloud_subnet is defined
 
@@ -19,6 +20,7 @@
     filters:
       instance-state-name: "running"
       "tag:Name": "{{ instance_name }}"
+      private-ip-address: "{{ private_ip }}"
       # Don't really need this, if the name is guaranteed unique.
       subnet-id: "{{ cloud_subnet }}"
   register: ec2_instances

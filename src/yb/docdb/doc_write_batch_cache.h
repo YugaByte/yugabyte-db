@@ -36,7 +36,7 @@ class DocWriteBatchCache {
  public:
   struct Entry {
     DocHybridTime doc_hybrid_time;
-    ValueType value_type;
+    ValueType value_type = ValueType::kInvalid;
     UserTimeMicros user_timestamp = Value::kInvalidUserTimestamp;
     // We found a key which matched the exact key_prefix_ we were searching for (excluding the
     // hybrid time). Since we search for a key prefix, we could search for a.b.c, but end up

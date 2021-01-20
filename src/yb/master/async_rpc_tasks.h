@@ -18,6 +18,7 @@
 
 #include <boost/optional/optional.hpp>
 
+#include "yb/common/constants.h"
 #include "yb/common/entity_ids.h"
 
 #include "yb/consensus/consensus.pb.h"
@@ -186,6 +187,8 @@ class RetryingTSRpcTask : public MonitoredTask {
   void DoRpcCallback();
 
   // Called when the async task unregisters either successfully or unsuccessfully.
+  //
+  // Note: This is the last thing function called, to guarantee it's the last work done by the task.
   virtual void UnregisterAsyncTaskCallback();
 
   Master* const master_;
@@ -313,6 +316,34 @@ class AsyncCreateReplica : public RetrySpecificTSRpcTask {
   const TabletId tablet_id_;
   tserver::CreateTabletRequestPB req_;
   tserver::CreateTabletResponsePB resp_;
+};
+
+// Task to start election at hinted leader for a newly created tablet.
+class AsyncStartElection : public RetrySpecificTSRpcTask {
+ public:
+  AsyncStartElection(Master *master,
+                     ThreadPool *callback_pool,
+                     const std::string& permanent_uuid,
+                     const scoped_refptr<TabletInfo>& tablet);
+
+  Type type() const override { return START_ELECTION; }
+
+  std::string type_name() const override { return "Hinted Leader Start Election"; }
+
+  std::string description() const override {
+    return "RunLeaderElection RPC for tablet " + tablet_id_ + " on TS " + permanent_uuid_;
+  }
+
+ protected:
+  TabletId tablet_id() const override { return tablet_id_; }
+
+  void HandleResponse(int attempt) override;
+  bool SendRequest(int attempt) override;
+
+ private:
+  const TabletId tablet_id_;
+  consensus::RunLeaderElectionRequestPB req_;
+  consensus::RunLeaderElectionResponsePB resp_;
 };
 
 // Send a DeleteTablet() RPC request.
@@ -632,8 +663,8 @@ class AsyncSplitTablet : public AsyncTabletLeaderTask {
  public:
   AsyncSplitTablet(
       Master* master, ThreadPool* callback_pool, const scoped_refptr<TabletInfo>& tablet,
-      const std::array<TabletId, 2>& new_tablet_ids, const std::string& split_encoded_key,
-      const std::string& split_partition_key);
+      const std::array<TabletId, kNumSplitParts>& new_tablet_ids,
+      const std::string& split_encoded_key, const std::string& split_partition_key);
 
   Type type() const override { return ASYNC_SPLIT_TABLET; }
 

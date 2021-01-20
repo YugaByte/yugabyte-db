@@ -53,7 +53,7 @@ def main():
 
     args = parser.parse_args()
 
-    remote.load_profile(['host', 'remote_path', 'branch'], args, args.profile)
+    remote.load_profile(args, args.profile)
 
     # ---------------------------------------------------------------------------------------------
     # Default arguments go here.

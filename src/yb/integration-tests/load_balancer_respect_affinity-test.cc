@@ -38,14 +38,7 @@ const MonoDelta kDefaultTimeout = 30000ms;
 
 class LoadBalancerRespectAffinityTest : public YBTableTestBase {
  protected:
-  void SetUp() override {
-    YBTableTestBase::SetUp();
-
-    yb_admin_client_ = std::make_unique<tools::enterprise::ClusterAdminClient>(
-        external_mini_cluster()->GetMasterAddresses(), kDefaultTimeout);
-
-    ASSERT_OK(yb_admin_client_->Init());
-  }
+  bool use_yb_admin_client() override { return true; }
 
   bool use_external_mini_cluster() override { return true; }
 
@@ -67,20 +60,12 @@ class LoadBalancerRespectAffinityTest : public YBTableTestBase {
     return !resp.has_error();
   }
 
-  Result<std::shared_ptr<master::MasterServiceProxy>> GetMasterLeaderProxy() {
-    int idx;
-    RETURN_NOT_OK(external_mini_cluster()->GetLeaderMasterIndex(&idx));
-    return external_mini_cluster()->master_proxy(idx);
-  }
-
   void CustomizeExternalMiniCluster(ExternalMiniClusterOptions* opts) override {
     opts->extra_tserver_flags.push_back("--placement_cloud=c");
     opts->extra_tserver_flags.push_back("--placement_region=r");
     opts->extra_tserver_flags.push_back("--placement_zone=z${index}");
     opts->extra_tserver_flags.push_back("--transaction_tables_use_preferred_zones=false");
   }
-
-  std::unique_ptr<tools::enterprise::ClusterAdminClient> yb_admin_client_;
 };
 
 TEST_F(LoadBalancerRespectAffinityTest,

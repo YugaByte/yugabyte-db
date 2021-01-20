@@ -258,6 +258,8 @@ export BUILD_ROOT
 # End of build root setup and build directory cleanup
 # -------------------------------------------------------------------------------------------------
 
+"$YB_SRC_ROOT/yb_build.sh" --cmake-unit-tests
+
 find_or_download_thirdparty
 validate_thirdparty_dir
 detect_brew
@@ -619,9 +621,14 @@ fi
 # Skip this in ASAN/TSAN, as there are still unresolved issues with dynamic libraries there
 # (conflicting versions of the same library coming from thirdparty vs. Linuxbrew) as of 12/04/2017.
 #
+# Also skip it for compiler types with a specific version at the end, e.g. clang11 or gcc9. These
+# build types are Linux builds that do not use Linuxbrew and we still need to significantly change
+# the logic in library_packager.py for packaging to work in those builds (as of 01/2021).
+
 if [[ ${YB_SKIP_CREATING_RELEASE_PACKAGE:-} != "1" &&
       $build_type != "tsan" &&
-      $build_type != "asan" ]]; then
+      $build_type != "asan" &&
+      $YB_COMPILER_TYPE != *[0-9] ]]; then
   heading "Creating a distribution package"
 
   package_path_file="$BUILD_ROOT/package_path.txt"

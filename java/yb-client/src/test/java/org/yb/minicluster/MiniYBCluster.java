@@ -32,8 +32,6 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.Lists;
 import com.google.common.net.HostAndPort;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.math.NumberUtils;
-import org.yb.AssertionWrappers;
 import org.yb.client.BaseYBClientTest;
 import org.yb.client.TestUtils;
 import org.yb.client.YBClient;
@@ -81,8 +79,6 @@ public class MiniYBCluster implements AutoCloseable {
   // How often to push node list refresh events to CQL clients (in seconds)
   public static int CQL_NODE_LIST_REFRESH_SECS = 5;
 
-  public static final int TSERVER_HEARTBEAT_TIMEOUT_MS = 5 * 1000;
-
   public static final int TSERVER_HEARTBEAT_INTERVAL_MS = 500;
 
   public static final int CATALOG_MANAGER_BG_TASK_WAIT_MS = 500;
@@ -118,7 +114,8 @@ public class MiniYBCluster implements AutoCloseable {
 
   // Client we can use for common operations.
   private YBClient syncClient;
-  private final int defaultTimeoutMs;
+
+  private final MiniYBClusterParameters clusterParameters;
 
   private String masterAddresses;
 
@@ -138,17 +135,6 @@ public class MiniYBCluster implements AutoCloseable {
   private AtomicInteger nextMasterIndex = new AtomicInteger(0);
   private AtomicInteger nextTServerIndex = new AtomicInteger(0);
 
-  public static final int DEFAULT_NUM_SHARDS_PER_TSERVER = 3;
-
-  public static final int DEFAULT_NUM_MASTERS = 3;
-  public static final int DEFAULT_NUM_TSERVERS = 3;
-
-  private int numShardsPerTserver;
-
-  public static boolean DEFAULT_USE_IP_WITH_CERTIFICATE = false;
-
-  private boolean useIpWithCertificate = DEFAULT_USE_IP_WITH_CERTIFICATE;
-
   /**
    * Hard memory limit for YB daemons. This should be consistent with the memory limit set for C++
    * based mini clusters in external_mini_cluster.cc.
@@ -156,45 +142,29 @@ public class MiniYBCluster implements AutoCloseable {
   private static final long DAEMON_MEMORY_LIMIT_HARD_BYTES_NON_TSAN = 1024 * 1024 * 1024;
   private static final long DAEMON_MEMORY_LIMIT_HARD_BYTES_TSAN = 512 * 1024 * 1024;
 
-  private int replicationFactor = -1;
-
   private String certFile = null;
-
-  private boolean startPgSqlProxy = false;
-  private boolean pgTransactionsEnabled = false;
 
   /**
    * Not to be invoked directly, but through a {@link MiniYBClusterBuilder}.
    */
-  MiniYBCluster(int numMasters,
-                int numTservers,
-                int defaultTimeoutMs,
+  MiniYBCluster(MiniYBClusterParameters clusterParameters,
                 List<String> masterArgs,
                 List<List<String>> tserverArgs,
                 List<String> commonTServerArgs,
                 Map<String, String> tserverEnvVars,
-                int numShardsPerTserver,
                 String testClassName,
-                boolean useIpWithCertificate,
-                int replicationFactor,
-                boolean startPgSqlProxy,
-                String certFile,
-                boolean pgTransactionsEnabled) throws Exception {
-    this.defaultTimeoutMs = defaultTimeoutMs;
+                String certFile) throws Exception {
+    this.clusterParameters = clusterParameters;
     this.testClassName = testClassName;
-    this.numShardsPerTserver = numShardsPerTserver;
-    this.useIpWithCertificate = useIpWithCertificate;
-    this.replicationFactor = replicationFactor;
-    this.startPgSqlProxy = startPgSqlProxy;
     this.certFile = certFile;
-    this.pgTransactionsEnabled = pgTransactionsEnabled;
-    if (pgTransactionsEnabled && !startPgSqlProxy) {
+    if (clusterParameters.pgTransactionsEnabled && !clusterParameters.startPgSqlProxy) {
       throw new AssertionError(
           "Attempting to enable PostgreSQL transactions without enabling PostgreSQL API");
     }
 
-    startCluster(numMasters, numTservers, masterArgs, tserverArgs, commonTServerArgs,
-        tserverEnvVars);
+    startCluster(
+        clusterParameters.numMasters, clusterParameters.numTservers, masterArgs, tserverArgs,
+        commonTServerArgs, tserverEnvVars);
     startSyncClient();
   }
 
@@ -204,14 +174,23 @@ public class MiniYBCluster implements AutoCloseable {
 
   public void startSyncClient(boolean waitForMasterLeader) throws Exception {
     syncClient = new YBClient.YBClientBuilder(getMasterAddresses())
-        .defaultAdminOperationTimeoutMs(defaultTimeoutMs)
-        .defaultOperationTimeoutMs(defaultTimeoutMs)
+        .defaultAdminOperationTimeoutMs(clusterParameters.defaultTimeoutMs)
+        .defaultOperationTimeoutMs(clusterParameters.defaultTimeoutMs)
         .sslCertFile(certFile)
         .build();
 
     if (waitForMasterLeader) {
-      syncClient.waitForMasterLeader(defaultTimeoutMs);
+      syncClient.waitForMasterLeader(clusterParameters.defaultTimeoutMs);
     }
+  }
+
+  /**
+   * Should only be used to get current cluster parameters.
+   * WARNING: do not modify fields of returned value, since this is not supported and can have
+   * unwanted effect.
+   */
+  public MiniYBClusterParameters getClusterParameters() {
+    return clusterParameters;
   }
 
   private static void addFlagsFromEnv(List<String> dest, String envVarName) {
@@ -252,14 +231,14 @@ public class MiniYBCluster implements AutoCloseable {
       commonFlags.add("--metric_node_name=" + testInvocationId);
     }
 
-    commonFlags.add("--yb_num_shards_per_tserver=" + numShardsPerTserver);
-    commonFlags.add("--ysql_num_shards_per_tserver=" + numShardsPerTserver);
+    commonFlags.add("--yb_num_shards_per_tserver=" + clusterParameters.numShardsPerTServer);
+    commonFlags.add("--ysql_num_shards_per_tserver=" + clusterParameters.numShardsPerTServer);
 
-    if (replicationFactor > 0) {
-      commonFlags.add("--replication_factor=" + replicationFactor);
+    if (clusterParameters.replicationFactor > 0) {
+      commonFlags.add("--replication_factor=" + clusterParameters.replicationFactor);
     }
 
-    if (startPgSqlProxy) {
+    if (clusterParameters.startPgSqlProxy) {
       commonFlags.add("--enable_ysql=true");
     } else {
       commonFlags.add("--enable_ysql=false");
@@ -278,14 +257,15 @@ public class MiniYBCluster implements AutoCloseable {
   public boolean waitForTabletServers(int expected) throws Exception {
     int count = 0;
     Stopwatch stopwatch = Stopwatch.createStarted();
-    while (count < expected && stopwatch.elapsed(MILLISECONDS) < defaultTimeoutMs) {
+    while (count < expected &&
+        stopwatch.elapsed(MILLISECONDS) < clusterParameters.defaultTimeoutMs) {
       Thread.sleep(200);
       count = syncClient.listTabletServers().getTabletServersCount();
     }
     boolean success = count >= expected;
     if (!success) {
-      LOG.error("Waited for " + defaultTimeoutMs + " ms for " + expected + " tablet servers " +
-                "to be online. Only found " + count + " tablet servers.");
+      LOG.error("Waited for " + clusterParameters.defaultTimeoutMs + " ms for " + expected +
+                " tablet servers to be online. Only found " + count + " tablet servers.");
     }
     return success;
   }
@@ -324,7 +304,7 @@ public class MiniYBCluster implements AutoCloseable {
   }
 
   private String getDaemonBindAddress(MiniYBDaemonType daemonType) throws IOException {
-    if (TestUtils.IS_LINUX && !useIpWithCertificate) {
+    if (TestUtils.IS_LINUX && !clusterParameters.useIpWithCertificate) {
       return pickFreeRandomBindIpOnLinux(daemonType);
     }
 
@@ -365,11 +345,11 @@ public class MiniYBCluster implements AutoCloseable {
     final int nextToLastByteMin = 0;
     // If we need an IP with a certificate, use 127.0.0.*, otherwise use 127.0.x.y with a small
     // range of x.
-    final int nextToLastByteMax = useIpWithCertificate ? 0 : 3;
+    final int nextToLastByteMax = clusterParameters.useIpWithCertificate ? 0 : 3;
 
     if (TestUtils.IS_LINUX) {
       // We only use even last bytes of the loopback IP in case we are testing TLS encryption.
-      final int lastIpByteStep = useIpWithCertificate ? 2 : 1;
+      final int lastIpByteStep = clusterParameters.useIpWithCertificate ? 2 : 1;
       for (int nextToLastByte = nextToLastByteMin;
            nextToLastByte <= nextToLastByteMax;
            ++nextToLastByte) {
@@ -384,7 +364,7 @@ public class MiniYBCluster implements AutoCloseable {
       }
     } else {
       List<String> loopbackIps  = BindIpUtil.getLoopbackIPs();
-      if (useIpWithCertificate) {
+      if (clusterParameters.useIpWithCertificate) {
         // macOS, but we need a 127.0.0.x, where x is even.
         for (String loopbackIp : loopbackIps) {
           if (loopbackIp.startsWith("127.0.0.")) {
@@ -564,11 +544,11 @@ public class MiniYBCluster implements AutoCloseable {
         "--TEST_process_info_dir=" + getProcessInfoDir());
     addFlagsFromEnv(tsCmdLine, "YB_EXTRA_TSERVER_FLAGS");
 
-    if (startPgSqlProxy) {
+    if (clusterParameters.startPgSqlProxy) {
       tsCmdLine.addAll(Lists.newArrayList(
           "--pgsql_proxy_bind_address=" + tserverBindAddress + ":" + postgresPort
       ));
-      if (pgTransactionsEnabled) {
+      if (clusterParameters.pgTransactionsEnabled) {
         tsCmdLine.add("--pg_transactions_enabled");
       }
     }
@@ -610,12 +590,21 @@ public class MiniYBCluster implements AutoCloseable {
       "--webserver_interface=" + masterBindAddress,
       "--local_ip_for_outbound_sockets=" + masterBindAddress,
       "--rpc_bind_addresses=" + masterBindAddress + ":" + masterRpcPort,
-      "--tserver_unresponsive_timeout_ms=" + TSERVER_HEARTBEAT_TIMEOUT_MS,
       "--catalog_manager_bg_task_wait_ms=" + CATALOG_MANAGER_BG_TASK_WAIT_MS,
       "--rpc_slow_query_threshold_ms=" + RPC_SLOW_QUERY_THRESHOLD,
       "--webserver_port=" + masterWebPort,
       "--callhome_enabled=false",
       "--TEST_process_info_dir=" + getProcessInfoDir());
+    if (clusterParameters.tserverHeartbeatTimeoutMsOpt.isPresent()) {
+      masterCmdLine.add(
+          "--tserver_unresponsive_timeout_ms=" +
+          clusterParameters.tserverHeartbeatTimeoutMsOpt.get());
+    }
+    if (clusterParameters.yqlSystemPartitionsVtableRefreshSecsOpt.isPresent()) {
+      masterCmdLine.add(
+          "--partitions_vtable_cache_refresh_secs=" +
+          clusterParameters.yqlSystemPartitionsVtableRefreshSecsOpt.get());
+    }
     addFlagsFromEnv(masterCmdLine, "YB_EXTRA_MASTER_FLAGS");
     return masterCmdLine;
   }
@@ -724,7 +713,7 @@ public class MiniYBCluster implements AutoCloseable {
       if (extraMasterArgs != null) {
         masterCmdLine.addAll(extraMasterArgs);
       }
-      if (startPgSqlProxy) {
+      if (clusterParameters.startPgSqlProxy) {
         masterCmdLine.add("--master_auto_run_initdb");
       }
       final HostAndPort masterHostAndPort = HostAndPort.fromParts(masterBindAddress, masterRpcPort);
@@ -838,14 +827,14 @@ public class MiniYBCluster implements AutoCloseable {
     return daemon;
   }
 
-  /**
-   * Restart the cluster
-   * @param waitForMasterLeader should sync client wait for master leader.
-   */
   public void restart() throws Exception {
     restart(true /* waitForMasterLeader */);
   }
 
+  /**
+   * Restart the cluster
+   * @param waitForMasterLeader should sync client wait for master leader.
+   */
   public void restart(boolean waitForMasterLeader) throws Exception {
     List<MiniYBDaemon> masters = new ArrayList<>(masterProcesses.values());
     List<MiniYBDaemon> tservers = new ArrayList<>(tserverProcesses.values());
@@ -1013,13 +1002,16 @@ public class MiniYBCluster implements AutoCloseable {
     processes.addAll(destroyDaemons(masterProcesses.values()));
     processes.addAll(destroyDaemons(tserverProcesses.values()));
     LOG.info(
-        "Waiting for " + (masterProcesses.size() + tserverProcesses.size()) +
-        " processes to terminate...");
+        "Waiting for " + processes.size() + " processes to terminate...");
     final long deadlineMs = System.currentTimeMillis() + PROCESS_TERMINATE_TIMEOUT_MS;
     for (Process process : processes) {
       final long timeLeftMs = deadlineMs - System.currentTimeMillis();
       if (timeLeftMs > 0) {
+        LOG.info(
+            "Waiting for PID " + ProcessUtil.pidStrOfProcess(process) + " for " + timeLeftMs +
+            " ms");
         process.waitFor(timeLeftMs, TimeUnit.MILLISECONDS);
+        LOG.info("IsAlive: " + process.isAlive());
       } else {
         break;
       }
@@ -1104,7 +1096,7 @@ public class MiniYBCluster implements AutoCloseable {
    * @return number of shards per tserver.
    */
   public int getNumShardsPerTserver() {
-    return numShardsPerTserver;
+    return clusterParameters.numShardsPerTServer;
   }
 
   /**

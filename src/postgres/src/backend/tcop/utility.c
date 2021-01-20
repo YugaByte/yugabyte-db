@@ -58,6 +58,7 @@
 #include "commands/user.h"
 #include "commands/vacuum.h"
 #include "commands/view.h"
+#include "libpq/libpq-be.h"
 #include "miscadmin.h"
 #include "parser/parse_utilcmd.h"
 #include "postmaster/bgwriter.h"
@@ -414,6 +415,32 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 
 	pstate = make_parsestate(NULL);
 	pstate->p_sourcetext = queryString;
+
+	/*
+	 * For tserver-postgres libpq connection, only authorize certain queries.
+	 */
+	if (IsYugaByteEnabled() &&
+		!IsBootstrapProcessingMode() &&
+		!YBIsPreparingTemplates() &&
+		MyProcPort->yb_is_tserver_auth_method)
+	{
+		switch (nodeTag(parsetree))
+		{
+			case T_BackfillIndexStmt:
+			{
+				BackfillIndexStmt *stmt = (BackfillIndexStmt *) parsetree;
+				BackfillIndex(stmt);
+			}
+			break;
+			default:
+				ereport(ERROR,
+						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+						 errmsg("yb-tserver cannot run this query: %s",
+								CreateCommandTag(parsetree))));
+		}
+		free_parsestate(pstate);
+		return;
+	}
 
 	switch (nodeTag(parsetree))
 	{
@@ -842,10 +869,13 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			break;
 
 		case T_BackfillIndexStmt:
-			{
-				BackfillIndexStmt *stmt = (BackfillIndexStmt *) parsetree;
-				BackfillIndex(stmt);
-			}
+			Assert(IsYugaByteEnabled());
+			Assert(!IsBootstrapProcessingMode());
+			Assert(!YBIsPreparingTemplates());
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("backfill can only be run internally by"
+							" yb-tserver")));
 			break;
 
 			/*
@@ -1336,8 +1366,28 @@ ProcessUtilitySlow(ParseState *pstate,
 					LOCKMODE	lockmode;
 
 					if (stmt->concurrent)
-						PreventInTransactionBlock(isTopLevel,
-												  "CREATE INDEX CONCURRENTLY");
+					{
+						if (IsYugaByteEnabled() &&
+							!IsBootstrapProcessingMode() &&
+							!YBIsPreparingTemplates() &&
+							IsInTransactionBlock(isTopLevel))
+						{
+							/*
+							 * Transparently switch to nonconcurrent index
+							 * build.
+							 * TODO(jason): heed issue #6240.
+							 */
+							ereport(DEBUG1,
+									(errmsg("making create index for table "
+											"\"%s\" in transaction block "
+											"nonconcurrent",
+											stmt->relation->relname)));
+							stmt->concurrent = false;
+						}
+						else
+							PreventInTransactionBlock(isTopLevel,
+													  "CREATE INDEX CONCURRENTLY");
+					}
 
 					/*
 					 * Look up the relation OID just once, right here at the
@@ -1364,6 +1414,8 @@ ProcessUtilitySlow(ParseState *pstate,
 					 * We also take the opportunity to verify that all
 					 * partitions are something we can put an index on, to
 					 * avoid building some indexes only to fail later.
+					 *
+					 * We also transparently make it nonconcurrent.
 					 */
 					if (stmt->relation->inh &&
 						get_rel_relkind(relid) == RELKIND_PARTITIONED_TABLE)
@@ -1387,6 +1439,22 @@ ProcessUtilitySlow(ParseState *pstate,
 												   stmt->relation->relname)));
 						}
 						list_free(inheritors);
+
+						/*
+						 * Transparently switch to nonconcurrent index build.
+						 */
+						if (stmt->concurrent &&
+							IsYugaByteEnabled() &&
+							!IsBootstrapProcessingMode() &&
+							!YBIsPreparingTemplates())
+						{
+							ereport(DEBUG1,
+									(errmsg("making create index on "
+											"partitioned table \"%s\" "
+											"nonconcurrent",
+											stmt->relation->relname)));
+							stmt->concurrent = false;
+						}
 					}
 
 					/* Run parse analysis ... */
@@ -1761,7 +1829,7 @@ ExecDropStmt(DropStmt *stmt, bool isTopLevel)
 			if (stmt->concurrent)
 				PreventInTransactionBlock(isTopLevel,
 										  "DROP INDEX CONCURRENTLY");
-			/* fall through */
+			switch_fallthrough();
 
 		case OBJECT_TABLE:
 		case OBJECT_SEQUENCE:
@@ -3500,6 +3568,14 @@ GetCommandLogLevel(Node *parsetree)
 				}
 
 			}
+			break;
+
+		case T_CreateTableGroupStmt:
+			lev = LOGSTMT_DDL;
+			break;
+
+		case T_DropTableGroupStmt:
+			lev = LOGSTMT_DDL;
 			break;
 
 		default:

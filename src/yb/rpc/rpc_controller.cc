@@ -94,6 +94,13 @@ Status RpcController::status() const {
   return Status::OK();
 }
 
+Status RpcController::thread_pool_failure() const {
+  if (call_) {
+    return call_->thread_pool_failure();
+  }
+  return Status::OK();
+}
+
 const ErrorStatusPB* RpcController::error_response() const {
   if (call_) {
     return call_->error_pb();
@@ -122,6 +129,13 @@ void RpcController::set_deadline(CoarseTimePoint deadline) {
 MonoDelta RpcController::timeout() const {
   std::lock_guard<simple_spinlock> l(lock_);
   return timeout_;
+}
+
+int32_t RpcController::call_id() const {
+  if (call_) {
+    return call_->call_id();
+  }
+  return -1;
 }
 
 } // namespace rpc

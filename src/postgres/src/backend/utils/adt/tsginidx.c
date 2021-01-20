@@ -248,7 +248,7 @@ TS_execute_ternary(GinChkVal *gcv, QueryItem *curitem, bool in_phrase)
 			/* Pass down in_phrase == true in case there's a NOT below */
 			in_phrase = true;
 
-			/* FALL THRU */
+			switch_fallthrough();
 
 		case OP_AND:
 			val1 = TS_execute_ternary(gcv, curitem + curitem->qoperator.left,

@@ -20,6 +20,7 @@
 #include "yb/master/master.h"
 #include "yb/master/ts_descriptor.h"
 #include "yb/master/util/yql_vtable_helpers.h"
+#include "yb/util/metrics.h"
 
 namespace yb {
 namespace master {
@@ -28,6 +29,7 @@ namespace master {
 class YQLVirtualTable : public common::YQLStorageIf {
  public:
   explicit YQLVirtualTable(const TableName& table_name,
+                           const NamespaceName &namespace_name,
                            const Master* const master,
                            const Schema& schema);
 
@@ -86,18 +88,18 @@ class YQLVirtualTable : public common::YQLStorageIf {
   }
 
   CHECKED_STATUS GetIterator(const PgsqlReadRequestPB& request,
-                             int64_t batch_arg_index,
                              const Schema& projection,
                              const Schema& schema,
                              const TransactionOperationContextOpt& txn_op_context,
                              CoarseTimePoint deadline,
                              const ReadHybridTime& read_time,
+                             const docdb::DocKey& start_doc_key,
                              common::YQLRowwiseIteratorIf::UniPtr* iter) const override {
     LOG(FATAL) << "Postgresql virtual tables are not yet implemented";
     return Status::OK();
   }
 
-  CHECKED_STATUS GetIterator(const PgsqlReadRequestPB& request,
+  CHECKED_STATUS GetIterator(uint64 stmt_id,
                              const Schema& projection,
                              const Schema& schema,
                              const TransactionOperationContextOpt& txn_op_context,
@@ -131,6 +133,7 @@ class YQLVirtualTable : public common::YQLStorageIf {
   const Master* const master_;
   TableName table_name_;
   Schema schema_;
+  scoped_refptr<Histogram> histogram_;
 };
 
 extern const std::string kSystemTablesReleaseVersion;

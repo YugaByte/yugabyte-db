@@ -141,10 +141,11 @@ def main():
 
     build_cmd_list += [
         # This will build the exact set of targets that are needed for the release.
-        "packaged_targets",
-        # We do not need java code built for a release package
-        "--skip-java"
+        "packaged_targets"
     ]
+
+    if not args.yw:
+        build_cmd_list += ["--skip-java"]
 
     if args.skip_build:
         build_cmd_list += ["--skip-build"]
@@ -166,7 +167,11 @@ def main():
         for preliminary_target in ['protoc-gen-insertions', 'bfql_codegen']:
             preliminary_step_cmd_list = [
                     arg for arg in build_cmd_list if arg != 'packaged_targets'
-                ] + ['--target', preliminary_target, '--skip-java']
+                ] + ['--target', preliminary_target]
+
+            if not args.yw:
+                preliminary_step_cmd_list += ["--skip-java"]
+
             logging.info(
                     "Running a preliminary step to build target %s: %s",
                     preliminary_target,

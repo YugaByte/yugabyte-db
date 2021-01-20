@@ -18,19 +18,19 @@ Once the database and tables are created, we can load the data from all the 10 c
 
 | Client | Command
 -------------|-----------|
-1  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --startwarehouse=1 --totalwarehouses=10000 --loaderthreads 48
-2  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --startwarehouse=1001 --totalwarehouses=10000 --loaderthreads 48
-3  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --startwarehouse=2001 --totalwarehouses=10000 --loaderthreads 48
-4  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --startwarehouse=3001 --totalwarehouses=10000 --loaderthreads 48
-5  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --startwarehouse=4001 --totalwarehouses=10000 --loaderthreads 48
-6  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --startwarehouse=5001 --totalwarehouses=10000 --loaderthreads 48
-7  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --startwarehouse=6001 --totalwarehouses=10000 --loaderthreads 48
-8  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --startwarehouse=7001 --totalwarehouses=10000 --loaderthreads 48
-9  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --startwarehouse=8001 --totalwarehouses=10000 --loaderthreads 48
-10 |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --startwarehouse=9001 --totalwarehouses=10000 --loaderthreads 48
+1  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --start-warehouse-id=1    --total-warehouses=10000 --loaderthreads 48
+2  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --start-warehouse-id=1001 --total-warehouses=10000 --loaderthreads 48
+3  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --start-warehouse-id=2001 --total-warehouses=10000 --loaderthreads 48
+4  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --start-warehouse-id=3001 --total-warehouses=10000 --loaderthreads 48
+5  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --start-warehouse-id=4001 --total-warehouses=10000 --loaderthreads 48
+6  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --start-warehouse-id=5001 --total-warehouses=10000 --loaderthreads 48
+7  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --start-warehouse-id=6001 --total-warehouses=10000 --loaderthreads 48
+8  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --start-warehouse-id=7001 --total-warehouses=10000 --loaderthreads 48
+9  |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --start-warehouse-id=8001 --total-warehouses=10000 --loaderthreads 48
+10 |  ./tpccbenchmark --load=true --nodes=$IPS --warehouses=1000 --start-warehouse-id=9001 --total-warehouses=10000 --loaderthreads 48
 
 
-Tune the --loaderthreads parameter for higher parallelism during the load, based on the number and type of nodes in the cluster. The value specified here, 48 threads, is optimal for a 30-node cluster of type c5d.4xlarge (16 vCPUs). iFor machines with more vCPUs, increase this value accordingly.
+Tune the --loaderthreads parameter for higher parallelism during the load, based on the number and type of nodes in the cluster. The value specified here, 48 threads, is optimal for a 3-node cluster of type c5d.4xlarge (16 vCPUs). For larger clusters, or machines with more vCPUs, increase this value accordingly. For clusters with a replication factor of 3, a good approximation is to use the number of cores you have across all the nodes in the cluster.
 Once the loading is done we need to enable the foreign keys that were disabled to aid the loading times:
 
 ```sh

@@ -88,7 +88,14 @@ public class AccessKeyController extends AuthenticatedController {
     String sshUser =  formData.get().sshUser;
     Integer sshPort =  formData.get().sshPort;
     boolean airGapInstall = formData.get().airGapInstall;
+    boolean skipProvisioning = formData.get().skipProvisioning;
     AccessKey accessKey;
+
+    LOG.info(
+      "Creating access key {} for customer {}, provider {}.",
+      keyCode, customerUUID, providerUUID
+    );
+
     // Check if a public/private key was uploaded as part of the request
     Http.MultipartFormData multiPartBody = request().body().asMultipartFormData();
     try {
@@ -99,7 +106,8 @@ public class AccessKeyController extends AuthenticatedController {
           return ApiResponse.error(BAD_REQUEST, "keyType and keyFile params required.");
         }
         accessKey = accessManager.uploadKeyFile(
-            region.uuid, uploadedFile, keyCode, keyType, sshUser, sshPort, airGapInstall);
+            region.uuid, uploadedFile, keyCode, keyType, sshUser, sshPort, airGapInstall,
+            skipProvisioning);
       } else if (keyContent != null && !keyContent.isEmpty()) {
         if (keyType == null) {
           return ApiResponse.error(BAD_REQUEST, "keyType params required.");
@@ -110,18 +118,24 @@ public class AccessKeyController extends AuthenticatedController {
 
         // Upload temp file to create the access key and return success/failure
         accessKey = accessManager.uploadKeyFile(
-            regionUUID, tempFile.toFile(), keyCode, keyType, sshUser, sshPort, airGapInstall);
+            regionUUID, tempFile.toFile(), keyCode, keyType, sshUser, sshPort, airGapInstall,
+            skipProvisioning);
       } else {
-        accessKey = accessManager.addKey(regionUUID, keyCode, sshPort, airGapInstall);
+        accessKey = accessManager.addKey(
+            regionUUID, keyCode, sshPort, airGapInstall, skipProvisioning);
       }
 
       // In case of onprem provider, we add a couple of additional attributes like passwordlessSudo
       // and create a preprovision script
       if (region.provider.code.equals(onprem.name())) {
         templateManager.createProvisionTemplate(
-            accessKey,
-            airGapInstall,
-            formData.get().passwordlessSudoAccess);
+          accessKey,
+          airGapInstall,
+          formData.get().passwordlessSudoAccess,
+          formData.get().installNodeExporter,
+          formData.get().nodeExporterPort,
+          formData.get().nodeExporterUser
+        );
       }
     } catch(RuntimeException | IOException e) {
       LOG.error(e.getMessage());
@@ -141,6 +155,11 @@ public class AccessKeyController extends AuthenticatedController {
     if (accessKey == null) {
       return ApiResponse.error(BAD_REQUEST, "KeyCode not found: " + keyCode);
     }
+
+    LOG.info(
+      "Deleting access key {} for customer {}, provider {}",
+      keyCode, customerUUID, providerUUID
+    );
 
     if (accessKey.delete()) {
       Audit.createAuditEntry(ctx(), request());

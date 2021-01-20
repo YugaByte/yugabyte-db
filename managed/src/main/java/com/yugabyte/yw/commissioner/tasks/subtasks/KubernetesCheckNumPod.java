@@ -15,7 +15,7 @@ import com.google.inject.Inject;
 import com.yugabyte.yw.commissioner.AbstractTaskBase;
 import com.yugabyte.yw.commissioner.UserTaskDetails;
 import com.yugabyte.yw.common.KubernetesManager;
-import com.yugabyte.yw.common.ShellProcessHandler.ShellResponse;
+import com.yugabyte.yw.common.ShellResponse;
 import com.yugabyte.yw.forms.AbstractTaskParams;
 import com.yugabyte.yw.forms.ITaskParams;
 import com.yugabyte.yw.models.Provider;
@@ -93,7 +93,7 @@ public class KubernetesCheckNumPod extends AbstractTaskBase {
             // Do nothing
           }
         } while (!status && iters < MAX_ITERS);
-        if (iters > MAX_ITERS) {
+        if (iters >= MAX_ITERS) {
           throw new RuntimeException("Pods' start taking too long.");
         }
         break;

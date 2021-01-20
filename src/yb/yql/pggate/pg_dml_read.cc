@@ -153,7 +153,7 @@ Status PgDmlRead::DeleteEmptyPrimaryBinds() {
 Status PgDmlRead::Exec(const PgExecParameters *exec_params) {
   // Initialize doc operator.
   if (doc_op_) {
-    doc_op_->ExecuteInit(exec_params);
+    RETURN_NOT_OK(doc_op_->ExecuteInit(exec_params));
   }
 
   // Set column references in protobuf and whether query is aggregate.

@@ -604,3 +604,54 @@ SELECT * FROM c ORDER BY k;
  1 |     1 |     1 |     1 |     1
  2 |     2 |     2 |     2 |     2
 (2 rows)
+
+CREATE TABLE parent(k INT PRIMARY KEY, v INT UNIQUE);
+CREATE TABLE child_1(k INT PRIMARY KEY, v INT REFERENCES parent(k));
+CREATE TABLE child_2(k INT PRIMARY KEY, v INT REFERENCES parent(k));
+DO $$
+BEGIN
+  INSERT INTO parent values(1, 10);
+  INSERT INTO child_1 values(20, 1);
+  DELETE FROM child_1;
+  DELETE FROM parent;
+  INSERT INTO child_2 values(30, 1); -- should fail
+END $$;
+ERROR:  insert or update on table "child_2" violates foreign key constraint "child_2_v_fkey"
+DETAIL:  Key (v)=(1) is not present in table "parent".
+CONTEXT:  SQL statement "INSERT INTO child_2 values(30, 1)"
+PL/pgSQL function inline_code_block line 7 at SQL statement
+DROP TABLE child_1;
+DROP TABLE child_2;
+CREATE TABLE child_1(k INT PRIMARY KEY, v INT REFERENCES parent(v));
+CREATE TABLE child_2(k INT PRIMARY KEY, v INT REFERENCES parent(v));
+DO $$
+BEGIN
+  INSERT INTO parent values(1, 10);
+  INSERT INTO child_2 values(30, 10);
+  DELETE FROM child_2;
+  DELETE FROM parent;
+  INSERT INTO child_1 values(20, 10); -- should fail
+END $$;
+ERROR:  insert or update on table "child_1" violates foreign key constraint "child_1_v_fkey"
+DETAIL:  Key (v)=(10) is not present in table "parent".
+CONTEXT:  SQL statement "INSERT INTO child_1 values(20, 10)"
+PL/pgSQL function inline_code_block line 7 at SQL statement
+DROP TABLE child_1;
+CREATE TABLE child_1(k INT PRIMARY KEY, v INT REFERENCES parent(k));
+INSERT INTO parent SELECT s, 1000000 + s FROM generate_series(1, 10000) AS s;
+INSERT INTO child_1 SELECT s, s FROM generate_series(1, 10001) AS s; -- should fail
+ERROR:  insert or update on table "child_1" violates foreign key constraint "child_1_v_fkey"
+DETAIL:  Key (v)=(10001) is not present in table "parent".
+INSERT INTO child_2 SELECT s, 1000000 + s FROM generate_series(1, 10001) AS s; -- should fail
+ERROR:  insert or update on table "child_2" violates foreign key constraint "child_2_v_fkey"
+DETAIL:  Key (v)=(1010001) is not present in table "parent".
+INSERT INTO child_1 SELECT s, s FROM generate_series(1, 10000) AS s;
+INSERT INTO child_2 SELECT s, 1000000 + s FROM generate_series(1, 10000) AS s;
+UPDATE child_1 SET v = v * 2 WHERE k <= 5001; -- should fail
+ERROR:  insert or update on table "child_1" violates foreign key constraint "child_1_v_fkey"
+DETAIL:  Key (v)=(10002) is not present in table "parent".
+UPDATE child_2 SET v = (v - 1000000) * 2 + 1000000 WHERE k <= 5001; -- should fail
+ERROR:  insert or update on table "child_2" violates foreign key constraint "child_2_v_fkey"
+DETAIL:  Key (v)=(1010002) is not present in table "parent".
+UPDATE child_1 SET v = v * 2 WHERE k < 5001;
+UPDATE child_2 SET v = (v - 1000000) * 2 + 1000000 WHERE k < 5001;

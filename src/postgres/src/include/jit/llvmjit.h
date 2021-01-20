@@ -64,6 +64,7 @@ extern LLVMTypeRef TypePGFunction;
 extern LLVMTypeRef TypeSizeT;
 extern LLVMTypeRef TypeStorageBool;
 
+extern LLVMTypeRef StructNullableDatum;
 extern LLVMTypeRef StructtupleDesc;
 extern LLVMTypeRef StructHeapTupleData;
 extern LLVMTypeRef StructTupleTableSlot;

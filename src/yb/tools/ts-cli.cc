@@ -70,6 +70,8 @@ using yb::rpc::MessengerBuilder;
 using yb::rpc::RpcController;
 using yb::server::ServerStatusPB;
 using yb::tablet::TabletStatusPB;
+using yb::tserver::IsTabletServerReadyRequestPB;
+using yb::tserver::IsTabletServerReadyResponsePB;
 using yb::tserver::CountIntentsRequestPB;
 using yb::tserver::CountIntentsResponsePB;
 using yb::tserver::DeleteTabletRequestPB;
@@ -83,6 +85,7 @@ using yb::tserver::TabletServerServiceProxy;
 
 const char* const kListTabletsOp = "list_tablets";
 const char* const kAreTabletsRunningOp = "are_tablets_running";
+const char* const kIsServerReadyOp = "is_server_ready";
 const char* const kSetFlagOp = "set_flag";
 const char* const kDumpTabletOp = "dump_tablet";
 const char* const kTabletStateOp = "get_tablet_state";
@@ -155,6 +158,8 @@ class TsAdminClient {
   // given tablet server.
   Status ListTablets(std::vector<StatusAndSchemaPB>* tablets);
 
+  // Gets the number of tablets waiting to be bootstrapped and prints to console.
+  Status GetNumUnbootstrappedTablets(int64_t* num_unbootstrapped_tablets);
 
   // Sets the gflag 'flag' to 'val' on the remote server via RPC.
   // If 'force' is true, allows setting flags even if they're not marked as
@@ -253,6 +258,26 @@ Status TsAdminClient::ListTablets(vector<StatusAndSchemaPB>* tablets) {
   }
 
   tablets->assign(resp.status_and_schema().begin(), resp.status_and_schema().end());
+
+  return Status::OK();
+}
+
+Status TsAdminClient::GetNumUnbootstrappedTablets(int64_t* num_unbootstrapped_tablets) {
+  CHECK(initted_);
+
+  IsTabletServerReadyRequestPB req;
+  IsTabletServerReadyResponsePB resp;
+  RpcController rpc;
+
+  rpc.set_timeout(timeout_);
+  RETURN_NOT_OK(ts_proxy_->IsTabletServerReady(req, &resp, &rpc));
+  if (resp.has_error()) {
+    return StatusFromPB(resp.error().status());
+  }
+
+  std::cout << resp.num_tablets_not_running() << "/" << resp.total_tablets()
+            << " tablets are not yet bootstrapped" << std::endl;
+  *num_unbootstrapped_tablets = resp.num_tablets_not_running();
 
   return Status::OK();
 }
@@ -438,6 +463,7 @@ void SetUsage(const char* argv0) {
       << "<operation> must be one of:\n"
       << "  " << kListTabletsOp << "\n"
       << "  " << kAreTabletsRunningOp << "\n"
+      << "  " << kIsServerReadyOp << "\n"
       << "  " << kSetFlagOp << " [-force] <flag> <value>\n"
       << "  " << kTabletStateOp << " <tablet_id>\n"
       << "  " << kDumpTabletOp << " <tablet_id>\n"
@@ -529,6 +555,19 @@ static int TsCliMain(int argc, char** argv) {
     } else {
       std::cout << "Not all tablets are running" << std::endl;
       return 1;
+    }
+  } else if (op == kIsServerReadyOp) {
+    CHECK_ARGC_OR_RETURN_WITH_USAGE(op, 2);
+
+    int64_t unbootstrapped_tablets;
+    RETURN_NOT_OK_PREPEND_FROM_MAIN(
+        client.GetNumUnbootstrappedTablets(&unbootstrapped_tablets), "Unable to read server state");
+
+    if (unbootstrapped_tablets > 0) {
+      std::cout << "Tablet server is not ready" << std::endl;
+      return 1;
+    } else {
+      std::cout << "Tablet server is ready" << std::endl;
     }
   } else if (op == kSetFlagOp) {
     CHECK_ARGC_OR_RETURN_WITH_USAGE(op, 4);

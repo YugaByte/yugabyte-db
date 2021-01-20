@@ -36,6 +36,7 @@
 #include <unordered_set>
 
 #include "yb/gutil/macros.h"
+#include "yb/gutil/thread_annotations.h"
 #include "yb/util/locks.h"
 
 namespace yb {
@@ -44,7 +45,7 @@ namespace yb {
 //
 // Although pthread_rwlock_t allows recursive acquisition, this wrapper does
 // not, and will crash in debug mode if recursive acquisition is detected.
-class RWMutex {
+class CAPABILITY("mutex") RWMutex {
  public:
 
   // Possible fairness policies for the RWMutex.
@@ -69,13 +70,13 @@ class RWMutex {
 
   ~RWMutex();
 
-  void ReadLock();
-  void ReadUnlock();
-  bool TryReadLock();
+  void ReadLock() ACQUIRE_SHARED();
+  void ReadUnlock() RELEASE_SHARED();
+  bool TryReadLock() TRY_ACQUIRE_SHARED(true);
 
-  void WriteLock();
-  void WriteUnlock();
-  bool TryWriteLock();
+  void WriteLock() ACQUIRE();
+  void WriteUnlock() RELEASE();
+  bool TryWriteLock() TRY_ACQUIRE(true);
 
 #ifndef NDEBUG
   void AssertAcquiredForReading() const;
@@ -86,12 +87,12 @@ class RWMutex {
 #endif
 
   // Aliases for use with std::lock_guard and yb::shared_lock.
-  void lock() { WriteLock(); }
-  void unlock() { WriteUnlock(); }
-  bool try_lock() { return TryWriteLock(); }
-  void lock_shared() { ReadLock(); }
-  void unlock_shared() { ReadUnlock(); }
-  bool try_lock_shared() { return TryReadLock(); }
+  void lock() ACQUIRE() { WriteLock(); }
+  void unlock() RELEASE() { WriteUnlock(); }
+  bool try_lock() TRY_ACQUIRE(true) { return TryWriteLock(); }
+  void lock_shared() ACQUIRE_SHARED() { ReadLock(); }
+  void unlock_shared() RELEASE_SHARED() { ReadUnlock(); }
+  bool try_lock_shared() TRY_ACQUIRE_SHARED(true) { return TryReadLock(); }
 
  private:
   void Init(Priority prio);

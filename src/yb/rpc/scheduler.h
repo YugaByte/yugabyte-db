@@ -114,6 +114,52 @@ class Scheduler {
   std::unique_ptr<Impl> impl_;
 };
 
+class ScheduledTaskTracker {
+ public:
+  ScheduledTaskTracker() = default;
+
+  explicit ScheduledTaskTracker(Scheduler* scheduler) : scheduler_(DCHECK_NOTNULL(scheduler)) {}
+
+  void Bind(Scheduler* scheduler) {
+    scheduler_ = scheduler;
+  }
+
+  template <class F>
+  void Schedule(const F& f, std::chrono::steady_clock::duration delay) {
+    Schedule(f, std::chrono::steady_clock::now() + delay);
+  }
+
+  template <class F>
+  void Schedule(const F& f, std::chrono::steady_clock::time_point time) {
+    Abort();
+    if (++num_scheduled_ < 0) { // Shutting down
+      --num_scheduled_;
+      return;
+    }
+    last_scheduled_task_id_ = scheduler_->Schedule(
+        [this, f](ScheduledTaskId task_id, const Status& status) {
+      last_scheduled_task_id_.compare_exchange_strong(task_id, rpc::kInvalidTaskId);
+      f(status);
+      --num_scheduled_;
+    }, time);
+  }
+
+  void Abort();
+
+  void StartShutdown();
+  void CompleteShutdown();
+
+  void Shutdown() {
+    StartShutdown();
+    CompleteShutdown();
+  }
+
+ private:
+  Scheduler* scheduler_ = nullptr;
+  std::atomic<int64_t> num_scheduled_{0};
+  std::atomic<rpc::ScheduledTaskId> last_scheduled_task_id_{rpc::kInvalidTaskId};
+};
+
 } // namespace rpc
 } // namespace yb
 

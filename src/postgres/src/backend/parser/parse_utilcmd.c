@@ -97,6 +97,12 @@ typedef struct
 	bool		ispartitioned;	/* true if table is partitioned */
 	PartitionBoundSpec *partbound;	/* transformed FOR VALUES */
 	bool		ofType;			/* true if statement contains OF typename */
+
+	/* TODO(neil) For completeness, we should process "split_options" here to cache partitioning
+	 * information in Postgres relation objects. This is important for choosing query plan.
+	 *
+	 * OptSplit   *split_options;
+	 */
 } CreateStmtContext;
 
 /* State shared by transformCreateSchemaStmt and its subroutines */
@@ -144,6 +150,7 @@ static void validateInfiniteBounds(ParseState *pstate, List *blist);
 static Const *transformPartitionBoundValue(ParseState *pstate, A_Const *con,
 							 const char *colName, Oid colType, int32 colTypmod);
 
+static void YBTransformPrimaryKeySplitOptions(CreateStmtContext *cxt);
 
 /*
  * transformCreateStmt -
@@ -248,6 +255,11 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
 	cxt.ispartitioned = stmt->partspec != NULL;
 	cxt.partbound = stmt->partbound;
 	cxt.ofType = (stmt->ofTypename != NULL);
+	/* TODO(neil) For completeness, we should process "split_options" here to cache partitioning
+	 * information in Postgres relation objects. This is important for choosing query plan.
+	 *
+	 * cxt.split_options = stmt->split_options;
+	 */
 
 	/*
 	 * Notice that we allow OIDs here only for plain tables, even though
@@ -347,6 +359,21 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
 		}
 		else if (strcmp(def->defname, "colocated") == 0)
 			(void) defGetBoolean(def);
+		else if (strcmp(def->defname, "table_oid") == 0)
+		{
+			if (!yb_enable_create_with_table_oid)
+			{
+				ereport(ERROR, (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
+					errmsg("Create table with oid is not allowed."),
+					errhint("Try enabling the session variable yb_enable_create_with_table_oid.")));
+			}
+			Oid table_oid = strtol(defGetString(def), NULL, 10);
+			if (table_oid < FirstNormalObjectId)
+			{
+				elog(ERROR, "User tables must have an OID >= %d.",
+					 FirstNormalObjectId);
+			}
+		}
 		else
 			ereport(WARNING,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -771,7 +798,7 @@ transformColumnDefinition(CreateStmtContext *cxt, ColumnDef *column)
 							 errmsg("primary key constraints are not supported on foreign tables"),
 							 parser_errposition(cxt->pstate,
 												constraint->location)));
-				/* FALL THRU */
+				switch_fallthrough();
 
 			case CONSTR_UNIQUE:
 				if (cxt->isforeign)
@@ -2669,6 +2696,21 @@ transformIndexStmt(Oid relid, IndexStmt *stmt, const char *queryString)
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 					 errmsg("Cannot supply tablegroup through WITH clause.")));
 		}
+		else if (strcmp(def->defname, "table_oid") == 0)
+		{
+			if (!yb_enable_create_with_table_oid)
+			{
+				ereport(ERROR, (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
+					errmsg("Create index with oid is not allowed."),
+					errhint("Try enabling the session variable yb_enable_create_with_table_oid.")));
+			}
+			Oid table_oid = strtol(defGetString(def), NULL, 10);
+			if (table_oid < FirstNormalObjectId)
+			{
+				elog(ERROR, "User tables must have an OID >= %d.",
+					 FirstNormalObjectId);
+			}
+		}
 	}
 
 	/*
@@ -3123,6 +3165,11 @@ transformAlterTableStmt(Oid relid, AlterTableStmt *stmt,
 	cxt.ispartitioned = (rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE);
 	cxt.partbound = NULL;
 	cxt.ofType = false;
+	/* TODO(neil) For completeness, we should process "split_options" here to cache partitioning
+	 * information in Postgres relation objects. This is important for choosing query plan.
+	 *
+	 * cxt.split_options = NULL;
+	 */
 
 	/*
 	 * The only subtypes that currently require parse transformation handling
@@ -4059,4 +4106,51 @@ transformPartitionBoundValue(ParseState *pstate, A_Const *con,
 				 parser_errposition(pstate, con->location)));
 
 	return (Const *) value;
+}
+
+void
+YBTransformPartitionSplitValue(ParseState *pstate,
+							   List *split_point,
+							   Form_pg_attribute *attrs,
+							   int attr_count,
+							   PartitionRangeDatum **datums,
+							   int *datum_count)
+{
+	/*
+	 * Number of column values in a split should equal number of primary key columns.
+	 * - When value count is less than column count, default value MINVALUE is used to fill the
+	 *   given the missing split value.
+	 * - When number of given values is greater than column count, this is an error.
+	 */
+	if (list_length(split_point) > attr_count)
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+				 errmsg("Number of SPLIT values cannot be greater than number of SPLIT columns")));
+	}
+
+	ListCell *lc;
+	int idx = 0;
+	foreach(lc, split_point) {
+		/* Find the constant value for the given column */
+		PartitionRangeDatum *datum = (PartitionRangeDatum *)lfirst(lc);
+		if (datum->value) {
+			Const *value = transformPartitionBoundValue(pstate,
+														castNode(A_Const, datum->value),
+														NameStr(attrs[idx]->attname),
+														attrs[idx]->atttypid,
+														attrs[idx]->atttypmod);
+			if (value->constisnull)
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+						 errmsg("cannot specify NULL in range bound")));
+
+			datum = copyObject(datum); /* don't scribble on input */
+			datum->value = (Node *) value;
+		}
+
+		datums[idx] = datum;
+		idx++;
+	}
+	*datum_count = idx;
 }

@@ -45,18 +45,18 @@ showAsideToc: true
   </li>
 </ul>
 
-Create and manage a YugabyteDB cluster with a Kubernetes native custom resource `ybcluster.yugabyte.com`. The custom resource definition and other necessary specifications can be found in [YugabyteDB k8s operator repository](https://github.com/yugabyte/yugabyte-k8s-operator/). This operator currently provides more configuration flags as compared to the Rook operator. The Rook operator, in near future, will get these flags too. See full list of configuration flags [here](#configuration-flags).
+Create and manage a YugabyteDB cluster with a Kubernetes native custom resource `ybcluster.yugabyte.com`. The custom resource definition and other necessary specifications can be found in [YugabyteDB operator repository](https://github.com/yugabyte/yugabyte-operator/). This operator currently provides more configuration flags as compared to the Rook operator. The Rook operator, in near future, will get these flags too. See full list of configuration flags [here](#configuration-flags).
 
 ## Prerequisites
 
-Clone the [yugabyte-k8s-operator](https://github.com/yugaByte/yugabyte-k8s-operator/) repository on your local computer. Change into the cloned directory and follow instructions below.
+Clone the [yugabyte-operator](https://github.com/yugabyte/yugabyte-operator) repository on your local computer. Change into the cloned directory and follow instructions below.
 
 ## Deploy a YugabyteDB cluster with this operator
 
 To create a YugabyteDB cluster, first you need to register the custom resource that would represent YugabyteDB cluster: `ybclusters.yugabyte.com`.
 
 ```sh
-kubectl create -f deploy/crds/yugabyte_v1alpha1_ybcluster_crd.yaml
+kubectl create -f deploy/crds/yugabyte.com_ybclusters_crd.yaml
 ```
 
 Setup RBAC for operator and create the operator itself. Run the following command, from root of the repository, to do the same.
@@ -74,7 +74,7 @@ kubectl -n yb-operator get po,deployment
 Finally create an instance of the custom resource with which the operator would create a YugabyteDB cluster.
 
 ```sh
-kubectl create -f deploy/crds/yugabyte_v1alpha1_ybcluster_cr.yaml
+kubectl create -f deploy/crds/yugabyte.com_v1alpha1_ybcluster_cr.yaml
 ```
 
 Verify that the cluster is up and running with the following command. You should see 3 pods each for YB-Master and YB-TServer services.

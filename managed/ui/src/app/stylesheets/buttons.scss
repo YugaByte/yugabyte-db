@@ -1,7 +1,7 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../_style/colors.scss";
-@import "../../_style/mixins.scss";
+@import '../../_style/colors.scss';
+@import '../../_style/mixins.scss';
 
 .btn {
   display: inline-block;
@@ -12,19 +12,28 @@
   z-index: 1 !important;
   box-sizing: border-box;
 
-  &, &:hover, &:focus, &:active {
+  &,
+  &:hover,
+  &:focus,
+  &:active {
     border-color: transparent;
   }
 }
 
 .btn-default {
-  &, &:hover, &:focus, &:active {
+  &,
+  &:hover,
+  &:focus,
+  &:active {
     border-color: transparent;
   }
 }
 
-.btn-clear{
-  &, &:hover, &:focus, &:active {
+.btn-clear {
+  &,
+  &:hover,
+  &:focus,
+  &:active {
     display: inline-block;
     height: auto;
     width: auto;
@@ -41,7 +50,8 @@
 }
 
 .btn-orange {
-  &, &:focus {
+  &,
+  &:focus {
     background: $YB_ORANGE;
     color: white;
     font-weight: 500;
@@ -61,7 +71,8 @@
       color: rgba(white, 0.5);
     }
   }
-  &:active:focus, &:active {
+  &:active:focus,
+  &:active {
     background-color: darken($YB_ORANGE_HOVER, 2%);
     color: #fff;
     box-shadow: none;
@@ -73,13 +84,17 @@
     color: rgba(white, 0.5) !important;
   }
 
-  &[disabled], &[disabled]:focus, &[disabled]:active {
+  &[disabled],
+  &[disabled]:focus,
+  &[disabled]:active {
     background-color: $YB_ORANGE;
     opacity: 0.65;
-    cursor: not-allowed;
+    cursor: not-allowed !important;
   }
 
-  &.btn-is-loading[disabled], &.btn-is-loading[disabled]:focus, &.btn-is-loading[disabled]:active {
+  &.btn-is-loading[disabled],
+  &.btn-is-loading[disabled]:focus,
+  &.btn-is-loading[disabled]:active {
     opacity: 1;
   }
 }
@@ -104,7 +119,11 @@
     border-color: $YB_GRAY_HOVER;
     background-color: $YB_GRAY_HOVER;
   }
-  &:active:focus, &:focus, &:active, &.active, &.active:focus {
+  &:active:focus,
+  &:focus,
+  &:active,
+  &.active,
+  &.active:focus {
     border-color: darken($YB_GRAY, 2%);
     background-color: darken($YB_GRAY, 2%);
     box-shadow: none;
@@ -116,34 +135,42 @@
   height: 53px;
   border-radius: 50%;
 
-  &, &:hover, &:active:focus, &:focus, &:active, &.active {
+  &,
+  &:hover,
+  &:active:focus,
+  &:focus,
+  &:active,
+  &.active {
     border: none;
   }
 }
 
-
 .btn-grey {
-    color: $YB_TEXT_COLOR;
-    background-color: $YB_GRAY_HOVER;
-    font-weight: 300;
-    @include transition(0.35s);
-    i {
-      color: $YB_ORANGE;
-      font-size: 16px;
-      line-height: 1;
-    }
-    &:hover {
-      @include transition(0.125s);
-      background-color: $YB_GRAY;
-    }
-    &:active:focus, &:focus, &:active, &.active {
-      border-color: darken($YB_GRAY_BORDER, 2%);
-      background-color: darken($YB_GRAY, 2%);
-      box-shadow: none;
-    }
+  color: $YB_TEXT_COLOR;
+  background-color: $YB_GRAY_HOVER;
+  font-weight: 300;
+  @include transition(0.35s);
+  i {
+    color: $YB_ORANGE;
+    font-size: 16px;
+    line-height: 1;
   }
+  &:hover {
+    @include transition(0.125s);
+    background-color: $YB_GRAY;
+  }
+  &:active:focus,
+  &:focus,
+  &:active,
+  &.active {
+    border-color: darken($YB_GRAY_BORDER, 2%);
+    background-color: darken($YB_GRAY, 2%);
+    box-shadow: none;
+  }
+}
 
-  button, .btn {
+button,
+.btn {
   .fa {
     margin-right: 8px;
   }
@@ -165,7 +192,7 @@
 
 .btn-copy {
   text-transform: uppercase;
-  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
   vertical-align: baseline;
   width: 40px;
   font-size: 11px;
@@ -179,7 +206,10 @@
   margin-left: 5px;
   box-shadow: 0 1px 2px rgba($YB_DARK_GRAY_2, 0.15);
 
-  &, &:active, &:hover, &:focus {
+  &,
+  &:active,
+  &:hover,
+  &:focus {
     background-color: $YB_SUCCESS_COLOR;
     color: $YB_ORANGE;
   }
@@ -205,7 +235,8 @@ pre {
     position: absolute;
     right: 13px;
     top: 13px;
-    &, &:focus {
+    &,
+    &:focus {
       background-color: #ffffff;
     }
   }
@@ -241,12 +272,15 @@ pre {
 }
 
 .btn-copy-inactive {
-  &, &:focus {
+  &,
+  &:focus {
     background-color: $YB_BACKGROUND;
     color: $YB_ORANGE;
   }
-  &:active, &:hover {
-    &, &:focus {
+  &:active,
+  &:hover {
+    &,
+    &:focus {
       @include transition-property(0s, background-color, 0s);
       @include transition-property(0s, color, 0s);
       background-color: $YB_ORANGE;
@@ -272,14 +306,16 @@ pre {
     right: -4px;
     content: '';
   }
-  &[aria-expanded="true"]:after {
+  &[aria-expanded='true']:after {
     content: none;
   }
 }
 
 .btn-group {
   &.open {
-    .btn-default, .btn-default:hover, .btn-default:focus {
+    .btn-default,
+    .btn-default:hover,
+    .btn-default:focus {
       color: $YB_TEXT_COLOR;
       border-color: $YB_GRAY_HOVER;
       background-color: $YB_GRAY_HOVER;
@@ -288,7 +324,9 @@ pre {
 }
 
 .open > .dropdown-toggle.btn-default {
-  &, &:hover, &:focus {
+  &,
+  &:hover,
+  &:focus {
     border-color: $YB_GRAY;
     background-color: $YB_GRAY;
     box-shadow: none;
@@ -296,7 +334,9 @@ pre {
 }
 
 .btn-disabled {
-  &, &:hover, &:focus {
+  &,
+  &:hover,
+  &:focus {
     color: rgba($YB_TEXT_COLOR, 0.5) !important;
     border-color: transparent;
     background-color: $YB_GRAY_HOVER;
@@ -319,11 +359,11 @@ pre {
   text-align: right;
 
   .btn-group {
-  text-align: right;
+    text-align: right;
   }
 
   .fa {
-  margin: 0 4px 0 0;
+    margin: 0 4px 0 0;
   }
 }
 
@@ -350,7 +390,7 @@ pre {
     display: inline-block;
   }
 
-  input[type=radio] {
+  input[type='radio'] {
     margin-right: 5px;
   }
 }
@@ -362,7 +402,12 @@ pre {
   overflow: hidden;
 
   li {
-    a, div {
+    a,
+    div {
+      display: block;
+      clear: both;
+      color: $YB_TEXT_BLACK;
+      white-space: nowrap;
       padding: 15px 20px;
       height: 52px;
       font-weight: 300;
@@ -391,14 +436,18 @@ pre {
   }
 }
 
-.pagination{
+.pagination {
   li {
-    a, span {
+    a,
+    span {
       color: $YB_VIOLET_TEXT;
     }
     &.active {
-      a, span {
-        &, &:hover, &:focus {
+      a,
+      span {
+        &,
+        &:hover,
+        &:focus {
           background: $YB_VIOLET_TEXT;
           border-color: $YB_VIOLET_TEXT;
           color: #fff;
@@ -409,14 +458,90 @@ pre {
 }
 
 .yb-input-checkbox {
-  width: 30px;
-  height: 30px;
+  width: 16px;
+  height: 16px;
   vertical-align: middle;
-  margin-top: 0;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  color: rgba(0,0,0,.85);
+  font-size: 14px;
+  font-variant: tabular-nums;
+  line-height: 1.5715;
+  list-style: none;
+  position: relative;
+  display: inline-block;
+  line-height: 1;
+  white-space: nowrap;
+  vertical-align: middle;
+  outline: none;
+  cursor: pointer;
+
+  .yb-input-checkbox__input {
+    touch-action: manipulation;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    opacity: 0;
+  }
+
+  .yb-input-checkbox__inner {
+    position: relative;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 16px;
+    height: 16px;
+    direction: ltr;
+    background-color: #fff;
+    border: 1px solid $YB_GRAY_BORDER;
+    border-radius: 2px;
+    border-collapse: separate;
+    -webkit-transition: all .3s;
+    transition: all .3s;
+
+    &:after {
+      position: absolute;
+      display: table;
+      border: 2px solid #fff;
+      border-top: 0;
+      border-left: 0;
+      opacity: 0;
+      -webkit-transition: all .2s cubic-bezier(.12,.4,.29,1.46) .1s;
+      transition: all .2s cubic-bezier(.12,.4,.29,1.46) .1s;
+      content: "";
+      width: 5.93px;
+      height: 9.1429px;
+      top: 50%;
+      left: 22%;
+    }
+  }
+
+  &:hover .yb-input-checkbox__inner {
+    border: 1px solid #1890ff;
+  }
+
+  input:checked + .yb-input-checkbox__inner {
+    background-color: #1890ff;
+    border-color: #1890ff;
+
+    &:after {
+      opacity: 1;
+      -webkit-transform: rotate(45deg) scale(1) translate(-50%,-50%);
+      transform: rotate(45deg) scale(1) translate(-50%,-50%);
+    }
+  }
 }
 
 .yb-add-button {
-  font-family: "Inter";
+  font-family: 'Inter';
   color: $YB_ORANGE;
   font-weight: 400;
   display: inline-block;
@@ -464,7 +589,9 @@ pre {
     opacity: 0.7;
     @include transition(0.35s);
   }
-  &:hover, &:focus, &:active {
+  &:hover,
+  &:focus,
+  &:active {
     box-shadow: none;
   }
 }

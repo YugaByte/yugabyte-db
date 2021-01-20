@@ -18,15 +18,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 
 public class MiniYBClusterBuilder {
 
-  private int numMasters = 1;
-  private int numTservers = MiniYBCluster.DEFAULT_NUM_TSERVERS;
-  private int numShardsPerTServer = MiniYBCluster.DEFAULT_NUM_SHARDS_PER_TSERVER;
-  private boolean useIpWithCertificate = MiniYBCluster.DEFAULT_USE_IP_WITH_CERTIFICATE;
-  private int defaultTimeoutMs = 50000;
+  private MiniYBClusterParameters clusterParameters = new MiniYBClusterParameters();
   private List<String> masterArgs = new ArrayList<>();
 
   /** Arguments for each tablet server. */
@@ -36,31 +33,28 @@ public class MiniYBClusterBuilder {
   private List<String> commonTServerArgs = new ArrayList<>();
 
   private String testClassName = null;
-  private int replicationFactor = -1;
-  private boolean startPgSqlProxy = false;
-  private boolean pgTransactionsEnabled = false;
 
   private String certFile = null;
 
   private Map<String, String> tserverEnvVars = new TreeMap<String, String>();
 
   public MiniYBClusterBuilder numMasters(int numMasters) {
-    this.numMasters = numMasters;
+    this.clusterParameters.numMasters = numMasters;
     return this;
   }
 
   public MiniYBClusterBuilder numTservers(int numTservers) {
-    this.numTservers = numTservers;
+    this.clusterParameters.numTservers = numTservers;
     return this;
   }
 
   public MiniYBClusterBuilder numShardsPerTServer(int numShardsPerTServer) {
-    this.numShardsPerTServer = numShardsPerTServer;
+    this.clusterParameters.numShardsPerTServer = numShardsPerTServer;
     return this;
   }
 
   public MiniYBClusterBuilder useIpWithCertificate(boolean value) {
-    this.useIpWithCertificate = value;
+    this.clusterParameters.useIpWithCertificate = value;
     return this;
   }
 
@@ -76,7 +70,7 @@ public class MiniYBClusterBuilder {
    * @return this instance
    */
   public MiniYBClusterBuilder defaultTimeoutMs(int defaultTimeoutMs) {
-    this.defaultTimeoutMs = defaultTimeoutMs;
+    this.clusterParameters.defaultTimeoutMs = defaultTimeoutMs;
     return this;
   }
 
@@ -124,6 +118,15 @@ public class MiniYBClusterBuilder {
   }
 
   /**
+   * Configure additional command-line arguments for starting both master and tserver.
+   */
+  public MiniYBClusterBuilder addCommonArgs(String... args) {
+    addMasterArgs(args);
+    addCommonTServerArgs(args);
+    return this;
+  }
+
+  /**
    * Sets test class name that this mini cluster is created for. We're including this in daemon
    * command line to be able to identify stuck master/tablet server processes later.
    */
@@ -136,7 +139,7 @@ public class MiniYBClusterBuilder {
    * Sets the replication factor for the mini-cluster.
    */
   public MiniYBClusterBuilder replicationFactor(int replicationFactor) {
-    this.replicationFactor = replicationFactor;
+    this.clusterParameters.replicationFactor = replicationFactor;
     return this;
   }
 
@@ -144,7 +147,7 @@ public class MiniYBClusterBuilder {
    * Enable PostgreSQL server API in tablet servers.
    */
   public MiniYBClusterBuilder enablePostgres(boolean enablePostgres) {
-    this.startPgSqlProxy = enablePostgres;
+    this.clusterParameters.startPgSqlProxy = enablePostgres;
     return this;
   }
 
@@ -155,7 +158,19 @@ public class MiniYBClusterBuilder {
     if (enablePgTransactions) {
       enablePostgres(true);
     }
-    this.pgTransactionsEnabled = enablePgTransactions;
+    this.clusterParameters.pgTransactionsEnabled = enablePgTransactions;
+    return this;
+  }
+
+  public MiniYBClusterBuilder tserverHeartbeatTimeoutMs(final int tserverHeartbeatTimeoutMs) {
+    this.clusterParameters.tserverHeartbeatTimeoutMsOpt = Optional.of(tserverHeartbeatTimeoutMs);
+    return this;
+  }
+
+  public MiniYBClusterBuilder yqlSystemPartitionsVtableRefreshSecs(
+      final int yqlSystemPartitionsVtableRefreshSecs) {
+    this.clusterParameters.yqlSystemPartitionsVtableRefreshSecsOpt =
+        Optional.of(yqlSystemPartitionsVtableRefreshSecs);
     return this;
   }
 
@@ -168,26 +183,19 @@ public class MiniYBClusterBuilder {
   }
 
   public MiniYBCluster build() throws Exception {
-    if (perTServerArgs != null && perTServerArgs.size() != numTservers) {
+    if (perTServerArgs != null && perTServerArgs.size() != clusterParameters.numTservers) {
       throw new AssertionError(
           "Per-tablet-server arguments list has " + perTServerArgs.size() + " elements (" +
-              perTServerArgs + ") but numTServers=" + numTservers);
+              perTServerArgs + ") but numTServers=" + clusterParameters.numTservers);
     }
 
     return new MiniYBCluster(
-        numMasters,
-        numTservers,
-        defaultTimeoutMs,
+        clusterParameters,
         masterArgs,
         perTServerArgs,
         commonTServerArgs,
         tserverEnvVars,
-        numShardsPerTServer,
         testClassName,
-        useIpWithCertificate,
-        replicationFactor,
-        startPgSqlProxy,
-        certFile,
-        pgTransactionsEnabled);
+        certFile);
   }
 }

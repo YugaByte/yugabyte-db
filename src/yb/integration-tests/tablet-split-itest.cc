@@ -11,6 +11,8 @@
 // under the License.
 //
 
+#include <chrono>
+#include <thread>
 #include "yb/client/client-test-util.h"
 #include "yb/client/error.h"
 #include "yb/client/ql-dml-test-base.h"
@@ -24,15 +26,23 @@
 #include "yb/consensus/consensus.h"
 #include "yb/consensus/consensus_util.h"
 
+#include "yb/docdb/doc_key.h"
+#include "yb/docdb/docdb_rocksdb_util.h"
+
+#include "yb/gutil/dynamic_annotations.h"
+#include "yb/integration-tests/mini_cluster.h"
 #include "yb/integration-tests/test_workload.h"
 
 #include "yb/master/catalog_manager.h"
+#include "yb/master/master.pb.h"
+#include "yb/master/master_error.h"
 
+#include "yb/util/tsan_util.h"
 #include "yb/yql/cql/ql/util/statement_result.h"
 
 #include "yb/rpc/messenger.h"
 
-#include "yb/tablet/tablet_peer.h"
+#include "yb/tablet/tablet_metadata.h"
 
 #include "yb/tserver/mini_tablet_server.h"
 #include "yb/tserver/tablet_server.h"
@@ -47,6 +57,7 @@
 
 using namespace std::literals;  // NOLINT
 
+DECLARE_int64(db_block_size_bytes);
 DECLARE_int64(db_write_buffer_size);
 DECLARE_int32(rocksdb_level0_file_num_compaction_trigger);
 DECLARE_bool(TEST_do_not_start_election_test_only);
@@ -55,15 +66,83 @@ DECLARE_int32(heartbeat_interval_ms);
 DECLARE_int32(leader_lease_duration_ms);
 DECLARE_int32(raft_heartbeat_interval_ms);
 DECLARE_double(leader_failure_max_missed_heartbeat_periods);
+DECLARE_int32(cleanup_split_tablets_interval_sec);
+DECLARE_bool(TEST_skip_deleting_split_tablets);
+DECLARE_int32(replication_factor);
+DECLARE_int32(tablet_split_limit_per_table);
+DECLARE_bool(TEST_pause_before_post_split_compation);
 
 namespace yb {
 
-class TabletSplitITest : public client::TransactionTestBase {
+namespace {
+
+Result<size_t> SelectRowsCount(
+    const client::YBSessionPtr& session, const client::TableHandle& table) {
+  LOG(INFO) << "Running full scan on test table...";
+  session->SetTimeout(5s);
+  QLPagingStatePB paging_state;
+  size_t row_count = 0;
+  for (;;) {
+    const auto op = table.NewReadOp();
+    auto* const req = op->mutable_request();
+    req->set_return_paging_state(true);
+    if (paging_state.has_table_id()) {
+      if (paging_state.has_read_time()) {
+        ReadHybridTime read_time = ReadHybridTime::FromPB(paging_state.read_time());
+        if (read_time) {
+          session->SetReadPoint(read_time);
+        }
+      }
+      session->SetForceConsistentRead(client::ForceConsistentRead::kTrue);
+      *req->mutable_paging_state() = std::move(paging_state);
+    }
+    Status s;
+    RETURN_NOT_OK(WaitFor([&] {
+      s = session->ApplyAndFlush(op);
+      if (s.ok()) {
+        return true;
+      }
+      for (auto& error : session->GetAndClearPendingErrors()) {
+        if (error->status().IsTryAgain()) {
+          return false;
+        }
+      }
+      return true;
+    }, 15s, "Waiting for session flush"));
+    RETURN_NOT_OK(s);
+    auto rowblock = ql::RowsResult(op.get()).GetRowBlock();
+    row_count += rowblock->row_count();
+    if (!op->response().has_paging_state()) {
+      break;
+    }
+    paging_state = op->response().paging_state();
+  }
+  return row_count;
+}
+
+void DumpTableLocations(
+    master::CatalogManager* catalog_mgr, const client::YBTableName& table_name) {
+  master::GetTableLocationsResponsePB resp;
+  master::GetTableLocationsRequestPB req;
+  table_name.SetIntoTableIdentifierPB(req.mutable_table());
+  req.set_max_returned_locations(std::numeric_limits<int32_t>::max());
+  ASSERT_OK(catalog_mgr->GetTableLocations(&req, &resp));
+  LOG(INFO) << "Table locations:";
+  for (auto& tablet : resp.tablet_locations()) {
+    LOG(INFO) << "Tablet: " << tablet.tablet_id()
+              << " partition: " << tablet.partition().ShortDebugString();
+  }
+}
+
+} // namespace
+
+class TabletSplitITest : public client::TransactionTestBase<MiniCluster> {
  public:
   void SetUp() override {
+    FLAGS_cleanup_split_tablets_interval_sec = 1;
     mini_cluster_opt_.num_tablet_servers = 3;
     create_table_ = false;
-    client::TransactionTestBase::SetUp();
+    TransactionTestBase::SetUp();
     proxy_cache_ = std::make_unique<rpc::ProxyCache>(client_->messenger());
   }
 
@@ -81,31 +160,108 @@ class TabletSplitITest : public client::TransactionTestBase {
 
   // Writes `num_rows` rows into test table using `CreateInsertRequest`.
   // Returns a pair with min and max hash code written.
-  Result<std::pair<docdb::DocKeyHash, docdb::DocKeyHash>> WriteRows(size_t num_rows);
+  Result<std::pair<docdb::DocKeyHash, docdb::DocKeyHash>> WriteRows(
+      size_t num_rows, size_t start_key);
 
   Result<docdb::DocKeyHash> WriteRowsAndGetMiddleHashCode(size_t num_rows) {
-    auto min_max_hash_code = VERIFY_RESULT(WriteRows(num_rows));
+    auto min_max_hash_code = VERIFY_RESULT(WriteRows(num_rows, 1));
     const auto split_hash_code = (min_max_hash_code.first + min_max_hash_code.second) / 2;
     LOG(INFO) << "Split hash code: " << split_hash_code;
+
+    RETURN_NOT_OK(CheckRowsCount(num_rows));
+
     return split_hash_code;
   }
 
-  Result<scoped_refptr<master::TabletInfo>> GetSingleTestTabletInfo(
-      const master::Master& leader_master);
+  master::CatalogManager* catalog_manager() {
+    return CHECK_NOTNULL(cluster_->leader_mini_master()->master())->catalog_manager();
+  }
 
+  Result<scoped_refptr<master::TabletInfo>> GetSingleTestTabletInfo(
+      master::CatalogManager* catalog_manager);
+
+  void CreateSingleTablet() {
+    SetNumTablets(1);
+    CreateTable();
+  }
+
+  Result<TabletId> SplitTabletAndValidate(docdb::DocKeyHash split_hash_code, size_t num_rows) {
+    auto* catalog_mgr = catalog_manager();
+
+    auto source_tablet_info = VERIFY_RESULT(GetSingleTestTabletInfo(catalog_mgr));
+    const auto source_tablet_id = source_tablet_info->id();
+
+    RETURN_NOT_OK(catalog_mgr->TEST_SplitTablet(source_tablet_info, split_hash_code));
+
+    const auto expected_split_tablets = FLAGS_TEST_skip_deleting_split_tablets ? 1 : 0;
+
+    WaitForTabletSplitCompletion(/* expected_non_split_tablets =*/ 2, expected_split_tablets);
+
+    RETURN_NOT_OK(CheckPostSplitTabletReplicasData(num_rows));
+
+    if (expected_split_tablets > 0) {
+      RETURN_NOT_OK(CheckSourceTabletAfterSplit(source_tablet_id));
+    }
+
+    return source_tablet_id;
+  }
+
+  Result<TabletId> CreateSingleTabletAndSplit(size_t num_rows) {
+    CreateSingleTablet();
+    const auto split_hash_code = VERIFY_RESULT(WriteRowsAndGetMiddleHashCode(num_rows));
+    return SplitTabletAndValidate(split_hash_code, num_rows);
+  }
+
+  CHECKED_STATUS CheckRowsCount(size_t expected_num_rows) {
+    auto rows_count = VERIFY_RESULT(SelectRowsCount(NewSession(), table_));
+    SCHECK_EQ(rows_count, expected_num_rows, InternalError, "Got unexpected rows count");
+    return Status::OK();
+  }
+
+  // By default we wait until all split tablets are cleanup. expected_split_tablets could be
+  // overridden if needed to test behaviour of split tablet when its deletion is disabled.
+  // If num_replicas_online is 0, uses replication factor.
   void WaitForTabletSplitCompletion(
-      const size_t num_tablets_before_split = 1, const size_t num_tablets_to_split = 1);
+      const size_t expected_non_split_tablets, const size_t expected_split_tablets = 0,
+      size_t num_replicas_online = 0);
+
+  // Wait for all peers to complete post-split compaction.
+  void WaitForTestTableTabletsCompactionFinish(MonoDelta timeout);
+
+  // Returns all tablet peers in the cluster which are marked as being in
+  // TABLET_DATA_SPLIT_COMPLETED state. In most of the test cases below, this corresponds to the
+  // post-split parent/source tablet peers.
+  Result<std::vector<tablet::TabletPeerPtr>> ListSplitCompleteTabletPeers();
+
+  // Returns all tablet peers in the cluster which are not part of a transaction table and which are
+  // not in TABLET_DATA_SPLIT_COMPLETED state. In most of the test cases below, this corresponds to
+  // post-split children tablet peers.
+  Result<std::vector<tablet::TabletPeerPtr>> ListPostSplitChildrenTabletPeers();
+
+  // Verify that the db has queued, is running, or did complete a post split compaction.
+  void VerifyTriggeredPostSplitCompaction(int num_peers);
+
+  // Returns the bytes read at the RocksDB layer by each split child tablet.
+  Result<uint64_t> GetActiveTabletsBytesRead();
+
+  // Returns the bytes written at the RocksDB layer by the split parent tablet.
+  Result<uint64_t> GetInactiveTabletsBytesWritten();
 
   // Checks all tablet replicas expect ones which have been split to have all rows from 1 to
   // `num_rows` and nothing else.
-  void CheckPostSplitTabletReplicasData(size_t num_rows);
+  // If num_replicas_online is 0, uses replication factor.
+  CHECKED_STATUS CheckPostSplitTabletReplicasData(size_t num_rows, size_t num_replicas_online = 0);
 
   // Checks source tablet behaviour after split:
   // - It should reject reads and writes.
-  void CheckSourceTabletAfterSplit(const TabletId& source_tablet_id);
+  CHECKED_STATUS CheckSourceTabletAfterSplit(const TabletId& source_tablet_id);
 
   // Make sure table contains only keys 1...num_keys without gaps.
   void CheckTableKeysInRange(const size_t num_keys);
+
+  // Tests appropriate client requests structure update at YBClient side.
+  // split_depth specifies how deep should we split original tablet until trying to write again.
+  void SplitClientRequestsIds(int split_depth);
 
  protected:
   std::unique_ptr<rpc::ProxyCache> proxy_cache_;
@@ -166,15 +322,15 @@ tserver::WriteRequestPB TabletSplitITest::CreateInsertRequest(
 }
 
 Result<std::pair<docdb::DocKeyHash, docdb::DocKeyHash>> TabletSplitITest::WriteRows(
-    size_t num_rows) {
+    const size_t num_rows, const size_t start_key) {
   auto min_hash_code = std::numeric_limits<docdb::DocKeyHash>::max();
   auto max_hash_code = std::numeric_limits<docdb::DocKeyHash>::min();
 
-  LOG(INFO) << "Writing data...";
+  LOG(INFO) << "Writing " << num_rows << " rows...";
 
   auto txn = CreateTransaction();
   auto session = CreateSession();
-  for (auto i = 1; i <= num_rows; ++i) {
+  for (auto i = start_key; i < start_key + num_rows; ++i) {
     client::YBqlWriteOpPtr op =
         VERIFY_RESULT(WriteRow(session, i /* key */, i /* value */, client::WriteOpType::INSERT));
     const auto hash_code = op->GetHashCode();
@@ -187,31 +343,44 @@ Result<std::pair<docdb::DocKeyHash, docdb::DocKeyHash>> TabletSplitITest::WriteR
     LOG(INFO) << "Committed: " << txn->id();
   }
 
-  LOG(INFO) << "Data has been written";
+  LOG(INFO) << num_rows << " rows has been written";
   LOG(INFO) << "min_hash_code = " << min_hash_code;
   LOG(INFO) << "max_hash_code = " << max_hash_code;
   return std::make_pair(min_hash_code, max_hash_code);
 }
 
 void TabletSplitITest::WaitForTabletSplitCompletion(
-    const size_t num_tablets_before_split, const size_t num_tablets_to_split) {
-  LOG(INFO) << "Waiting for tablet split to be completed...";
+    const size_t expected_non_split_tablets, const size_t expected_split_tablets,
+    size_t num_replicas_online) {
+  if (num_replicas_online == 0) {
+    num_replicas_online = FLAGS_replication_factor;
+  }
+
+  LOG(INFO) << "Waiting for tablet split to be completed... ";
+  LOG(INFO) << "expected_non_split_tablets: " << expected_non_split_tablets;
+  LOG(INFO) << "expected_split_tablets: " << expected_split_tablets;
+
+  const auto expected_total_tablets = expected_non_split_tablets + expected_split_tablets;
+  LOG(INFO) << "expected_total_tablets: " << expected_total_tablets;
+
   std::vector<tablet::TabletPeerPtr> peers;
-  auto s = WaitFor([this, &peers, &num_tablets_before_split, &num_tablets_to_split] {
+  auto s = WaitFor([&] {
       peers = ListTabletPeers(cluster_.get(), ListPeersFilter::kAll);
       size_t num_peers_running = 0;
       size_t num_peers_split = 0;
       size_t num_peers_leader_ready = 0;
       for (const auto& peer : peers) {
-        if (!peer->tablet()) {
+        const auto tablet = peer->shared_tablet();
+        const auto consensus = peer->shared_consensus();
+        if (!tablet || !consensus) {
           break;
         }
-        if (peer->tablet()->table_type() == TRANSACTION_STATUS_TABLE_TYPE) {
+        if (tablet->table_type() == TRANSACTION_STATUS_TABLE_TYPE) {
           continue;
         }
         const auto raft_group_state = peer->state();
-        const auto tablet_data_state = peer->tablet()->metadata()->tablet_data_state();
-        const auto leader_status = peer->consensus()->GetLeaderStatus(/* allow_stale =*/ true);
+        const auto tablet_data_state = tablet->metadata()->tablet_data_state();
+        const auto leader_status = consensus->GetLeaderStatus(/* allow_stale =*/true);
         if (raft_group_state == tablet::RaftGroupStatePB::RUNNING) {
           ++num_peers_running;
         } else {
@@ -224,94 +393,194 @@ void TabletSplitITest::WaitForTabletSplitCompletion(
       VLOG(1) << "num_peers_running: " << num_peers_running;
       VLOG(1) << "num_peers_split: " << num_peers_split;
       VLOG(1) << "num_peers_leader_ready: " << num_peers_leader_ready;
-      const auto replication_factor = cluster_->num_tablet_servers();
 
-      const auto expected_num_tablets = num_tablets_before_split + 2 * num_tablets_to_split;
-      return num_peers_running == replication_factor * expected_num_tablets &&
-             num_peers_split == replication_factor * num_tablets_to_split &&
-             num_peers_leader_ready == expected_num_tablets;
-    }, 20s * kTimeMultiplier, "Wait for tablet split to be completed");
+    return num_peers_running == num_replicas_online * expected_total_tablets &&
+           num_peers_split == num_replicas_online * expected_split_tablets &&
+           num_peers_leader_ready == expected_total_tablets;
+  }, 20s * kTimeMultiplier, "Wait for tablet split to be completed");
   if (!s.ok()) {
     for (const auto& peer : peers) {
-      if (!peer->tablet()) {
+      const auto tablet = peer->shared_tablet();
+      const auto consensus = peer->shared_consensus();
+      if (!tablet || !consensus) {
         LOG(INFO) << consensus::MakeTabletLogPrefix(peer->tablet_id(), peer->permanent_uuid())
                   << "no tablet";
         continue;
       }
-      if (peer->tablet()->table_type() == TRANSACTION_STATUS_TABLE_TYPE) {
+      if (tablet->table_type() == TRANSACTION_STATUS_TABLE_TYPE) {
         continue;
       }
       LOG(INFO) << consensus::MakeTabletLogPrefix(peer->tablet_id(), peer->permanent_uuid())
                 << "raft_group_state: " << AsString(peer->state())
                 << " tablet_data_state: "
-                << AsString(peer->tablet()->metadata()->tablet_data_state())
+                << TabletDataState_Name(tablet->metadata()->tablet_data_state())
                 << " leader status: "
-                << AsString(peer->consensus()->GetLeaderStatus(/* allow_stale =*/true));
+                << AsString(consensus->GetLeaderStatus(/* allow_stale =*/true));
     }
     LOG(INFO) << "Crashing test to avoid waiting on deadlock...";
     raise(SIGSEGV);
   }
+
+  DumpTableLocations(catalog_manager(), client::kTableName);
 }
 
-void TabletSplitITest::CheckPostSplitTabletReplicasData(size_t num_rows) {
+void TabletSplitITest::WaitForTestTableTabletsCompactionFinish(MonoDelta timeout) {
+  for (auto peer : ASSERT_RESULT(ListPostSplitChildrenTabletPeers())) {
+    ASSERT_OK(WaitFor([&peer] {
+      return peer->tablet()->metadata()->has_been_fully_compacted();
+    }, timeout * kTimeMultiplier, "Wait for post tablet split compaction to be completed"));
+  }
+}
+
+Result<std::vector<tablet::TabletPeerPtr>> TabletSplitITest::ListSplitCompleteTabletPeers() {
+  auto test_table_id = VERIFY_RESULT(client_->GetYBTableInfo(client::kTableName)).table_id;
+  return ListTableInactiveSplitTabletPeers(cluster_.get(), test_table_id);
+}
+
+Result<std::vector<tablet::TabletPeerPtr>> TabletSplitITest::ListPostSplitChildrenTabletPeers() {
+  auto test_table_id = VERIFY_RESULT(client_->GetYBTableInfo(client::kTableName)).table_id;
+  return ListTableActiveTabletPeers(cluster_.get(), test_table_id);
+}
+
+bool HasPendingCompaction(rocksdb::DB* db) {
+  uint64_t compaction_pending = 0;
+  db->GetIntProperty("rocksdb.compaction-pending", &compaction_pending);
+  return compaction_pending > 0;
+}
+
+bool HasRunningCompaction(rocksdb::DB* db) {
+  uint64_t running_compactions = 0;
+  db->GetIntProperty("rocksdb.num-running-compactions", &running_compactions);
+  return running_compactions > 0;
+}
+
+void TabletSplitITest::VerifyTriggeredPostSplitCompaction(int num_peers) {
+  for (auto peer : ASSERT_RESULT(ListPostSplitChildrenTabletPeers())) {
+    const auto* tablet = peer->tablet();
+    auto* db = tablet->TEST_db();
+    auto has_triggered_compaction = HasPendingCompaction(db) ||
+        HasRunningCompaction(db) ||
+        tablet->metadata()->has_been_fully_compacted();
+    EXPECT_TRUE(has_triggered_compaction);
+    num_peers--;
+  }
+  EXPECT_EQ(num_peers, 0);
+}
+
+Result<uint64_t> TabletSplitITest::GetActiveTabletsBytesRead() {
+  uint64_t read_bytes_1 = 0, read_bytes_2 = 0;
+  for (auto peer : VERIFY_RESULT(ListPostSplitChildrenTabletPeers())) {
+    auto this_peer_read_bytes = peer->tablet()->regulardb_statistics()->getTickerCount(
+        rocksdb::Tickers::COMPACT_READ_BYTES);
+    if (read_bytes_1 == 0) {
+      read_bytes_1 = this_peer_read_bytes;
+    } else if (read_bytes_2 == 0) {
+      read_bytes_2 = this_peer_read_bytes;
+    } else {
+      if (this_peer_read_bytes != read_bytes_1 && this_peer_read_bytes != read_bytes_2) {
+        return STATUS_FORMAT(IllegalState,
+            "Expected this peer's read bytes ($0) to equal one of the existing peer's read bytes "
+            "($1 or $2)",
+            this_peer_read_bytes, read_bytes_1, read_bytes_2);
+      }
+    }
+  }
+  if (read_bytes_1 <= 0 || read_bytes_2 <= 0) {
+    return STATUS_FORMAT(IllegalState,
+        "Peer's read bytes should be greater than zero. Found $0 and $1",
+        read_bytes_1, read_bytes_2);
+  }
+  return read_bytes_1 + read_bytes_2;
+}
+
+Result<uint64_t> TabletSplitITest::GetInactiveTabletsBytesWritten() {
+  uint64_t write_bytes = 0;
+  for (auto peer : VERIFY_RESULT(ListSplitCompleteTabletPeers())) {
+    auto this_peer_written_bytes = peer->tablet()->regulardb_statistics()->getTickerCount(
+        rocksdb::Tickers::COMPACT_WRITE_BYTES);
+    if (write_bytes == 0) write_bytes = this_peer_written_bytes;
+    if (write_bytes != this_peer_written_bytes) {
+      return STATUS_FORMAT(IllegalState,
+          "Expected the number of written bytes at each peer to be the same. Found one with $0 and "
+          "another with $1",
+          write_bytes, this_peer_written_bytes);
+    }
+  }
+  return write_bytes;
+}
+
+Status TabletSplitITest::CheckPostSplitTabletReplicasData(
+    size_t num_rows, size_t num_replicas_online) {
   LOG(INFO) << "Checking post-split tablet replicas data...";
 
-  const auto replication_factor = cluster_->num_tablet_servers();
-
-  std::vector<size_t> keys(num_rows, replication_factor);
-  const auto key_column_id = table_.ColumnId(kKeyColumn);
-  const auto value_column_id = table_.ColumnId(kValueColumn);
-  for (auto peer : ListTabletPeers(cluster_.get(), ListPeersFilter::kAll)) {
-    const auto* tablet = peer->tablet();
-    if (tablet->table_type() == TRANSACTION_STATUS_TABLE_TYPE ||
-        tablet->metadata()->tablet_data_state() ==
-            tablet::TabletDataState::TABLET_DATA_SPLIT_COMPLETED) {
-      continue;
+  if (num_replicas_online == 0) {
+      num_replicas_online = FLAGS_replication_factor;
     }
 
-    const SchemaPtr schema = tablet->metadata()->schema();
+  std::vector<size_t> keys(num_rows, num_replicas_online);
+  const auto key_column_id = table_.ColumnId(kKeyColumn);
+  const auto value_column_id = table_.ColumnId(kValueColumn);
+  for (auto peer : VERIFY_RESULT(ListPostSplitChildrenTabletPeers())) {
+    const auto* shared_tablet = peer->tablet();
+    const SchemaPtr schema = shared_tablet->metadata()->schema();
     auto client_schema = schema->CopyWithoutColumnIds();
-    auto iter = ASSERT_RESULT(tablet->NewRowIterator(client_schema, boost::none));
+    auto iter = VERIFY_RESULT(shared_tablet->NewRowIterator(client_schema, boost::none));
     QLTableRow row;
     std::unordered_set<size_t> tablet_keys;
-    while (ASSERT_RESULT(iter->HasNext())) {
-      ASSERT_OK(iter->NextRow(&row));
+    while (VERIFY_RESULT(iter->HasNext())) {
+      RETURN_NOT_OK(iter->NextRow(&row));
       auto key_opt = row.GetValue(key_column_id);
-      ASSERT_TRUE(key_opt.is_initialized());
-      ASSERT_EQ(key_opt, row.GetValue(value_column_id));
+      SCHECK(key_opt.is_initialized(), InternalError, "Key is not initialized");
+      SCHECK_EQ(key_opt, row.GetValue(value_column_id), InternalError, "Wrong value for key");
       auto key = key_opt->int32_value();
-      ASSERT_TRUE(tablet_keys.insert(key).second)
-          << "Duplicate key " << key << " in tablet " << tablet->tablet_id();
-      ASSERT_GT(keys[key - 1]--, 0)
-          << "Extra key " << key << " in tablet " << tablet->tablet_id();
+      SCHECK(
+          tablet_keys.insert(key).second,
+          InternalError,
+          Format("Duplicate key $0 in tablet $1", key, shared_tablet->tablet_id()));
+      SCHECK_GT(
+          keys[key - 1]--,
+          0,
+          InternalError,
+          Format("Extra key $0 in tablet $1", key, shared_tablet->tablet_id()));
     }
   }
   for (auto key = 1; key <= num_rows; ++key) {
-    ASSERT_EQ(keys[key - 1], 0) << "Missing key: " << key;
+    SCHECK_EQ(keys[key - 1], 0, InternalError, Format("Missing key: $0", key));
   }
+  return Status::OK();
 }
 
-void TabletSplitITest::CheckSourceTabletAfterSplit(const TabletId& source_tablet_id) {
+Status TabletSplitITest::CheckSourceTabletAfterSplit(const TabletId& source_tablet_id) {
   LOG(INFO) << "Checking source tablet behavior after split...";
   google::FlagSaver saver;
-  FLAGS_TEST_do_not_start_election_test_only = true;
+  ANNOTATE_UNPROTECTED_WRITE(FLAGS_TEST_do_not_start_election_test_only) = true;
 
   size_t tablet_split_insert_error_count = 0;
   size_t not_the_leader_insert_error_count = 0;
+  size_t ts_online_count = 0;
   for (auto mini_ts : cluster_->mini_tablet_servers()) {
+    if (!mini_ts->is_started()) {
+      continue;
+    }
+    ++ts_online_count;
     auto ts_service_proxy = std::make_unique<tserver::TabletServerServiceProxy>(
         proxy_cache_.get(), HostPort::FromBoundEndpoint(mini_ts->bound_rpc_addr()));
 
     {
-      tserver::ReadRequestPB req = ASSERT_RESULT(CreateReadRequest(source_tablet_id, 1 /* key */));
+      tserver::ReadRequestPB req = VERIFY_RESULT(CreateReadRequest(source_tablet_id, 1 /* key */));
 
       rpc::RpcController controller;
       controller.set_timeout(kRpcTimeout);
       tserver::ReadResponsePB resp;
       ts_service_proxy->Read(req, &resp, &controller);
 
-      ASSERT_TRUE(resp.has_error());
-      ASSERT_EQ(resp.error().code(), tserver::TabletServerErrorPB::TABLET_SPLIT);
+      SCHECK(resp.has_error(), InternalError, "Expected error on read from split tablet");
+      SCHECK_EQ(
+          resp.error().code(),
+          tserver::TabletServerErrorPB::TABLET_SPLIT,
+          InternalError,
+          "Expected error on read from split tablet to be "
+          "tserver::TabletServerErrorPB::TABLET_SPLIT");
     }
 
     {
@@ -323,97 +592,43 @@ void TabletSplitITest::CheckSourceTabletAfterSplit(const TabletId& source_tablet
       tserver::WriteResponsePB resp;
       ts_service_proxy->Write(req, &resp, &controller);
 
-      ASSERT_TRUE(resp.has_error());
+      SCHECK(resp.has_error(), InternalError, "Expected error on write to split tablet");
       LOG(INFO) << "Error: " << AsString(resp.error());
       switch (resp.error().code()) {
         case tserver::TabletServerErrorPB::TABLET_SPLIT:
-          ASSERT_EQ(resp.error().status().code(), AppStatusPB::ILLEGAL_STATE);
+          SCHECK_EQ(
+              resp.error().status().code(),
+              AppStatusPB::ILLEGAL_STATE,
+              InternalError,
+              "tserver::TabletServerErrorPB::TABLET_SPLIT error should have "
+              "AppStatusPB::ILLEGAL_STATE on write to split tablet");
           tablet_split_insert_error_count++;
           break;
         case tserver::TabletServerErrorPB::NOT_THE_LEADER:
           not_the_leader_insert_error_count++;
           break;
         default:
-          FAIL() << "Unexpected error: " << AsString(resp.error());
+          return STATUS_FORMAT(InternalError, "Unexpected error: $0", resp.error());
       }
     }
   }
-  // Leader should return "try again" error on insert.
-  ASSERT_EQ(tablet_split_insert_error_count, 1);
-  // Followers should return "not the leader" error.
-  ASSERT_EQ(not_the_leader_insert_error_count, cluster_->num_tablet_servers() - 1);
+  SCHECK_EQ(
+      tablet_split_insert_error_count, 1, InternalError,
+      "Leader should return \"try again\" error on insert.");
+  SCHECK_EQ(
+      not_the_leader_insert_error_count, ts_online_count - 1, InternalError,
+      "Followers should return \"not the leader\" error.");
+  return Status::OK();
 }
 
 Result<scoped_refptr<master::TabletInfo>> TabletSplitITest::GetSingleTestTabletInfo(
-    const master::Master& leader_master) {
+    master::CatalogManager* catalog_mgr) {
   std::vector<scoped_refptr<master::TabletInfo>> tablet_infos;
-  leader_master.catalog_manager()->GetTableInfo(table_->id())->GetAllTablets(&tablet_infos);
+  catalog_mgr->GetTableInfo(table_->id())->GetAllTablets(&tablet_infos);
 
   SCHECK_EQ(tablet_infos.size(), 1, IllegalState, "Expect test table to have only 1 tablet");
   return tablet_infos.front();
 }
-
-namespace {
-
-Result<size_t> SelectRowsCount(
-    const client::YBSessionPtr& session, const client::TableHandle& table) {
-  LOG(INFO) << "Running full scan on test table...";
-  session->SetTimeout(5s);
-  QLPagingStatePB paging_state;
-  size_t row_count = 0;
-  for (;;) {
-    const auto op = table.NewReadOp();
-    auto* const req = op->mutable_request();
-    req->set_return_paging_state(true);
-    if (paging_state.has_table_id()) {
-      if (paging_state.has_read_time()) {
-        ReadHybridTime read_time = ReadHybridTime::FromPB(paging_state.read_time());
-        if (read_time) {
-          session->SetReadPoint(read_time);
-        }
-      }
-      session->SetForceConsistentRead(client::ForceConsistentRead::kTrue);
-      *req->mutable_paging_state() = std::move(paging_state);
-    }
-    Status s;
-    RETURN_NOT_OK(WaitFor([&] {
-      s = session->ApplyAndFlush(op);
-      if (s.ok()) {
-        return true;
-      }
-      for (auto& error : session->GetPendingErrors()) {
-        if (error->status().IsTryAgain()) {
-          return false;
-        }
-      }
-      return true;
-    }, 15s, "Waiting for session flush"));
-    RETURN_NOT_OK(s);
-    auto rowblock = ql::RowsResult(op.get()).GetRowBlock();
-    row_count += rowblock->row_count();
-    if (!op->response().has_paging_state()) {
-      break;
-    }
-    paging_state = op->response().paging_state();
-  }
-  return row_count;
-}
-
-void DumpTableLocations(
-    master::CatalogManager* catalog_mgr, const client::YBTableName& table_name) {
-  master::GetTableLocationsResponsePB resp;
-  master::GetTableLocationsRequestPB req;
-  table_name.SetIntoTableIdentifierPB(req.mutable_table());
-  req.set_max_returned_locations(std::numeric_limits<int32_t>::max());
-  ASSERT_OK(catalog_mgr->GetTableLocations(&req, &resp));
-  LOG(INFO) << "Table locations:";
-  for (auto& tablet : resp.tablet_locations()) {
-    LOG(INFO) << "Tablet: " << tablet.tablet_id()
-              << " partition: " << tablet.partition().ShortDebugString();
-  }
-}
-
-} // namespace
 
 // Tests splitting of the single tablet in following steps:
 // - Create single-tablet table and populates it with specified number of rows.
@@ -426,43 +641,150 @@ void DumpTableLocations(
 // - ClusterVerifier will check cluster integrity at the end of the test.
 
 TEST_P(TabletSplitITestWithIsolationLevel, SplitSingleTablet) {
-  constexpr auto kNumRows = 500;
-
-  SetNumTablets(1);
-  CreateTable();
+  ANNOTATE_UNPROTECTED_WRITE(FLAGS_TEST_skip_deleting_split_tablets) = true;
 
   // TODO(tsplit): add delay of applying part of intents after tablet is split.
-  // TODO(tsplit): test split during read/write workload.
   // TODO(tsplit): test split during long-running transactions.
+
+  constexpr auto kNumRows = 500;
+
+  const auto source_tablet_id = ASSERT_RESULT(CreateSingleTabletAndSplit(kNumRows));
+
+  ANNOTATE_UNPROTECTED_WRITE(FLAGS_TEST_skip_deleting_split_tablets) = false;
+
+  ASSERT_NO_FATALS(WaitForTabletSplitCompletion(/* expected_non_split_tablets =*/ 2));
+
+  ASSERT_OK(CheckRowsCount(kNumRows));
+
+  ASSERT_OK(WriteRows(kNumRows, kNumRows + 1));
+
+  ASSERT_OK(cluster_->RestartSync());
+
+  ASSERT_OK(CheckPostSplitTabletReplicasData(kNumRows * 2));
+}
+
+TEST_F(TabletSplitITest, SplitTabletIsAsync) {
+  constexpr auto kNumRows = 500;
+
+  ANNOTATE_UNPROTECTED_WRITE(FLAGS_TEST_pause_before_post_split_compation) = true;
+
+  ASSERT_OK(CreateSingleTabletAndSplit(kNumRows));
+
+  for (auto peer : ASSERT_RESULT(ListPostSplitChildrenTabletPeers())) {
+    EXPECT_FALSE(peer->tablet()->metadata()->has_been_fully_compacted());
+  }
+  std::this_thread::sleep_for(1s * kTimeMultiplier);
+  for (auto peer : ASSERT_RESULT(ListPostSplitChildrenTabletPeers())) {
+    EXPECT_FALSE(peer->tablet()->metadata()->has_been_fully_compacted());
+  }
+  ANNOTATE_UNPROTECTED_WRITE(FLAGS_TEST_pause_before_post_split_compation) = false;
+  ASSERT_NO_FATALS(WaitForTestTableTabletsCompactionFinish(5s * kTimeMultiplier));
+}
+
+TEST_F(TabletSplitITest, ParentTabletCleanup) {
+  constexpr auto kNumRows = 500;
+
+  ASSERT_OK(CreateSingleTabletAndSplit(kNumRows));
+
+  // This will make client first try to access deleted tablet and that should be handled correctly.
+  ASSERT_OK(CheckRowsCount(kNumRows));
+}
+
+TEST_F(TabletSplitITest, TestInitiatesCompactionAfterSplit) {
+  ANNOTATE_UNPROTECTED_WRITE(FLAGS_TEST_skip_deleting_split_tablets) = true;
+  constexpr auto kNumRows = 10000;
+
+  CreateSingleTablet();
 
   const auto split_hash_code = ASSERT_RESULT(WriteRowsAndGetMiddleHashCode(kNumRows));
 
-  auto rows_count = ASSERT_RESULT(SelectRowsCount(NewSession(), table_));
-  ASSERT_EQ(rows_count, kNumRows);
+  ASSERT_OK(SplitTabletAndValidate(split_hash_code, kNumRows));
 
-  auto& leader_master = *ASSERT_NOTNULL(cluster_->leader_mini_master()->master());
+  auto pre_split_bytes_written = ASSERT_RESULT(GetInactiveTabletsBytesWritten());
+  auto post_split_bytes_read = ASSERT_RESULT((GetActiveTabletsBytesRead()));
+  ASSERT_GE(pre_split_bytes_written, post_split_bytes_read);
+}
 
-  auto source_tablet_info = ASSERT_RESULT(GetSingleTestTabletInfo(leader_master));
-  const auto source_tablet_id = source_tablet_info->id();
+TEST_F(TabletSplitITest, TestHeartbeatAfterSplit) {
+  constexpr auto kNumRows = 10000;
 
-  auto* catalog_mgr = leader_master.catalog_manager();
+  // Keep tablets without compaction after split.
+  ANNOTATE_UNPROTECTED_WRITE(FLAGS_TEST_pause_before_post_split_compation) = true;
 
-  ASSERT_OK(catalog_mgr->TEST_SplitTablet(source_tablet_info, split_hash_code));
+  CreateSingleTablet();
 
-  ASSERT_NO_FATALS(WaitForTabletSplitCompletion());
+  const auto split_hash_code = ASSERT_RESULT(WriteRowsAndGetMiddleHashCode(kNumRows));
 
-  ASSERT_NO_FATALS(CheckPostSplitTabletReplicasData(kNumRows));
+  ASSERT_OK(SplitTabletAndValidate(split_hash_code, kNumRows));
 
-  ASSERT_NO_FATALS(CheckSourceTabletAfterSplit(source_tablet_id));
+  auto test_table_id = ASSERT_RESULT(client_->GetYBTableInfo(client::kTableName)).table_id;
+  // Verify that heartbeat contains flag processing_parent_data for all tablets of the test
+  // table on each tserver to have after split
+  for (int i = 0; i != cluster_->num_tablet_servers(); ++i) {
+    auto server = cluster_->mini_tablet_server(i)->server();
+    if (!server) { // Server is shut down.
+      continue;
+    }
+    auto* ts_manager = server->tablet_manager();
+    std::set<TabletId> tablets;
+    for (auto& peer : ts_manager->GetTabletPeers()) {
+      if (peer->tablet_metadata()->table_id() == test_table_id) {
+        tablets.insert(peer->tablet()->tablet_id());
+      }
+    }
 
-  DumpTableLocations(catalog_mgr, client::kTableName);
+    master::TabletReportPB report;
+    ts_manager->GenerateTabletReport(&report);
+    for (const auto& reported_tablet : report.updated_tablets()) {
+      if (tablets.find(reported_tablet.tablet_id()) == tablets.end()) {
+        continue;
+      }
+      EXPECT_TRUE(reported_tablet.processing_parent_data());
+    }
+  }
 
-  rows_count = ASSERT_RESULT(SelectRowsCount(NewSession(), table_));
-  ASSERT_EQ(rows_count, kNumRows);
+  // Wait for the flag processing_parent_data to be propagated to master through heartbeat
+  SleepFor(MonoDelta::FromMilliseconds(2 * FLAGS_heartbeat_interval_ms));
 
-  ASSERT_OK(WriteRows(kNumRows));
+  // Add new tserver in to force load balancer moves.
+  auto newts = cluster_->num_tablet_servers();
+  ASSERT_OK(cluster_->AddTabletServer());
+  ASSERT_OK(cluster_->WaitForTabletServerCount(newts + 1));
+  const auto newts_uuid = cluster_->mini_tablet_server(newts)->server()->permanent_uuid();
 
-  ASSERT_OK(cluster_->RestartSync());
+  // Verify none test table replica on the new tserver
+  scoped_refptr<master::TableInfo> tbl_info = catalog_manager()->GetTableInfo(test_table_id);
+  vector<scoped_refptr<master::TabletInfo>> tablets;
+  tbl_info->GetAllTablets(&tablets);
+  bool foundReplica = false;
+  for (const auto& tablet : tablets) {
+    auto replica_map = tablet->GetReplicaLocations();
+    if (replica_map->find(newts_uuid) != replica_map->end()) {
+      foundReplica = true;
+      break;
+    }
+  }
+  EXPECT_FALSE(foundReplica);
+
+  ANNOTATE_UNPROTECTED_WRITE(FLAGS_TEST_pause_before_post_split_compation) = false;
+
+  ASSERT_NO_FATALS(WaitForTestTableTabletsCompactionFinish(5s * kTimeMultiplier));
+
+  // Wait for test table replica on the new tserver
+  ASSERT_OK(WaitFor([&]() -> Result<bool> {
+                        tbl_info = catalog_manager()->GetTableInfo(test_table_id);
+                        tbl_info->GetAllTablets(&tablets);
+                        foundReplica = false;
+                        for (const auto& tablet : tablets) {
+                          auto replica_map = tablet->GetReplicaLocations();
+                          if (replica_map->find(newts_uuid) != replica_map->end()) {
+                            foundReplica = true;
+                            break;
+                          }
+                      }
+                      return foundReplica;
+                    }, MonoDelta::FromMilliseconds(30000 * 2), "WaitForLBToBeProcessed"));
+
 }
 
 // Test for https://github.com/yugabyte/yugabyte-db/issues/4312 reproducing a deadlock
@@ -485,17 +807,7 @@ TEST_F(TabletSplitITest, SlowSplitSingleTablet) {
 
   constexpr auto kNumRows = 50;
 
-  SetNumTablets(1);
-  CreateTable();
-
-  const auto split_hash_code = ASSERT_RESULT(WriteRowsAndGetMiddleHashCode(kNumRows));
-
-  auto& leader_master = *ASSERT_NOTNULL(cluster_->leader_mini_master()->master());
-  auto source_tablet_info = ASSERT_RESULT(GetSingleTestTabletInfo(leader_master));
-  auto* catalog_mgr = leader_master.catalog_manager();
-  ASSERT_OK(catalog_mgr->TEST_SplitTablet(source_tablet_info, split_hash_code));
-
-  ASSERT_NO_FATALS(WaitForTabletSplitCompletion());
+  ASSERT_OK(CreateSingleTabletAndSplit(kNumRows));
 }
 
 void TabletSplitITest::CheckTableKeysInRange(const size_t num_keys) {
@@ -534,12 +846,28 @@ void DumpWorkloadStats(const TestWorkload& workload) {
   LOG(INFO) << "Rows read try again: " << workload.rows_read_try_again();
 }
 
+CHECKED_STATUS SplitTablet(master::CatalogManager* catalog_mgr, const tablet::Tablet& tablet) {
+  const auto& tablet_id = tablet.tablet_id();
+  LOG(INFO) << "Tablet: " << tablet_id;
+  LOG(INFO) << "Number of SST files: " << tablet.TEST_db()->GetCurrentVersionNumSSTFiles();
+  std::string properties;
+  tablet.TEST_db()->GetProperty(rocksdb::DB::Properties::kAggregatedTableProperties, &properties);
+  LOG(INFO) << "DB properties: " << properties;
+
+  const auto encoded_split_key = VERIFY_RESULT(tablet.GetEncodedMiddleSplitKey());
+  const auto doc_key_hash = VERIFY_RESULT(docdb::DecodeDocKeyHash(encoded_split_key)).value();
+  LOG(INFO) << "Middle hash key: " << doc_key_hash;
+  const auto partition_split_key = PartitionSchema::EncodeMultiColumnHashValue(doc_key_hash);
+
+  return catalog_mgr->SplitTablet(tablet_id, encoded_split_key, partition_split_key);
+}
+
 } // namespace
 
 TEST_F(TabletSplitITest, SplitTabletDuringReadWriteLoad) {
   constexpr auto kNumTablets = 3;
 
-  FLAGS_db_write_buffer_size = 20_KB;
+  FLAGS_db_write_buffer_size = 100_KB;
 
   TestWorkload workload(cluster_.get());
   workload.set_table_name(client::kTableName);
@@ -554,46 +882,41 @@ TEST_F(TabletSplitITest, SplitTabletDuringReadWriteLoad) {
   workload.set_read_only_written_keys(true);
   workload.Setup();
 
+  const auto test_table_id = ASSERT_RESULT(client_->GetYBTableInfo(client::kTableName)).table_id;
+
   std::vector<tablet::TabletPeerPtr> peers;
-  AssertLoggedWaitFor([this, &peers] {
-    peers = ListTabletPeers(cluster_.get(), ListPeersFilter::kLeaders);
+  ASSERT_OK(LoggedWaitFor([&] {
+    peers = ListTableTabletLeadersPeers(cluster_.get(), test_table_id);
     return peers.size() == kNumTablets;
-  }, 60s, "Waiting for leaders ...");
+  }, 60s, "Waiting for leaders ..."));
 
   LOG(INFO) << "Starting workload ...";
   workload.Start();
 
   for (const auto& peer : peers) {
-    AssertLoggedWaitFor(
+    ASSERT_OK(LoggedWaitFor(
         [&peer] {
-          return peer->tablet()->TEST_db()->GetCurrentVersionDataSstFilesSize() >
-                 15 * FLAGS_db_write_buffer_size;
-    }, 40s * kTimeMultiplier, Format("Writing data to split (tablet $0) ...", peer->tablet_id()));
+          const auto data_size =
+              peer->tablet()->TEST_db()->GetCurrentVersionSstFilesUncompressedSize();
+          YB_LOG_EVERY_N_SECS(INFO, 5) << "Data written: " << data_size;
+          return data_size > (FLAGS_rocksdb_level0_file_num_compaction_trigger + 1) *
+                                 FLAGS_db_write_buffer_size;
+        },
+        60s * kTimeMultiplier, Format("Writing data to split (tablet $0) ...", peer->tablet_id())));
   }
 
   DumpWorkloadStats(workload);
 
-  auto& leader_master = *ASSERT_NOTNULL(cluster_->leader_mini_master()->master());
-  auto& catalog_mgr = *ASSERT_NOTNULL(leader_master.catalog_manager());
+  auto* catalog_mgr = catalog_manager();
 
   for (const auto& peer : peers) {
     const auto& source_tablet = *ASSERT_NOTNULL(peer->tablet());
-    const auto& source_tablet_id = source_tablet.tablet_id();
-
-    LOG(INFO) << "Tablet: " << source_tablet_id;
-    LOG(INFO) << "Number of SST files: " << source_tablet.TEST_db()->GetCurrentVersionNumSSTFiles();
-
-    const auto encoded_split_key = ASSERT_RESULT(source_tablet.GetEncodedMiddleSplitKey());
-    const auto doc_key_hash = ASSERT_RESULT(docdb::DecodeDocKeyHash(encoded_split_key)).value();
-    LOG(INFO) << "Middle hash key: " << doc_key_hash;
-    const auto partition_split_key = PartitionSchema::EncodeMultiColumnHashValue(doc_key_hash);
-
-    ASSERT_OK(catalog_mgr.SplitTablet(source_tablet_id, encoded_split_key, partition_split_key));
+    ASSERT_OK(SplitTablet(catalog_mgr, source_tablet));
   }
 
-  ASSERT_NO_FATALS(WaitForTabletSplitCompletion(kNumTablets, kNumTablets));
+  ASSERT_NO_FATALS(WaitForTabletSplitCompletion(/* expected_non_split_tablets =*/ kNumTablets * 2));
 
-  DumpTableLocations(&catalog_mgr, client::kTableName);
+  DumpTableLocations(catalog_mgr, client::kTableName);
 
   // Generate some more read/write traffic after tablets are split and after that we check data
   // for consistency and that failures rates are acceptable.
@@ -621,6 +944,164 @@ TEST_F(TabletSplitITest, SplitTabletDuringReadWriteLoad) {
   // TODO(tsplit): Add more splits during writes, so we have tablets with split_depth > 1.
 
   ASSERT_OK(cluster_->RestartSync());
+}
+
+void TabletSplitITest::SplitClientRequestsIds(int split_depth) {
+  // Set data block size low enough, so we have enough data blocks for middle key
+  // detection to work correctly.
+  FLAGS_db_block_size_bytes = 1_KB;
+  const auto kNumRows = 50 * (1 << split_depth);
+
+  SetNumTablets(1);
+  CreateTable();
+
+  ASSERT_OK(WriteRows(kNumRows, 1));
+
+  ASSERT_OK(CheckRowsCount(kNumRows));
+
+  auto* catalog_mgr = catalog_manager();
+
+  for (int i = 0; i < split_depth; ++i) {
+    auto peers = ListTableTabletLeadersPeers(cluster_.get(), table_->id());
+    ASSERT_EQ(peers.size(), 1 << i);
+    for (const auto& peer : peers) {
+      const auto tablet = peer->shared_tablet();
+      ASSERT_OK(tablet->Flush(tablet::FlushMode::kSync));
+      tablet->ForceRocksDBCompactInTest();
+      ASSERT_OK(SplitTablet(catalog_mgr, *tablet));
+    }
+
+    ASSERT_NO_FATALS(WaitForTabletSplitCompletion(
+        /* expected_non_split_tablets =*/ 1 << (i + 1)));
+  }
+
+  Status s;
+  ASSERT_OK(WaitFor([&] {
+    s = ResultToStatus(WriteRows(1, 1));
+    return !s.IsTryAgain();
+  }, 60s, "Waiting for successful write"));
+  ASSERT_OK(s);
+}
+
+// Test for https://github.com/yugabyte/yugabyte-db/issues/5415.
+// Client knows about split parent for final tablets.
+TEST_F(TabletSplitITest, SplitClientRequestsIdsDepth1) {
+  SplitClientRequestsIds(1);
+}
+
+// Test for https://github.com/yugabyte/yugabyte-db/issues/5415.
+// Client doesn't know about split parent for final tablets.
+TEST_F(TabletSplitITest, SplitClientRequestsIdsDepth2) {
+  SplitClientRequestsIds(2);
+}
+
+TEST_F(TabletSplitITest, SplitSingleTabletWithLimit) {
+  FLAGS_db_block_size_bytes = 1_KB;
+
+  const auto kSplitDepth = 3;
+  const auto kNumRows = 50 * (1 << kSplitDepth);
+  FLAGS_tablet_split_limit_per_table = (1 << kSplitDepth) - 1;
+
+  CreateSingleTablet();
+  ASSERT_OK(WriteRows(kNumRows, 1));
+  ASSERT_OK(CheckRowsCount(kNumRows));
+
+  auto* catalog_mgr = catalog_manager();
+
+  master::TableIdentifierPB table_id_pb;
+  table_id_pb.set_table_id(table_->id());
+  bool reached_split_limit = false;
+
+  for (int i = 0; i < kSplitDepth; ++i) {
+    auto peers = ListTableTabletLeadersPeers(cluster_.get(), table_->id());
+    bool expect_split = false;
+    for (const auto& peer : peers) {
+      const auto tablet = peer->shared_tablet();
+      ASSERT_OK(tablet->Flush(tablet::FlushMode::kSync));
+      tablet->ForceRocksDBCompactInTest();
+      scoped_refptr<master::TableInfo> table_info;
+      ASSERT_OK(catalog_mgr->FindTable(table_id_pb, &table_info));
+
+      expect_split = table_info->NumTablets() < FLAGS_tablet_split_limit_per_table;
+
+      if (expect_split) {
+        ASSERT_OK(SplitTablet(catalog_mgr, *tablet));
+      } else {
+        const auto split_status = SplitTablet(catalog_mgr, *tablet);
+        ASSERT_EQ(master::MasterError(split_status),
+                  master::MasterErrorPB::REACHED_SPLIT_LIMIT);
+        reached_split_limit = true;
+      }
+    }
+    if (expect_split) {
+      ASSERT_NO_FATALS(WaitForTabletSplitCompletion(
+          /* expected_non_split_tablets =*/1 << (i + 1)));
+    }
+  }
+
+  ASSERT_TRUE(reached_split_limit);
+
+  Status s;
+  ASSERT_OK(WaitFor([&] {
+    s = ResultToStatus(WriteRows(1, 1));
+    return !s.IsTryAgain();
+  }, 60s, "Waiting for successful write"));
+
+  scoped_refptr<master::TableInfo> table_info;
+  ASSERT_OK(catalog_mgr->FindTable(table_id_pb, &table_info));
+  ASSERT_EQ(table_info->NumTablets(), FLAGS_tablet_split_limit_per_table);
+}
+
+TEST_F(TabletSplitITest, SplitDuringReplicaOffline) {
+  constexpr auto kNumRows = 500;
+
+  SetNumTablets(1);
+  CreateTable();
+
+  const auto split_hash_code = ASSERT_RESULT(WriteRowsAndGetMiddleHashCode(kNumRows));
+
+  auto rows_count = ASSERT_RESULT(SelectRowsCount(NewSession(), table_));
+  ASSERT_EQ(rows_count, kNumRows);
+
+  auto* catalog_mgr = catalog_manager();
+
+  auto source_tablet_info = ASSERT_RESULT(GetSingleTestTabletInfo(catalog_mgr));
+  const auto source_tablet_id = source_tablet_info->id();
+
+  cluster_->mini_tablet_server(0)->Shutdown();
+
+  LOG(INFO) << "Stopped TS-1";
+
+  ASSERT_OK(catalog_mgr->TEST_SplitTablet(source_tablet_info, split_hash_code));
+
+  ASSERT_NO_FATALS(WaitForTabletSplitCompletion(
+      /* expected_non_split_tablets =*/ 2, /* expected_split_tablets =*/ 1,
+      /* num_replicas_online =*/ 2));
+
+  ASSERT_OK(CheckPostSplitTabletReplicasData(kNumRows, 2));
+
+  ASSERT_OK(CheckSourceTabletAfterSplit(source_tablet_id));
+
+  DumpTableLocations(catalog_mgr, client::kTableName);
+
+  rows_count = ASSERT_RESULT(SelectRowsCount(NewSession(), table_));
+  ASSERT_EQ(rows_count, kNumRows);
+
+  ASSERT_OK(WriteRows(kNumRows, kNumRows + 1));
+
+  LOG(INFO) << "Starting TS-1";
+
+  ASSERT_OK(cluster_->mini_tablet_server(0)->Start());
+
+  // This time we expect all replicas to be online.
+  ASSERT_NO_FATALS(WaitForTabletSplitCompletion(
+      /* expected_non_split_tablets =*/ 2, /* expected_split_tablets =*/ 0));
+
+  Status s;
+  ASSERT_OK_PREPEND(LoggedWaitFor([&] {
+      s = CheckPostSplitTabletReplicasData(kNumRows * 2);
+      return s.IsOk();
+    }, 30s * kTimeMultiplier, "Waiting for TS-1 to catch up ..."), AsString(s));
 }
 
 namespace {

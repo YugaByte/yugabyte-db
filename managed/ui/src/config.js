@@ -53,9 +53,11 @@ REGION_METADATA.forEach((region, index) => {
 });
 
 export const KUBERNETES_PROVIDERS = [
-  { code: "pks", name: "Pivotal Container Service", enabled: true, logo: "pks.png" },
-  { code: "gke", name: "Google Container Engine", enabled: true, logo: "gke.png"},
-  { code: "aks", name: "Azure Container Service", enabled: false, logo: "aks.png"},
-  { code: "eks", name: "Elastic Container Service", enabled: false, logo: "eks.png"},
-  { code: "custom", name: "Custom Kubernetes Service", enabled: false, logo: "custom-k8s.png"}
+  // keep deprecated PKS to properly show existing PKS providers in the list, if any
+  { code: "pks", name: "Pivotal Container Service" },
+  { code: "tanzu", name: "VMware Tanzu" },
+  { code: "gke", name: "Google Container Engine" },
+  { code: "aks", name: "Azure Container Service" },
+  { code: "eks", name: "Elastic Container Service" },
+  { code: "custom", name: "Custom Kubernetes Service" }
 ];

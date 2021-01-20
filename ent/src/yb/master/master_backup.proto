@@ -133,6 +133,12 @@ message IdPairPB {
 }
 
 message ImportSnapshotMetaResponsePB {
+  enum TableType {
+    TABLE = 0;
+    COLOCATED_TABLE = 1;
+    PARENT_COLOCATED_TABLE = 2;
+  }
+
   optional MasterErrorPB error = 1;
 
   // Per table IDs mapping (IDs on external cluster TO IDs on this cluster).
@@ -140,6 +146,7 @@ message ImportSnapshotMetaResponsePB {
     optional IdPairPB namespace_ids = 1;
     optional IdPairPB table_ids = 2;
     repeated IdPairPB tablets_ids = 3;
+    optional TableType table_type = 4 [ default = TABLE ];
   }
 
   repeated TableMetaPB tables_meta = 3;

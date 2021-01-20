@@ -138,6 +138,19 @@ typedef struct PgTypeEntity {
   YBCPgDatumFromData yb_to_datum;
 } YBCPgTypeEntity;
 
+// Kind of a datum.
+// In addition to datatype, a "datum" is also specified by "kind".
+// - Standard value.
+// - MIN limit value, which can be infinite, represents an absolute mininum value of a datatype.
+// - MAX limit value, which can be infinite, represents an absolute maximum value of a datatype.
+//
+// NOTE: Currently Postgres use a separate boolean flag for null instead of datum.
+typedef enum PgDatumKind {
+  YB_YQL_DATUM_STANDARD_VALUE = 0,
+  YB_YQL_DATUM_LIMIT_MAX,
+  YB_YQL_DATUM_LIMIT_MIN,
+} YBCPgDatumKind;
+
 // API to read type information.
 const YBCPgTypeEntity *YBCPgFindTypeEntity(int type_oid);
 YBCPgDataType YBCPgGetType(const YBCPgTypeEntity *type_entity);
@@ -210,18 +223,23 @@ typedef struct PgExecParameters {
   //     for filtering before LIMIT is applied.
   //   o ORDER BY clause is not processed by YugaByte. Similarly all rows must be fetched and sent
   //     to Postgres code layer.
-  uint64_t limit_count;
-  uint64_t limit_offset;
-  bool limit_use_default;
   // For now we only support one rowmark.
 #ifdef __cplusplus
+  uint64_t limit_count = 0;
+  uint64_t limit_offset = 0;
+  bool limit_use_default = false;
   int rowmark = -1;
   uint64_t read_time = 0;
   char *partition_key = NULL;
+  bool read_from_followers = false;
 #else
+  uint64_t limit_count;
+  uint64_t limit_offset;
+  bool limit_use_default;
   int rowmark;
   uint64_t read_time;
   char *partition_key;
+  bool read_from_followers;
 #endif
 } YBCPgExecParameters;
 
@@ -242,6 +260,13 @@ typedef struct PgTableProperties {
   uint32_t num_hash_key_columns;
   bool is_colocated;
 } YBCPgTableProperties;
+
+typedef struct PgYBTupleIdDescriptor {
+  YBCPgOid database_oid;
+  YBCPgOid table_oid;
+  int32_t nattrs;
+  YBCPgAttrValueDescriptor *attrs;
+} YBCPgYBTupleIdDescriptor;
 
 #ifdef __cplusplus
 }  // extern "C"

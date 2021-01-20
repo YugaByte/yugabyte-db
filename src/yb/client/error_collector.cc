@@ -54,13 +54,18 @@ int ErrorCollector::CountErrors() const {
   return errors_.size();
 }
 
-CollectedErrors ErrorCollector::GetErrors() {
+CollectedErrors ErrorCollector::GetAndClearErrors() {
   CollectedErrors result;
   {
     std::lock_guard<simple_spinlock> l(mutex_);
     errors_.swap(result);
   }
   return result;
+}
+
+void ErrorCollector::ClearErrors() {
+  std::lock_guard<simple_spinlock> l(mutex_);
+  errors_.clear();
 }
 
 Status ErrorCollector::GetSingleErrorStatus() {

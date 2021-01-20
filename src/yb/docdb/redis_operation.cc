@@ -13,7 +13,7 @@
 
 #include "yb/docdb/redis_operation.h"
 
-#include "yb/docdb/doc_reader.h"
+#include "yb/docdb/doc_reader_redis.h"
 #include "yb/docdb/doc_ttl_util.h"
 #include "yb/docdb/doc_write_batch.h"
 #include "yb/docdb/doc_write_batch_cache.h"
@@ -164,10 +164,10 @@ Result<RedisDataType> GetRedisValueType(
   } else {
     // TODO(dtxn) - pass correct transaction context when we implement cross-shard transactions
     // support for Redis.
-    GetSubDocumentData data = { encoded_subdoc_key, &doc, &doc_found };
+    GetRedisSubDocumentData data = { encoded_subdoc_key, &doc, &doc_found };
     data.return_type_only = true;
     data.exp.always_override = always_override;
-    RETURN_NOT_OK(GetSubDocument(iterator, data, /* projection */ nullptr,
+    RETURN_NOT_OK(GetRedisSubDocument(iterator, data, /* projection */ nullptr,
                                  SeekFwdSuffices::kFalse));
   }
 
@@ -227,9 +227,10 @@ Result<RedisValue> GetRedisValue(
 
   // TODO(dtxn) - pass correct transaction context when we implement cross-shard transactions
   // support for Redis.
-  GetSubDocumentData data = { encoded_doc_key, &doc, &doc_found };
+  GetRedisSubDocumentData data = { encoded_doc_key, &doc, &doc_found };
   data.exp.always_override = always_override;
-  RETURN_NOT_OK(GetSubDocument(iterator, data, /* projection */ nullptr, SeekFwdSuffices::kFalse));
+  RETURN_NOT_OK(GetRedisSubDocument(
+      iterator, data, /* projection */ nullptr, SeekFwdSuffices::kFalse));
   if (!doc_found) {
     return RedisValue{REDIS_TYPE_NONE};
   }
@@ -422,9 +423,10 @@ Result<int64_t> GetCardinality(IntentAwareIterator* iterator, const RedisKeyValu
   SubDocument subdoc_card;
 
   bool subdoc_card_found = false;
-  GetSubDocumentData data = { encoded_key_card, &subdoc_card, &subdoc_card_found };
+  GetRedisSubDocumentData data = { encoded_key_card, &subdoc_card, &subdoc_card_found };
 
-  RETURN_NOT_OK(GetSubDocument(iterator, data, /* projection */ nullptr, SeekFwdSuffices::kFalse));
+  RETURN_NOT_OK(GetRedisSubDocument(
+      iterator, data, /* projection */ nullptr, SeekFwdSuffices::kFalse));
 
   return subdoc_card_found ? subdoc_card.GetInt64() : 0;
 }
@@ -433,13 +435,14 @@ template <typename AddResponseValues>
 CHECKED_STATUS GetAndPopulateResponseValues(
     IntentAwareIterator* iterator,
     AddResponseValues add_response_values,
-    const GetSubDocumentData& data,
+    const GetRedisSubDocumentData& data,
     ValueType expected_type,
     const RedisReadRequestPB& request,
     RedisResponsePB* response,
     bool add_keys, bool add_values, bool reverse) {
 
-  RETURN_NOT_OK(GetSubDocument(iterator, data, /* projection */ nullptr, SeekFwdSuffices::kFalse));
+  RETURN_NOT_OK(GetRedisSubDocument(
+      iterator, data, /* projection */ nullptr, SeekFwdSuffices::kFalse));
 
   // Validate and populate response.
   response->set_allocated_array_response(new RedisArrayPB());
@@ -622,9 +625,9 @@ Status RedisWriteOperation::ApplySet(const DocOperationApplyData& data) {
           SubDocument subdoc_reverse;
           bool subdoc_reverse_found = false;
           auto encoded_key_reverse = key_reverse.EncodeWithoutHt();
-          GetSubDocumentData get_data = { encoded_key_reverse, &subdoc_reverse,
-                                          &subdoc_reverse_found };
-          RETURN_NOT_OK(GetSubDocument(
+          GetRedisSubDocumentData get_data = { encoded_key_reverse, &subdoc_reverse,
+                                               &subdoc_reverse_found };
+          RETURN_NOT_OK(GetRedisSubDocument(
               data.doc_write_batch->doc_db(),
               get_data, redis_query_id(), boost::none /* txn_op_context */, data.deadline,
               data.read_time));
@@ -957,9 +960,9 @@ Status RedisWriteOperation::ApplyDel(const DocOperationApplyData& data) {
         // As of now, we only check to see if a value is in rocksdb, and we should also check
         // the write batch.
         auto encoded_subdoc_key_reverse = subdoc_key_reverse.EncodeWithoutHt();
-        GetSubDocumentData get_data = { encoded_subdoc_key_reverse, &doc_reverse,
-                                        &doc_reverse_found };
-        RETURN_NOT_OK(GetSubDocument(
+        GetRedisSubDocumentData get_data = { encoded_subdoc_key_reverse, &doc_reverse,
+                                             &doc_reverse_found };
+        RETURN_NOT_OK(GetRedisSubDocument(
             data.doc_write_batch->doc_db(),
             get_data, redis_query_id(), boost::none /* txn_op_context */, data.deadline,
             data.read_time));
@@ -1322,7 +1325,7 @@ Status RedisReadOperation::ExecuteHGetAllLikeCommands(ValueType value_type,
 
   // TODO(dtxn) - pass correct transaction context when we implement cross-shard transactions
   // support for Redis.
-  GetSubDocumentData data = { encoded_doc_key, &doc, &doc_found };
+  GetRedisSubDocumentData data = { encoded_doc_key, &doc, &doc_found };
   data.deadline_info = deadline_info_.get_ptr();
 
   bool has_cardinality_subkey = value_type == ValueType::kRedisSortedSet ||
@@ -1335,7 +1338,7 @@ Status RedisReadOperation::ExecuteHGetAllLikeCommands(ValueType value_type,
     data.count_only = !return_array_response;
   }
 
-  RETURN_NOT_OK(GetSubDocument(iterator_.get(), data, /* projection */ nullptr,
+  RETURN_NOT_OK(GetRedisSubDocument(iterator_.get(), data, /* projection */ nullptr,
                                SeekFwdSuffices::kFalse));
   if (return_array_response)
     response_.set_allocated_array_response(new RedisArrayPB());
@@ -1416,7 +1419,7 @@ Status RedisReadOperation::ExecuteCollectionGetRangeByBounds(
 
     SubDocument doc;
     bool doc_found = false;
-    GetSubDocumentData data = {encoded_doc_key, &doc, &doc_found};
+    GetRedisSubDocumentData data = {encoded_doc_key, &doc, &doc_found};
     data.deadline_info = deadline_info_.get_ptr();
     data.low_subkey = &low_subkey;
     data.high_subkey = &high_subkey;
@@ -1473,7 +1476,7 @@ Status RedisReadOperation::ExecuteCollectionGetRangeByBounds(
 
     SubDocument doc;
     bool doc_found = false;
-    GetSubDocumentData data = {encoded_doc_key, &doc, &doc_found};
+    GetRedisSubDocumentData data = {encoded_doc_key, &doc, &doc_found};
     data.deadline_info = deadline_info_.get_ptr();
     data.low_subkey = &low_subkey;
     data.high_subkey = &high_subkey;
@@ -1563,7 +1566,7 @@ Status RedisReadOperation::ExecuteCollectionGetRange() {
 
       SubDocument doc;
       bool doc_found = false;
-      GetSubDocumentData data = { encoded_doc_key, &doc, &doc_found};
+      GetRedisSubDocumentData data = { encoded_doc_key, &doc, &doc_found};
       data.deadline_info = deadline_info_.get_ptr();
       data.low_index = &low_bound;
       data.high_index = &high_bound;
@@ -1762,9 +1765,10 @@ Status RedisReadOperation::ExecuteGet(const RedisGetRequestPB& get_request) {
       SubDocument subdoc_reverse;
       bool subdoc_reverse_found = false;
       auto encoded_key_reverse = key_reverse.EncodeWithoutHt();
-      GetSubDocumentData get_data = { encoded_key_reverse, &subdoc_reverse, &subdoc_reverse_found };
-      RETURN_NOT_OK(GetSubDocument(doc_db_, get_data, redis_query_id(),
-                                   boost::none /* txn_op_context */, deadline_, read_time_));
+      GetRedisSubDocumentData get_data = {
+          encoded_key_reverse, &subdoc_reverse, &subdoc_reverse_found };
+      RETURN_NOT_OK(GetRedisSubDocument(doc_db_, get_data, redis_query_id(),
+                                        boost::none /* txn_op_context */, deadline_, read_time_));
       if (subdoc_reverse_found) {
         double score = subdoc_reverse.GetDouble();
         response_.set_string_response(std::to_string(score));
@@ -1947,11 +1951,11 @@ Status RedisReadOperation::ExecuteKeys() {
       continue;
     }
 
-    GetSubDocumentData data = {key, &result, &doc_found};
+    GetRedisSubDocumentData data = {key, &result, &doc_found};
     data.deadline_info = deadline_info_.get_ptr();
     data.return_type_only = true;
-    RETURN_NOT_OK(GetSubDocument(iterator_.get(), data, /* projection */ nullptr,
-                                 SeekFwdSuffices::kFalse));
+    RETURN_NOT_OK(GetRedisSubDocument(iterator_.get(), data, /* projection */ nullptr,
+                                      SeekFwdSuffices::kFalse));
 
     if (doc_found) {
       if (--threshold < 0) {

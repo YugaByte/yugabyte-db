@@ -119,7 +119,7 @@ For range-partitioned tables, you can use the `SPLIT AT VALUES` clause to set sp
 
 **Example**
 
-```postgresql
+```plpgsql
 CREATE TABLE tbl(
   a int,
   b int,
@@ -149,7 +149,7 @@ Storage parameters, [as defined by PostgreSQL](https://www.postgresql.org/docs/1
 
 ### Table with primary key
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE sample(k1 int,
                                k2 int,
                                v1 int,
@@ -174,7 +174,7 @@ Indexes:
 
 ### Table with range primary key
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE range(k1 int,
                               k2 int,
                               v1 int,
@@ -184,7 +184,7 @@ yugabyte=# CREATE TABLE range(k1 int,
 
 ### Table with check constraint
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE student_grade(student_id int,
                                       class_id int,
                                       term_id int,
@@ -194,7 +194,7 @@ yugabyte=# CREATE TABLE student_grade(student_id int,
 
 ### Table with default value
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE cars(id int PRIMARY KEY,
                              brand text CHECK (brand in ('X', 'Y', 'Z')),
                              model text NOT NULL,
@@ -205,7 +205,7 @@ yugabyte=# CREATE TABLE cars(id int PRIMARY KEY,
 
 Define two tables with a foreign keys constraint.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE products(id int PRIMARY KEY,
                                  descr text);
 yugabyte=# CREATE TABLE orders(id int PRIMARY KEY,
@@ -215,7 +215,7 @@ yugabyte=# CREATE TABLE orders(id int PRIMARY KEY,
 
 Insert some rows.
 
-```postgresql
+```plpgsql
 yugabyte=# SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 yugabyte=# INSERT INTO products VALUES (1, 'Phone X'), (2, 'Tablet Z');
 yugabyte=# INSERT INTO orders VALUES (1, 1, 3), (2, 1, 3), (3, 2, 2);
@@ -234,7 +234,7 @@ order_id | product_id |  descr   | amount
 
 Inserting a row referencing a non-existent product is not allowed.
 
-```postgresql
+```plpgsql
 yugabyte=# INSERT INTO orders VALUES (1, 3, 3);
 ```
 
@@ -245,7 +245,7 @@ DETAIL:  Key (pid)=(3) is not present in table "products".
 
 Deleting a product will cascade to all orders (as defined in the `CREATE TABLE` statement above).
 
-```postgresql
+```plpgsql
 yugabyte=# DELETE from products where id = 1;
 yugabyte=# SELECT o.id AS order_id, p.id as product_id, p.descr, o.amount FROM products p, orders o WHERE o.pid = p.id;
 ```
@@ -259,7 +259,7 @@ yugabyte=# SELECT o.id AS order_id, p.id as product_id, p.descr, o.amount FROM p
 
 ### Table with unique constraint
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE translations(message_id int UNIQUE,
                                      message_txt text);
 ```
@@ -268,13 +268,13 @@ yugabyte=# CREATE TABLE translations(message_id int UNIQUE,
 
 To specify the number of tablets for a table, you can use the `CREATE TABLE` statement with the [`SPLIT INTO`](#split-into) clause.
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE TABLE tracking (id int PRIMARY KEY) SPLIT INTO 10 TABLETS;
 ```
 
 ### Opt a table out of colocation
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE DATABASE company WITH colocated = true;
 
 yugabyte=# CREATE TABLE employee(id INT PRIMARY KEY, name TEXT) WITH (colocated = false);

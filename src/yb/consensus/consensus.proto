@@ -476,6 +476,8 @@ message RunLeaderElectionRequestPB {
   optional bytes originator_uuid = 4;
 
   optional bool suppress_vote_request = 5;
+
+  optional bool initial_election = 6;
 }
 
 message RunLeaderElectionResponsePB {

@@ -125,7 +125,7 @@ pg_buffercache_pages(PG_FUNCTION_ARGS)
 
 		/* Allocate NBuffers worth of BufferCachePagesRec records. */
 		fctx->record = (BufferCachePagesRec *)
-			MemoryContextAllocHuge(CurrentMemoryContext,
+			MemoryContextAllocHuge(GetCurrentMemoryContext(),
 								   sizeof(BufferCachePagesRec) * NBuffers);
 
 		/* Set max calls and remember the user function context. */

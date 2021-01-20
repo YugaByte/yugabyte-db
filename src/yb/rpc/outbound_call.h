@@ -284,6 +284,14 @@ class OutboundCall : public RpcCall {
     hostname_ = hostname;
   }
 
+  void SetThreadPoolFailure(const Status& status) {
+    thread_pool_failure_ = status;
+  }
+
+  const Status& thread_pool_failure() const {
+    return thread_pool_failure_;
+  }
+
   void InvokeCallbackSync();
 
   ////////////////////////////////////////////////////////////
@@ -394,6 +402,8 @@ class OutboundCall : public RpcCall {
   RemoteMethodPool* remote_method_pool_;
 
   RpcMetrics* rpc_metrics_;
+
+  Status thread_pool_failure_;
 
   DISALLOW_COPY_AND_ASSIGN(OutboundCall);
 };

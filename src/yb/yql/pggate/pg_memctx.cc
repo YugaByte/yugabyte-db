@@ -22,6 +22,7 @@ PgMemctx::PgMemctx() {
 }
 
 PgMemctx::~PgMemctx() {
+  Clear();
 }
 
 namespace {
@@ -60,21 +61,19 @@ Status PgMemctx::Reset(PgMemctx *handle) {
   return Status::OK();
 }
 
-void PgMemctx::Clear() {
-  // The safest option is to retain all YugaByte statement objects.
-  // - Clear the table descriptors from cache. We can just reload them when requested.
-  // - Clear the "stmts_" for now. However, if this causes issue, keep "stmts_" vector around.
-  //
-  // PgGate and its contexts are between Postgres and YugaByte lower layers, and because these
-  // layers might be still operating on the raw pointer or reference to "stmts_" after Postgres's
-  // cancellation, there's a chance we might have an unexpected issue.
-  tabledesc_map_.clear();
-  stmts_.clear();
+void PgMemctx::Register(Registrable *obj) {
+  registered_objects_.push_back(*obj);
+  obj->memctx_ = this;
 }
 
-void PgMemctx::Cache(const PgStatement::ScopedRefPtr &stmt) {
-  // Hold the stmt until the context is released.
-  stmts_.push_back(stmt);
+void PgMemctx::Destroy(Registrable *obj) {
+  auto& objs = obj->memctx_->registered_objects_;
+  objs.erase_and_dispose(objs.iterator_to(*obj), std::default_delete<Registrable>());
+}
+
+void PgMemctx::Clear() {
+  tabledesc_map_.clear();
+  registered_objects_.clear_and_dispose(std::default_delete<Registrable>());
 }
 
 void PgMemctx::Cache(size_t hash_id, const PgTableDesc::ScopedRefPtr &table_desc) {

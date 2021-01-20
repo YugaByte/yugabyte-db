@@ -42,6 +42,8 @@ TAG_FLAG(ts_backup_svc_queue_length, advanced);
 
 DECLARE_int32(svc_queue_length_default);
 
+DECLARE_string(cert_node_filename);
+
 namespace yb {
 namespace tserver {
 namespace enterprise {
@@ -88,9 +90,19 @@ Status TabletServer::RegisterServices() {
 
 Status TabletServer::SetupMessengerBuilder(rpc::MessengerBuilder* builder) {
   RETURN_NOT_OK(super::SetupMessengerBuilder(builder));
-  secure_context_ = VERIFY_RESULT(server::SetupSecureContext(
-      options_.rpc_opts.rpc_bind_addresses, *fs_manager_,
-      server::SecureContextType::kServerToServer, builder));
+  if (!FLAGS_cert_node_filename.empty()) {
+    secure_context_ = VERIFY_RESULT(server::SetupSecureContext(
+        server::DefaultRootDir(*fs_manager_),
+        FLAGS_cert_node_filename,
+        server::SecureContextType::kServerToServer,
+        builder));
+  } else {
+    const string &hosts = !options_.server_broadcast_addresses.empty()
+                        ? options_.server_broadcast_addresses
+                        : options_.rpc_opts.rpc_bind_addresses;
+    secure_context_ = VERIFY_RESULT(server::SetupSecureContext(
+        hosts, *fs_manager_, server::SecureContextType::kServerToServer, builder));
+  }
   return Status::OK();
 }
 

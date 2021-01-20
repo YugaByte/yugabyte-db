@@ -72,7 +72,7 @@ Each table now has four tablet-leaders in each YB-TServer and with a replication
 Download the YugabyteDB workload generator JAR file (`yb-sample-apps.jar`).
 
 ```sh
-$ wget https://github.com/yugabyte/yb-sample-apps/releases/download/v1.2.0/yb-sample-apps.jar?raw=true -O yb-sample-apps.jar
+$ wget https://github.com/yugabyte/yb-sample-apps/releases/download/1.3.1/yb-sample-apps.jar?raw=true -O yb-sample-apps.jar
 ```
 
 Run the `SqlInserts` workload app against the local universe using the following command.

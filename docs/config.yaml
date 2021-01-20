@@ -26,7 +26,7 @@ params:
     primary: orange
     accent: amber
   font:
-    text: Inter
+    text: Source Sans Pro
     code: Inconsolata
   algolia:
     index: yugabyte

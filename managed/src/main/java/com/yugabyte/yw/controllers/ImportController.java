@@ -14,7 +14,6 @@
 
 package com.yugabyte.yw.controllers;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -51,6 +50,7 @@ import com.yugabyte.yw.models.helpers.PlacementInfo.PlacementCloud;
 import com.yugabyte.yw.models.helpers.PlacementInfo.PlacementRegion;
 import com.yugabyte.yw.models.helpers.PlacementInfo.PlacementAZ;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -72,14 +72,10 @@ import org.yb.client.YBClient;
 import org.yb.util.ServerInfo;
 
 
-import play.api.Play;
-import play.Configuration;
 import play.data.Form;
 import play.data.FormFactory;
 import play.libs.Json;
 import play.mvc.*;
-
-import javax.persistence.PersistenceException;
 
 public class ImportController extends AuthenticatedController {
   public static final Logger LOG = LoggerFactory.getLogger(ImportController.class);
@@ -95,7 +91,7 @@ public class ImportController extends AuthenticatedController {
   private static final long THREAD_ALIVE_TIME = 60L;
 
   // The RPC timeouts.
-  private static final long RPC_TIMEOUT_MS = 5000L;
+  private static final Duration RPC_TIMEOUT_MS = Duration.ofMillis(5000L);
 
   // Expected string for node exporter http request.
   private static final String NODE_EXPORTER_RESP = "Node Exporter";
@@ -347,7 +343,7 @@ public class ImportController extends AuthenticatedController {
          universe.setUniverseDetails(universeDetails);
       }
     };
-    Universe.saveDetails(universe.universeUUID, updater);
+    Universe.saveDetails(universe.universeUUID, updater, false);
   }
 
   /**
@@ -645,7 +641,8 @@ public class ImportController extends AuthenticatedController {
       }
     };
     // Save the updated universe object and return the updated universe.
-    return Universe.saveDetails(taskParams.universeUUID, updater);
+    // saveUniverseDetails(taskParams.universeUUID);
+    return Universe.saveDetails(taskParams.universeUUID, updater, false);
   }
 
   /**
@@ -841,6 +838,6 @@ public class ImportController extends AuthenticatedController {
         new ThreadPoolExecutor(TASK_THREADS, TASK_THREADS, THREAD_ALIVE_TIME,
                                TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(),
                                namedThreadFactory);
-    LOG.debug("Started Import Thread Pool.");
+    LOG.trace("Started Import Thread Pool.");
   }
 }

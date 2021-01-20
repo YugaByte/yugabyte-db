@@ -20,6 +20,7 @@
 
 #include "yb/common/common.pb.h"
 
+#include "yb/util/monotime.h"
 #include "yb/util/net/net_util.h"
 #include "yb/util/result.h"
 
@@ -34,7 +35,10 @@ struct PGResultClear {
   void operator()(PGresult* result) const;
 };
 
+typedef std::unique_ptr<PGconn, PGConnClose> PGConnPtr;
 typedef std::unique_ptr<PGresult, PGResultClear> PGResultPtr;
+
+Result<bool> GetBool(PGresult* result, int row, int column);
 
 Result<int32_t> GetInt32(PGresult* result, int row, int column);
 
@@ -65,6 +69,9 @@ Result<T> GetValue(PGresult* result, int row, int column) {
 Result<std::string> AsString(PGresult* result, int row, int column);
 void LogResult(PGresult* result);
 
+std::string PqEscapeLiteral(const std::string& input);
+std::string PqEscapeIdentifier(const std::string& input);
+
 class PGConn {
  public:
   ~PGConn();
@@ -72,7 +79,13 @@ class PGConn {
   PGConn(PGConn&& rhs);
   PGConn& operator=(PGConn&& rhs);
 
-  static Result<PGConn> Connect(const HostPort& host_port, const std::string& db_name = "");
+  static Result<PGConn> Connect(
+      const HostPort& host_port,
+      const std::string& db_name = "",
+      const std::string& user = "postgres");
+  static Result<PGConn> Connect(
+      const std::string& conn_str,
+      CoarseTimePoint deadline = CoarseMonoClock::Now() + MonoDelta::FromSeconds(60));
 
   CHECKED_STATUS Execute(const std::string& command);
 
@@ -123,7 +136,6 @@ class PGConn {
   }
 
  private:
-  typedef std::unique_ptr<PGconn, PGConnClose> PGConnPtr;
   struct CopyData;
 
   explicit PGConn(PGConnPtr ptr);

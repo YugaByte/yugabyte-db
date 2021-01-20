@@ -230,11 +230,11 @@ class CassandraSession {
 
   CassandraFuture ExecuteGetFuture(const CassandraStatement& statement);
 
-  CassandraFuture ExecuteGetFuture(const string& query);
+  CassandraFuture ExecuteGetFuture(const std::string& query);
 
-  CHECKED_STATUS ExecuteQuery(const string& query);
+  CHECKED_STATUS ExecuteQuery(const std::string& query);
 
-  Result<CassandraResult> ExecuteWithResult(const string& query);
+  Result<CassandraResult> ExecuteWithResult(const std::string& query);
 
   template <class Action>
   CHECKED_STATUS ExecuteAndProcessOneRow(
@@ -262,7 +262,7 @@ class CassandraSession {
   CassandraFuture SubmitBatch(const CassandraBatch& batch);
 
   Result<CassandraPrepared> Prepare(
-      const string& prepare_query, MonoDelta timeout = MonoDelta::kZero);
+      const std::string& prepare_query, MonoDelta timeout = MonoDelta::kZero);
 
   void Reset();
 

@@ -19,7 +19,7 @@ from ybops.cloud.common.command import InstanceCommand, NetworkCommand, AccessCo
     QueryCommand, DnsCommand
 from ybops.cloud.common.base import AbstractPerCloudCommand
 from ybops.cloud.common.method import ConfigureInstancesMethod, AccessCreateVaultMethod, \
-    InitYSQLMethod, UpdateDiskMethod
+    InitYSQLMethod, UpdateDiskMethod, CronCheckMethod
 
 
 class AwsInstanceCommand(InstanceCommand):
@@ -37,6 +37,7 @@ class AwsInstanceCommand(InstanceCommand):
         self.add_method(AwsTagsMethod(self))
         self.add_method(InitYSQLMethod(self))
         self.add_method(UpdateDiskMethod(self))
+        self.add_method(CronCheckMethod(self))
 
 
 class AwsNetworkCommand(NetworkCommand):

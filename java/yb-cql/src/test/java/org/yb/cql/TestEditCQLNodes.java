@@ -24,9 +24,16 @@ import static org.yb.AssertionWrappers.assertEquals;
 import org.yb.YBTestRunner;
 
 import org.junit.runner.RunWith;
+import org.yb.minicluster.MiniYBClusterBuilder;
 
 @RunWith(value=YBTestRunner.class)
 public class TestEditCQLNodes extends BaseCQLTest {
+
+  @Override
+  protected void customizeMiniClusterBuilder(MiniYBClusterBuilder builder) {
+    super.customizeMiniClusterBuilder(builder);
+    builder.tserverHeartbeatTimeoutMs(MiniYBCluster.CQL_NODE_LIST_REFRESH_SECS * 1000 / 2);
+  }
 
   @Test
   public void testEditCQLNodes() throws Exception {

@@ -3153,6 +3153,12 @@ _doSetFixedOutputState(ArchiveHandle *AH)
 	else
 		ahprintf(AH, "SET row_security = off;\n");
 
+#ifndef DISABLE_YB_EXTENTIONS
+	// Allow for creating tables/indexes with (table_oid = x).
+	if (AH->public.dopt->include_yb_metadata)
+		ahprintf(AH, "SET yb_enable_create_with_table_oid = true;\n");
+#endif  /* DISABLE_YB_EXTENTIONS */
+
 	ahprintf(AH, "\n");
 }
 

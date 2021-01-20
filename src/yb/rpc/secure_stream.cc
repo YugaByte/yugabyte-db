@@ -19,10 +19,13 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
+#include <boost/tokenizer.hpp>
+
 #include "yb/rpc/outbound_call.h"
 #include "yb/rpc/outbound_data.h"
 #include "yb/rpc/rpc_util.h"
 
+#include "yb/util/enums.h"
 #include "yb/util/errno.h"
 #include "yb/util/memory/memory.h"
 #include "yb/util/logging.h"
@@ -34,6 +37,9 @@ using namespace std::literals;
 
 DEFINE_bool(allow_insecure_connections, true, "Whether we should allow insecure connections.");
 DEFINE_bool(dump_certificate_entries, false, "Whether we should dump certificate entries.");
+DEFINE_string(ssl_protocols, "",
+              "List of allowed SSL protocols (ssl2, ssl3, tls10, tls11, tls12). "
+                  "Empty to allow TLS only.");
 
 namespace yb {
 namespace rpc {
@@ -42,7 +48,7 @@ namespace {
 
 const unsigned char kContextId[] = { 'Y', 'u', 'g', 'a', 'B', 'y', 't', 'e' };
 
-std::string SSLErrorMessage(int error) {
+std::string SSLErrorMessage(uint64_t error) {
   auto message = ERR_reason_error_string(error);
   return message ? message : "no error";
 }
@@ -194,6 +200,40 @@ Result<detail::X509Ptr> CreateCertificate(
   return std::move(cert);
 }
 
+const std::unordered_map<std::string, int64_t>& SSLProtocolMap() {
+  static const std::unordered_map<std::string, int64_t> result = {
+      {"ssl2", SSL_OP_NO_SSLv2},
+      {"ssl3", SSL_OP_NO_SSLv3},
+      {"tls10", SSL_OP_NO_TLSv1},
+      {"tls11", SSL_OP_NO_TLSv1_1},
+      {"tls12", SSL_OP_NO_TLSv1_2},
+  };
+  return result;
+}
+
+int64_t ProtocolsOption() {
+  constexpr int64_t kDefaultProtocols = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
+
+  const std::string& ssl_protocols = FLAGS_ssl_protocols;
+  if (ssl_protocols.empty()) {
+    return kDefaultProtocols;
+  }
+
+  const auto& protocol_map = SSLProtocolMap();
+  int64_t result = SSL_OP_NO_SSL_MASK;
+  boost::tokenizer<> tokenizer(ssl_protocols);
+  for (const auto& protocol : tokenizer) {
+    auto it = protocol_map.find(protocol);
+    if (it == protocol_map.end()) {
+      LOG(DFATAL) << "Unknown SSL protocol: " << protocol;
+      return kDefaultProtocols;
+    }
+    result &= ~it->second;
+  }
+
+  return result;
+}
+
 } // namespace
 
 namespace detail {
@@ -212,7 +252,9 @@ SecureContext::SecureContext() {
   context_.reset(SSL_CTX_new(SSLv23_method()));
   DCHECK(context_);
 
-  SSL_CTX_set_options(context_.get(), SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION);
+  int64_t protocols = ProtocolsOption();
+  VLOG(1) << "Protocols option: " << protocols;
+  SSL_CTX_set_options(context_.get(), protocols | SSL_OP_NO_COMPRESSION);
   auto res = SSL_CTX_set_session_id_context(context_.get(), kContextId, sizeof(kContextId));
   LOG_IF(DFATAL, res != 1) << "Failed to set session id for SSL context: "
                            << SSLErrorMessage(ERR_get_error());
@@ -313,7 +355,7 @@ class SecureStream : public Stream, public StreamContext {
   CHECKED_STATUS Start(bool connect, ev::loop_ref* loop, StreamContext* context) override;
   void Close() override;
   void Shutdown(const Status& status) override;
-  size_t Send(OutboundDataPtr data) override;
+  Result<size_t> Send(OutboundDataPtr data) override;
   CHECKED_STATUS TryWrite() override;
   void ParseReceived() override;
 
@@ -349,10 +391,11 @@ class SecureStream : public Stream, public StreamContext {
   CHECKED_STATUS Handshake();
 
   CHECKED_STATUS Init();
-  void Established(SecureState state);
+  CHECKED_STATUS Established(SecureState state);
   static int VerifyCallback(int preverified, X509_STORE_CTX* store_context);
   bool Verify(bool preverified, X509_STORE_CTX* store_context);
-  void WriteEncrypted(OutboundDataPtr data);
+  CHECKED_STATUS SendEncrypted(OutboundDataPtr data);
+  Result<bool> WriteEncrypted(OutboundDataPtr data);
   CHECKED_STATUS ReadDecrypted();
   Result<size_t> SslRead(void* buf, int num);
 
@@ -398,44 +441,63 @@ void SecureStream::Shutdown(const Status& status) {
   lower_stream_->Shutdown(status);
 }
 
-size_t SecureStream::Send(OutboundDataPtr data) {
+Status SecureStream::SendEncrypted(OutboundDataPtr data) {
+  boost::container::small_vector<RefCntBuffer, 10> queue;
+  data->Serialize(&queue);
+  for (const auto& buf : queue) {
+    Slice slice(buf.data(), buf.size());
+    for (;;) {
+      auto len = SSL_write(ssl_.get(), slice.data(), slice.size());
+      if (len == slice.size()) {
+        break;
+      }
+      auto error = len <= 0 ? SSL_get_error(ssl_.get(), len) : SSL_ERROR_NONE;
+      VLOG_WITH_PREFIX(4) << "SSL_write was not full: " << slice.size() << ", written: " << len
+                          << ", error: " << error;
+      if (error != SSL_ERROR_NONE) {
+        if (error != SSL_ERROR_WANT_WRITE || !VERIFY_RESULT(WriteEncrypted(nullptr))) {
+          return STATUS_FORMAT(
+              NetworkError, "SSL write failed: $0 ($1)", SSLErrorMessage(error), error);
+        }
+      } else {
+        RETURN_NOT_OK(WriteEncrypted(nullptr));
+      }
+      if (len > 0) {
+        slice.remove_prefix(len);
+      }
+    }
+  }
+  return ResultToStatus(WriteEncrypted(std::move(data)));
+}
+
+Result<size_t> SecureStream::Send(OutboundDataPtr data) {
   switch (state_) {
   case SecureState::kInitial:
   case SecureState::kHandshake:
     pending_data_.push_back(std::move(data));
     return std::numeric_limits<size_t>::max();
-  case SecureState::kEnabled: {
-      boost::container::small_vector<RefCntBuffer, 10> queue;
-      data->Serialize(&queue);
-      for (const auto& buf : queue) {
-        Slice slice(buf.data(), buf.size());
-        for (;;) {
-          auto len = SSL_write(ssl_.get(), slice.data(), slice.size());
-          if (len == slice.size()) {
-            break;
-          }
-          VLOG_WITH_PREFIX(4) << "SSL_write was not full: " << slice.size() << ", written: " << len;
-          WriteEncrypted(nullptr);
-          slice.remove_prefix(len);
-        }
-      }
-      WriteEncrypted(std::move(data));
-    }
+  case SecureState::kEnabled:
+    RETURN_NOT_OK(SendEncrypted(std::move(data)));
     return std::numeric_limits<size_t>::max();
   case SecureState::kDisabled:
     return lower_stream_->Send(std::move(data));
   }
 
-  return std::numeric_limits<size_t>::max();
+  FATAL_INVALID_ENUM_VALUE(SecureState, state_);
 }
 
-void SecureStream::WriteEncrypted(OutboundDataPtr data) {
-  RefCntBuffer buf(BIO_ctrl_pending(bio_.get()));
+Result<bool> SecureStream::WriteEncrypted(OutboundDataPtr data) {
+  auto pending = BIO_ctrl_pending(bio_.get());
+  if (pending == 0) {
+    return data ? STATUS(NetworkError, "No pending data during write") : Result<bool>(false);
+  }
+  RefCntBuffer buf(pending);
   auto len = BIO_read(bio_.get(), buf.data(), buf.size());
   LOG_IF_WITH_PREFIX(DFATAL, len != buf.size())
       << "BIO_read was not full: " << buf.size() << ", read: " << len;
   VLOG_WITH_PREFIX(4) << "Write encrypted: " << len << ", " << yb::ToString(data);
-  lower_stream_->Send(std::make_shared<SecureOutboundData>(buf, std::move(data)));
+  RETURN_NOT_OK(lower_stream_->Send(std::make_shared<SecureOutboundData>(buf, std::move(data))));
+  return true;
 }
 
 Status SecureStream::TryWrite() {
@@ -467,7 +529,7 @@ const Endpoint& SecureStream::Local() {
 }
 
 std::string SecureStream::ToString() {
-  return Format("SECURE $0 $1", state_, lower_stream_->ToString());
+  return Format("SECURE[$0] $1 $2", need_connect_ ? "C" : "S", state_, lower_stream_->ToString());
 }
 
 void SecureStream::UpdateLastActivity() {
@@ -503,7 +565,7 @@ Result<ProcessDataResult> SecureStream::ProcessReceived(
         ResetLogPrefix();
         RETURN_NOT_OK(Init());
       } else if (FLAGS_allow_insecure_connections) {
-        Established(SecureState::kDisabled);
+        RETURN_NOT_OK(Established(SecureState::kDisabled));
       } else {
         return STATUS_FORMAT(NetworkError, "Insecure connection header: $0",
                              Slice(bytes, 2).ToDebugHexString());
@@ -560,8 +622,10 @@ Result<size_t> SecureStream::SslRead(void* buf, int num) {
     if (error == SSL_ERROR_WANT_READ) {
       return 0;
     } else {
-      LOG_WITH_PREFIX(INFO) << "SSL read error: " << error;
-      return STATUS_FORMAT(NetworkError, "SSL read failed: $0", error);
+      auto status = STATUS_FORMAT(
+          NetworkError, "SSL read failed: $0 ($1)", SSLErrorMessage(error), error);
+      LOG_WITH_PREFIX(INFO) << status;
+      return status;
     }
   }
   return len;
@@ -657,11 +721,11 @@ Status SecureStream::Handshake() {
       int len = BIO_read(bio_.get(), buffer.data(), buffer.size());
       DCHECK_EQ(len, pending_after);
       auto data = std::make_shared<SecureOutboundData>(buffer, nullptr);
-      lower_stream_->Send(data);
+      RETURN_NOT_OK(lower_stream_->Send(data));
       // If SSL_connect/SSL_accept returned positive result it means that TLS connection
       // was succesfully established. We just have to send last portion of data.
       if (result > 0) {
-        Established(SecureState::kEnabled);
+        RETURN_NOT_OK(Established(SecureState::kEnabled));
       }
     } else if (ssl_error == SSL_ERROR_WANT_READ) {
       // SSL expects that we would read from underlying transport.
@@ -669,8 +733,7 @@ Status SecureStream::Handshake() {
     } else if (SSL_get_shutdown(ssl_.get()) & SSL_RECEIVED_SHUTDOWN) {
       return STATUS(Aborted, "Handshake aborted");
     } else {
-      Established(SecureState::kEnabled);
-      return Status::OK();
+      return Established(SecureState::kEnabled);
     }
   }
 }
@@ -683,7 +746,7 @@ Status SecureStream::Init() {
     SSL_set_mode(ssl_.get(), SSL_MODE_RELEASE_BUFFERS);
     SSL_set_app_data(ssl_.get(), this);
 
-    if (!need_connect_) {
+    if (!need_connect_ || secure_context_.use_client_certificate()) {
       auto res = SSL_use_PrivateKey(ssl_.get(), secure_context_.private_key());
       if (res != 1) {
         return SSL_STATUS(InvalidArgument, "Failed to use private key: $0");
@@ -700,13 +763,17 @@ Status SecureStream::Init() {
     SSL_set_bio(ssl_.get(), int_bio, int_bio);
     bio_.reset(temp_bio);
 
-    SSL_set_verify(ssl_.get(), SSL_VERIFY_PEER, &VerifyCallback);
+    int verify_mode = SSL_VERIFY_PEER;
+    if (secure_context_.require_client_certificate()) {
+      verify_mode |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT | SSL_VERIFY_CLIENT_ONCE;
+    }
+    SSL_set_verify(ssl_.get(), verify_mode, &VerifyCallback);
   }
 
   return Status::OK();
 }
 
-void SecureStream::Established(SecureState state) {
+Status SecureStream::Established(SecureState state) {
   VLOG_WITH_PREFIX(4) << "Established with state: " << state;
 
   state_ = state;
@@ -714,9 +781,10 @@ void SecureStream::Established(SecureState state) {
   connected_ = true;
   context_->Connected();
   for (auto& data : pending_data_) {
-    Send(std::move(data));
+    RETURN_NOT_OK(Send(std::move(data)));
   }
   pending_data_.clear();
+  return Status::OK();
 }
 
 int SecureStream::VerifyCallback(int preverified, X509_STORE_CTX* store_context) {

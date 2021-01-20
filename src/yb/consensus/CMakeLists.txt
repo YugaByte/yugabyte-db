@@ -48,7 +48,6 @@ ADD_YB_LIBRARY(consensus_metadata_proto
   SRCS ${METADATA_PROTO_SRCS}
   DEPS ${METADATA_PROTO_LIBS}
   NONLINK_DEPS ${METADATA_PROTO_TGTS})
-cotire(consensus_metadata_proto)
 
 #########################################
 # consensus_proto
@@ -75,7 +74,6 @@ ADD_YB_LIBRARY(consensus_proto
   SRCS ${CONSENSUS_YRPC_SRCS}
   DEPS ${CONSENSUS_YRPC_LIBS}
   NONLINK_DEPS ${CONSENSUS_YRPC_TGTS})
-cotire(consensus_proto)
 
 #########################################
 # log_proto
@@ -88,7 +86,6 @@ PROTOBUF_GENERATE_CPP(
   PROTO_FILES log.proto)
 
 add_library(log_proto ${LOG_PROTO_SRCS} ${LOG_PROTO_HDRS})
-cotire(log_proto)
 
 target_link_libraries(log_proto
                       consensus_proto)
@@ -104,7 +101,6 @@ set(LOG_SRCS
 )
 
 add_library(log ${LOG_SRCS})
-cotire(log)
 target_link_libraries(log
   server_common
   gutil
@@ -129,7 +125,6 @@ set(CONSENSUS_SRCS
   retryable_requests.cc)
 
 add_library(consensus ${CONSENSUS_SRCS})
-cotire(consensus)
 
 ADD_YB_LIBRARY(
   consensus_error

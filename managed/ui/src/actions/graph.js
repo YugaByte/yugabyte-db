@@ -25,7 +25,7 @@ export function resetGraphQueryPeriod() {
 }
 
 export function queryMetrics(queryParams) {
-  const customerUUID = localStorage.getItem("customerId");
+  const customerUUID = localStorage.getItem('customerId');
   const request = axios.post(`${ROOT_URL}/customers/${customerUUID}/metrics`, queryParams);
   return {
     type: QUERY_METRICS,

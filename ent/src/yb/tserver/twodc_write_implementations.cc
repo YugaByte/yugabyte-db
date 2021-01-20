@@ -12,6 +12,11 @@
 
 #include <deque>
 
+#include "yb/common/transaction.h"
+
+#include "yb/docdb/docdb.h"
+#include "yb/docdb/key_bytes.h"
+
 #include "yb/tserver/twodc_write_interface.h"
 #include "yb/tserver/tserver.pb.h"
 
@@ -44,48 +49,89 @@ using namespace yb::size_literals;
 namespace tserver {
 namespace enterprise {
 
+CHECKED_STATUS CombineExternalIntents(
+    const TransactionStatePB& transaction_state,
+    const google::protobuf::RepeatedPtrField<cdc::KeyValuePairPB>& pairs,
+    google::protobuf::RepeatedPtrField<docdb::KeyValuePairPB> *out) {
 
-// The SequentialWriteImplementation strategy sends one record per WriteRequestPB, and waits for a
-// a response from one rpc before sending out another. This implementation sends rpcs in order
-// of opid. Note that a single write request can still contain a batch of multiple key value pairs,
-// corresponding to all the changes in a record.
-class SequentialWriteImplementation : public TwoDCWriteInterface {
- public:
-  ~SequentialWriteImplementation() = default;
+  class Provider : public docdb::ExternalIntentsProvider {
+   public:
+    Provider(
+        const Uuid& involved_tablet,
+        const google::protobuf::RepeatedPtrField<cdc::KeyValuePairPB>* pairs,
+        docdb::KeyValuePairPB* out)
+        : involved_tablet_(involved_tablet), pairs_(*pairs), out_(out) {
+    }
 
-  void ProcessRecord(const std::string& tablet_id, const cdc::CDCRecordPB& record) override {
-    auto write_request = std::make_unique<WriteRequestPB>();
-    write_request->set_tablet_id(tablet_id);
+    void SetKey(const Slice& slice) override {
+      out_->set_key(slice.cdata(), slice.size());
+    }
+
+    void SetValue(const Slice& slice) override {
+      out_->set_value(slice.cdata(), slice.size());
+    }
+
+    const Uuid& InvolvedTablet() override {
+      return involved_tablet_;
+    }
+
+    boost::optional<std::pair<Slice, Slice>> Next() override {
+      if (next_idx_ >= pairs_.size()) {
+        return boost::none;
+      }
+
+      const auto& input = pairs_[next_idx_];
+      ++next_idx_;
+
+      return std::pair<Slice, Slice>(input.key(), input.value().binary_value());
+    }
+
+   private:
+    Uuid involved_tablet_;
+    const google::protobuf::RepeatedPtrField<cdc::KeyValuePairPB>& pairs_;
+    docdb::KeyValuePairPB* out_;
+    size_t next_idx_ = 0;
+  };
+
+  auto txn_id = VERIFY_RESULT(FullyDecodeTransactionId(transaction_state.transaction_id()));
+  SCHECK_EQ(transaction_state.tablets().size(), 1, InvalidArgument, "Wrong tablets number");
+  Uuid status_tablet;
+  RETURN_NOT_OK(status_tablet.FromHexString(transaction_state.tablets()[0]));
+
+  Provider provider(status_tablet, &pairs, out->Add());
+  docdb::CombineExternalIntents(txn_id, &provider);
+  return Status::OK();
+}
+
+CHECKED_STATUS AddRecord(
+    const cdc::CDCRecordPB& record,
+    docdb::KeyValueWriteBatchPB* write_batch) {
+  if (record.operation() == cdc::CDCRecordPB::APPLY) {
+    auto* apply_txn = write_batch->mutable_apply_external_transactions()->Add();
+    apply_txn->set_transaction_id(record.transaction_state().transaction_id());
+    apply_txn->set_commit_hybrid_time(record.transaction_state().commit_hybrid_time());
+    return Status::OK();
+  }
+
+  if (record.has_transaction_state()) {
+    return CombineExternalIntents(
+        record.transaction_state(), record.changes(), write_batch->mutable_write_pairs());
+  }
+
+  for (const auto& kv_pair : record.changes()) {
+    auto* write_pair = write_batch->mutable_write_pairs()->Add();
+    write_pair->set_key(kv_pair.key());
+    write_pair->set_value(kv_pair.value().binary_value());
     if (PREDICT_FALSE(FLAGS_TEST_twodc_write_hybrid_time)) {
       // Used only for testing external hybrid time.
-      write_request->set_external_hybrid_time(yb::kInitialHybridTimeValue);
+      write_pair->set_external_hybrid_time(yb::kInitialHybridTimeValue);
     } else {
-      write_request->set_external_hybrid_time(record.time());
+      write_pair->set_external_hybrid_time(record.time());
     }
-
-    for (const auto& kv_pair : record.changes()) {
-      auto* write_pair = write_request->mutable_write_batch()->add_write_pairs();
-      write_pair->set_key(kv_pair.key());
-      write_pair->set_value(kv_pair.value().binary_value());
-    }
-
-    records_.push_back(std::move(write_request));
   }
 
-  std::unique_ptr <WriteRequestPB> GetNextWriteRequest() override {
-    auto next_req = std::move(records_.front());
-    records_.pop_front();
-    return next_req;
-  }
-
-  bool HasMoreWrites() override {
-    return records_.size() > 0;
-  }
-
- private:
-  std::deque <std::unique_ptr<WriteRequestPB>> records_;
-
-};
+  return Status::OK();
+}
 
 // The BatchedWriteImplementation strategy batches together multiple records per WriteRequestPB.
 // Max number of records in a request is cdc_max_apply_batch_num_records, and max size of a request
@@ -95,7 +141,7 @@ class SequentialWriteImplementation : public TwoDCWriteInterface {
 class BatchedWriteImplementation : public TwoDCWriteInterface {
   ~BatchedWriteImplementation() = default;
 
-  void ProcessRecord(const std::string& tablet_id, const cdc::CDCRecordPB& record) override {
+  Status ProcessRecord(const std::string& tablet_id, const cdc::CDCRecordPB& record) override {
     WriteRequestPB* write_request;
     auto it = records_.find(tablet_id);
     if (it == records_.end()) {
@@ -121,44 +167,29 @@ class BatchedWriteImplementation : public TwoDCWriteInterface {
     }
     write_request = queue.back().get();
 
-    for (const auto& kv_pair : record.changes()) {
-      auto* write_pair = write_request->mutable_write_batch()->add_write_pairs();
-      write_pair->set_key(kv_pair.key());
-      write_pair->set_value(kv_pair.value().binary_value());
-      if (PREDICT_FALSE(FLAGS_TEST_twodc_write_hybrid_time)) {
-        // Used only for testing external hybrid time.
-        write_pair->set_external_hybrid_time(yb::kInitialHybridTimeValue);
-      } else {
-        write_pair->set_external_hybrid_time(record.time());
-      }
-    }
+    return AddRecord(record, write_request->mutable_write_batch());
   }
 
   std::unique_ptr <WriteRequestPB> GetNextWriteRequest() override {
+    if (records_.empty()) {
+      return nullptr;
+    }
     auto& queue = records_.begin()->second;
     auto next_req = std::move(queue.front());
     queue.pop_front();
-    if (queue.size() == 0) {
+    if (queue.empty()) {
       records_.erase(next_req->tablet_id());
     }
     return next_req;
   }
 
-  bool HasMoreWrites() override {
-    return records_.size() > 0;
-  }
-
  private:
-  std::map <std::string, std::deque<std::unique_ptr < WriteRequestPB>>>
-  records_;
+  std::map<std::string, std::deque<std::unique_ptr<WriteRequestPB>>> records_;
+
 };
 
 void ResetWriteInterface(std::unique_ptr<TwoDCWriteInterface>* write_strategy) {
-  if (FLAGS_cdc_max_apply_batch_num_records == 1) {
-    write_strategy->reset(new SequentialWriteImplementation());
-  } else {
-    write_strategy->reset(new BatchedWriteImplementation());
-  }
+  write_strategy->reset(new BatchedWriteImplementation());
 }
 
 } // namespace enterprise

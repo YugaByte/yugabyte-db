@@ -10,43 +10,43 @@ import './TaskAlerts.scss';
 
 class AlertItem extends Component {
   render() {
-    const {taskInfo} = this.props;
-    let statusText = "";
-    let statusVerbClassName = "";
-    let statusIconClassName = "";
-    if (taskInfo.status === "Initializing") {
+    const { taskInfo } = this.props;
+    let statusText = '';
+    let statusVerbClassName = '';
+    let statusIconClassName = '';
+    if (taskInfo.status === 'Initializing') {
       statusText = 'Initializing';
-      statusVerbClassName = "yb-pending-color";
-      statusIconClassName = "fa-spinner fa-spin yb-pending-color";
-    } else if (taskInfo.status === "Running") {
+      statusVerbClassName = 'yb-pending-color';
+      statusIconClassName = 'fa-spinner fa-spin yb-pending-color';
+    } else if (taskInfo.status === 'Running') {
       statusText = 'Pending';
-      statusVerbClassName = "yb-pending-color";
-      statusIconClassName = "fa-spinner fa-spin yb-pending-color";
-    } else if (taskInfo.status === "Success") {
+      statusVerbClassName = 'yb-pending-color';
+      statusIconClassName = 'fa-spinner fa-spin yb-pending-color';
+    } else if (taskInfo.status === 'Success') {
       statusText = 'Completed';
-      statusVerbClassName = "yb-success-color";
-      statusIconClassName = "fa-check yb-success-color";
-    } else if (taskInfo.status === "Failure"){
+      statusVerbClassName = 'yb-success-color';
+      statusIconClassName = 'fa-check yb-success-color';
+    } else if (taskInfo.status === 'Failure') {
       statusText = 'Failed';
-      statusVerbClassName = "yb-fail-color";
-      statusIconClassName = "fa-warning yb-fail-color";
+      statusVerbClassName = 'yb-fail-color';
+      statusIconClassName = 'fa-warning yb-fail-color';
     } else {
       statusText = 'Unknown';
-      statusVerbClassName = "yb-unknown-color";
-      statusIconClassName = "fa-exclamation yb-unknown-color";
+      statusVerbClassName = 'yb-unknown-color';
+      statusIconClassName = 'fa-exclamation yb-unknown-color';
     }
 
     const timeStampDifference = moment(taskInfo.createTime).fromNow();
-    const [currentTask, universeName] = taskInfo.title.split(":");
+    const [currentTask, universeName] = taskInfo.title.split(':');
     return (
-      <div className='task-cell'>
-        <div className='icon icon-hang-left'>
+      <div className="task-cell">
+        <div className="icon icon-hang-left">
           <i className={`fa ${statusIconClassName}`}></i>
         </div>
-        <div className='task-name'>
+        <div className="task-name">
           {currentTask} <span className="task-universe-name">{universeName}</span>
         </div>
-        <div className='task-status'>
+        <div className="task-status">
           <span className={'task-status-verb ' + statusVerbClassName}>{statusText}</span>
           {timeStampDifference}
         </div>
@@ -68,12 +68,14 @@ export default class TaskAlerts extends Component {
   }
 
   render() {
-    const {tasks: {customerTaskList}} = this.props;
+    const {
+      tasks: { customerTaskList }
+    } = this.props;
     let tasksDisplayList = [];
     if (isNonEmptyArray(customerTaskList)) {
       const displayItems = customerTaskList.slice(0, 4);
       tasksDisplayList = displayItems.map((listItem, idx) => (
-        <AlertItem key={`alertItem${idx}`} taskInfo={listItem}/>
+        <AlertItem key={`alertItem${idx}`} taskInfo={listItem} />
       ));
     }
 
@@ -86,7 +88,9 @@ export default class TaskAlerts extends Component {
           Tasks
         </div>
         {tasksDisplayList}
-        <Link to="tasks" className="task-cell">Show All Tasks</Link>
+        <Link to="tasks" className="task-cell">
+          Show All Tasks
+        </Link>
       </div>
     );
   }

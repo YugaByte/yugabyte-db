@@ -64,6 +64,7 @@
 #include "yb/util/logging.h"
 #include "yb/util/monotime.h"
 #include "yb/util/net/net_util.h"
+#include "yb/util/scope_exit.h"
 #include "yb/util/status_callback.h"
 #include "yb/util/threadpool.h"
 #include "yb/util/tsan_util.h"
@@ -202,6 +203,15 @@ void Peer::SendNextRequest(RequestTriggerMode trigger_mode) {
   if (!processing_lock.owns_lock()) {
     return;
   }
+  // Since there's a couple of return paths from this function, setup a cleanup, in case we fill in
+  // ops inside request_, but do not get to use them.
+  bool needs_cleanup = true;
+  ScopeExit([&needs_cleanup, this](){
+    if (needs_cleanup) {
+      // Since we will not be using request_, we should cleanup the reserved ops.
+      CleanRequestOps();
+    }
+  });
 
   // The peer has no pending request nor is sending: send the request.
   bool needs_remote_bootstrap = false;
@@ -250,6 +260,9 @@ void Peer::SendNextRequest(RequestTriggerMode trigger_mode) {
       (member_type == RaftPeerPB::PRE_VOTER || member_type == RaftPeerPB::PRE_OBSERVER)) {
     if (PREDICT_TRUE(consensus_)) {
       auto uuid = peer_pb_.permanent_uuid();
+      // Remove these here, before we drop the locks.
+      needs_cleanup = false;
+      CleanRequestOps();
       processing_lock.unlock();
       performing_lock.unlock();
       consensus::ChangeConfigRequestPB req;
@@ -291,6 +304,7 @@ void Peer::SendNextRequest(RequestTriggerMode trigger_mode) {
   // If the queue is empty, check if we were told to send a status-only message (which is what
   // happens during heartbeats). If not, just return.
   if (PREDICT_FALSE(!req_has_ops && trigger_mode == RequestTriggerMode::kNonEmptyOnly)) {
+    queue_->RequestWasNotSent(peer_pb_.permanent_uuid());
     return;
   }
 
@@ -306,6 +320,7 @@ void Peer::SendNextRequest(RequestTriggerMode trigger_mode) {
 
   // We will cleanup ops from request in ProcessResponse, because otherwise there could be race
   // condition. When rest of this function is running in parallel to ProcessResponse.
+  needs_cleanup = false;
   msgs_holder.ReleaseOps();
 
   controller_.set_invoke_callback_mode(rpc::InvokeCallbackMode::kThreadPoolHigh);
@@ -324,10 +339,14 @@ std::unique_lock<simple_spinlock> Peer::StartProcessingUnlocked() {
 }
 
 void Peer::ProcessResponse() {
-  request_.mutable_ops()->ExtractSubrange(0, request_.ops().size(), nullptr /* elements */);
-
   DCHECK(performing_mutex_.is_locked()) << "Got a response when nothing was pending";
+
+  CleanRequestOps();
+
   Status status = controller_.status();
+  if (status.ok()) {
+    status = controller_.thread_pool_failure();
+  }
   controller_.Reset();
 
   auto performing_lock = LockPerforming(std::adopt_lock);
@@ -497,6 +516,10 @@ void Peer::Close() {
 Peer::~Peer() {
   std::lock_guard<simple_spinlock> processing_lock(peer_lock_);
   CHECK_EQ(state_, kPeerClosed) << "Peer cannot be implicitly closed";
+}
+
+void Peer::CleanRequestOps() {
+  request_.mutable_ops()->ExtractSubrange(0, request_.ops().size(), nullptr /* elements */);
 }
 
 RpcPeerProxy::RpcPeerProxy(HostPort hostport, ConsensusServiceProxyPtr consensus_proxy)

@@ -63,10 +63,9 @@ SampleNext(SampleScanState *node)
 	slot = node->ss.ss_ScanTupleSlot;
 
 	if (tuple)
-		ExecStoreTuple(tuple,	/* tuple to store */
-					   slot,	/* slot to store in */
-					   node->ss.ss_currentScanDesc->rs_cbuf,	/* tuple's buffer */
-					   false);	/* don't pfree this pointer */
+		ExecStoreBufferHeapTuple(tuple,	/* tuple to store */
+								 slot,	/* slot to store in */
+								 node->ss.ss_currentScanDesc->rs_cbuf);	/* tuple's buffer */
 	else
 		ExecClearTuple(slot);
 
@@ -153,10 +152,9 @@ ExecInitSampleScan(SampleScan *node, EState *estate, int eflags)
 						  RelationGetDescr(scanstate->ss.ss_currentRelation));
 
 	/*
-	 * Initialize result slot, type and projection. tuple table and result
-	 * tuple initialization
+	 * Initialize result type and projection.
 	 */
-	ExecInitResultTupleSlotTL(estate, &scanstate->ss.ps);
+	ExecInitResultTypeTL(&scanstate->ss.ps);
 	ExecAssignScanProjectionInfo(&scanstate->ss);
 
 	/*
@@ -215,7 +213,8 @@ ExecEndSampleScan(SampleScanState *node)
 	/*
 	 * clean out the tuple table
 	 */
-	ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
+	if (node->ss.ps.ps_ResultTupleSlot)
+		ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
 	ExecClearTuple(node->ss.ss_ScanTupleSlot);
 
 	/*

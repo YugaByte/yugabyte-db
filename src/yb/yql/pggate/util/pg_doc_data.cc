@@ -78,6 +78,8 @@ Status WriteColumn(const QLValuePB& col_value, faststring *buffer) {
       // Passing a serialized form of YB Decimal, decoding will be done in pg_expr.cc
       PgWire::WriteText(col_value.decimal_value(), buffer);
       break;
+    case InternalType::kVirtualValue:
+      // Expecting database to return an actual value and not a virtual one.
     case InternalType::kTimestampValue:
     case InternalType::kDateValue: // Not used for PG storage
     case InternalType::kTimeValue: // Not used for PG storage

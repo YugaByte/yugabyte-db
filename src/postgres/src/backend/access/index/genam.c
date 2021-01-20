@@ -550,9 +550,11 @@ systable_endscan(SysScanDesc sysscan)
  * we could do a heapscan and sort, but the uses are in places that
  * probably don't need to still work with corrupted catalog indexes.)
  * For the moment, therefore, these functions are merely the thinnest of
- * wrappers around index_beginscan/index_getnext.  The main reason for their
- * existence is to centralize possible future support of lossy operators
+ * wrappers around index_beginscan/index_getnext_slot.  The main reason for
+ * their existence is to centralize possible future support of lossy operators
  * in catalog scans.
+ * TODO: This is not yet formally supported in YB, but cannot disable it
+ *       because it is used for enum types (see issues #6259).
  */
 SysScanDesc
 systable_beginscan_ordered(Relation heapRelation,

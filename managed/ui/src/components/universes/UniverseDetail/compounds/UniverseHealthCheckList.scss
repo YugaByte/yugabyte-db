@@ -1,0 +1,232 @@
+// Copyright (c) YugaByte, Inc.
+
+@import '../../../../_style/colors';
+
+.UniverseHealthCheckList {
+  .content-panel > .body {
+    border-radius: 7px;
+    box-shadow: none;
+  }
+
+  .TreeNode {
+    box-shadow: none;
+  }
+
+  .TreeNode-open .TreeNode-header {
+    background: #f1f2f3;
+  }
+
+  h2.health-check-header {
+    margin-bottom: 24px;
+  }
+
+  .tree-node-main-heading {
+    font-weight: 700;
+    margin-right: 10px;
+  }
+
+  .label-danger {
+    margin-right: 6px;
+    padding: 0em 0.4em 0.1em;
+    font-size: 0.9em;
+  }
+
+  .expand-cell {
+    width: 50%;
+  }
+
+  .health-badge {
+    font-size: 0.85em;
+    border-radius: 3px;
+    margin-right: 8px;
+    margin-left: 8px;
+    padding: 0 4px;
+    font-weight: 400;
+  }
+
+  .health-badge-error {
+    background-color: $YB_FAIL_COLOR;
+    color: #ffffff;
+  }
+
+  .health-badge-ok {
+    background-color: $YB_BACKGROUND;
+    color: $YB_SUCCESS_COLOR;
+  }
+
+  .status-good i {
+    background-color: $YB_SUCCESS_COLOR;
+    color: #ffffff;
+  }
+
+  .status-bad i {
+    background-color: $YB_FAIL_COLOR;
+    color: #ffffff;
+  }
+
+  .count {
+    margin-left: 10px;
+
+    i {
+      border-radius: 50%;
+      position: relative;
+      display: inline-block;
+      height: 19px;
+      width: 19px;
+      font-size: 14px;
+      top: -2px;
+      text-align: center;
+      line-height: 18px;
+    }
+  }
+
+  .react-bs-table {
+    i.fa {
+      top: 2px;
+      font-size: 20px;
+      line-height: 18px;
+      margin: -2px 4px -2px 0;
+    }
+    pre {
+      white-space: normal;
+      font-family: monospace;
+      margin-bottom: 0;
+    }
+    .name-column {
+      width: 10%;
+
+      @media (max-width: 1199px) {
+        width: 15%;
+      }
+
+      @media (max-width: 991px) {
+        width: 25%;
+      }
+      * {
+        white-space: normal;
+      }
+    }
+  }
+  .health-container {
+    margin: 0px;
+    border: none !important;
+    border-top: none;
+    background-color: #fff;
+    border-radius: 7px;
+    margin-bottom: 20px;
+    box-shadow: none;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    .panel-heading {
+      padding: 0 !important;
+      border: none;
+      border-radius: 0;
+
+      a {
+        background-color: $YB_VIOLET_TEXT;
+        color: #fff;
+        text-transform: lowercase;
+        border-radius: 7px 7px 0 0;
+
+        &.collapsed {
+          background-color: $YB_GRAY_HOVER;
+          color: $YB_VIOLET_TEXT;
+          border-radius: 5px;
+
+          &:after {
+            top: 12px;
+            left: 13px;
+            color: $YB_VIOLET;
+          }
+          &:hover {
+            background-color: $YB_GRAY;
+            color: $YB_VIOLET_TEXT;
+          }
+          span.count {
+            color: #232329;
+          }
+        }
+        display: flex;
+        padding: 10px 5px 10px 35px;
+        position: relative;
+        @include transition(0.35s);
+        &:after {
+          position: absolute;
+          color: $YB_VIOLET_TEXT_LIGHT;
+          top: 9px;
+          left: 11px;
+        }
+        &:hover {
+          background-color: darken($YB_VIOLET_TEXT, 2%);
+          color: #fff;
+          text-decoration: none;
+          @include transition(0.125s);
+        }
+
+        &:active {
+          background-color: darken($YB_VIOLET_TEXT, 10%);
+        }
+
+        span:not(.count) {
+          width: auto;
+          flex: 1 1;
+        }
+        span.count {
+          min-width: 130px;
+          display: block;
+          flex: 0 0;
+          font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+          font-size: 14px;
+          position: relative;
+          padding-left: 30px;
+          line-height: 18px;
+          i {
+            display: block;
+            position: absolute;
+            left: 0;
+            top: 2px;
+            color: #ffffff;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            line-height: 24px;
+            transform: translateY(-5px);
+          }
+        }
+      }
+    }
+    .panel-title {
+      font-size: 18px;
+      margin-top: 0;
+      font-family: 'Rubik', 'Helvetica Neue', sans-serif;
+      letter-spacing: -0.03em;
+      font-weight: 500;
+      line-height: 1;
+    }
+    .panel-title a:after {
+      font-family: 'FontAwesome';
+      content: '\f078';
+      float: left;
+      margin-right: 5px;
+      line-height: 18px;
+    }
+    .panel-title a.collapsed:after {
+      content: '\f054';
+    }
+
+    .panel-collapse {
+      padding: 0;
+      margin: 0;
+      border-radius: 0 0 7px 7px;
+      box-shadow: 0 0.12em 2px rgba($YB_DARK_GRAY_2, 0.05), 0 0.5em 10px rgba($YB_DARK_GRAY_2, 0.07);
+    }
+    .panel-body {
+      border: none !important;
+      padding: 0;
+      margin: 0;
+    }
+  }
+}

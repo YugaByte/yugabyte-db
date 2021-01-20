@@ -2,27 +2,55 @@
 
 import { connect } from 'react-redux';
 import AuthenticatedComponent from './AuthenticatedComponent';
-import { fetchUniverseList, fetchUniverseListResponse, resetUniverseList }
-  from '../../actions/universe';
-import { getProviderList, getProviderListResponse, getSupportedRegionData,
-  getSupportedRegionDataResponse, getEBSTypeList, getEBSTypeListResponse, getGCPTypeList,
-  getGCPTypeListResponse, getAZUTypeList, getAZUTypeListResponse, listAccessKeysResponse, listAccessKeys }
-  from '../../actions/cloud';
-import { fetchColumnTypes, fetchColumnTypesSuccess, fetchColumnTypesFailure }
-  from '../../actions/tables';
-import { fetchSoftwareVersions, fetchSoftwareVersionsSuccess,
-  fetchSoftwareVersionsFailure, fetchYugaWareVersion, fetchYugaWareVersionResponse,
-  fetchCustomerConfigs, fetchCustomerConfigsResponse, getTlsCertificates,
-  getTlsCertificatesResponse, insecureLogin, insecureLoginResponse }
-  from '../../actions/customers';
-import {fetchCustomerTasks, fetchCustomerTasksSuccess, fetchCustomerTasksFailure} from '../../actions/tasks';
-import {setUniverseMetrics} from '../../actions/universe';
+import {
+  fetchUniverseList,
+  fetchUniverseListResponse,
+  resetUniverseList
+} from '../../actions/universe';
+import {
+  getProviderList,
+  getProviderListResponse,
+  getSupportedRegionData,
+  getSupportedRegionDataResponse,
+  getEBSTypeList,
+  getEBSTypeListResponse,
+  getGCPTypeList,
+  getGCPTypeListResponse,
+  getAZUTypeList,
+  getAZUTypeListResponse,
+  listAccessKeysResponse,
+  listAccessKeys
+} from '../../actions/cloud';
+import {
+  fetchColumnTypes,
+  fetchColumnTypesSuccess,
+  fetchColumnTypesFailure
+} from '../../actions/tables';
+import {
+  fetchSoftwareVersions,
+  fetchSoftwareVersionsSuccess,
+  fetchSoftwareVersionsFailure,
+  fetchYugaWareVersion,
+  fetchYugaWareVersionResponse,
+  fetchCustomerConfigs,
+  fetchCustomerConfigsResponse,
+  getTlsCertificates,
+  getTlsCertificatesResponse,
+  insecureLogin,
+  insecureLoginResponse
+} from '../../actions/customers';
+import {
+  fetchCustomerTasks,
+  fetchCustomerTasksSuccess,
+  fetchCustomerTasksFailure
+} from '../../actions/tasks';
+import { setUniverseMetrics } from '../../actions/universe';
 import { queryMetrics } from '../../actions/graph';
 
 const mapDispatchToProps = (dispatch) => {
   return {
     fetchSoftwareVersions: () => {
-      dispatch(fetchSoftwareVersions()).then((response)=>{
+      dispatch(fetchSoftwareVersions()).then((response) => {
         if (response.payload.status !== 200) {
           dispatch(fetchSoftwareVersionsFailure(response.payload));
         } else {
@@ -42,23 +70,21 @@ const mapDispatchToProps = (dispatch) => {
     },
 
     fetchUniverseList: () => {
-      dispatch(fetchUniverseList())
-        .then((response) => {
-          const startTime  = Math.floor(Date.now() / 1000) - (12 * 60 * 60 );
-          const endTime = Math.floor(Date.now() / 1000);
-          const queryParams = {
-            metrics: ["tserver_rpcs_per_sec_by_universe"],
-            start: startTime,
-            end: endTime
-          };
-          dispatch(queryMetrics(queryParams))
-            .then((response) => {
-              if (response.payload.status === 200) {
-                dispatch(setUniverseMetrics(response.payload));
-              }
-            });
-          dispatch(fetchUniverseListResponse(response.payload));
+      dispatch(fetchUniverseList()).then((response) => {
+        const startTime = Math.floor(Date.now() / 1000) - 12 * 60 * 60;
+        const endTime = Math.floor(Date.now() / 1000);
+        const queryParams = {
+          metrics: ['tserver_rpcs_per_sec_by_universe'],
+          start: startTime,
+          end: endTime
+        };
+        dispatch(queryMetrics(queryParams)).then((response) => {
+          if (response.payload.status === 200) {
+            dispatch(setUniverseMetrics(response.payload));
+          }
         });
+        dispatch(fetchUniverseListResponse(response.payload));
+      });
     },
 
     fetchCustomerCertificates: () => {
@@ -135,7 +161,7 @@ const mapDispatchToProps = (dispatch) => {
       dispatch(fetchCustomerConfigs()).then((response) => {
         dispatch(fetchCustomerConfigsResponse(response.payload));
       });
-    },
+    }
   };
 };
 

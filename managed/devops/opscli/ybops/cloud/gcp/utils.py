@@ -215,7 +215,7 @@ class NetworkManager():
         network = networks[0]
 
         subnet_map = self.get_region_subnet_map(network.get("selfLink"))
-        for region_name, scope in subnet_map.iteritems():
+        for region_name, scope in subnet_map.items():
             region = region_name.split("/")[1]
             subnets = [s["name"] for s in scope.get("subnetworks", [])]
             if len(subnets) > 0:
@@ -238,7 +238,7 @@ class NetworkManager():
         # List all relevant subnets.
         output_region_to_subnet_map = {}
         subnet_map = self.get_region_subnet_map(network_url)
-        for region_name, scope in subnet_map.iteritems():
+        for region_name, scope in subnet_map.items():
             region = region_name.split("/")[1]
             # Ignore regions not asked to bootstrap.
             if region not in self.metadata["regions"]:
@@ -250,7 +250,7 @@ class NetworkManager():
                 ops_by_region[region] = self.create_subnetwork(
                     network_url, region, custom_subnet_name)
         # Wait for all created subnets.
-        for r, op in ops_by_region.iteritems():
+        for r, op in ops_by_region.items():
             self.waiter.wait(op, region=r)
         peer_network_url = None
         # Setup the VPC peering.
@@ -278,7 +278,7 @@ class NetworkManager():
         ops_by_region = {}
         # List all relevant subnets.
         subnet_map = self.get_region_subnet_map(network_url)
-        for region_name, scope in subnet_map.iteritems():
+        for region_name, scope in subnet_map.items():
             region = region_name.split("/")[1]
             subnets = scope.get("subnetworks", [])
             for s in subnets:
@@ -287,7 +287,7 @@ class NetworkManager():
                 op = self.delete_subnetwork(region, subnet)
                 ops_by_region.setdefault(region, []).append(op)
         # Wait for all subnet deletions.
-        for region, ops in ops_by_region.iteritems():
+        for region, ops in ops_by_region.items():
             for op in ops:
                 self.waiter.wait(op, region=region)
         # Remove all firewall rules.
@@ -594,7 +594,7 @@ class GoogleCloudAdmin():
         return {}
 
     def get_regions(self):
-        return self.metadata['regions'].keys()
+        return list(self.metadata['regions'].keys())
         """
         # TODO: revert back to this if we decide to go back to the full list of regions from GCP.
         filter = "(status eq UP)"
@@ -745,10 +745,13 @@ class GoogleCloudAdmin():
             "initializeParams": initial_params
         }
 
-        for i in xrange(num_volumes):
+        for i in range(num_volumes):
             body["disks"].append(disk_config)
 
+        logging.info("[app] About to create GCP VM {} in region {}.".format(
+            instance_name, region))
         self.waiter.wait(self.compute.instances().insert(
             project=self.project,
             zone=zone,
             body=body).execute(), zone=zone)
+        logging.info("[app] Created GCP VM {}".format(instance_name))

@@ -84,7 +84,8 @@ class ExternalMiniClusterITestBase : public YBTest {
   void StartCluster(const std::vector<std::string>& extra_ts_flags = std::vector<std::string>(),
                     const std::vector<std::string>& extra_master_flags = std::vector<std::string>(),
                     int num_tablet_servers = 3,
-                    int num_masters = 1);
+                    int num_masters = 1,
+                    bool enable_ysql = false);
 
   gscoped_ptr<ExternalMiniCluster> cluster_;
   gscoped_ptr<itest::ExternalMiniClusterFsInspector> inspect_;
@@ -95,12 +96,14 @@ class ExternalMiniClusterITestBase : public YBTest {
 void ExternalMiniClusterITestBase::StartCluster(const std::vector<std::string>& extra_ts_flags,
                                                 const std::vector<std::string>& extra_master_flags,
                                                 int num_tablet_servers,
-                                                int num_masters) {
+                                                int num_masters,
+                                                bool enable_ysql) {
   ExternalMiniClusterOptions opts;
   opts.num_masters = num_masters;
   opts.num_tablet_servers = num_tablet_servers;
   opts.extra_master_flags = extra_master_flags;
   opts.extra_tserver_flags = extra_ts_flags;
+  opts.enable_ysql = enable_ysql;
   SetUpCluster(&opts);
 
   cluster_.reset(new ExternalMiniCluster(opts));

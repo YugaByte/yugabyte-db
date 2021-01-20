@@ -3,20 +3,22 @@
 import { connect } from 'react-redux';
 
 import { ListUniverse } from '../../universes';
-import { fetchUniverseList, fetchUniverseListResponse,
-  closeUniverseDialog } from '../../../actions/universe';
+import {
+  fetchUniverseList,
+  fetchUniverseListResponse,
+  closeUniverseDialog
+} from '../../../actions/universe';
 import { openDialog, closeDialog } from '../../../actions/modal';
 
 const mapDispatchToProps = (dispatch) => {
   return {
     fetchUniverseList: () => {
-      dispatch(fetchUniverseList())
-        .then((response) => {
-          dispatch(fetchUniverseListResponse(response.payload));
-        });
+      dispatch(fetchUniverseList()).then((response) => {
+        dispatch(fetchUniverseListResponse(response.payload));
+      });
     },
     showUniverseModal: () => {
-      dispatch(openDialog("universeModal"));
+      dispatch(openDialog('universeModal'));
     },
     closeUniverseModal: () => {
       dispatch(closeDialog());
@@ -32,4 +34,4 @@ function mapStateToProps(state, ownProps) {
   };
 }
 
-export default connect( mapStateToProps, mapDispatchToProps)(ListUniverse);
+export default connect(mapStateToProps, mapDispatchToProps)(ListUniverse);

@@ -620,6 +620,7 @@ public class TestPgAuthorization extends BasePgSQLTest {
 
       // Cannot create users with unencrypted passwords.
       statement.execute("DROP ROLE IF EXISTS pass_role");
+      waitForTServerHeartbeat();
       runInvalidQuery(
           statement,
           "CREATE ROLE pass_role LOGIN UNENCRYPTED PASSWORD 'pass'",
@@ -633,11 +634,12 @@ public class TestPgAuthorization extends BasePgSQLTest {
       Calendar cal = Calendar.getInstance();
       cal.setTime(new Date());
       cal.add(Calendar.SECOND, 10);
-      Timestamp expiriationTime = new Timestamp(cal.getTime().getTime());
+      Timestamp expirationTime = new Timestamp(cal.getTime().getTime());
 
       statement.execute("DROP ROLE IF EXISTS pass_role");
+      waitForTServerHeartbeat();
       statement.execute("CREATE ROLE pass_role LOGIN PASSWORD 'password' " +
-          "VALID UNTIL '" + expiriationTime.toString() + "'");
+          "VALID UNTIL '" + expirationTime.toString() + "'");
 
       // Can connect now.
       try (Connection ignored = passRoleUserConnBldr.withPassword("password").connect()) {

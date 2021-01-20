@@ -1,0 +1,20 @@
+@import '../../../uikit/common';
+
+.wizard-step-wrapper {
+  &__stepper {
+    margin-left: 50px;
+    margin-bottom: 10px;
+  }
+
+  &__container {
+    display: flex;
+  }
+
+  &__col-form {
+    flex-grow: 1;
+    min-width: 1100px;
+    max-width: 1400px;
+  }
+
+  &__col-summary {}
+}

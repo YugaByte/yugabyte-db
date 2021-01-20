@@ -836,6 +836,12 @@ postquel_start(execution_state *es, SQLFunctionCachePtr fcache)
 		else
 			eflags = 0;			/* default run-to-completion flags */
 		ExecutorStart(es->qd, eflags);
+
+		/*
+		 * Since PGSQL functions don't require the row count from updates, we
+		 * can allow for batched updates.
+		 */
+		es->qd->estate->yb_can_batch_updates = true;
 	}
 
 	es->status = F_EXEC_RUN;
@@ -933,8 +939,8 @@ postquel_sub_params(SQLFunctionCachePtr fcache,
 		{
 			ParamExternData *prm = &paramLI->params[i];
 
-			prm->value = fcinfo->arg[i];
-			prm->isnull = fcinfo->argnull[i];
+			prm->value = fcinfo->args[i].value;
+			prm->isnull = fcinfo->args[i].isnull;
 			prm->pflags = 0;
 			prm->ptype = fcache->pinfo->argtypes[i];
 		}

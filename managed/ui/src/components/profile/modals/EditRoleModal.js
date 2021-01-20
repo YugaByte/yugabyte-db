@@ -8,7 +8,7 @@ import { userRoles } from './AddUserModal';
 export const EditRoleModal = ({ modalVisible, onHide, user, changeUserRole, getCustomerUsers }) => {
   if (!user) return null;
 
-  const initialValue = { role: userRoles.find(item => item.value === user.role) };
+  const initialValue = { role: userRoles.find((item) => item.value === user.role) };
 
   const submitForm = async (data) => {
     const newRole = data.role.value;
@@ -40,7 +40,12 @@ export const EditRoleModal = ({ modalVisible, onHide, user, changeUserRole, getC
               <div className="form-item-custom-label">Role</div>
             </Col>
             <Col lg={7}>
-              <Field name="role" component={YBFormSelect} options={userRoles} isSearchable={false} />
+              <Field
+                name="role"
+                component={YBFormSelect}
+                options={userRoles}
+                isSearchable={false}
+              />
             </Col>
           </Row>
         </YBModal>

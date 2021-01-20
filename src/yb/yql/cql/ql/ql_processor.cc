@@ -138,8 +138,9 @@ QLProcessor::QLProcessor(client::YBClient* client,
                          const server::ClockPtr& clock,
                          TransactionPoolProvider transaction_pool_provider)
     : ql_env_(client, cache, clock, std::move(transaction_pool_provider)),
+      audit_logger_(ql_env_),
       analyzer_(&ql_env_),
-      executor_(&ql_env_, this, ql_metrics),
+      executor_(&ql_env_, &audit_logger_, this, ql_metrics),
       ql_metrics_(ql_metrics),
       parser_pool_(parser_pool ? parser_pool : &default_parser_pool) {
 }
@@ -156,11 +157,15 @@ Status QLProcessor::Parse(const string& stmt, ParseTree::UniPtr* parse_tree,
   auto scope_exit = ScopeExit([this, parser] {
     this->parser_pool_->Release(parser);
   });
-  RETURN_NOT_OK(parser->Parse(stmt, reparsed, mem_tracker, internal));
+  const Status s = parser->Parse(stmt, reparsed, mem_tracker, internal);
   const MonoTime end_time = MonoTime::Now();
   if (ql_metrics_ != nullptr) {
     const MonoDelta elapsed_time = end_time.GetDeltaSince(begin_time);
     ql_metrics_->time_to_parse_ql_query_->Increment(elapsed_time.ToMicroseconds());
+  }
+  if (!s.ok()) {
+    RETURN_NOT_OK(audit_logger_.LogStatementError(stmt, s, true /* error_is_formatted */));
+    return s;
   }
   *parse_tree = parser->Done();
   DCHECK(*parse_tree) << "Parse tree is null";
@@ -186,11 +191,15 @@ Status QLProcessor::Prepare(const string& stmt, ParseTree::UniPtr* parse_tree,
                             const bool reparsed, const MemTrackerPtr& mem_tracker,
                             const bool internal) {
   RETURN_NOT_OK(Parse(stmt, parse_tree, reparsed, mem_tracker, internal));
-  const Status s = Analyze(parse_tree);
+  Status s = Analyze(parse_tree);
   if (s.IsQLError() && GetErrorCode(s) == ErrorCode::STALE_METADATA && !reparsed) {
     *parse_tree = nullptr;
     RETURN_NOT_OK(Parse(stmt, parse_tree, true /* reparsed */, mem_tracker));
-    return Analyze(parse_tree);
+    s = Analyze(parse_tree);
+  }
+  if (s.IsQLError()) {
+    RETURN_NOT_OK(audit_logger_.LogStatementError((*parse_tree)->root().get(), stmt, s,
+                                                  true /* error_is_formatted */));
   }
   return s;
 }
@@ -442,6 +451,7 @@ void QLProcessor::Reschedule(rpc::ThreadPoolTask* task) {
   // Some unit tests are not executed in CQL proxy. In those cases, just execute the callback
   // directly while disabling thread restrictions.
   const bool allowed = ThreadRestrictions::SetWaitAllowed(true);
+  audit_logger_.MarkRescheduled();
   task->Run();
   // In such tests QLProcessor is deleted right after Run is executed, since QLProcessor tasks
   // do nothing in Done we could just don't execute it.

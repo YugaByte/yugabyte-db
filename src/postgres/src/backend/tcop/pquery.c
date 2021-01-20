@@ -19,6 +19,7 @@
 
 #include "access/xact.h"
 #include "commands/prepare.h"
+#include "commands/trigger.h"
 #include "executor/tstoreReceiver.h"
 #include "miscadmin.h"
 #include "pg_trace.h"

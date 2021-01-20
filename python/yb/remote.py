@@ -9,6 +9,7 @@ import os
 import shlex
 import subprocess
 import time
+import logging
 
 REMOTE_BUILD_HOST_ENV_VAR = 'YB_REMOTE_BUILD_HOST'
 DEFAULT_BASE_BRANCH = 'origin/master'
@@ -46,14 +47,20 @@ def parse_git_diff_name_status(lines):
 
 
 def remote_communicate(host, remote_command, error_ok=False):
-    args = ['ssh', host, remote_command]
+    if isinstance(remote_command, list):
+        remote_command_args = remote_command
+    else:
+        remote_command_args = [remote_command]
+
+    args = ['ssh', host] + remote_command_args
+
+    logging.info("Running command: %s", args)
     proc = subprocess.Popen(args, shell=False)
     proc.communicate()
     if proc.returncode != 0:
         if error_ok:
             return False
-        else:
-            raise RuntimeError('ssh terminated with code {}'.format(proc.returncode))
+        raise RuntimeError('ssh terminated with code {}'.format(proc.returncode))
     return True
 
 
@@ -108,13 +115,12 @@ def apply_default_host_value(host):
     return host
 
 
-def load_profile(arg_names_to_load, args_map, profile_name="default_profile"):
+def load_profile(args, profile_name="default_profile"):
     """
     Loads the profile from config file if it's defined, initializing given arguments
     in the CLI args map with the ones from profile - if they were omitted in CLI call.
     Also appends 'extra_args' from profile to 'build_args' in args map.
-    :param arg_names_to_load: argument names to load from profile
-    :param args_map: parsed CLI arguments map to init missing values with the loaded args
+    :param args: parsed CLI arguments map to init missing values with the loaded args
     :param profile_name: name of the profile to load
     :return:
     """
@@ -123,23 +129,64 @@ def load_profile(arg_names_to_load, args_map, profile_name="default_profile"):
     if conf and not profile_name:
         profile_name = conf.get("default_profile", profile_name)
 
-    if profile_name:
-        profiles = conf['profiles']
-        profile = profiles.get(profile_name)
-        if profile is None:
-            # Match profile using the remote host.
-            for profile_name_to_try in profiles:
-                if profiles[profile_name_to_try].get('host') == profile_name:
-                    profile = profiles[profile_name_to_try]
+    if profile_name is None:
+        return
+
+    profiles = conf['profiles']
+    profile = profiles.get(profile_name)
+    if profile:
+        logging.info("Using profile %s", profile_name)
+    else:
+        # Match profile using the remote host.
+        for profile_name_to_try in profiles:
+            if profiles[profile_name_to_try].get('host') == profile_name:
+                logging.info("Using profile %s based on the host name", profile_name_to_try)
+                profile = profiles[profile_name_to_try]
+                break
+    if profile is None:
+        raise RuntimeError("Unknown profile '%s'" % profile_name)
+
+    if 'remote_path' not in profile and args.remote_path is None:
+        # Automatically figure out the remote path based on directory substitutions specified in the
+        # profile. E.g. one could specify
+        # "code_directory_substitutions": [{
+        #   "local": "~/code",
+        #   "remote": "/home/centos/code"
+        # }]
+        # and then run remote_build.py in ~/code/yugabyte-db and the build will run in
+        # /home/centos/code/yugabyte-db on the remote host.
+        cur_dir = os.getcwd()
+        cur_dir_variants = [os.path.abspath(cur_dir), os.path.realpath(cur_dir)]
+        for substitution in profile.get('code_directory_substitutions', []):
+            local_code_dir = os.path.expanduser(substitution['local'])
+            remote_code_dir = os.path.expanduser(substitution['remote'])
+
+            for cur_dir_variant in cur_dir_variants:
+                for local_code_dir_variant in [
+                        os.path.abspath(local_code_dir), os.path.realpath(local_code_dir)]:
+                    if cur_dir_variant == local_code_dir_variant:
+                        args.remote_path = remote_code_dir
+                    elif cur_dir_variant.startswith(local_code_dir_variant + '/'):
+                        args.remote_path = os.path.join(
+                            remote_code_dir,
+                            os.path.relpath(cur_dir_variant, local_code_dir_variant))
+
+                if args.remote_path is not None:
                     break
-            if profile is None:
-                raise RuntimeError("Unknown profile '%s'" % profile_name)
-        for arg_name in arg_names_to_load:
-            if getattr(args_map, arg_name) is None:
-                setattr(args_map, arg_name, profile.get(arg_name))
-        if args_map.build_args is None:
-            args_map.build_args = []
-        args_map.build_args += profile.get('extra_args', [])
+
+            if args.remote_path is not None:
+                logging.info(
+                    "Auto-detected remote path as %s based on current directory %s using the "
+                    "substitution %s in the profile",
+                    args.remote_path, cur_dir, json.dumps(substitution))
+                break
+
+    for arg_name in ['host', 'remote_path', 'branch']:
+        if getattr(args, arg_name) is None:
+            setattr(args, arg_name, profile.get(arg_name))
+    if args.build_args is None:
+        args.build_args = []
+    args.build_args += profile.get('extra_args', [])
 
 
 def sync_changes(host, branch, remote_path, wait_for_ssh):
@@ -160,7 +207,28 @@ def sync_changes(host, branch, remote_path, wait_for_ssh):
             print("Remote host is unavailabe, re-trying")
             time.sleep(1)
 
-    remote_commit = fetch_remote_commit(host, remote_path)
+    can_clone_and_retry = True
+    remote_commit = None
+    while True:
+        try:
+            remote_commit = fetch_remote_commit(host, remote_path)
+            break
+        except subprocess.CalledProcessError as called_process_error:
+            if not can_clone_and_retry:
+                raise called_process_error
+            logging.exception(called_process_error)
+
+        can_clone_and_retry = False
+        logging.info("Trying to clone the remote repository at %s", remote_path)
+        remote_communicate(
+            host,
+            """
+                repo_dir={0};
+                echo "Attempting to clone the code on $(hostname) at $repo_dir"
+                if [[ ! -e $repo_dir ]]; then
+                    ( set -x; git clone git@github.com:yugabyte/yugabyte-db.git "$repo_dir" )
+                fi
+            """.format(shlex.quote(remote_path)).strip())
 
     if remote_path.startswith('~/'):
         escaped_remote_path = '$HOME/' + shlex.quote(remote_path[2:])
@@ -169,20 +237,22 @@ def sync_changes(host, branch, remote_path, wait_for_ssh):
 
     if remote_commit != commit:
         print("Remote commit mismatch, syncing")
-        remote_command = 'cd {0} && '.format(escaped_remote_path)
-        remote_command += 'git checkout -- . && '
-        remote_command += 'git clean -f . && '
-        remote_command += 'git checkout master && '
-        remote_command += 'git pull && '
-        remote_command += 'git checkout {0}'.format(commit)
+        remote_command = ' && '.join([
+            'cd {0}'.format(escaped_remote_path),
+            'git checkout -- .',
+            'git clean -f .',
+            'git checkout master',
+            'git pull',
+            'git checkout {0}'.format(commit)
+        ])
         remote_communicate(host, remote_command)
         remote_commit = fetch_remote_commit(host, remote_path)
         if remote_commit != commit:
             raise RuntimeError("Failed to sync remote commit to: {0}, it is still: {1}".format(
                 commit, remote_commit))
 
-    files, del_files = \
-        parse_git_diff_name_status(check_output_lines(['git', 'diff', commit, '--name-status']))
+    files, del_files = parse_git_diff_name_status(
+        check_output_lines(['git', 'diff', commit, '--name-status']))
     print("Total files: {0}, deleted files: {1}".format(len(files), len(del_files)))
 
     if files:

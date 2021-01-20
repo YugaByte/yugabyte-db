@@ -17,8 +17,11 @@
 #include <unordered_set>
 
 #include <boost/optional.hpp>
+#include <boost/unordered_set.hpp>
 
 #include "yb/client/client_fwd.h"
+
+#include "yb/common/transaction.h"
 
 #include "yb/gutil/ref_counted.h"
 
@@ -75,17 +78,9 @@ class PgSessionAsyncRunResult {
 };
 
 struct PgForeignKeyReference {
-  const uint32_t table_id;
-  const std::string ybctid;
-
-  PgForeignKeyReference(uint32_t i_table_id, std::string &&i_ybctid)
-      : table_id(i_table_id), ybctid(i_ybctid) {
-  }
-
-  std::string ToString() const {
-    return Format("{ table_id: $0 ybctid: $1 }",
-                  table_id, ybctid);
-  }
+  PgForeignKeyReference(PgOid table_id, std::string ybctid);
+  PgOid table_id;
+  std::string ybctid;
 };
 
 // Represents row id (ybctid) from the DocDB's point of view.
@@ -134,6 +129,7 @@ class PgSession : public RefCountedThreadSafe<PgSession> {
                                 PgOid database_oid,
                                 PgOid source_database_oid,
                                 PgOid next_oid,
+                                const boost::optional<TransactionMetadata> transaction,
                                 const bool colocated);
   CHECKED_STATUS DropDatabase(const std::string& database_name, PgOid database_oid);
   client::YBNamespaceAlterer *NewNamespaceAlterer(const std::string& namespace_name,
@@ -201,6 +197,7 @@ class PgSession : public RefCountedThreadSafe<PgSession> {
       client::YBTableName* indexed_table_name = nullptr,
       bool wait = true);
   CHECKED_STATUS TruncateTable(const PgObjectId& table_id);
+  CHECKED_STATUS BackfillIndex(const PgObjectId& table_id);
   Result<PgTableDesc::ScopedRefPtr> LoadTable(const PgObjectId& table_id);
   void InvalidateTableCache(const PgObjectId& table_id);
 
@@ -294,24 +291,27 @@ class PgSession : public RefCountedThreadSafe<PgSession> {
 
   void InvalidateForeignKeyReferenceCache() {
     fk_reference_cache_.clear();
+    fk_reference_intent_.clear();
   }
 
   // Check if initdb has already been run before. Needed to make initdb idempotent.
   Result<bool> IsInitDbDone();
 
-  // Returns the local tserver's catalog version stored in shared memory, or an error if
-  // the shared memory has not been initialized (e.g. in initdb).
+  // Return the local tserver's catalog version stored in shared memory or an error if the shared
+  // memory has not been initialized (e.g. in initdb).
   Result<uint64_t> GetSharedCatalogVersion();
+  // Return the local tserver's postgres authentication key stored in shared memory or an error if
+  // the shared memory has not been initialized (e.g. in initdb).
+  Result<uint64_t> GetSharedAuthKey();
 
-  // Returns true if the row referenced by ybctid exists in FK reference cache (Used for caching
-  // foreign key checks).
-  bool ForeignKeyReferenceExists(uint32_t table_id, std::string&& ybctid);
-
-  // Adds the row referenced by ybctid to FK reference cache.
-  CHECKED_STATUS CacheForeignKeyReference(uint32_t table_id, std::string&& ybctid);
+  using YbctidReader =
+      std::function<Result<std::vector<std::string>>(PgOid, const std::vector<Slice>&)>;
+  Result<bool> ForeignKeyReferenceExists(
+      PgOid table_id, const Slice& ybctid, const YbctidReader& reader);
+  void AddForeignKeyReferenceIntent(PgOid table_id, const Slice& ybctid);
 
   // Deletes the row referenced by ybctid from FK reference cache.
-  CHECKED_STATUS DeleteForeignKeyReference(uint32_t table_id, std::string&& ybctid);
+  void DeleteForeignKeyReference(PgOid table_id, const Slice& ybctid);
 
   CHECKED_STATUS HandleResponse(const client::YBPgsqlOp& op, const PgObjectId& relation_id) const;
 
@@ -397,7 +397,8 @@ class PgSession : public RefCountedThreadSafe<PgSession> {
   ObjectIdGenerator rowid_generator_;
 
   std::unordered_map<TableId, std::shared_ptr<client::YBTable>> table_cache_;
-  std::unordered_set<PgForeignKeyReference, boost::hash<PgForeignKeyReference>> fk_reference_cache_;
+  boost::unordered_set<PgForeignKeyReference> fk_reference_cache_;
+  boost::unordered_set<PgForeignKeyReference> fk_reference_intent_;
 
   // Should write operations be buffered?
   bool buffering_enabled_ = false;
@@ -407,6 +408,8 @@ class PgSession : public RefCountedThreadSafe<PgSession> {
 
   const tserver::TServerSharedObject* const tserver_shared_object_;
   const YBCPgCallbacks& pg_callbacks_;
+
+  bool read_from_followers_ = false;
 };
 
 }  // namespace pggate

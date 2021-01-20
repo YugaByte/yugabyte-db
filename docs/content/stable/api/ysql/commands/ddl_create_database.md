@@ -100,7 +100,7 @@ Default value is `false` and every table in the database will have its own set o
 
 ### Create a colocated database
 
-```postgresql
+```plpgsql
 yugabyte=# CREATE DATABASE company WITH COLOCATED = true;
 ```
 

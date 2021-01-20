@@ -136,10 +136,6 @@ class QLWriteOperation :
 
   CHECKED_STATUS UpdateIndexes(const QLTableRow& current_row, const QLTableRow& new_row);
 
-  QLWriteRequestPB* NewIndexRequest(const IndexInfo* index,
-                                    QLWriteRequestPB::QLStmtType type,
-                                    const QLTableRow& new_row);
-
   std::shared_ptr<const Schema> schema_;
   const IndexMap& index_map_;
   const Schema* unique_index_key_schema_ = nullptr;
@@ -179,12 +175,14 @@ class QLWriteOperation :
   bool liveness_column_exists_ = false;
 };
 
-CHECKED_STATUS PrepareIndexWriteAndCheckIfIndexKeyChanged(QLExprExecutor* expr_executor,
-                                                          const QLTableRow &existing_row,
-                                                          const QLTableRow &new_row,
-                                                          const IndexInfo *index,
-                                                          QLWriteRequestPB* index_request,
-                                                          bool* has_index_key_changed = nullptr);
+Result<QLWriteRequestPB*> CreateAndSetupIndexInsertRequest(
+    QLExprExecutor* expr_executor,
+    bool index_has_write_permission,
+    const QLTableRow& existing_row,
+    const QLTableRow& new_row,
+    const IndexInfo* index,
+    std::vector<std::pair<const IndexInfo*, QLWriteRequestPB>>* index_requests,
+    bool* has_index_key_changed = nullptr);
 
 class QLReadOperation : public DocExprExecutor {
  public:

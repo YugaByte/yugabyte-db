@@ -51,6 +51,9 @@ typedef enum statementType
 	Insert,
 	Delete,
 	Update,
+	Begin,
+	Commit,
+	Rollback,
 	Other,
 	Transaction,
 	AggregatePushdown,
@@ -58,7 +61,18 @@ typedef enum statementType
 } statementType;
 int num_entries = kMaxStatementType;
 ybpgmEntry *ybpgm_table = NULL;
+
+/* Statement nesting level is used when setting up dml statements.
+ * - Some state variables are set up for the top-level query but not the nested query.
+ * - Time recorder is initialized and used for top-level query only.
+ */
 static int statement_nesting_level = 0;
+
+/* Block nesting level is used when setting up execution block such as "DO $$ ... END $$;".
+ * - Some state variables are set up for the top level block but not the nested blocks.
+ */
+static int block_nesting_level = 0;
+
 char *metric_node_name = NULL;
 struct WebserverWrapper *webserver = NULL;
 int port = 0;
@@ -91,7 +105,7 @@ static void ybpgm_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
                                  ProcessUtilityContext context,
                                  ParamListInfo params, QueryEnvironment *queryEnv,
                                  DestReceiver *dest, char *completionTag);
-static void ybpgm_Store();
+static void ybpgm_Store(statementType type, uint64_t time, uint64_t rows);
 
 /*
  * Function used for checking if the current statement is a top level statement.
@@ -102,6 +116,36 @@ isTopLevelStatement(void)
   return statement_nesting_level == 0;
 }
 
+static void
+IncStatementNestingLevel(void)
+{
+  statement_nesting_level++;
+}
+
+static void
+DecStatementNestingLevel(void)
+{
+  statement_nesting_level--;
+}
+
+bool
+isTopLevelBlock(void)
+{
+  return block_nesting_level == 0;
+}
+
+static void
+IncBlockNestingLevel(void)
+{
+  block_nesting_level++;
+}
+
+static void
+DecBlockNestingLevel(void)
+{
+  block_nesting_level--;
+}
+
 void
 set_metric_names(void)
 {
@@ -109,6 +153,9 @@ set_metric_names(void)
   strcpy(ybpgm_table[Insert].name, YSQL_METRIC_PREFIX "InsertStmt");
   strcpy(ybpgm_table[Delete].name, YSQL_METRIC_PREFIX "DeleteStmt");
   strcpy(ybpgm_table[Update].name, YSQL_METRIC_PREFIX "UpdateStmt");
+  strcpy(ybpgm_table[Begin].name, YSQL_METRIC_PREFIX "BeginStmt");
+  strcpy(ybpgm_table[Commit].name, YSQL_METRIC_PREFIX "CommitStmt");
+  strcpy(ybpgm_table[Rollback].name, YSQL_METRIC_PREFIX "RollbackStmt");
   strcpy(ybpgm_table[Other].name, YSQL_METRIC_PREFIX "OtherStmts");
   strcpy(ybpgm_table[Transaction].name, YSQL_METRIC_PREFIX "Transactions");
   strcpy(ybpgm_table[AggregatePushdown].name, YSQL_METRIC_PREFIX "AggregatePushdowns");
@@ -270,6 +317,9 @@ webserver_worker_main(Datum unused)
    * is not allocated when we enter this function. The memory is allocated after the background
    * works are registered.
    */
+
+  YBCInitThreading();
+
   backendStatusArrayPointer = getBackendStatusArrayPointer();
 
   BackgroundWorkerUnblockSignals();
@@ -386,15 +436,29 @@ ybpgm_startup_hook(void)
 static void
 ybpgm_ExecutorStart(QueryDesc *queryDesc, int eflags)
 {
+  /* Each PORTAL execution will run the following steps.
+   * 1- ExecutorStart()
+   * 2- Execute statements in the portal.
+   *    Some statement execution (CURSOR execution) can open a nested PORTAL. Our metric routines
+   *    will ignore the nested PORTAL for now.
+   * 3- ExecutorEnd()
+   */
   if (prev_ExecutorStart)
     prev_ExecutorStart(queryDesc, eflags);
   else
     standard_ExecutorStart(queryDesc, eflags);
 
-  if (isTopLevelStatement() && queryDesc->totaltime == NULL)
+  /* PORTAL run can be nested inside another PORTAL, and we only run metric routines for the top
+   * level portal statement. The current design of using global variable "statement_nesting_level"
+   * is very flawed as it cannot find the starting and ending point of a top statement execution.
+   * For now, as a workaround, "queryDesc" attribute is used as an indicator for logging metric.
+   * Whenever "time value" is not null, it is logged at the end of a portal run.
+   * - When starting, we allocate "queryDesc->totaltime".
+   * - When ending, we check for "queryDesc->totaltime". If not null, its metric is log.
+   */
+  if (isTopLevelStatement() && !queryDesc->totaltime)
   {
     MemoryContext oldcxt;
-
     oldcxt = MemoryContextSwitchTo(queryDesc->estate->es_query_cxt);
     queryDesc->totaltime = InstrAlloc(1, INSTRUMENT_TIMER);
     MemoryContextSwitchTo(oldcxt);
@@ -405,18 +469,18 @@ static void
 ybpgm_ExecutorRun(QueryDesc *queryDesc, ScanDirection direction, uint64 count,
                  bool execute_once)
 {
-  statement_nesting_level++;
+  IncStatementNestingLevel();
   PG_TRY();
   {
     if (prev_ExecutorRun)
       prev_ExecutorRun(queryDesc, direction, count, execute_once);
     else
       standard_ExecutorRun(queryDesc, direction, count, execute_once);
-    statement_nesting_level--;
+    DecStatementNestingLevel();
   }
   PG_CATCH();
   {
-    statement_nesting_level--;
+    DecStatementNestingLevel();
     PG_RE_THROW();
   }
   PG_END_TRY();
@@ -425,18 +489,18 @@ ybpgm_ExecutorRun(QueryDesc *queryDesc, ScanDirection direction, uint64 count,
 static void
 ybpgm_ExecutorFinish(QueryDesc *queryDesc)
 {
-  statement_nesting_level++;
+  IncStatementNestingLevel();
   PG_TRY();
   {
     if (prev_ExecutorFinish)
       prev_ExecutorFinish(queryDesc);
     else
       standard_ExecutorFinish(queryDesc);
-    statement_nesting_level--;
+    DecStatementNestingLevel();
   }
   PG_CATCH();
   {
-    statement_nesting_level--;
+    DecStatementNestingLevel();
     PG_RE_THROW();
   }
   PG_END_TRY();
@@ -465,34 +529,42 @@ ybpgm_ExecutorEnd(QueryDesc *queryDesc)
       break;
   }
 
-  if (isTopLevelStatement()) {
-	uint64_t time;
-
+  /* Collecting metric.
+   * - Only processing metric for top level statement in top level portal.
+   *   For example, CURSOR execution can have many nested portal and nested statement. The metric
+   *   for all of the nested items are not processed.
+   * - However, it's difficult to know the starting and ending point of a statement, we check for
+   *   not null "queryDesc->totaltime".
+   * - The design for this metric module for using global state variables is very flawed, so we
+   *   use this not-null check for now.
+   */
+  if (isTopLevelStatement() && queryDesc->totaltime) {
 	InstrEndLoop(queryDesc->totaltime);
-	time = (uint64_t) (queryDesc->totaltime->total * 1000000.0);
+	const uint64_t time = (uint64_t) (queryDesc->totaltime->total * 1000000.0);
+	const uint64 rows_count = queryDesc->estate->es_processed;
 
-	ybpgm_Store(type, time);
+	ybpgm_Store(type, time, rows_count);
 
 	if (!queryDesc->estate->es_yb_is_single_row_modify_txn)
-	  ybpgm_Store(Transaction, time);
+	  ybpgm_Store(Transaction, time, rows_count);
 
 	if (IsA(queryDesc->planstate, AggState) &&
 		castNode(AggState, queryDesc->planstate)->yb_pushdown_supported)
-	  ybpgm_Store(AggregatePushdown, time);
+	  ybpgm_Store(AggregatePushdown, time, rows_count);
   }
 
-  statement_nesting_level++;
+  IncStatementNestingLevel();
   PG_TRY();
   {
     if (prev_ExecutorEnd)
       prev_ExecutorEnd(queryDesc);
     else
       standard_ExecutorEnd(queryDesc);
-    statement_nesting_level--;
+    DecStatementNestingLevel();
   }
   PG_CATCH();
   {
-    statement_nesting_level--;
+    DecStatementNestingLevel();
     PG_RE_THROW();
   }
   PG_END_TRY();
@@ -512,6 +584,36 @@ ybpgm_memsize(void)
 }
 
 /*
+ * Get the statement type for a transactional statement.
+ */
+static statementType ybpgm_getStatementType(TransactionStmt *stmt) {
+  statementType type = Other;
+  switch (stmt->kind) {
+    case TRANS_STMT_BEGIN:
+    case TRANS_STMT_START:
+      type = Begin;
+      break;
+    case TRANS_STMT_COMMIT:
+    case TRANS_STMT_COMMIT_PREPARED:
+      type = Commit;
+      break;
+    case TRANS_STMT_ROLLBACK:
+    case TRANS_STMT_ROLLBACK_TO:
+    case TRANS_STMT_ROLLBACK_PREPARED:
+      type = Rollback;
+      break;
+    case TRANS_STMT_SAVEPOINT:
+    case TRANS_STMT_RELEASE:
+    case TRANS_STMT_PREPARE:
+      type = Other;
+      break;
+    default:
+      elog(ERROR, "unrecognized statement kind: %d", stmt->kind);
+  }
+  return type;
+}
+
+/*
  * Hook used for tracking "Other" statements.
  */
 static void
@@ -520,14 +622,23 @@ ybpgm_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
                      ParamListInfo params, QueryEnvironment *queryEnv,
                      DestReceiver *dest, char *completionTag)
 {
-  if (isTopLevelStatement() && !IsA(pstmt->utilityStmt, ExecuteStmt) &&
+  if (isTopLevelBlock() && !IsA(pstmt->utilityStmt, ExecuteStmt) &&
       !IsA(pstmt->utilityStmt, PrepareStmt) && !IsA(pstmt->utilityStmt, DeallocateStmt))
   {
     instr_time start;
     instr_time end;
+    statementType type;
+
+    if (IsA(pstmt->utilityStmt, TransactionStmt)) {
+      TransactionStmt *stmt = (TransactionStmt *)(pstmt->utilityStmt);
+      type = ybpgm_getStatementType(stmt);
+    } else {
+      type = Other;
+    }
+
     INSTR_TIME_SET_CURRENT(start);
 
-    ++statement_nesting_level;
+    IncBlockNestingLevel();
     PG_TRY();
     {
       if (prev_ProcessUtility)
@@ -538,18 +649,18 @@ ybpgm_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
         standard_ProcessUtility(pstmt, queryString,
                                 context, params, queryEnv,
                                 dest, completionTag);
-      --statement_nesting_level;
+      DecBlockNestingLevel();
     }
     PG_CATCH();
     {
-      --statement_nesting_level;
+      DecBlockNestingLevel();
       PG_RE_THROW();
     }
     PG_END_TRY();
 
     INSTR_TIME_SET_CURRENT(end);
     INSTR_TIME_SUBTRACT(end, start);
-    ybpgm_Store(Other, INSTR_TIME_GET_MICROSEC(end));
+    ybpgm_Store(type, INSTR_TIME_GET_MICROSEC(end), 0 /* rows */);
   }
   else
   {
@@ -565,7 +676,9 @@ ybpgm_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 }
 
 static void
-ybpgm_Store(statementType type, uint64_t time){
-  ybpgm_table[type].calls++;
-  ybpgm_table[type].total_time += time;
+ybpgm_Store(statementType type, uint64_t time, uint64_t rows) {
+  struct ybpgmEntry *entry = &ybpgm_table[type];
+  entry->total_time += time;
+  entry->calls += 1;
+  entry->rows += rows;
 }

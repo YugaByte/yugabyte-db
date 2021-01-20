@@ -1,22 +1,22 @@
-@import "../../../../_style/colors.scss";
+@import '../../../../_style/colors.scss';
 
 .universe-status {
+  display: inline-block;
+  font-size: 70%;
+  margin-left: 24px;
+
+  &.good {
+    color: $YB_SUCCESS_COLOR;
+  }
+  &.pending {
+    color: $YB_PENDING_COLOR;
+  }
+  &.bad {
+    color: $YB_FAIL_COLOR;
+  }
+
+  span {
     display: inline-block;
-    font-size: 70%;
-    margin-left: 24px;
-
-    &.good {
-        color: $YB_SUCCESS_COLOR;
-    }
-    &.pending {
-        color: $YB_PENDING_COLOR;
-    }
-    &.bad {
-        color: $YB_FAIL_COLOR;
-    }
-
-    span {
-        display: inline-block;
-        padding-left: 4px;
-    }
+    padding-left: 4px;
+  }
 }

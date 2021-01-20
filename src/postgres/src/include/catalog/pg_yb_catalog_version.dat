@@ -1,0 +1,18 @@
+#----------------------------------------------------------------------
+#
+# pg_yb_catalog_version.dat
+#    Initial contents of the pg_yb_catalog_version system catalog.
+#
+# Portions Copyright (c) YugaByte, Inc.
+#
+# src/include/catalog/pg_yb_catalog_version.dat
+#
+#----------------------------------------------------------------------
+
+[
+
+# db_oid = 1 means the Oid of the template1 database which is bootstrapped during initdb.
+
+{ db_oid => '1', current_version => '1', last_breaking_version => '1' },
+
+]

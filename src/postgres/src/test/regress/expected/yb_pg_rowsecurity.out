@@ -3057,17 +3057,13 @@ UPDATE current_check SET payload = payload || '_new' WHERE currentid = 2 RETURNI
 
 BEGIN;
 DECLARE current_check_cursor SCROLL CURSOR FOR SELECT * FROM current_check;
-ERROR:  DECLARE CURSOR not supported yet
-LINE 1: DECLARE current_check_cursor SCROLL CURSOR FOR SELECT * FROM...
-        ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
 -- Returns rows that can be seen according to SELECT policy, like plain SELECT
 -- above (even rows)
 FETCH ABSOLUTE 1 FROM current_check_cursor;
-ERROR:  FETCH not supported yet
+ERROR:  FETCH ABSOLUTE not supported yet
 LINE 1: FETCH ABSOLUTE 1 FROM current_check_cursor;
-        ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
+              ^
+HINT:  See https://github.com/YugaByte/yugabyte-db/issues/6514. Click '+' on the description to raise its priority
 -- Still cannot UPDATE row 2 through cursor
 UPDATE current_check SET payload = payload || '_new' WHERE CURRENT OF current_check_cursor RETURNING *;
 ERROR:  WHERE CURRENT OF not supported yet
@@ -3076,10 +3072,10 @@ LINE 1: ...ATE current_check SET payload = payload || '_new' WHERE CURR...
 HINT:  See https://github.com/YugaByte/yugabyte-db/issues/737. Click '+' on the description to raise its priority
 -- Can update row 4 through cursor, which is the next visible row
 FETCH RELATIVE 1 FROM current_check_cursor;
-ERROR:  FETCH not supported yet
+ERROR:  FETCH RELATIVE not supported yet
 LINE 1: FETCH RELATIVE 1 FROM current_check_cursor;
-        ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
+              ^
+HINT:  See https://github.com/YugaByte/yugabyte-db/issues/6514. Click '+' on the description to raise its priority
 UPDATE current_check SET payload = payload || '_new' WHERE CURRENT OF current_check_cursor RETURNING *;
 ERROR:  WHERE CURRENT OF not supported yet
 LINE 1: ...ATE current_check SET payload = payload || '_new' WHERE CURR...
@@ -3095,20 +3091,20 @@ LINE 1: ...S OFF) UPDATE current_check SET payload = payload WHERE CURR...
 HINT:  See https://github.com/YugaByte/yugabyte-db/issues/737. Click '+' on the description to raise its priority
 -- Similarly can only delete row 4
 FETCH ABSOLUTE 1 FROM current_check_cursor;
-ERROR:  FETCH not supported yet
+ERROR:  FETCH ABSOLUTE not supported yet
 LINE 1: FETCH ABSOLUTE 1 FROM current_check_cursor;
-        ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
+              ^
+HINT:  See https://github.com/YugaByte/yugabyte-db/issues/6514. Click '+' on the description to raise its priority
 DELETE FROM current_check WHERE CURRENT OF current_check_cursor RETURNING *;
 ERROR:  WHERE CURRENT OF not supported yet
 LINE 1: DELETE FROM current_check WHERE CURRENT OF current_check_cur...
                                   ^
 HINT:  See https://github.com/YugaByte/yugabyte-db/issues/737. Click '+' on the description to raise its priority
 FETCH RELATIVE 1 FROM current_check_cursor;
-ERROR:  FETCH not supported yet
+ERROR:  FETCH RELATIVE not supported yet
 LINE 1: FETCH RELATIVE 1 FROM current_check_cursor;
-        ^
-HINT:  Please report the issue on https://github.com/YugaByte/yugabyte-db/issues
+              ^
+HINT:  See https://github.com/YugaByte/yugabyte-db/issues/6514. Click '+' on the description to raise its priority
 DELETE FROM current_check WHERE CURRENT OF current_check_cursor RETURNING *;
 ERROR:  WHERE CURRENT OF not supported yet
 LINE 1: DELETE FROM current_check WHERE CURRENT OF current_check_cur...

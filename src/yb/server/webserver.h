@@ -146,6 +146,9 @@ class Webserver : public WebCallbackRegistry {
   // BootstrapPageHeader.
   void BootstrapPageFooter(std::stringstream* output);
 
+  static void EnterWorkerThreadCallbackStatic();
+  static void LeaveWorkerThreadCallbackStatic();
+
   // Dispatch point for all incoming requests.
   // Static so that it can act as a function pointer, and then call the next method
   static int BeginRequestCallbackStatic(struct sq_connection* connection);

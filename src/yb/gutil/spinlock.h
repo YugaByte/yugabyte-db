@@ -76,8 +76,8 @@ class CAPABILITY("mutex") SpinLock {
   // A SpinLock constructed like this can be freely used from global
   // initializers without worrying about the order in which global
   // initializers run.
-  explicit SpinLock(base::LinkerInitialized /*x*/) {
-    // Does nothing; lockword_ is already initialized
+  explicit SpinLock(base::LinkerInitialized /*x*/)
+      : lockword_(kSpinLockFree) {
   }
 
   // Acquire this SpinLock.

@@ -1,6 +1,6 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../_style/colors.scss";
+@import '../../_style/colors.scss';
 
 .schedules-panel {
   .header {
@@ -11,8 +11,6 @@
 }
 
 .schedule-display-item-container {
-  height: 188px;
-
   .status-icon {
     position: absolute;
     top: 10px;
@@ -31,7 +29,10 @@
         padding: 4px 12px;
         color: $YB_GRAY_BORDER;
 
-        &, &:hover, &:active, &:focus {
+        &,
+        &:hover,
+        &:active,
+        &:focus {
           border: none;
           background: none;
         }
@@ -42,7 +43,6 @@
         }
       }
       .dropdown-menu {
-
         .fa {
           font-size: 20px;
           vertical-align: middle;

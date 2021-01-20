@@ -20,8 +20,10 @@
 namespace yb {
 namespace master {
 
-YQLColumnsVTable::YQLColumnsVTable(const Master* const master)
-    : YQLVirtualTable(master::kSystemSchemaColumnsTableName, master, CreateSchema()) {
+YQLColumnsVTable::YQLColumnsVTable(const TableName& table_name,
+                                   const NamespaceName& namespace_name,
+                                   Master* const master)
+    : YQLVirtualTable(table_name, namespace_name, master, CreateSchema()) {
 }
 
 Status YQLColumnsVTable::PopulateColumnInformation(const Schema& schema,

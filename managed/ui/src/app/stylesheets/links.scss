@@ -1,17 +1,31 @@
 /* Copyright (c) YugaByte, Inc. */
 
-@import "../../_style/colors.scss";
+@import '../../_style/colors.scss';
 
 a {
   color: $YB_ORANGE;
   text-decoration: none;
 }
 
-a:focus, a:hover, a:active {
+a:focus,
+a:hover,
+a:active {
   color: $YB_ORANGE_HOVER;
   text-decoration: none;
 }
-a, a:visited, a:focus, a:active, :visited, :focus, :active, .btn:focus, .btn:active:focus, .btn.active:focus, .btn.focus, .btn:active.focus, .btn.active.focus {
+a,
+a:visited,
+a:focus,
+a:active,
+:visited,
+:focus,
+:active,
+.btn:focus,
+.btn:active:focus,
+.btn.active:focus,
+.btn.focus,
+.btn:active.focus,
+.btn.active.focus {
   outline: 0;
 }
 

@@ -10,20 +10,18 @@
 
 package com.yugabyte.yw.commissioner.tasks;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
-
-import com.yugabyte.yw.commissioner.SubTaskGroup;
+import com.yugabyte.yw.commissioner.Common.CloudType;
 import com.yugabyte.yw.commissioner.SubTaskGroupQueue;
+import com.yugabyte.yw.commissioner.tasks.params.NodeTaskParams;
 import com.yugabyte.yw.commissioner.UserTaskDetails.SubTaskGroupType;
 import com.yugabyte.yw.common.PlacementInfoUtil;
-import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
-import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.ClusterType;
+import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.UserIntent;
+import com.yugabyte.yw.models.NodeInstance;
 import com.yugabyte.yw.models.Universe;
 import com.yugabyte.yw.models.helpers.NodeDetails;
 import org.slf4j.Logger;
@@ -48,7 +46,7 @@ public class ReadOnlyClusterCreate extends UniverseDefinitionTaskBase {
       setNodeNames(UniverseOpType.CREATE, universe);
 
       // Update the user intent.
-      writeUserIntentToUniverse(true /* isReadOnly */);
+      writeUserIntentToUniverse(true /* isReadOnly */, false);
 
       // Sanity checks for clusters list validity are performed in the controller.
       Cluster cluster = taskParams().getReadOnlyClusters().get(0);
@@ -70,6 +68,32 @@ public class ReadOnlyClusterCreate extends UniverseDefinitionTaskBase {
         throw new IllegalArgumentException(errMsg);
       }
 
+      // Check if nodes are able to be provisioned/configured properly.
+      Map<NodeInstance, String> failedNodes = new HashMap<>();
+      for (NodeDetails node: nodesToProvision) {
+        if (cluster.userIntent.providerType.equals(CloudType.onprem)) {
+          continue;
+        }
+
+        NodeTaskParams nodeParams = new NodeTaskParams();
+        UserIntent userIntent = taskParams().getClusterByUuid(node.placementUuid).userIntent;
+        nodeParams.nodeName = node.nodeName;
+        nodeParams.deviceInfo = userIntent.deviceInfo;
+        nodeParams.azUuid = node.azUuid;
+        nodeParams.universeUUID = taskParams().universeUUID;
+        nodeParams.extraDependencies.installNodeExporter =
+          taskParams().extraDependencies.installNodeExporter;
+
+        String preflightStatus = performPreflightCheck(node, nodeParams);
+        if (preflightStatus != null) {
+            failedNodes.put(NodeInstance.getByName(node.nodeName), preflightStatus);
+        }
+      }
+      if (!failedNodes.isEmpty()) {
+        createFailedPrecheckTask(failedNodes)
+          .setSubTaskGroupType(SubTaskGroupType.PreflightChecks);
+      }
+
       // Create the required number of nodes in the appropriate locations.
       createSetupServerTasks(nodesToProvision)
           .setSubTaskGroupType(SubTaskGroupType.Provisioning);
@@ -84,6 +108,10 @@ public class ReadOnlyClusterCreate extends UniverseDefinitionTaskBase {
 
       // Set of processes to be started, note that in this case it is same as nodes provisioned.
       Set<NodeDetails> newTservers = PlacementInfoUtil.getTserversToProvision(readOnlyNodes);
+
+      // Set default gflags
+      addDefaultGFlags(cluster.userIntent);
+      createGFlagsOverrideTasks(newTservers, ServerType.TSERVER);
 
       // Start the tservers in the clusters.
       createStartTServersTasks(newTservers)

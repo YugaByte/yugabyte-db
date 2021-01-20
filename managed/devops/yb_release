@@ -13,7 +13,7 @@ set -e
 . "${BASH_SOURCE%/*}"/bin/common.sh
 
 activate_virtualenv
-bin/install_python_requirements.sh --create_package
+bin/install_python_requirements.sh --create_package --use_dynamic_paths
 bin/install_ansible_requirements.sh --force
 "$yb_devops_home"/yb_release.py "$@"
 # Remove virtual env package after creating tar.gz to least impact developers because

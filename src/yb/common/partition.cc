@@ -142,8 +142,29 @@ void SetColumnIdentifiers(const vector<ColumnId>& column_ids,
 Status PartitionSchema::FromPB(const PartitionSchemaPB& pb,
                                const Schema& schema,
                                PartitionSchema* partition_schema) {
+  if (pb.hash_bucket_schemas_size() > 0) {
+    // Maybe dead code. Leave it here for now just in case we use it.
+    return KuduFromPB(pb, schema, partition_schema);
+  }
+
+  // TODO(neil) Fix bug github #5832.
+  // SCHECK(!pb.has_hash_schema() && !pb.has_range_schema(), IllegalState,
+  //        "Table definition does not specify partition schema");
+
+  // TODO(neil) We should allow schema definition that has both hash and range partition in PK
+  // without forcing users to use secondary index, which is a lot slower. However, its
+  // specification needs to be well-defined and discussed.
+  //
+  // One example for interpretation
+  // - Use range-partition schema to SPLIT by TIME, so that users can archive old data away.
+  // - Use hash-partition schema for performance purposes.
+  SCHECK(!pb.has_hash_schema() || !pb.has_range_schema() || pb.range_schema().splits_size() == 0,
+         Corruption, "Table schema that has both hash and range partition is not yet supported");
+
+  // Initialize partition schema.
   partition_schema->Clear();
 
+  // YugaByte hash partition.
   if (pb.has_hash_schema()) {
     switch (pb.hash_schema()) {
       case PartitionSchemaPB::MULTI_COLUMN_HASH_SCHEMA:
@@ -162,6 +183,70 @@ Status PartitionSchema::FromPB(const PartitionSchemaPB& pb,
         return Status::OK();
     }
   }
+
+  // YugaByte range partition whose schema also defines split_rows.
+  if (pb.has_range_schema()) {
+    const PartitionSchemaPB_RangeSchemaPB& range_pb = pb.range_schema();
+    RETURN_NOT_OK(ExtractColumnIds(range_pb.columns(), schema,
+                                   &partition_schema->range_schema_.column_ids));
+    partition_schema->range_schema_.splits.reserve(range_pb.splits_size());
+    for (const auto& split : range_pb.splits()) {
+      partition_schema->range_schema_.splits.emplace_back(split.column_bounds());
+    }
+
+  } else {
+    // Currently system table schema does not define partitioning method (See github issue #5832).
+    // NOTE: Each system table uses only one tablet.
+    for (int32_t column_idx = 0; column_idx < schema.num_key_columns(); column_idx++) {
+      partition_schema->range_schema_.column_ids.push_back(schema.column_id(column_idx));
+    }
+  }
+
+  // Done processing.
+  return Status::OK();
+}
+
+void PartitionSchema::ToPB(PartitionSchemaPB* pb) const {
+  if (hash_bucket_schemas_.size() > 0) {
+    // Maybe dead code. Leave it here for now just in case we use it.
+    return KuduToPB(pb);
+  }
+
+  // Initialize protobuf.
+  pb->Clear();
+
+  // Hash partitioning schema.
+  if (IsHashPartitioning()) {
+    switch (*hash_schema_) {
+      case YBHashSchema::kMultiColumnHash:
+        pb->set_hash_schema(PartitionSchemaPB::MULTI_COLUMN_HASH_SCHEMA);
+        break;
+      case YBHashSchema::kRedisHash:
+        pb->set_hash_schema(PartitionSchemaPB::REDIS_HASH_SCHEMA);
+        break;
+      case YBHashSchema::kPgsqlHash:
+        pb->set_hash_schema(PartitionSchemaPB::PGSQL_HASH_SCHEMA);
+        break;
+    }
+  }
+
+  // Range partitioning schema.
+  if (IsRangePartitioning()) {
+    SetColumnIdentifiers(range_schema_.column_ids, pb->mutable_range_schema()->mutable_columns());
+    for (const auto& split : range_schema_.splits) {
+      pb->mutable_range_schema()->add_splits()->set_column_bounds(split.column_bounds);
+    }
+  }
+}
+
+Status PartitionSchema::KuduFromPB(const PartitionSchemaPB& pb,
+                                   const Schema& schema,
+                                   PartitionSchema* partition_schema) {
+  // The following is Kudu's original partitioning code and should not be used for YBTable.
+  // - Don't modify the following code. Leave it as is.
+  // - Current system tables in master might still be using this.
+  // - If this code is deleted, Kudu's original test needs to be updated.
+  partition_schema->Clear();
 
   for (const PartitionSchemaPB_HashBucketSchemaPB& hash_bucket_pb : pb.hash_bucket_schemas()) {
     HashBucketSchema hash_bucket;
@@ -194,22 +279,12 @@ Status PartitionSchema::FromPB(const PartitionSchemaPB& pb,
   return partition_schema->Validate(schema);
 }
 
-void PartitionSchema::ToPB(PartitionSchemaPB* pb) const {
+void PartitionSchema::KuduToPB(PartitionSchemaPB* pb) const {
+  // The following is Kudu's original partitioning code and should not be used for YBTable.
+  // - Don't modify the following code. Leave it as is.
+  // - Current system tables in master might still be using this.
+  // - If this code is deleted, Kudu's original test needs to be updated.
   pb->Clear();
-
-  if (hash_schema_) {
-    switch (*hash_schema_) {
-      case YBHashSchema::kMultiColumnHash:
-        pb->set_hash_schema(PartitionSchemaPB::MULTI_COLUMN_HASH_SCHEMA);
-        break;
-      case YBHashSchema::kRedisHash:
-        pb->set_hash_schema(PartitionSchemaPB::REDIS_HASH_SCHEMA);
-        break;
-      case YBHashSchema::kPgsqlHash:
-        pb->set_hash_schema(PartitionSchemaPB::PGSQL_HASH_SCHEMA);
-        break;
-    }
-  }
 
   pb->mutable_hash_bucket_schemas()->Reserve(hash_bucket_schemas_.size());
   for (const HashBucketSchema& hash_bucket : hash_bucket_schemas_) {
@@ -376,9 +451,55 @@ uint16_t PartitionSchema::DecodeMultiColumnHashValue(const string& partition_key
   return (bytes[0] << 8) | bytes[1];
 }
 
-Status PartitionSchema::CreatePartitions(int32_t num_tablets,
-                                         vector<Partition> *partitions,
-                                         int32_t max_partition_key) const {
+Status PartitionSchema::IsValidHashPartitionRange(const string& partition_key_start,
+                                                  const string& partition_key_end) {
+  if (!IsValidHashPartitionKeyBound(partition_key_start) ||
+      !IsValidHashPartitionKeyBound(partition_key_end)) {
+    return STATUS(InvalidArgument, "Passed in partition keys are not hash partitions.");
+  }
+  if (partition_key_start.empty() || partition_key_end.empty()) {
+    // We consider the empty string an open bound (0 for start, 0xFFFF for end), so this is a valid
+    // range.
+    return Status::OK();
+  }
+  if (PartitionSchema::DecodeMultiColumnHashValue(partition_key_start) >=
+      PartitionSchema::DecodeMultiColumnHashValue(partition_key_end)) {
+    return STATUS(InvalidArgument,
+                  Format("Invalid arguments for partition_key_start: $0 and partition_key_end: $1",
+                  Slice(partition_key_start).ToDebugHexString(),
+                  Slice(partition_key_end).ToDebugHexString()));
+  }
+  return Status::OK();
+}
+
+bool PartitionSchema::IsValidHashPartitionKeyBound(const string& partition_key) {
+  return partition_key.empty() || partition_key.size() == kPartitionKeySize;
+}
+
+Status PartitionSchema::CreateRangePartitions(std::vector<Partition>* partitions) const {
+  // Create the start range keys.
+  // NOTE: When converting FromPB to partition schema, we already error-check, so we don't need
+  // to error-check again for its content here.
+  partitions->clear();
+  string start_key;
+  for (const auto& split : range_schema_.splits) {
+    Partition partition;
+    partition.partition_key_start_.append(start_key);
+    partition.partition_key_end_.append(split.column_bounds);
+    partitions->push_back(partition);
+    start_key = split.column_bounds;
+  }
+
+  // Add the final partition
+  Partition partition;
+  partition.partition_key_start_.append(start_key);
+  partitions->push_back(partition);
+  return Status::OK();
+}
+
+Status PartitionSchema::CreateHashPartitions(int32_t num_tablets,
+                                             vector<Partition> *partitions,
+                                             int32_t max_partition_key) const {
   DCHECK_GT(max_partition_key, 0);
   DCHECK_LE(max_partition_key, kMaxPartitionKey);
 
@@ -413,6 +534,43 @@ Status PartitionSchema::CreatePartitions(int32_t num_tablets,
     if (partition_index < num_tablets - 1) {
       (*partitions)[partition_index].partition_key_end_ = EncodeMultiColumnHashValue(pend);
     }
+  }
+
+  return Status::OK();
+}
+
+Status PartitionSchema::CreatePartitions(int32_t num_tablets, vector<Partition> *partitions) const {
+  SCHECK(!hash_schema_ || !IsRangePartitioning(), IllegalState,
+         "Schema containing both hash and range partitioning is not yet supported");
+
+  if (!IsHashPartitioning() && !IsRangePartitioning()) {
+    // Partitioning method is not defined. This bug is file as github issue #5832.
+    // For compatibility reasons, we create tablet using HASH schema option. However, we should
+    // have created tablet using RANGE schema option.
+    return CreateHashPartitions(num_tablets, partitions);
+  }
+
+  if (IsHashPartitioning()) {
+    switch (*hash_schema_) {
+      case YBHashSchema::kPgsqlHash:
+        // TODO(neil) After a discussion, PGSQL hash should be done appropriately.
+        // For now, let's not doing anything. Just borrow the multi column hash.
+        FALLTHROUGH_INTENDED;
+      case YBHashSchema::kMultiColumnHash: {
+        // Use the given number of tablets to create partitions and ignore the other schema
+        // options in the request.
+        RETURN_NOT_OK(CreateHashPartitions(num_tablets, partitions));
+        break;
+      }
+      case YBHashSchema::kRedisHash: {
+        RETURN_NOT_OK(CreateHashPartitions(num_tablets, partitions, kRedisClusterSlots));
+        break;
+      }
+    }
+  }
+
+  if (IsRangePartitioning()) {
+    RETURN_NOT_OK(CreateRangePartitions(partitions));
   }
 
   return Status::OK();
@@ -544,49 +702,6 @@ Status PartitionSchema::CreatePartitions(const vector<YBPartialRow>& split_rows,
     }
   }
 
-  return Status::OK();
-}
-
-Status PartitionSchema::CreatePartitions(
-    const std::vector<std::string>& split_rows,
-    const Schema& schema, std::vector<Partition>* partitions) const {
-  DSCHECK(!schema.num_hash_key_columns(), IllegalState,
-      "Cannot create partitions using split rows for hash partitioned tables");
-  *partitions = vector<Partition>();
-
-  unordered_set<int> range_column_idxs;
-  for (ColumnId column_id : range_schema_.column_ids) {
-    int column_idx = schema.find_column_by_id(column_id);
-    if (column_idx == Schema::kColumnNotFound) {
-      return STATUS(InvalidArgument, Substitute("Range partition column ID $0 "
-                                                "not found in table schema.", column_id));
-    }
-    if (!InsertIfNotPresent(&range_column_idxs, column_idx)) {
-      return STATUS(InvalidArgument, "Duplicate column in range partition",
-                    schema.column(column_idx).name());
-    }
-  }
-
-  // Create the start range keys.
-  set<string> start_keys;
-  string start_key;
-  for (const auto& row : split_rows) {
-    // Check for a duplicate split row.
-    if (!InsertIfNotPresent(&start_keys, row)) {
-      return STATUS(InvalidArgument, "Duplicate split row", row);
-    }
-
-    Partition partition;
-    partition.partition_key_start_.append(start_key);
-    partition.partition_key_end_.append(row);
-    partitions->push_back(partition);
-    start_key = row;
-  }
-
-  // Add the final partition
-  Partition partition;
-  partition.partition_key_start_.append(start_key);
-  partitions->push_back(partition);
   return Status::OK();
 }
 
@@ -731,22 +846,11 @@ string PartitionSchema::PartitionDebugString(const Partition& partition,
       case YBHashSchema::kRedisHash: FALLTHROUGH_INTENDED;
       case YBHashSchema::kMultiColumnHash: {
         const string& pstart = partition.partition_key_start();
-        uint16_t hash_start = !pstart.empty() ? DecodeMultiColumnHashValue(pstart) : 0;
         const string& pend = partition.partition_key_end();
-        if (!pend.empty()) {
-          uint16 hash_end = DecodeMultiColumnHashValue(pend);
-          if (pstart.empty()) {
-            s.append(Substitute("hash_split: [<start>, $1)", hash_start, hash_end));
-          } else {
-            s.append(Substitute("hash_split: [$0, $1)", hash_start, hash_end));
-          }
-        } else {
-          if (pstart.empty()) {
-            s.append(Substitute("hash_split: [<start>, <end>)"));
-          } else {
-            s.append(Substitute("hash_split: [$0, <end>)", hash_start));
-          }
-        }
+        uint16_t hash_start = !pstart.empty() ? DecodeMultiColumnHashValue(pstart) : 0;
+        uint16_t hash_end = !pend.empty() ? DecodeMultiColumnHashValue(pend) : UINT16_MAX;
+        s.append(Substitute("hash_split: [0x$0, 0x$1)",
+                            Uint16ToHexString(hash_start), Uint16ToHexString(hash_end)));
         return s;
       }
       case YBHashSchema::kPgsqlHash:

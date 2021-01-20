@@ -62,8 +62,7 @@ void TabletSplitHeartbeatDataProvider::DoAddData(
         tablet->GetCurrentVersionSstFilesSize() < split_size_threshold ||
         // TODO(tsplit): We don't split not yet fully compacted post-split tablets for now, since
         // detecting effective middle key and tablet size for such tablets is not yet implemented.
-        (tablet->doc_db().key_bounds->IsInitialized() &&
-         !tablet->metadata()->has_been_fully_compacted())) {
+        tablet->StillHasParentDataAfterSplit()) {
       VLOG_WITH_FUNC(3) << Format(
           "Skipping tablet: $0, data state: $1, SST files size: $2, has key bounds: $3, has been "
           "fully compacted: $4",

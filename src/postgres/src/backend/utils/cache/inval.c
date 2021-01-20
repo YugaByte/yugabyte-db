@@ -113,6 +113,7 @@
 #include "utils/relmapper.h"
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
+#include "pg_yb_utils.h"
 
 
 /*
@@ -669,6 +670,13 @@ CallSystemCacheCallbacks(void)
 void
 InvalidateSystemCaches(void)
 {
+	if (IsYugaByteEnabled()) {
+		// In case of YugaByte it is necessary to refresh YB caches by calling 'YBRefreshCache'.
+		// But it can't be done here as 'YBRefreshCache' can't be called from within the transaction.
+		// Resetting catalog version will force cache refresh as soon as possible.
+		YBResetCatalogVersion();
+		return;
+	}
 	InvalidateCatalogSnapshot();
 	ResetCatalogCaches();
 	RelationCacheInvalidate();	/* gets smgr and relmap too */

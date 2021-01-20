@@ -14,7 +14,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-import com.yugabyte.yw.forms.AbstractTaskParams;
+import com.yugabyte.yw.commissioner.tasks.UniverseTaskBase;
+import com.yugabyte.yw.forms.UniverseTaskParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yb.Common;
@@ -25,7 +26,6 @@ import org.yb.master.Master;
 
 import com.google.common.net.HostAndPort;
 import com.google.protobuf.ByteString;
-import com.yugabyte.yw.commissioner.AbstractTaskBase;
 import com.yugabyte.yw.common.services.YBClientService;
 import com.yugabyte.yw.forms.ITaskParams;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
@@ -41,17 +41,14 @@ import com.yugabyte.yw.models.helpers.PlacementInfo.PlacementRegion;
 
 import play.api.Play;
 
-public class UpdatePlacementInfo extends AbstractTaskBase {
+public class UpdatePlacementInfo extends UniverseTaskBase {
   public static final Logger LOG = LoggerFactory.getLogger(UpdatePlacementInfo.class);
 
   // The YB client.
   public YBClientService ybService = null;
 
   // Parameters for placement info update task.
-  public static class Params extends AbstractTaskParams {
-    // The universe against which this node's details should be saved.
-    public UUID universeUUID;
-
+  public static class Params extends UniverseTaskParams {
     // If present, then we intend to decommission these nodes.
     public Set<String> blacklistNodes = null;
   }
@@ -75,18 +72,19 @@ public class UpdatePlacementInfo extends AbstractTaskBase {
 
   @Override
   public void run() {
-    Universe universe = Universe.get(taskParams().universeUUID); 
+    Universe universe = Universe.get(taskParams().universeUUID);
     String hostPorts = universe.getMasterAddresses();
     String certificate = universe.getCertificate();
     YBClient client = null;
     try {
       LOG.info("Running {}: hostPorts={}.", getName(), hostPorts);
       client = ybService.getClient(hostPorts, certificate);
-    
+
       ModifyUniverseConfig modifyConfig = new ModifyUniverseConfig(client,
                                                                    taskParams().universeUUID,
                                                                    taskParams().blacklistNodes);
       modifyConfig.doCall();
+      if (shouldIncrementVersion()) universe.incrementVersion();
     } catch (Exception e) {
       LOG.error("{} hit error : {}", getName(), e.getMessage());
       throw new RuntimeException(e);
@@ -188,7 +186,7 @@ public class UpdatePlacementInfo extends AbstractTaskBase {
         Master.BlacklistPB.Builder blacklistBuilder = configBuilder.getServerBlacklistBuilder();
         for (String nodeName : blacklistNodes) {
           NodeDetails node = universe.getNode(nodeName);
-          if (node.isTserver) {
+          if (node.isTserver && node.cloudInfo.private_ip != null) {
             blacklistBuilder.addHosts(ProtobufHelper.hostAndPortToPB(
                 HostAndPort.fromParts(node.cloudInfo.private_ip, node.tserverRpcPort)));
           }

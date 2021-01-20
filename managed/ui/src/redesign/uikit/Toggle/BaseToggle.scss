@@ -1,0 +1,94 @@
+@import '../common';
+
+.yb-uikit-toggle {
+  display: inline-flex;
+  font-family: $YB_FONT_FAMILY;
+  user-select: none;
+  position: relative;
+
+  &--disabled {
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  &__slider {
+    position: relative;
+    height: 32px;
+    min-width: 70px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 250ms;
+
+    &--on {
+      background-color: $YB_CTA;
+      color: $YB_PAGE_BACKGROUND;
+      fill: $YB_PAGE_BACKGROUND;
+      padding-left: 15px;
+      padding-right: 35px;
+    }
+
+    &--off {
+      background-color: $YB_BORDER_1;
+      color: $YB_PAGE_BACKGROUND;
+      fill: $YB_PAGE_BACKGROUND;
+      padding-left: 35px;
+      padding-right: 15px;
+    }
+
+    &--disabled {
+    }
+  }
+
+  &__value {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  &__hidden-slider-texts {
+    position: absolute;
+    visibility: hidden;
+  }
+
+  &__handle {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: $YB_PAGE_BACKGROUND;
+    box-shadow: 0 0 10px #00000029;
+    position: absolute;
+    top: 2px;
+    transition: left 250ms;
+
+    &--on {
+      left: calc(100% - 30px);
+    }
+
+    &--off {
+      left: 2px;
+    }
+
+    &--disabled {
+      background-color: $YB_BORDER_1;
+    }
+  }
+
+  &__description {
+    margin-left: 25px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+  }
+
+  &__triangle {
+    width: 0;
+    height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 8px solid $YB_TEXT_2;
+    margin-right: 10px;
+  }
+}
