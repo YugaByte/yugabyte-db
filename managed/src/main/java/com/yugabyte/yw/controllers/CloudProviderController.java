@@ -202,6 +202,7 @@ public class CloudProviderController extends AuthenticatedController {
               provider.delete();
               return ApiResponse.error(BAD_REQUEST, "Invalid AWS Credentials.");
             }
+            String hostedZoneId = provider.getAwsHostedZoneId();
             if (hostedZoneId != null) {
               return validateHostedZoneUpdate(provider, hostedZoneId);
             }
