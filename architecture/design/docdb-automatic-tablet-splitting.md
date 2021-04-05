@@ -7,7 +7,7 @@ Automatic tablet splitting enables changing the number of tablets (which are spl
 ### 1. Range Scans
 In use-cases that scan a range of data, the data is stored in the natural sort order (also known as *range-sharding*). In these usage patterns, it is often impossible to predict a good split boundary ahead of time. For example:
 
-```
+```sql
 CREATE TABLE census_stats (
     age INTEGER,
     user_id INTEGER,
