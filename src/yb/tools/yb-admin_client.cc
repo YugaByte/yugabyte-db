@@ -1781,6 +1781,30 @@ Status ClusterAdminClient::ChangeBlacklist(const std::vector<HostPort>& servers,
     *cluster_config.mutable_leader_blacklist() :
     *cluster_config.mutable_server_blacklist();
   std::vector<HostPort> result_blacklist;
+
+  //Validation Step For Blacklisting
+  std::vector<HostPort> valid_servers;
+  RepeatedPtrField<ListTabletServersResponsePB::Entry> servers_list;
+  RETURN_NOT_OK(ListTabletServers(&servers_list));
+
+  for (const ListTabletServersResponsePB::Entry& server : servers_list) {
+    if(!server.registration().common().private_rpc_addresses().empty()){
+      string host = server.registration().common().private_rpc_addresses().Get(0).host();
+      int port = server.registration().common().private_rpc_addresses().Get(0).port();
+      valid_servers.push_back(VERIFY_RESULT(HostPort::FromString(host, port)));
+    }
+    
+  }
+
+  for(HostPort server_to_change : servers){
+    bool found = (std::find(valid_servers.begin(), valid_servers.end(), server_to_change) != valid_servers.end());
+    if(!found){
+      LOG(WARNING) << "Updating blacklist for invalid TServer " << server_to_change.ToString() << ", run list_all_tablet_servers to see current TServers \n";
+      cout << "WARNING: Updating blacklist for invalid TServer " << server_to_change.ToString() << ", run list_all_tablet_servers to see current TServers \n";
+      
+    }
+  }
+
   for (const auto& host : blacklist.hosts()) {
     const HostPort hostport(host.host(), host.port());
     if (std::find(servers.begin(), servers.end(), hostport) == servers.end()) {
