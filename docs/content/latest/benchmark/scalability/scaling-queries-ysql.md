@@ -65,7 +65,7 @@ $ sudo apt install default-jre
 The [YugabyteDB workload generator](https://github.com/yugabyte/yb-sample-apps) was downloaded on to these machines as shown below.
 
 ```sh
-$ wget -P target https://github.com/YugaByte/yb-sample-apps/releases/download/1.3.1/yb-sample-apps.jar
+$ wget -P target https://github.com/yugabyte/yb-sample-apps/releases/download/1.3.7/yb-sample-apps-1.3.7.jar
 ```
 
 This benchmark program can take a list of servers in the database cluster, and then perform random operations across these servers. In order to do this, we set up an environment variable with the list of comma-separated `host:port` entries of the 100 database servers as shown below.

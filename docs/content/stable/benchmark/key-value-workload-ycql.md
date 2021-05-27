@@ -65,7 +65,7 @@ We will use the [YugabyteDB Workload Generator](https://github.com/yugabyte/yb-s
 To get the tool (``yb-sample-apps.jar`), run the following command.
 
 ```sh
-$ wget https://github.com/yugabyte/yb-sample-apps/releases/download/1.3.1/yb-sample-apps.jar?raw=true -O yb-sample-apps.jar
+$ wget https://github.com/yugabyte/yb-sample-apps/releases/download/1.3.7/yb-sample-apps-1.3.7.jar?raw=true -O yb-sample-apps.jar
 ```
 
 To run the workload generator tool, you must have:
