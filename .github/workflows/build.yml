@@ -84,7 +84,11 @@ jobs:
                   export PATH=/usr/local/bin:\$PATH
                   df -H /
                   echo ::group::Building YugabyteDB
-                  ./yb_build.sh release --download-thirdparty --ninja ${{ matrix.yb_build_args }}
+                  ./yb_build.sh release \
+                    --download-thirdparty \
+                    --ninja \
+                    --shellcheck \
+                    ${{ matrix.yb_build_args }}
                   echo ::endgroup::
                   df -H /
                 "
@@ -92,5 +96,5 @@ jobs:
           elif [[ $OSTYPE == darwin* ]]; then
             system_profiler SPSoftwareDataType
             sw_vers
-            ./yb_build.sh release
+            ./yb_build.sh release --shellcheck
           fi

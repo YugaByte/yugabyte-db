@@ -400,3 +400,6 @@ class MacLibraryPackager:
         except OSError as e:
             logging.error('Unable to restore file %s mode', filename)
             raise
+
+    def post_process_distribution(self, build_target: str) -> None:
+        pass

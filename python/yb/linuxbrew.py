@@ -70,6 +70,8 @@ class LinuxbrewHome:
                 os.environ['BUILD_ROOT'] = old_build_root
 
     def path_is_in_linuxbrew_dir(self, path):
+        if not self.linuxbrew_dir:
+            return False
         path = os.path.abspath(path)
         return (path.startswith(self.linuxbrew_dir + '/') or
                 path.startswith(self.linuxbrew_link_target + '/'))
@@ -77,6 +79,9 @@ class LinuxbrewHome:
     def get_human_readable_dirs(self):
         return ', '.join("'%s'" % d for d in
                          sorted(set([self.linuxbrew_dir, self.linuxbrew_link_target])))
+
+    def is_enabled(self) -> bool:
+        return self.linuxbrew_dir is not None
 
 
 def set_build_root(build_root):

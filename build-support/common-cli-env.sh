@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #@IgnoreInspection BashAddShebang
 
 # Copyright (c) YugaByte, Inc.
@@ -30,10 +31,11 @@ fi
 
 readonly YB_COMMON_CLI_ENV_SOURCED=1
 
-# shellcheck source=../build-support/common-build-env.sh
+# shellcheck source=build-support/common-build-env.sh
 . "${BASH_SOURCE%/*}/common-build-env.sh"
 
 # Get variable BUILD_ROOT if it is empty.
+# shellcheck disable=SC2120
 set_build_root_from_latest_if_unset() {
   expect_num_args 0 "$@"
   if [[ -z ${BUILD_ROOT:-} ]]; then
@@ -41,6 +43,7 @@ set_build_root_from_latest_if_unset() {
     cd -P .
     handle_build_root_from_current_dir
     popd
+    # shellcheck disable=SC2119
     set_build_root
   else
     predefined_build_root=$BUILD_ROOT
@@ -49,6 +52,7 @@ set_build_root_from_latest_if_unset() {
 }
 
 # Get variable YB_THIRDPARTY_DIR if it is empty.
+# shellcheck disable=SC2120
 set_yb_thirdparty_dir_if_unset() {
   expect_num_args 0 "$@"
   expect_vars_to_be_set BUILD_ROOT
@@ -58,4 +62,5 @@ set_yb_thirdparty_dir_if_unset() {
 }
 
 set_build_root_from_latest_if_unset
+
 set_yb_thirdparty_dir_if_unset

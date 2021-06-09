@@ -94,7 +94,9 @@ declare -i -r DEFAULT_REPEATED_TEST_PARALLELISM=4
 # shellcheck disable=SC2034
 declare -i -r DEFAULT_REPEATED_TEST_PARALLELISM_TSAN=1
 
-readonly MVN_COMMON_SKIPPED_OPTIONS_IN_TEST=(
+# These options are added to all Maven command lines used in testing (collecting the list of Java
+# tests, running the tests.)
+readonly MVN_COMMON_OPTIONS_IN_TESTS=(
   -Dmaven.javadoc.skip
 )
 
@@ -1512,11 +1514,15 @@ run_java_test() {
 
   # We specify tempDir to use a separate temporary directory for each test.
   # http://maven.apache.org/surefire/maven-surefire-plugin/test-mojo.html
+  #
+  # We specify --offline because we don't want any downloads to happen from Maven Central or Nexus.
+  # Everything we need should already be in the local Maven repository.
   mvn_opts=(
     -Dtest="$test_class_and_maybe_method"
     --projects "$module_name"
     -DtempDir="$surefire_rel_tmp_dir"
-    "${MVN_COMMON_SKIPPED_OPTIONS_IN_TEST[@]}"
+    --offline
+    "${MVN_COMMON_OPTIONS_IN_TESTS[@]}"
   )
   append_common_mvn_opts
 
@@ -1710,7 +1716,7 @@ collect_java_tests() {
   unset YB_SUREFIRE_REPORTS_DIR
   local mvn_opts=(
     -DcollectTests
-    "${MVN_COMMON_SKIPPED_OPTIONS_IN_TEST[@]}"
+    "${MVN_COMMON_OPTIONS_IN_TESTS[@]}"
   )
   append_common_mvn_opts
   java_test_list_path=$BUILD_ROOT/java_test_list.txt
@@ -1729,6 +1735,7 @@ collect_java_tests() {
     echo "$log_msg" >>"$stderr_log"
     set +e
     (
+      # We are modifying this in a subshell. Shellcheck might complain about this elsewhere.
       # shellcheck disable=SC2030
       export YB_RUN_JAVA_TEST_METHODS_SEPARATELY=1
       set -x
@@ -1762,6 +1769,7 @@ collect_java_tests() {
 run_all_java_test_methods_separately() {
   # Create a subshell to be able to export environment variables temporarily.
   (
+    # We are modifying this in a subshell. Shellcheck might complain about this elsewhere.
     # shellcheck disable=SC2030,SC2031
     export YB_RUN_JAVA_TEST_METHODS_SEPARATELY=1
     export YB_REDIRECT_MVN_OUTPUT_TO_FILE=1

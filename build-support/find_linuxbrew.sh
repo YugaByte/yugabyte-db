@@ -13,7 +13,8 @@
 # or implied.  See the License for the specific language governing permissions and limitations
 # under the License.
 #
-. "${BASH_SOURCE%/*}/../build-support/common-build-env.sh"
+# shellcheck source=build-support/common-build-env.sh
+. "${BASH_SOURCE[0]%/*}/../build-support/common-build-env.sh"
 
 if [[ -n ${BUILD_ROOT:-} ]]; then
   handle_predefined_build_root_quietly=true

@@ -17,6 +17,7 @@ set -euo pipefail
 script_name=${0##*/}
 script_name=${script_name%.*}
 
+# shellcheck source=build-support/common-test-env.sh
 . "${BASH_SOURCE%/*}"/build-support/common-test-env.sh
 
 ensure_option_has_arg() {
@@ -127,6 +128,8 @@ Options:
     and is checked against other parameters.
   --python-tests
     Run various Python tests (doctest, unit test) and exit.
+  --shellcheck
+    Check various Bash scripts in the codebase.
   --java-lint
     Run a simple shell-based "linter" on our Java code that verifies that we are importing the right
     methods for assertions and using the right test runners. We exit the script after this step.
@@ -221,7 +224,7 @@ EOT
 
 set_cxx_test_name() {
   expect_num_args 1 "$@"
-  if [[ $cxx_test_name == $1 ]]; then
+  if [[ $cxx_test_name == "$1" ]]; then
     # Duplicate test name specified, ignore.
     return
   fi
@@ -235,7 +238,7 @@ set_cxx_test_name() {
 
 set_java_test_name() {
   expect_num_args 1 "$@"
-  if [[ $java_test_name == $1 ]]; then
+  if [[ $java_test_name == "$1" ]]; then
     # Duplicate test name specified, ignore.
     return
   fi
@@ -247,7 +250,9 @@ set_java_test_name() {
 }
 
 set_vars_for_cxx_test() {
-  make_targets+=( $cxx_test_name )
+  if [[ -n $cxx_test_name ]]; then
+    make_targets+=( "$cxx_test_name" )
+  fi
 
   # This is necessary to avoid failures if we are just building one test.
   test_existence_check=false
@@ -272,7 +277,7 @@ report_time() {
 
   if [[ $start_time -ne 0 && $end_time -ne 0 ]]; then
     local caption="$description time"
-    print_report_line "%d seconds" "$caption" "$(( $end_time - $start_time ))"
+    print_report_line "%d seconds" "$caption" "$(( end_time - start_time ))"
   fi
 }
 
@@ -356,7 +361,8 @@ create_build_root_file() {
 
 capture_sec_timestamp() {
   expect_num_args 1 "$@"
-  local current_timestamp=$(date +%s)
+  local current_timestamp
+  current_timestamp=$(date +%s)
   eval "${1}_time_sec=$current_timestamp"
 }
 
@@ -372,8 +378,13 @@ run_cxx_build() {
     (
       # Always disable remote build (running the compiler on a remote worker node) when running the
       # CMake step.
+      #
+      # We are modifying YB_REMOTE_COMPILATION inside a subshell on purpose.
       set -x
+      # shellcheck disable=SC2030
       export YB_REMOTE_COMPILATION=0
+      # We are not double-quoting $cmake_extra_args on purpose to allow multiple arguments.
+      # shellcheck disable=SC2086
       cmake "${cmake_opts[@]}" $cmake_extra_args "$YB_SRC_ROOT"
     )
     capture_sec_timestamp "cmake_end"
@@ -386,7 +397,7 @@ run_cxx_build() {
 
   if [[ ${#object_files_to_delete[@]} -gt 0 ]]; then
     log_empty_line
-    log "Deleting object files corresponding to: ${object_files_to_delete[@]}"
+    log "Deleting object files corresponding to: ${object_files_to_delete[*]}"
     # TODO: can delete multiple files using the same find command.
     for object_file_to_delete in "${object_files_to_delete[@]}"; do
       ( set -x; find "$BUILD_ROOT" -name "$object_file_to_delete" -exec rm -fv {} \; )
@@ -400,8 +411,13 @@ run_cxx_build() {
   log "Running $make_program in $PWD"
   capture_sec_timestamp "make_start"
   set +u +e  # "set -u" may cause failures on empty lists
+  # We are not double-quoting $make_ninja_extra_args on purpose, to allow multiple arguments.
+  # shellcheck disable=SC2206
   make_program_args=(
-    "-j$YB_MAKE_PARALLELISM" "${make_opts[@]}" $make_ninja_extra_args "${make_targets[@]}"
+    "-j$YB_MAKE_PARALLELISM"
+    "${make_opts[@]}"
+    $make_ninja_extra_args
+    "${make_targets[@]}"
   )
   set -u
   if "$reduce_log_output"; then
@@ -474,8 +490,10 @@ run_ctest() {
   (
     cd "$BUILD_ROOT"
     set -x
+    # Not quoting $ctest_args on purpose.
+    # shellcheck disable=SC2086
     ctest -j"$YB_NUM_CPUS" --verbose $ctest_args 2>&1 |
-      egrep -v "^[0-9]+: Test timeout computed to be: "
+      grep -Ev "^[0-9]+: Test timeout computed to be: "
   )
 }
 
@@ -487,8 +505,8 @@ run_tests_remotely() {
   fi
   if [[ -n ${YB_HOST_FOR_RUNNING_TESTS:-} && \
         $YB_HOST_FOR_RUNNING_TESTS != "localhost" && \
-        $YB_HOST_FOR_RUNNING_TESTS != $HOSTNAME && \
-        $YB_HOST_FOR_RUNNING_TESTS != $HOSTNAME.* ]] ; then
+        $YB_HOST_FOR_RUNNING_TESTS != "$HOSTNAME" && \
+        $YB_HOST_FOR_RUNNING_TESTS != "$HOSTNAME."* ]] ; then
     capture_sec_timestamp "remote_tests_start"
     log "Running tests on host '$YB_HOST_FOR_RUNNING_TESTS' (current host is '$HOSTNAME')"
 
@@ -627,7 +645,6 @@ clean_postgres=false
 make_ninja_extra_args=""
 java_lint=false
 collect_java_tests=false
-reinitdb_when_packaging=false
 
 # The default value of this parameter will be set based on whether we're running on Jenkins.
 reduce_log_output=""
@@ -635,6 +652,8 @@ reduce_log_output=""
 resolve_java_dependencies=false
 
 run_cmake_unit_tests=false
+
+run_shellcheck=false
 
 export YB_DOWNLOAD_THIRDPARTY=${YB_DOWNLOAD_THIRDPARTY:-1}
 export YB_HOST_FOR_RUNNING_TESTS=${YB_HOST_FOR_RUNNING_TESTS:-}
@@ -731,7 +750,7 @@ while [[ $# -gt 0 ]]; do
       shift
     ;;
     --targets)
-      make_targets+=( $2 )
+      make_targets+=( "$2" )
       shift
     ;;
     --no-tcmalloc)
@@ -825,6 +844,8 @@ while [[ $# -gt 0 ]]; do
       export YB_MAKE_PARALLELISM=${1#-j}
     ;;
     --remote)
+      # We sometimes modify YB_REMOTE_COMPILATION in a subshell on purpose.
+      # shellcheck disable=SC2031
       export YB_REMOTE_COMPILATION=1
       get_build_worker_list
     ;;
@@ -894,6 +915,9 @@ while [[ $# -gt 0 ]]; do
     ;;
     --python-tests)
       run_python_tests=true
+    ;;
+    --shellcheck)
+      run_shellcheck=true
     ;;
     --cotire)
       export YB_USE_COTIRE=1
@@ -970,6 +994,8 @@ while [[ $# -gt 0 ]]; do
       export YB_SKIP_POSTGRES_BUILD=1
     ;;
     --run-java-test-methods-separately|--rjtms)
+      # We modify YB_RUN_JAVA_TEST_METHODS_SEPARATELY in a subshell in a few places on purpose.
+      # shellcheck disable=SC2031
       export YB_RUN_JAVA_TEST_METHODS_SEPARATELY=1
     ;;
     --rebuild-postgres)
@@ -1025,7 +1051,8 @@ while [[ $# -gt 0 ]]; do
         # Use "the ultimate fix" from http://bit.ly/setenvvar to set a variable with the name stored
         # in another variable to the given value.
         env_var_value=${BASH_REMATCH[2]}
-        eval export $env_var_name=\$env_var_value  # note escaped dollar sign
+
+        eval export "$env_var_name"=\$env_var_value  # note escaped dollar sign
         log "Setting $env_var_name to: '$env_var_value' (as specified on the command line)"
         unset env_var_name
         unset env_var_value
@@ -1115,6 +1142,10 @@ if "$run_python_tests"; then
   exit
 fi
 
+if [[ $run_shellcheck == "true" ]]; then
+  run_shellcheck
+fi
+
 if [[ -n $java_test_name ]]; then
   if [[ -n $cxx_test_name ]]; then
     fatal "Cannot run a Java test and a C++ test at the same time"
@@ -1196,10 +1227,12 @@ fi
 # -------------------------------------------------------------------------------------------------
 
 if "$verbose"; then
-  log "$script_name command line: ${original_args[@]}"
+  log "$script_name command line: ${original_args[*]}"
 fi
 
+# shellcheck disable=SC2119
 set_build_root
+
 find_or_download_thirdparty
 detect_toolchain
 find_make_or_ninja_and_update_cmake_opts
@@ -1240,12 +1273,12 @@ if tty -s && ( $clean_before_build || $clean_thirdparty ); then
   current_timestamp_sec=$( date +%s )
   if [ -f "$last_clean_timestamp_path" ]; then
     last_clean_timestamp_sec=$( cat "$last_clean_timestamp_path" )
-    last_build_time_sec_ago=$(( $current_timestamp_sec - $last_clean_timestamp_sec ))
+    last_build_time_sec_ago=$(( current_timestamp_sec - last_clean_timestamp_sec ))
     if [[ "$last_build_time_sec_ago" -lt 3600 ]] && ! "$force"; then
       log "Last clean build on $build_root_basename was performed less than an hour" \
           "($last_build_time_sec_ago sec) ago."
       log "Do you still want to do a clean build? [y/N]"
-      read answer
+      read -r answer
       if [[ ! "$answer" =~ ^[yY]$ ]]; then
         fatal "Operation canceled"
       fi
@@ -1361,11 +1394,15 @@ if "$build_java"; then
     java_build_opts+=( "${MVN_OPTS_TO_DOWNLOAD_ALL_DEPS[@]}" )
   fi
 
+  # We read variables with names ending with _{start,end}_time_sec in report_time.
+  # shellcheck disable=SC2034
   java_build_start_time_sec=$(date +%s)
 
   for java_project_dir in "${yb_java_project_dirs[@]}"; do
     time (
       cd "$java_project_dir"
+      # We do not double-quote $user_mvn_opts on purpose to allow multiple options.
+      # shellcheck disable=SC2034,SC2086
       build_yb_java_code $user_mvn_opts "${java_build_opts[@]}"
     )
   done
@@ -1380,6 +1417,8 @@ if "$build_java"; then
     collect_java_tests
   fi
 
+  # We read variables with names ending with _{start,end}_time_sec in report_time.
+  # shellcheck disable=SC2034
   java_build_end_time_sec=$(date +%s)
   log "Java build finished, total time information above."
 fi
@@ -1396,6 +1435,7 @@ if ! "$ran_tests_remotely"; then
   if [[ -n $java_test_name ]]; then
     (
       if [[ $java_test_name == *\#* ]]; then
+        # We are modifying this in a subshell. Shellcheck might complain about this elsewhere.
         export YB_RUN_JAVA_TEST_METHODS_SEPARATELY=1
       fi
       resolve_and_run_java_test "$java_test_name"

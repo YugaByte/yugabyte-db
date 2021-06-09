@@ -247,6 +247,8 @@ def main():
         raise RuntimeError("Directory '{}' exists and is non-empty".format(build_target))
     release_util.create_distribution(build_target)
 
+    library_packager.post_process_distribution(build_target)
+
     # ---------------------------------------------------------------------------------------------
     # Invoke YugaWare packaging
     # ---------------------------------------------------------------------------------------------

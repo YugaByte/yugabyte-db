@@ -2091,6 +2091,24 @@ check_python_script_syntax() {
   popd
 }
 
+run_shellcheck() {
+  scripts_to_check=(
+    yb_build.sh
+    build-support/find_linuxbrew.sh
+    build-support/common-build-env.sh
+    build-support/common-test-env.sh
+    build-support/common-cli-env.sh
+    build-support/run-test.sh
+    build-support/compiler-wrappers/compiler-wrapper.sh
+  )
+  pushd "$YB_SRC_ROOT"
+  local script_path
+  for script_path in "${scripts_to_check[@]}"; do
+    ( set -x; shellcheck -x "$script_path" )
+  done
+  popd
+}
+
 activate_virtualenv() {
   local virtualenv_parent_dir=$YB_BUILD_PARENT_DIR
   local virtualenv_dir=$virtualenv_parent_dir/$YB_VIRTUALENV_BASENAME
