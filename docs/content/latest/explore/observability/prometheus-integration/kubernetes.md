@@ -1,5 +1,5 @@
 ---
-title: Prometheus Integration
+title: Prometheus Integration in Kubernetes
 headerTitle: Prometheus Integration
 linkTitle: Prometheus Integration 
 description: Learn about exporting YugabyteDB metrics and monitoring the cluster with Prometheus.

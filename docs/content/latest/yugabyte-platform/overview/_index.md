@@ -1,5 +1,5 @@
 ---
-title: Overview
+title: Yugabyte Platform Overview
 headerTitle: Overview
 linkTitle: Overview
 description: Overview of the Yugabyte Platform and its architecture.

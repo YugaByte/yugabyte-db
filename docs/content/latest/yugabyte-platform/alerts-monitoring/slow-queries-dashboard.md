@@ -1,4 +1,5 @@
 ---
+title: Slow Queries dashboard
 headerTitle: Slow Queries dashboard
 linkTitle: Slow Queries dashboard
 description: Slow Queries dashboard

@@ -1,4 +1,5 @@
 ---
+title: Live Queries dashboard
 headerTitle: Live Queries dashboard
 linkTitle: Live Queries dashboard
 description: Live Queries dashboard

@@ -1,4 +1,5 @@
 ---
+title: Configure backup storage
 headerTitle: Configure backup storage
 linkTitle: Configure backup storage
 description: Configure backup storage

@@ -1,5 +1,5 @@
 ---
-title: Distributed Transactions
+title: Distributed Transactions in YCQL
 headerTitle: Distributed Transactions
 linkTitle: Distributed Transactions
 description: Distributed Transactions in YugabyteDB.

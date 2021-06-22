@@ -1,5 +1,5 @@
 ---
-title: Build a Java application that uses YCQL
+title: Build a Java application that uses YCQL driver 3.8
 headerTitle: Build a Java application
 linkTitle: Java
 description: Build a sample Java application with the Yugabyte Java Driver for YCQL.

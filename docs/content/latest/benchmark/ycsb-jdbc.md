@@ -1,5 +1,5 @@
 ---
-title: Benchmark YSQL performance with YCSB
+title: Benchmark YSQL performance with YCSB using JDBC
 headerTitle: YCSB
 linkTitle: YCSB
 description: Benchmark YSQL performance with YCSB using the standard JDBC binding.

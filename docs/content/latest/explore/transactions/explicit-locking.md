@@ -1,13 +1,13 @@
 ---
-title: Explicit Locking
-headerTitle: Explicit Locking
-linkTitle: Explicit Locking
-description: Explicit Locking in YugabyteDB.
-headcontent: Explicit Locking in YugabyteDB.
+title: Explicit locking overview
+headerTitle: Explicit locking
+linkTitle: Explicit locking
+description: Explicit locking in YugabyteDB
+headcontent: Explicit locking in YugabyteDB
 image: <div class="icon"><i class="fas fa-file-invoice-dollar"></i></div>
 menu:
   latest:
-    name: Explicit Locking
+    name: Explicit locking
     identifier: explore-transactions-explicit-locking-1-ysql
     parent: explore-transactions
     weight: 245
@@ -34,7 +34,8 @@ Explicit row-locks use transaction priorities to ensure that two transactions ca
 Explicit locking is an area of active development in YugabyteDB. A number of enhancements are planned in this area. Unlike PostgreSQL, YugabyteDB uses optimistic concurrency control and does not block / wait for currently held locks, instead opting to abort the conflicting transaction with a lower priority. Pessimistic concurrency control is currently under development.
 {{</note >}}
 
-The types of row locks currently supported are: 
+The types of row locks currently supported are:
+
 * `FOR UPDATE`
 * `FOR NO KEY UPDATE`
 * `FOR SHARE`
@@ -63,10 +64,11 @@ You can connect the session #1 and session #2 `ysqlsh` instances to the same ser
     <td style="width:50%;">
     Begin a transaction in session #1. Perform a `SELECT FOR UPDATE` on the row in the table `t`, which will end up locking the row. This will cause the row to get locked for an update as a part of a transaction which has a very high priority.
     <pre><code style="padding: 0 10px;">
-# Begin a new transaction in session #1
+-- Begin a new transaction in session #1
 BEGIN;
-# Lock key k1 for updates.
+-- Lock key k1 for updates.
 SELECT * from t WHERE k='k1' FOR UPDATE;
+
  k  | v
 ----+----
  k1 | v1
@@ -83,9 +85,10 @@ SELECT * from t WHERE k='k1' FOR UPDATE;
     <td style="width:50%; border-left:1px solid rgba(158,159,165,0.5);">
     Before completing the transaction, try to update the same key in `session #2` using a simple update statement. This would use optimistic concurrency control, and therefore would fail right away. If `session #1` had used optimistic concurrency control instead of an explicit row-lock, then this update would succeed in some of the attempts and the transaction in `session #1` would fail in those cases.
     <pre><code style="padding: 0 10px;">
-# Since row is locked by session #1,
-# this update should fail.
+-- Since row is locked by session #1,
+-- this update should fail.
 UPDATE t SET v='v1.1' WHERE k='k1';
+
 ERROR:  Operation failed. Try again. 
         xxx Conflicts with higher priority 
         transaction: yyy
@@ -100,10 +103,11 @@ Blocking this transaction and retrying it after the other transaction completes 
     <td style="width:50%;">
     Update the row and commit the transaction in `session #1`. This should succeed.
     <pre><code style="padding: 0 10px;">
-# Update should succeed since row
-# was explicitly locked.
+-- Update should succeed since row
+-- was explicitly locked.
 UPDATE t SET v='v1.2' WHERE k='k1';
-# Commit fails.
+
+-- Commit fails.
 COMMIT;
     </code></pre>
     </td>
@@ -112,10 +116,3 @@ COMMIT;
   </tr>
 
 </table>
-
-
-
-
-
-
-

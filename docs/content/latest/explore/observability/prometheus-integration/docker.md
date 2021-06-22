@@ -1,5 +1,5 @@
 ---
-title: Prometheus Integration
+title: Prometheus Integration in Docker
 headerTitle: Prometheus Integration
 linkTitle: Prometheus Integration
 description: Learn about exporting YugabyteDB metrics and monitoring the cluster with Prometheus.
@@ -182,7 +182,7 @@ $ docker run \
     prom/prometheus
 ```
 
-Open the Prometheus UI at http://localhost:9090 and then navigate to the Targets page under Status.
+Open the Prometheus UI at <http://localhost:9090> and then navigate to the Targets page under Status.
 
 ![Prometheus Targets](/images/ce/prom-targets-docker.png)
 
@@ -202,7 +202,7 @@ sum(irate(rpc_latency_count{server_type="yb_cqlserver", service_type="SQLProcess
 
 ![Prometheus Read IOPS](/images/ce/prom-read-iops.png)
 
->  Write IOPS
+> Write IOPS
 
 ```sh
 sum(irate(rpc_latency_count{server_type="yb_cqlserver", service_type="SQLProcessor", service_method="InsertStmt"}[1m]))
@@ -241,4 +241,5 @@ $ docker network remove yb-net
 ```
 
 ## What's next?
+
 You can [setup Grafana](https://prometheus.io/docs/visualization/grafana/) and import the [YugabyteDB dashboard](https://grafana.com/grafana/dashboards/12620 "YugabyteDB dashboard on grafana.com") for better visualization of the metrics being collected by Prometheus.
