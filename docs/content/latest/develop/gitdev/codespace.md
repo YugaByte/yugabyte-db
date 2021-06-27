@@ -1,7 +1,7 @@
 ---
 title: Codespaces
 linkTitle: Codespaces
-description: GitHub Codespaces
+description: Ready to code GitHub Codespaces integrated dev environment
 menu:
   latest:
     identifier: codespace
@@ -13,18 +13,18 @@ showAsideToc: true
 
 Use the [GitHub Codespaces](https://github.com/features/codespaces) to provision an instant development environment with a pre-configured YugabyteDB.
 
-Codespaces is a configurable cloud development environment accessible via a browser or through a local vscode editor. A codespace includes everything developers need to develop for a specific repository, including the vscode editing experience, common languages, tools, and utilities. Instantly it sets up a cloud-hosted, containerized, and customizable vscode environment.
+Codespaces is a configurable cloud development environment accessible via a browser or through a local `vscode` editor. A codespace includes everything developers need to develop for a specific repository, including the `vscode` editing experience, common languages, tools, and utilities. Instantly it sets up a cloud-hosted, containerized, and customizable vscode environment.
 
 Follow the steps below to set up a codespace environment with a pre-configured YugabyteDB. For details on GitHub Codespaces, see the [GitHub Codespaces documentation](https://docs.github.com/en/codespaces).
 
-## Requirements
-This doesn't require anything in your local workstation other than a code editor and git cli. Much of the development happens in the cloud through a web browser though you have the option to use vscode locally.
+## Requirements ⏳
+Codespaces doesn't require anything in your local workstation other than a code editor and git cli. Much of the development happens in the cloud through a web browser though you have the option to use vscode locally.
 
 ## Getting Started with a boot app
 You can find the source at [Spring Boot todo on GitHub](https://github.com/srinivasa-vasu/todo).
 
 ### Initialize the base project structure
-This is a Java Spring Boot reactive app. However, the steps to go through the Codespaces experience are agnostic of the language/framework. A quick way to get started with a spring boot app is via the [Spring Initializer](https://start.spring.io). Generate the base project structure with Webflux, Flyway, and R2DBC dependencies.
+Spring todo is a Java Spring Boot reactive app. However, the steps to go through the Codespaces experience are agnostic of the language/framework. A quick way to get started with a spring boot app is via the [Spring Initializer](https://start.spring.io). Generate the base project structure with Webflux, Flyway, and R2DBC dependencies.
 
 ![set-up the base project abstract](/images/develop/gitdev/codespace/init-sb.png)
 
@@ -34,11 +34,11 @@ Complete the todo-service to handle 'GET', 'POST', 'PUT', and 'DELETE' API reque
 ![complete the api endpoints](/images/develop/gitdev/codespace/complete-api.png)
 
 {{< note title="Note" >}}
-It uses non-blocking reactive APIs to connect to the YugabyteDB.
+📌 It uses non-blocking reactive APIs to connect to the YugabyteDB.
 {{< /note >}}
 
 ## Initialize Codespaces
-To get started quickly, you can use one of the appropriate readily available [pre-built containers](https://github.com/microsoft/vscode-dev-containers/tree/main/containers). It can be further customized to fit your needs either by extending them or by creating a new one. A simple click provisions the entire development environment in the cloud with an integrated powerful vscode editor in a container form factor. The entire config to set up the development environment lives in the same source code repository. Let's go through the steps to set up the codespaces environment.
+To get started quickly, you can use one of the appropriate readily available [pre-built containers](https://github.com/microsoft/vscode-dev-containers/tree/main/containers). It can be further customized to fit your needs either by extending them or by creating a new one. A simple click provisions the entire development environment in the cloud with an integrated powerful vscode editor. The entire config to set up the development environment lives in the same source code repository. Let's go through the steps to set up the codespaces environment.
 
 ### Setting up the Codespace environment
 As of writing this, Codespaces is still a beta feature. If this feature is enabled for your GitHub account, then the codespace environment is initialized at [GitHub Codespaces](https://github.com/codespaces).
@@ -121,11 +121,10 @@ If you run the `Create codespace` with the above-updated spec, the development e
 ![install YugabyteDB](/images/develop/gitdev/codespace/install-yb.gif)
 
 {{< note title="Note" >}}
-Fully provisioned, integrated development environment with an automated port forwarding to build and test the application via a browser tab.
+📌 GitHub codespaces provisions a fully integrated cloud-native development environment with an automated port forwarding to develop, build, and test applications right from the browser tab.
 {{< /note >}}
 
-
-## Summary
-GitHub codespaces provides the automated, pre-configured, and consistent development environments that improves the productivity of distributed teams.
+## ⌛ Summary
+GitHub codespaces provides integrated, pre-configured, and consistent development environments that improve the productivity of distributed teams.
 
 ![complete dev environment](/images/develop/gitdev/codespace/complete-dev.png)

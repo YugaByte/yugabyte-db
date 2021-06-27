@@ -1,7 +1,7 @@
 ---
 title: Gitpod
 linkTitle: Gitpod
-description: Gitpod
+description: Ready to code Gitpod integrated dev environment
 menu:
   latest:
     identifier: gitpod
@@ -11,20 +11,20 @@ isTocNested: true
 showAsideToc: true
 ---
 
-Use the [Gitpod](https://www.gitpod.io) to provision an instant development environment with a pre-configured YugabyteDB.
+Use the [Gitpod](https://www.gitpod.io) workspaces to provision an instant development environment with a pre-configured YugabyteDB.
 
-Gitpod is a configurable ready to code cloud development environment accessible via a browser. A Gitpod workspace includes everything developers need to develop for a specific repository, including the vscode or theia editing experience, common languages, tools, and utilities. Instantly it sets up a cloud-hosted, containerized, and customizable vscode/theia environment.
+Gitpod is a configurable ready to code cloud development environment accessible via a browser. A Gitpod workspace includes everything developers need to develop for a specific repository, including the `vscode` or `theia` editing experience, common languages, tools, and utilities. Instantly it sets up a cloud-hosted, containerized, and customizable vscode/theia environment.
 
 Follow the steps below to set up a Gitpod workspace environment with a pre-configured YugabyteDB. For details on Gitpod workspaces, see the [Gitpod documentation](https://www.gitpod.io/docs/).
 
-## Requirements
-This doesn't require anything in your local workstation other than a code editor and git cli. Much of the development happens in the cloud through a web browser.
+## Requirements ⏳
+Gitpod doesn't require anything in your local workstation other than a code editor and git cli. Much of the development happens in the cloud through a web browser.
 
 ## Getting Started with a boot app
 You can find the source at [Spring Boot todo on GitHub](https://github.com/srinivasa-vasu/todo).
 
 ### Initialize the base project structure
-This is a Java Spring Boot reactive app. However, the steps to go through the Codespaces experience are agnostic of the language/framework. A quick way to get started with a spring boot app is via the [Spring Initializer](https://start.spring.io). Generate the base project structure with Webflux, Flyway, and R2DBC dependencies.
+Spring todo is a Java Spring Boot reactive app. However, the steps to go through the Gitpod experience are agnostic of the language/framework. A quick way to get started with a spring boot app is via the [Spring Initializer](https://start.spring.io). Generate the base project structure with Webflux, Flyway, and R2DBC dependencies.
 
 ![set-up the base project abstract](/images/develop/gitdev/gitpod/init-sb.png)
 
@@ -34,18 +34,18 @@ Complete the todo-service to handle 'GET', 'POST', 'PUT', and 'DELETE' API reque
 ![complete the api endpoints](/images/develop/gitdev/gitpod/complete-api.png)
 
 {{< note title="Note" >}}
-It uses non-blocking reactive APIs to connect to the YugabyteDB.
+📌 It uses non-blocking reactive APIs to connect to the YugabyteDB.
 {{< /note >}}
 
 ## Initialize Gitpod
-To get started quickly, you can use the universal image [pre-built containers](https://www.gitpod.io/docs/quickstart) or a language specific image. It can be further customized to fit your needs either by extending them or by creating a new one. A simple click provisions the entire development environment in the cloud with an integrated powerful vscode/theia editor in a container form factor. The entire config to set up the development environment lives in the same source code repository. Let's go through the steps to set up the Gitpod environment.
+To get started quickly, you can use the universal image [pre-built containers](https://www.gitpod.io/docs/quickstart) or a language-specific image. It can be further customized to fit your needs either by extending them or by creating a new one. A simple click provisions the entire development environment in the cloud with an integrated powerful vscode/theia editor. The entire config to set up the development environment lives in the same source code repository. Let's go through the steps to set up the Gitpod environment.
 
 ### Setting up the Gitpod environment
-Gitpod workspace environment is initialized for a specific repository by `https://gitpod.io/#[REPO_URL]`
+Gitpod workspace environment is initialized for a specific repository by invoking `https://gitpod.io/#[REPO_URL]`
 
 ![initalize the workspace environment](/images/develop/gitdev/gitpod/init-workspace.png)
 
-You can either use a universal image with pre-built language-specific libraries and commonly used utilities or a language specific image. Let's create the integrated YugabuteDB workspace environment by customizing the base universal image.
+You can either use a universal image with pre-configured libraries and commonly used utilities or a language specific image. Let's create the integrated YugabuteDB workspace environment by customizing the base universal image.
 
 To initialize the workspace environment, 
 - create `.gitpod.yml` file at the root of the source repo
@@ -56,6 +56,7 @@ To initialize the workspace environment,
 You need to customize the default universal image to include the YugabyteDB binary. This is done by defining your own `Dockerfile` at `.gitpodcontainer/Dockerfile`.
 
 ```docker
+# default universal image
 FROM gitpod/workspace-full
 
 ARG YB_VERSION=2.7.1.1
@@ -79,13 +80,13 @@ RUN curl -sSLo ./yugabyte.tar.gz https://downloads.yugabyte.com/yugabyte-${YB_VE
 RUN mkdir -p /var/ybdp \
 	&& chown -R $ROLE:$ROLE /var/ybdp \
 	&& chown -R $ROLE:$ROLE /usr/local/yugabyte
+
+USER $ROLE
 ```
 
-The following lines of code are to initialize the YugabyteDB with an app-specific database related info in a local file.
+The following lines of code are to write the app-specific database-related info to a local file that will be run during the container initialization phase.
 
 ``` docker
-USER $ROLE
-
 ENV STORE=/var/ybdp
 ENV LISTEN=127.0.0.1
 ENV PORT=5433
@@ -120,19 +121,18 @@ tasks:
     command: java -jar build/libs/*.jar
 ```
 
-If you launch the workspaces environment with the above-updated spec, the development environment gets provisioned with a running YugabyteDB instance.
+If you launch the workspaces environment with the above-updated spec, the development environment gets provisioned with a running YugabyteDB instance. It opens two terminals, one terminal to run the DB task and the other one to compile and run the boot app.
 
 ![install YugabyteDB](/images/develop/gitdev/gitpod/install-yb.gif)
 
 {{< note title="Note" >}}
-Fully provisioned, integrated development environment with an automated port forwarding to build and test the application via a browser tab.
+📌 Gitpod provisions a fully integrated ready to code cloud-native development environment with an automated port forwarding to develop, build, and test applications right from the browser tab.
 {{< /note >}}
 
 ![workspace environment](/images/develop/gitdev/gitpod/workspace.png)
 
-
-## Summary
-Gitpod provides the automated, pre-configured, and consistent development environments that improves the productivity of distributed teams.
+## ⌛ Summary
+Gitpod provides fully automated, pre-configured, and consistent development environments that improve the productivity of distributed teams.
 
 ![complete dev environment](/images/develop/gitdev/gitpod/complete-dev.png)
 
