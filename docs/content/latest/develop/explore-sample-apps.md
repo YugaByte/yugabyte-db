@@ -12,7 +12,7 @@ menu:
   latest:
     identifier: explore-sample-apps
     parent: develop
-    weight: 581
+    weight: 583
 ---
 
 After [creating a local cluster](../../quick-start/create-local-cluster/), follow the instructions below to run the Yugastore application.

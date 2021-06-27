@@ -7,7 +7,7 @@ menu:
   latest:
     identifier: best-practices-ycql
     parent: develop
-    weight: 582
+    weight: 584
 aliases:
   - /latest/develop/best-practices/
 isTocNested: 4
