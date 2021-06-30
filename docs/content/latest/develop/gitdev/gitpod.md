@@ -6,7 +6,7 @@ menu:
   latest:
     identifier: gitpod
     parent: gitdev
-    weight: 583
+    weight: 592
 isTocNested: true
 showAsideToc: true
 ---
