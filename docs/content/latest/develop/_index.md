@@ -44,19 +44,6 @@ menu:
   </div>
 
   <div class="col-12 col-md-6 col-lg-12 col-xl-6">
-    <a class="section-link icon-offset" href="graphql/">
-      <div class="head">
-        <img class="icon" src="/images/section_icons/develop/real-world-apps.png" aria-hidden="true" />
-        <div class="articles">2 articles</div>
-        <div class="title">Build GraphQL applications</div>
-      </div>
-      <div class="body">
-        Use Hasura GraphQL Engine and Prisma to use GraphQL with YugabyteDB.
-      </div>
-    </a>
-  </div>
-
-  <div class="col-12 col-md-6 col-lg-12 col-xl-6">
     <a class="section-link icon-offset" href="gitdev/">
       <div class="head">
         <img class="icon" src="/images/section_icons/develop/real-world-apps.png" aria-hidden="true" />
