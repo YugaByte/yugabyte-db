@@ -274,6 +274,10 @@ class MasterServiceImpl : public MasterServiceIf,
                    FlushTablesResponsePB* resp,
                    rpc::RpcContext rpc) override;
 
+  void FlushSysCatalog(const FlushSysCatalogRequestPB* req, 
+                       FlushSysCatalogResponsePB* resp,
+                       rpc::RpcContext rpx) override;
+
   void IsFlushTablesDone(const IsFlushTablesDoneRequestPB* req,
                          IsFlushTablesDoneResponsePB* resp,
                          rpc::RpcContext rpc) override;

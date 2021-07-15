@@ -1996,6 +1996,14 @@ message FlushTablesResponsePB {
 
   optional bytes flush_request_id = 2;
 }
+message FlushSysCatalogRequestPB{
+
+}
+message FlushSysCatalogResponsePB{
+  optional MasterErrorPB error = 1;
+
+  optional bytes flush_request_id = 2;
+}
 
 message IsFlushTablesDoneRequestPB {
   optional bytes flush_request_id = 1;
@@ -2260,6 +2268,7 @@ service MasterService {
   rpc AreLeadersOnPreferredOnly(AreLeadersOnPreferredOnlyRequestPB)
       returns (AreLeadersOnPreferredOnlyResponsePB);
 
+  rpc FlushSysCatalog(FlushSysCatalogRequestPB) returns (FlushSysCatalogResponsePB);
   rpc FlushTables(FlushTablesRequestPB) returns (FlushTablesResponsePB);
   rpc IsFlushTablesDone(IsFlushTablesDoneRequestPB) returns (IsFlushTablesDoneResponsePB);
 

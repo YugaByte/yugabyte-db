@@ -397,6 +397,7 @@ BOOST_PP_SEQ_FOR_EACH(
     (SplitTablet)
     (DeleteTablet)
     (DdlLog)
+    (FlushSysCatalog)
 )
 
 

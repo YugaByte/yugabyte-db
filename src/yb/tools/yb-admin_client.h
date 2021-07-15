@@ -156,6 +156,9 @@ class ClusterAdminClient {
 
   // Launch backfill for (deferred) indexes on the specified table.
   CHECKED_STATUS LaunchBackfillIndexForTable(const client::YBTableName& table_name);
+  
+  // Flush the system catalog tablet
+  CHECKED_STATUS FlushSysCatalog(const int& timeout_secs);
 
   // List all tablet servers known to master
   CHECKED_STATUS ListAllTabletServers(bool exclude_dead = false);

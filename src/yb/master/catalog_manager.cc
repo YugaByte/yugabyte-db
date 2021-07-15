@@ -4046,6 +4046,14 @@ Status CatalogManager::GetBackfillJobs(
   return Status::OK();
 }
 
+Status CatalogManager::FlushSysCatalog(
+    const FlushSysCatalogRequestPB* req,
+    FlushSysCatalogResponsePB* resp,
+    rpc::RpcContext* rpc) {
+  RETURN_NOT_OK(sys_catalog_->tablet_peer()->shared_tablet()->Flush(tablet::FlushMode::kSync));
+  return Status::OK();
+}
+
 Status CatalogManager::LaunchBackfillIndexForTable(
     const LaunchBackfillIndexForTableRequestPB* req,
     LaunchBackfillIndexForTableResponsePB* resp,

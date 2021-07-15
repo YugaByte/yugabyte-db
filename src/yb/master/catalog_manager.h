@@ -261,6 +261,11 @@ class CatalogManager :
   CHECKED_STATUS IsTruncateTableDone(const IsTruncateTableDoneRequestPB* req,
                                      IsTruncateTableDoneResponsePB* resp);
 
+  // Flush the system catalog
+  CHECKED_STATUS FlushSysCatalog(const FlushSysCatalogRequestPB* req, 
+                                 FlushSysCatalogResponsePB* resp, 
+                                 rpc::RpcContext* rpx);
+
   // Backfill the specified index.  Currently only supported for YSQL.  YCQL does not need this as
   // master automatically runs backfill according to the DocDB permissions.
   CHECKED_STATUS BackfillIndex(const BackfillIndexRequestPB* req,

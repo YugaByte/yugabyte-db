@@ -527,6 +527,19 @@ void ClusterAdminCli::RegisterCommandHandlers(ClusterAdminClientClass* client) {
       });
 
   Register(
+      "flush_sys_catalog", 
+      "[timeout_in_seconds] (default 20)",
+      // " <table> [timeout_in_seconds] (default 20)"
+      [client](const CLIArguments& args) -> Status {
+        int timeout_secs = 20;
+        // We use the FlushSysCatalog RPC to trigger compaction.
+        RETURN_NOT_OK_PREPEND(
+            client->FlushSysCatalog(timeout_secs /* is_compaction */),
+            Substitute("Unable to flush table sys_catalog"));
+        return Status::OK();
+      });
+
+  Register(
       "delete_index_by_id", " <index_id>",
       [client](const CLIArguments& args) -> Status {
         if (args.size() != 1) {
