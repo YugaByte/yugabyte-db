@@ -29,7 +29,7 @@ responsible for the keys the transaction is trying to modify. We call them "prov
 to "regular" ("permanent") records, because they are invisible to readers until the transaction
 commits.
 
-Provisional records are stored are stored in a separate RocksDB instance in the same tablet peer.
+Provisional records are stored in a separate RocksDB instance in the same tablet peer.
 Compared to other possible design options, such as storing provisional records inline with the
 regular records or putting them in the same RocksDB instance altogether with regular records, the
 approach we have chosen has the following benefits:
