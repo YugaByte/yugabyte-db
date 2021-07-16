@@ -3,7 +3,9 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+```
+http://www.apache.org/licenses/LICENSE-2.0
+```
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,7 +26,9 @@ System Requirements
 Building the Client
 ------------------------------------------------------------
 
+```console
 $ mvn package -DskipTests
+```
 
 The client jar will can then be found at yb-client/target.
 
@@ -34,23 +38,28 @@ Publishing YB build to S3
 
 You can push YB client package to S3, so yugaware and other
 clients can have the latest changes. This needs the s3 credentials
-in ~/.m2/settings.xml
-  <settings>
-    <servers>
-      <server>
-        <id>s3.release</id>
-        <username>AWS_ACCESS_KEY</username>
-        <password>AWS_SECRET_KEY</password>
-      </server>
-      <server>
-        <id>s3.snapshot</id>
-        <username>AWS_ACCESS_KEY</username>
-        <password>AWS_SECRET_KEY</password>
-      </server>
-    </servers>
-  </settings>
+in `~/.m2/settings.xml`
 
+```xml
+<settings>
+  <servers>
+    <server>
+      <id>s3.release</id>
+      <username>AWS_ACCESS_KEY</username>
+      <password>AWS_SECRET_KEY</password>
+    </server>
+    <server>
+      <id>s3.snapshot</id>
+      <username>AWS_ACCESS_KEY</username>
+      <password>AWS_SECRET_KEY</password>
+    </server>
+  </servers>
+</settings>
+```
+
+```console
 $ mvn deploy  -DskipTests
+```
 
 Running the Tests
 ------------------------------------------------------------
@@ -67,28 +76,36 @@ for YB, those should be present already.
 
 Once everything is setup correctly, run:
 
+```console
 $ mvn test
+```
 
 In order to point the unit tests to an existing cluster,
 you need to use a command line like this one:
 
+```console
 $ mvn test -DstartCluster=false
+```
 
 If you choose to not start a cluster, the tests will look for
 a master running on localhost:7100. If you would like to run
 against a remote cluster, you can override this using
--DmasterAddress:
+`-DmasterAddress`:
 
+```console
 $ mvn test -DstartCluster=false -DmasterAddress=foo.example.com:7100
+```
 
 If for some reason you would like to start a cluster, but use
 binaries other than the ones in build/latest/, you can pass
--DbinDir=/path/to/directory.
+`-DbinDir=/path/to/directory`.
 
 Integration tests, including tests which cover Hadoop integration,
 may be run with:
 
+```console
 $ mvn verify
+```
 
 State of Eclipse integration
 ------------------------------------------------------------
@@ -121,7 +138,7 @@ Nevertheless, maven-protoc-plugin isn't being run correctly.
 To work around this, you can download, build, and install a
 user-made m2e extension for maven-protoc-plugin:
 
-  http://www.masterzen.fr/2011/12/25/protobuf-maven-m2e-and-eclipse-are-on-a-boat
+http://www.masterzen.fr/2011/12/25/protobuf-maven-m2e-and-eclipse-are-on-a-boat
 
 See http://wiki.eclipse.org/M2E_plugin_execution_not_covered
 for far more excruciating detail.
@@ -132,7 +149,9 @@ The maven-eclipse-plugin approach, despite being old
 fashioned and largely unsupported, is easier to use. The
 very first time you want to use it, run the following:
 
+```console
 $ mvn -Declipse.workspace=<path-to-eclipse-workspace> eclipse:configure-workspace
+```
 
 This will add the M2_REPO classpath variable to Eclipse. You
 can verify this in
@@ -141,12 +160,16 @@ should be set to `/home/<user>/.m2/repository`.
 
 To generate the Eclipse project files, run:
 
+```console
 $ mvn eclipse:eclipse
+```
 
 If you want to look at Javadoc/source in Eclipse for
 dependent artifacts, run:
 
+```console
 $ mvn eclipse:eclipse -DdownloadJavadocs=true -DdownloadSources=true
+```
 
 So what's the problem with maven-eclipse-plugin? The issue
 lies with maven-protoc-plugin. Because all of our .proto
