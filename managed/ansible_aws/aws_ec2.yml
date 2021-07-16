@@ -1,0 +1,20 @@
+plugin: aws_ec2
+regions:
+  - eu-central-1
+keyed_groups:
+  # Add hosts to tag_Name_Value groups for each Name/Value tag pair
+  - prefix: tag
+    key: tags
+
+compose:
+  #ansible_user: centos
+  ansible_ssh_private_key_file: "'{{ key_location }}'"
+  #ansible_host: private_ip_address
+  
+hostnames:
+  - tag:Name=Tag1,Name=Tag2  # Return specific hosts only
+  - tag:CustomDNSName
+  - dns-name
+  - private-ip-address
+#aws_access_key: "{{ aws_access_key }}"
+#aws_secret_key: "{{ aws_secret_key }}"

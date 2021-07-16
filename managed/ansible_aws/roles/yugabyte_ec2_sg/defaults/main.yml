@@ -1,0 +1,50 @@
+---
+# defaults file for yugabyte_ec2_sg
+YUGABYTE_SEC_GROUPS:
+  - name: "{{ cluster_name }}"
+    description: "Yugabyte DB cluster SG"
+    rules:
+      - proto: tcp
+        from_port: 22
+        to_port: 22
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 7000
+        to_port: 7000
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 9000
+        to_port: 9000
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 6379
+        to_port: 6379
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 9042
+        to_port: 9042
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 5433
+        to_port: 5433
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 5422
+        to_port: 5422
+        cidr_ip: 0.0.0.0/0
+  - name: infra_secgroup
+    description: "Yugabyte Sec Groups for infra"
+    rules:
+      - proto: tcp
+        from_port: 7100
+        to_port: 7100
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 9100
+        to_port: 9100
+        cidr_ip: 0.0.0.0/0
+    rules_egress:
+      - proto: -1
+        from_port: 0
+        to_port: 0
+        cidr_ip: 0.0.0.0/0

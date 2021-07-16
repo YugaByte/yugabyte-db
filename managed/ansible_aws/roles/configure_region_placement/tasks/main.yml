@@ -1,0 +1,62 @@
+---
+# tasks file for configure_region_placement
+
+- name: Getting master host dns
+  vars:
+    query: "tag_Env_{{ ec2_tag }}_master[]"
+  set_fact:
+    master_dns1: "{{ hostvars[inventory_hostname].groups | json_query(query) }}"
+
+- name: debug name
+  debug: msg="{{ master_dns1 }}"
+
+- name: set master addresses on port 7100
+  set_fact:
+    MASTER_RPC_ADDRS1: "{{ MASTER_RPC_ADDRS1 | default([]) + [':'.join((item,'7100'))] }}"
+  loop: "{{ master_dns1 | list }}"
+
+- name: debug dns
+  debug: msg="{{ MASTER_RPC_ADDRS1 }}"
+
+- name: Get facts from all availability zones
+  local_action:
+    module: ec2_instance_info
+    region: "{{ region }}"
+    filters:
+      "tag:Env": "Yugabyte_nodes_master"
+  register: instance_facts
+
+- name: print facts
+  set_fact:
+    az_masters: "{{ instance_facts | json_query('instances[?state.name == `running`].placement.availability_zone') | list }}"
+
+- name: count az regions
+  set_fact:
+    az_count: "{{ az_masters | length }}"
+
+- name: debug
+  debug: msg="{{ az_masters }}"
+
+- name: get az values
+  vars:
+    prefix: "{{ cloud }}.{{ region }}."
+  set_fact:
+    values_az: "{{ values_az|d([]) + [prefix]|product(az_masters)|map('join')|list }}"
+
+- name: debug values az
+  debug: msg="{{ values_az }}"
+
+- name: Configuring az distribution
+  shell: '~/master/bin/yb-admin --master_addresses {{ MASTER_RPC_ADDRS1 | join(",") }} modify_placement_info {{ values_az | join(",") }} {{ az_count }}'
+  
+- name: Check that you can connect (GET) to a page and it returns a status 200
+  uri:
+    url: "http://{{ hostvars[inventory_hostname].public_dns_name }}:7000/cluster-config"
+  register: page_az
+  until: "page_az.status == 200"
+  retries: 100
+  delay: 9
+
+- name: debug values az
+  debug: msg="{{ page_az }}"
+

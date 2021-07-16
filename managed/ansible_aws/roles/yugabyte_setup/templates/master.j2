@@ -1,0 +1,7 @@
+--master_addresses={{ MASTER_RPC_ADDRS | join(',') }}
+--fs_data_dirs={{ ansible_env.HOME }}
+--rpc_bind_addresses={{ hostvars[inventory_hostname].public_dns_name }}:7100
+--webserver_interface={{ hostvars[inventory_hostname].public_dns_name }}
+--placement_cloud={{ cloud }}
+--placement_region={{ region }}
+--placement_zone={{ hostvars[inventory_hostname].placement.availability_zone }}

@@ -1,0 +1,23 @@
+- name: set symlink directory
+  set_fact:
+    templates_names: "{{ ['master'] + ['tserver'] if hostvars[inventory_hostname].group_names is search('master') else 'tserver' }}"
+    
+- name: master config file
+  template:
+    src: "{{ item }}.j2"
+    dest: "{{ conf_dir }}/{{ item }}.conf"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+  with_items:
+    - "{{ templates_names }}"
+
+- name: display multiple file contents
+  shell: "cat {{ conf_dir }}/{{ item }}.conf"
+  with_items:
+    - "{{ templates_names }}"
+  register: output
+
+- name: showing config values
+  debug: msg="{{ output.results | replace('\n', '') }}"
+ 

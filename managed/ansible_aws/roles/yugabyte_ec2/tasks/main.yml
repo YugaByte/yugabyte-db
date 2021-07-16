@@ -1,0 +1,2 @@
+- include: ec2_key.yml
+- include: ec2_instances.yml

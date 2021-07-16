@@ -1,0 +1,59 @@
+---
+# tasks file for yugabyte_install
+- name: Add EC2 instances as known hosts
+  known_hosts:
+    name: "{{ inventory_hostname }}"
+    key: "{{ lookup('pipe', 'ssh-keyscan -H {{ inventory_hostname }}') }}"
+
+- name: ensure a list of packages installed
+  yum:
+    name: "{{ packages_centos }}"
+  become: true
+  
+- name: configure system settings, file descriptors and number of threads
+  pam_limits:
+    domain: "{{ ansible_user }}"
+    limit_type: "{{item.limit_type}}"
+    limit_item: "{{item.limit_item}}"
+    value: "{{item.value}}"
+  with_items:
+    - "{{ ulimits_security }}"
+  become: true
+  
+- name: reload settings from all system configuration files
+  shell: sysctl --system
+  become: true
+  
+- name: verify ulimits
+  shell: ulimit -n -u -c
+  register: ulimits_info
+  become: true
+  
+- name: print ulimits info
+  debug: msg="{{ ulimits_info }}"
+  become: true
+
+- name: Delete existing dist folder
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "{{ software_dir }}"
+    - "{{ conf_dir }}"
+    - "~/yb-data"
+    - "~/yb"
+    - "~/pg_data"
+    - "{{ master_dir }}"
+    - "{{ tserver_dir }}"
+
+- name: Creates directory
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: 0755
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  with_items:
+     - "{{ software_dir }}"
+     - "{{ conf_dir }}"
+  become_user: "{{ ansible_user }}"

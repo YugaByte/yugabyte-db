@@ -1,0 +1,34 @@
+- hosts: localhost
+  vars_files:
+    - creds.yml
+  roles:
+    - yugabyte_vpc
+    - yugabyte_ec2_sg
+    - yugabyte_ec2
+ 
+- hosts: tag_Env_Yugabyte_nodes*
+  roles:
+    - yugabyte_common
+    - yugabyte_setup
+    
+- hosts: tag_Env_Yugabyte_nodes_master
+  roles:
+    - role: yugabyte_tbserver_startup
+      vars:
+        file_config: master.conf
+        process: yb-master
+        basedir_yugabyte: "{{ master_dir }}"
+       
+- hosts: tag_Env_Yugabyte_nodes*
+  roles:
+    - role: yugabyte_tbserver_startup
+      vars:
+        file_config: "tserver.conf"
+        process: yb-tserver
+        basedir_yugabyte: "{{ tserver_dir }}"
+        
+- hosts: tag_Name_Yugabyte_nodes_master_1
+  vars_files:
+    - creds.yml
+  roles:
+    - configure_region_placement

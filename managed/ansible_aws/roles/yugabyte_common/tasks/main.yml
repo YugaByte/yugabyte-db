@@ -1,0 +1,13 @@
+- include: prerequisites.yml
+- include: download_yugabyte.yml
+
+# - include_tasks: "{{ role_path }}/tasks/prerequisites.yml"
+#   args:
+#     apply:
+#       become: yes
+#       become_user: "{{ ansible_user }}"
+
+# - include_tasks: download_yugabyte.yml
+#   args:
+#     apply:
+#       become_user: "{{ ansible_user }}"

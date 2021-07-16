@@ -1,0 +1,26 @@
+---
+- name: Create Security Group
+  ec2_group:
+   name: "{{ item.name }}"
+   description: "{{ item.description }}"
+   vpc_id: "{{ vpc_id }}"
+   region: "{{ region }}"
+   aws_access_key: "{{ aws_access_key }}"
+   aws_secret_key: "{{ aws_secret_key }}"
+   tags:                              
+     Name: "{{ item.name }}"
+   rules: "{{ item.rules }}"
+  with_items:
+    - "{{ YUGABYTE_SEC_GROUPS }}"
+  register: yugabyte_sg
+
+# - name: Getting sg group ID's
+#   set_fact:
+#     security_group: "{{ yugabyte_sg }}"
+
+- name: filter public ones
+  set_fact:
+    security_group_ids: "{{ yugabyte_sg.results | map(attribute='group_id') | list }}"
+
+- name: debug group ID's
+  debug: msg="{{ security_group_ids }}"

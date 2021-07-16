@@ -1,0 +1,59 @@
+
+cluster_name: "Yugabyte_cluster"
+type_instance: "t2.micro"
+region: "eu-central-1"
+cloud: aws
+# aws.networking
+aws_region:     'eu-central-1'
+vpc_name:       'Yugabyte_VPC_Res'
+vpc_cidr_2:     '185'
+vpc_cidr: '10.{{vpc_cidr_2}}.0.0/16'
+
+subnets:
+  - type: public
+    cidr: "10.{{vpc_cidr_2}}.10.0/24"
+    az: a
+  - type: public
+    cidr: "10.{{vpc_cidr_2}}.11.0/24"
+    az: b
+  - type: public
+    cidr: "10.{{vpc_cidr_2}}.21.0/24"
+    az: c
+
+route_name: "yugabyte_route"
+instances_per_subnet: 2
+
+# Internet Gateway Name
+igw_name: "Yugabyte_igw"
+ 
+securitygroup_name: "Yugabyte_security_group"
+
+#master_dir: "~/master"
+#tserver_dir: "~/tserver"
+
+ec2_tag: "Yugabyte_nodes"
+ansible_user: centos 
+#The local path to which we would save our EC2 Private Key
+ec2_key_directory: "./"
+keypair_name: "ec2_key_pair"
+key_location: "~/Documents/yugabyte_exam/key.ppk"
+
+conf_dir: "~/yb-conf"
+software_dir: "~/yb-software"
+
+YB_VERSION: 2.1.2.0
+
+TAR_FILE: "yugabyte-{{ YB_VERSION }}-linux.tar.gz"
+
+ulimits_security:
+  - { limit_type: '-', limit_item: 'core', value: unlimited }
+  - { limit_type: '-', limit_item: 'nofile', value: 1048576 }
+  - { limit_type: '-', limit_item: 'nproc', value: 12000 }
+
+master_dir: "~/master"
+tserver_dir: "~/tserver"
+
+linux_distribution: "centos"
+centos_release: "7"
+
+

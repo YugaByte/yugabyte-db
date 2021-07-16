@@ -1,0 +1,21 @@
+- name: create a new ec2 key pair, returns generated private key
+  ec2_key:
+   aws_access_key: "{{ aws_access_key }}"
+   aws_secret_key: "{{ aws_secret_key }}"
+   name: "{{ keypair_name }}"
+   region: "{{ region }}"
+  register: keypair
+  tags:
+   - ec2_key
+
+- debug:
+     var: keypair
+  tags:
+   - ec2_key
+
+- name: Copy EC2 Key Pair private key locally
+  copy: content="{{ keypair.key.private_key }}" dest={{ ec2_key_directory }}key.ppk
+  when: keypair.changed == true
+  tags:
+   - ec2_key
+

@@ -1,0 +1,81 @@
+- name: create VPC
+  ec2_vpc_net:
+    name: "{{ vpc_name }}"
+    cidr_block: "{{ vpc_cidr }}"
+    region: "{{ region }}"
+    state: present
+    aws_access_key: "{{ aws_access_key }}"
+    aws_secret_key: "{{ aws_secret_key }}"
+  register: vpc
+
+- name: Set VPC ID in variable
+  set_fact:
+    vpc_id: "{{ vpc.vpc.id }}"
+
+- name: associate subnet to the VPC
+  ec2_vpc_subnet:
+   state: present
+   vpc_id: "{{ vpc_id }}"
+   region: "{{ region }}"
+   cidr: "{{ item.1.cidr }}"
+   az: "{{ region }}{{ item.1.az }}" 
+   aws_access_key: "{{ aws_access_key }}"
+   aws_secret_key: "{{ aws_secret_key }}"
+   map_public: yes
+   resource_tags:
+     Name: "{{ item.1.type }} subnet {{ item.0 }}"
+  with_indexed_items:
+    - "{{ subnets }}"
+  register: subnet_facts
+
+- name: getting facts
+  debug: msg="{{ subnet_facts.results }}"
+
+- name: filter public ones
+  set_fact:
+    subnet_details: "{{ subnet_facts.results | map(attribute='subnet') | list}}"
+
+- name: get ids
+  debug: msg="{{ item.id }}"
+  with_items:
+    - "{{ subnet_details }}"
+
+# get subnet id's
+- name: "Using json query"
+  vars:
+    server_name_cluster1_query: "[?item[?type == 'public']].subnet.id"
+  set_fact:
+    subnet_ids: "{{subnet_facts.results |json_query(server_name_cluster1_query) | list}}"
+
+- name: get ids from public
+  debug: msg="{{ item }}"
+  with_items:
+    - "{{ subnet_ids }}"
+
+- name: create IGW
+  ec2_vpc_igw:
+   vpc_id: "{{ vpc_id }}"
+   region: "{{ region }}"
+   aws_access_key: "{{ aws_access_key }}"
+   aws_secret_key: "{{ aws_secret_key }}"
+   state: "present"
+   tags:
+     Name: "{{ igw_name }}"
+  register: igw
+
+# because of ec2_vpc_route_table limitation, we have to add here as set of items, the subnets
+- name: Route IGW
+  ec2_vpc_route_table:
+   vpc_id: "{{ vpc_id }}"
+   region: "{{ region }}"
+   aws_access_key: "{{ aws_access_key }}"
+   aws_secret_key: "{{ aws_secret_key }}"
+   subnets:
+     - "{{ subnet_ids[0] }}"
+     - "{{ subnet_ids[1] }}"
+     - "{{ subnet_ids[2] }}"
+   routes:
+     - dest: 0.0.0.0/0
+       gateway_id: "{{ igw.gateway_id  }}"
+   tags:
+     Name: "{{ route_name }}"

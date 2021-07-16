@@ -1,0 +1,55 @@
+- name: Get Yugabyte Package
+  unarchive:
+    src: "https://downloads.yugabyte.com/{{ TAR_FILE }}"
+    dest: "{{ software_dir }}"
+    mode: 0755
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    remote_src: yes
+
+- name: Setting installation dir variables
+  set_fact:
+    install_dir: "{{ software_dir }}/yugabyte-{{ YB_VERSION }}"
+    config_dir: "{{ conf_dir }}"
+    
+- name: Execute Yugabyte installation
+  shell: "cd {{ install_dir }}; nohup ./bin/post_install.sh > {{ install_dir }}/install.log 2>&1 & sleep 1"
+
+- name: Wait until installation completed file is there
+  wait_for:
+    path: "{{ install_dir }}/.post_install.sh.completed"
+    state: present
+    timeout: 300
+
+- name: set symlink directory
+  set_fact:
+    destination: "{{ [master_dir,tserver_dir] if hostvars[inventory_hostname].group_names is search('master') else tserver_dir }}"
+
+- name: Create symbolic link for installation
+  file:
+    src: "{{ install_dir }}"
+    dest: "{{ item }}"
+    state: link
+  with_items:
+    - "{{ destination }}"
+
+- name: Getting master host dns
+  vars:
+    query: "tag_Env_{{ ec2_tag }}_master[]"
+  set_fact:
+    master_dns: "{{ hostvars[inventory_hostname].groups | json_query(query) }}"
+
+- name: Getting tservers dns
+  vars:
+    query: "tag_Env_{{ ec2_tag }}[]"
+  set_fact:
+    tbserver_dns: "{{ hostvars[inventory_hostname].groups | json_query(query) }}"
+
+- name: set master addresses on port 7100
+  set_fact:
+    MASTER_RPC_ADDRS: "{{ MASTER_RPC_ADDRS | default([]) + [':'.join((item,'7100'))] }}"
+  loop: "{{ master_dns | list}}"
+  
+- name: debug dns
+  debug: msg="{{ MASTER_RPC_ADDRS }}"
+

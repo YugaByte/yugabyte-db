@@ -1,0 +1,18 @@
+---
+# defaults file for yugabyte_install
+packages_centos:
+  - epel-release
+  - ntp
+  - perf
+  - sysstat
+  - net-tools
+  - links
+  - lsof
+
+TAR_FILE: "yugabyte-{{ YB_VERSION }}-linux.tar.gz"
+
+ulimits_security:
+  - { limit_type: '-', limit_item: 'core', value: unlimited }
+  - { limit_type: '-', limit_item: 'nofile', value: 1048576 }
+  - { limit_type: '-', limit_item: 'nproc', value: 12000 }
+

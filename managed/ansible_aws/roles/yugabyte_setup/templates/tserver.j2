@@ -1,0 +1,11 @@
+--tserver_master_addrs={{ MASTER_RPC_ADDRS | join(',') }}
+--fs_data_dirs={{ ansible_env.HOME }}
+--rpc_bind_addresses={{ hostvars[inventory_hostname].public_dns_name }}:9100
+--cql_proxy_bind_address={{ hostvars[inventory_hostname].public_dns_name }}:9042 
+--redis_proxy_bind_address={{ hostvars[inventory_hostname].public_dns_name }}:6379    
+--webserver_interface={{ hostvars[inventory_hostname].public_dns_name }}                     
+--placement_cloud={{ cloud }}                       
+--placement_region={{ region }}       
+--placement_zone={{ hostvars[inventory_hostname].placement.availability_zone }}       
+--pgsql_proxy_bind_address={{ hostvars[inventory_hostname].public_dns_name }}:5433      
+
