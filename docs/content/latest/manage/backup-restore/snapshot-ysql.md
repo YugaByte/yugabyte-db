@@ -1,6 +1,6 @@
 ---
 title: Snapshot and restore data for YSQL
-headerTitle: Snapshot and restore data
+headerTitle: Snapshot and restore data for YSQL
 linkTitle: Snapshot and restore data
 description: Snapshot and restore data in YugabyteDB for YSQL.
 image: /images/section_icons/manage/enterprise.png
@@ -10,7 +10,7 @@ menu:
   latest:
     identifier: snapshots-1-ysql
     parent: backup-restore
-    weight: 705
+    weight: 704
 isTocNested: true
 showAsideToc: true
 ---
@@ -25,7 +25,7 @@ showAsideToc: true
   </li>
 
   <li >
-    <a href="/latest/manage/backup-restore/snapshots-ycql" class="nav-link">
+    <a href="/latest/manage/backup-restore/snapshot-ycql" class="nav-link">
       <i class="icon-cassandra" aria-hidden="true"></i>
       YCQL
     </a>
@@ -33,7 +33,7 @@ showAsideToc: true
 
 </ul>
 
-YugabyteDB supports distributed backup and restore of YSQL databases. Backing up and restoring of individual tables within a database is not yet supported.
+A YSQL backup is done at the scope of an entire database. This is a safety requirement, to ensure that both depedencies across tables (eg: indexes, foreign keys), as well as per-database items (eg: sequences) are all backed up consistently.
 
 ## Create a snapshot for a YSQL database
 

@@ -223,4 +223,21 @@ Relative times can be in any of the following formats (again, note that you can 
 
 **Careful!** If you specify a time prior to when you created the table, the restore will leave the table intact, but empty.
 
-Refer to the yb-admin [_restore-snapshot-schedule_ command](../../../admin/yb-admin/#restore-snapshot-schedule) for more details.
+Refer to the yb-admin [_restore_snapshot_schedule_ command](../../../admin/yb-admin/#restore-snapshot-schedule) for more details.
+
+## Delete snapshot schedules
+
+To delete a snapshot schedule, use the yb-admin [_delete_snapshot_schedule_ command](../../../admin/yb-admin/#delete-snapshot-schedule). For example:
+
+```sh
+$ ./bin/yb-admin \
+    delete_snapshot_schedule 0002bcb0-bffd-4729-9624-c18ac7797f57
+```
+
+```output
+{
+    "schedule_id": "0002bcb0-bffd-4729-9624-c18ac7797f57"
+}
+```
+
+Note that it can take a few seconds for the schedule to be deleted, so the schedule may appear in the output of `list_snapshot_schedules` during that time.

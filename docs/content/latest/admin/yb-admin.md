@@ -892,10 +892,10 @@ Returns one or more schedule lists in JSON format.
 **Syntax**
 
 ```sh
-yb-admin list_snapshot_schedules <snapshot-id>
+yb-admin list_snapshot_schedules <schedule-id>
 ```
 
-Where _snapshot-id_ is the snapshot's unique identifier. The ID is optional; omit the ID to return all schedules in the system.
+Where _schedule-id_ is the schedule's unique identifier. The ID is optional; omit the ID to return all schedules in the system.
 
 **Example**
 
@@ -986,6 +986,61 @@ In both cases, the output is similar to the following:
     "restoration_id": "b1b96d53-f9f9-46c5-b81c-6937301c8eff"
 }
 ```
+
+#### delete_snapshot_schedule
+
+Deletes the specified snapshot schedule.
+
+**Syntax**
+
+```sh
+yb-admin delete_snapshot_schedule <schedule-id>
+```
+
+Where _schedule-id_ is the identifier (ID) of the schedule to be deleted.
+
+**Example**
+
+List your snapshot schedules, and copy the ID of the schedule you want to delete:
+
+```sh
+$ ./bin/yb-admin list_snapshot_schedules
+```
+
+```output
+{
+    "schedules": [
+        {
+            "id": "0002bcb0-bffd-4729-9624-c18ac7797f57",
+            "options": {
+                "interval": "60.000s",
+                "retention": "600.000s"
+            },
+            "snapshots": [
+                {
+                    "id": "427dfe3e-cdf9-4cba-9b25-968bc6d3cd41",
+                    "snapshot_time": "2021-07-06 13:35:57.153322"
+                }
+            ]
+        }
+    ]
+}
+```
+
+In this example, there's only one snapshot schedule. Delete it as follows:
+
+```sh
+$ ./bin/yb-admin \
+    delete_snapshot_schedule 0002bcb0-bffd-4729-9624-c18ac7797f57
+```
+
+```output
+{
+    "schedule_id": "0002bcb0-bffd-4729-9624-c18ac7797f57"
+}
+```
+
+Note that it can take a few seconds for the schedule to be deleted, so the schedule may appear in the output of `list_snapshot_schedules` during that time.
 
 ---
 

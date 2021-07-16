@@ -10,7 +10,7 @@ menu:
   latest:
     identifier: snapshots-2-ycql
     parent: backup-restore
-    weight: 705
+    weight: 704
 isTocNested: true
 showAsideToc: true
 ---
@@ -25,7 +25,7 @@ showAsideToc: true
   </li>
 
   <li >
-    <a href="/latest/manage/backup-restore/snapshots-ycql" class="nav-link active">
+    <a href="/latest/manage/backup-restore/snapshot-ycql" class="nav-link active">
       <i class="icon-cassandra" aria-hidden="true"></i>
       YCQL
     </a>
@@ -33,14 +33,14 @@ showAsideToc: true
 
 </ul>
 
-You can create a transactional backup for a YCQL table (including associated secondary indexes) using snapshots.
+A YCQL backup is done at the scope of a table and all of its secondary indexes. This is a safety requirement, to ensure that data is consistent between the main table and the indexes.
 
 **Implementation notes**:
 
 * Massively parallel, efficient for very large data sets.
 * Once the snapshot command is issued, the database will “buffer” newly incoming writes to that tablet without writing them immediately.
 * The existing data will be flushed to disk and hard links to the files will be created in a `.snapshots` directory on each tablet.
-* The flush to disk and creation of hard links happen quickly. In most cases, the buffered incoming operations won't time out. 
+* The flush to disk and creation of hard links happen quickly. In most cases, the buffered incoming operations won't time out.
 * The snapshot operation is done. Because YugabyteDB is an LSM database, these files will never get modified.
 * If the snapshot takes an unusually long time, some operations may time out. In practice, users should expect such slowness occasionally when using network storage (such as AWS EBS, Persistent Disk in GCP, or SAN storage).
 
