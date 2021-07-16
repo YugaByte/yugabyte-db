@@ -34,6 +34,7 @@
 
 #include <string>
 
+#include "yb/util/logging.h"
 #include "yb/util/status.h"
 
 namespace yb {
@@ -45,6 +46,18 @@ inline std::string ErrnoToString(int err) {
   char buf[512];
   ErrnoToCString(err, buf, sizeof(buf));
   return std::string(buf);
+}
+
+inline void LogFatalForFallocateFailure(int alloc_status, int err) {
+  if (alloc_status < 0) {
+    if (err == EOPNOTSUPP) {
+      YB_LOG_FIRST_N(FATAL, 1) << "The filesystem does not support fallocate().";
+    } else if (err == ENOSYS) {
+      YB_LOG_FIRST_N(FATAL, 1) << "The kernel does not implement fallocate().";
+    } else {
+      YB_LOG_FIRST_N(FATAL, 1) << "fallocate() failed.";
+    }
+  }
 }
 
 struct ErrnoTag : IntegralErrorTag<int32_t> {

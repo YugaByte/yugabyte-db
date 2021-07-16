@@ -360,17 +360,8 @@ class PosixWritableFile : public WritableFile {
       YB_LOG_FIRST_N(WARNING, 1) << "Simulating a filesystem without fallocate() support";
       return Status::OK();
     }
-    if (fallocate(fd_, 0, offset, size) < 0) {
-      if (errno == EOPNOTSUPP) {
-        YB_LOG_FIRST_N(WARNING, 1) << "The filesystem does not support fallocate().";
-      } else if (errno == ENOSYS) {
-        YB_LOG_FIRST_N(WARNING, 1) << "The kernel does not implement fallocate().";
-      } else {
-        return STATUS_IO_ERROR(filename_, errno);
-      }
-      // We don't want to modify pre_allocated_size_ since nothing was pre-allocated.
-      return Status::OK();
-    }
+    int alloc_status = fallocate(fd_, 0, offset, size);
+    LogFatalForFallocateFailure(alloc_status, errno);
     pre_allocated_size_ = offset + size;
     return Status::OK();
   }
@@ -786,15 +777,8 @@ class PosixRWFile final : public RWFile {
   Status PreAllocate(uint64_t offset, size_t length) override {
     TRACE_EVENT1("io", "PosixRWFile::PreAllocate", "path", filename_);
     ThreadRestrictions::AssertIOAllowed();
-    if (fallocate(fd_, 0, offset, length) < 0) {
-      if (errno == EOPNOTSUPP) {
-        YB_LOG_FIRST_N(WARNING, 1) << "The filesystem does not support fallocate().";
-      } else if (errno == ENOSYS) {
-        YB_LOG_FIRST_N(WARNING, 1) << "The kernel does not implement fallocate().";
-      } else {
-        return STATUS_IO_ERROR(filename_, errno);
-      }
-    }
+    int alloc_status = fallocate(fd_, 0, offset, length);
+    LogFatalForFallocateFailure(alloc_status, errno);
     return Status::OK();
   }
 
