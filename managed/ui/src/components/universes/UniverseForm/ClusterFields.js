@@ -317,6 +317,7 @@ export default class ClusterFields extends Component {
         this.setState({
           providerType: formValues[clusterType].providerType,
           providerSelected: formValues[clusterType].provider,
+          regionList: formValues[clusterType].regionList,
           numNodes: formValues[clusterType].numNodes ? formValues[clusterType].numNodes : 3,
           replicationFactor: formValues[clusterType].replicationFactor
             ? Number(formValues[clusterType].replicationFactor)
@@ -488,16 +489,24 @@ export default class ClusterFields extends Component {
       this.props.fetchUniverseResources(nextProps.universe.universeConfigTemplate.data);
     }
     // If nodeInstanceList changes, fetch number of available nodes
-    if (
-      getPromiseState(nodeInstanceList).isSuccess() &&
-      getPromiseState(this.props.cloud.nodeInstanceList).isLoading()
-    ) {
-      let numNodesAvailable = nodeInstanceList.data.reduce((acc, val) => {
+    if (getPromiseState(nodeInstanceList).isSuccess()) {
+      const nodesPerRegion = [];
+      nodeInstanceList.data.forEach((node) => {
+        isNonEmptyArray(this.state.regionList) &&
+          this.state.regionList.forEach((region) => {
+            // There is no region id available in the node instance
+            // thus we're relying upon the region label.
+            node.details.region === region.label && nodesPerRegion.push(node);
+          });
+      });
+
+      let numNodesAvailable = nodesPerRegion.reduce((acc, val) => {
         if (!val.inUse) {
           acc++;
         }
         return acc;
       }, 0);
+
       // Add Existing nodes in Universe userIntent to available nodes for calculation in case of Edit
       if (
         this.props.type === 'Edit' ||
@@ -565,11 +574,15 @@ export default class ClusterFields extends Component {
       this.configureUniverseNodeList();
     } else if (currentProvider && currentProvider.code === 'onprem') {
       toggleDisableSubmit(false);
+      const primaryReplicaNodeLen = formValues?.primary?.regionList?.length > 0 ?
+        formValues?.primary?.numNodes : 0;
+      const asyncReplicaNodeLen = formValues?.async?.regionList?.length > 0 ?
+        formValues?.async?.numNodes : 0;
       if (
         isNonEmptyArray(this.state.regionList) &&
         currentProvider &&
         this.state.instanceTypeSelected &&
-        this.state.numNodes > this.state.maxNumNodes
+        ((primaryReplicaNodeLen + asyncReplicaNodeLen) > this.state.maxNumNodes)
       ) {
         const placementStatusObject = {
           error: {
@@ -1738,7 +1751,6 @@ export default class ClusterFields extends Component {
     const regionAndProviderDefined =
       isNonEmptyArray(formValues[clusterType]?.regionList) &&
       isNonEmptyString(formValues[clusterType]?.provider);
-
     // For onprem provider type if numNodes < maxNumNodes then show the AZ error.
     if (self.props.universe.currentPlacementStatus && placementCloud && regionAndProviderDefined) {
       placementStatus = (
