@@ -46,7 +46,7 @@ While the approach is very safe, it leads to a lot of downtime in practice, espe
 * Some DDL operations (such as adding an index or constraint) would need to transform data. Since the data set sizes can be quite large, transforming the data could take a very long time.
 * There could be a number of DDL operations that are executed as a part of the schema migration.
 
-The design for online schema migration is based on [the Google F1 design for online, asynchonous schema changes](https://storage.googleapis.com/pub-tools-public-publication-data/pdf/41376.pdf).
+The design for online schema migration is based on [the Google F1 design for online, asynchronous schema changes](https://storage.googleapis.com/pub-tools-public-publication-data/pdf/41376.pdf).
 
 # Safe and unsafe DDL Operations
 

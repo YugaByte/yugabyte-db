@@ -93,7 +93,7 @@ The table below shows a quick comparison of the intended usage patterns.
 |                       | In-cluster flashback DB | Off-cluster flashback DB | Incremental backup | 
 | --------------------- | ----------------------- | ------------------------ | ------------------ |
 | Disk/file corruption  | Handled by replication in cluster | Handled by replication in cluster   | Handled by replication in cluster |
-| App/operator eror     | Yes                     | Yes                      | Yes                |
+| App/operator error     | Yes                     | Yes                      | Yes                |
 | RPO                   | Very low                | High                     | Medium             |
 | RTO                   | Very low                | High                     | High               |
 | Disaster Recovery     | No (replication in cluster) | Yes                  | Yes                |
@@ -126,7 +126,7 @@ All of the features above depend on a base backup. Hence, the first step is to p
 
 ### Step 3. Perform incremental backups
 
-Perform incremental backups as needed, eithr on demand or to occur at a schedule (recommended). An incremental backup would need to specify the hybrid timestamp of the last successful backup (which can be either an incremental or a full backup). Incremental backups would return the hybrid timestamp up to which they contain data.
+Perform incremental backups as needed, either on demand or to occur at a schedule (recommended). An incremental backup would need to specify the hybrid timestamp of the last successful backup (which can be either an incremental or a full backup). Incremental backups would return the hybrid timestamp up to which they contain data.
 
 **Input parameters:** 
 
@@ -148,7 +148,7 @@ Perform incremental backups as needed, eithr on demand or to occur at a schedule
 
 # Design
 
-Handling incremental backups for point in time recovery will be done by impementing two separate features - flashback DB and incremental backups. As a distributed SQL database, the way the approach to accomplishing these features for table data differs from that for the table schema. In this section, we will discuss  the design for table data (or DML) and table schema (DDL) across flashback DB and incremental backups. 
+Handling incremental backups for point in time recovery will be done by implementing two separate features - flashback DB and incremental backups. As a distributed SQL database, the way the approach to accomplishing these features for table data differs from that for the table schema. In this section, we will discuss  the design for table data (or DML) and table schema (DDL) across flashback DB and incremental backups. 
 
 > **Note:** that these depend on [performing a full snapshot / backup of the distributed database](https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/distributed-backup-and-restore.md).
 
@@ -160,7 +160,7 @@ The data in user table is split into tablets, each tablet peer stores data in th
 
 ### Flashback database - retain all updates
 
-Currently, the hybrid timestamp representing the timestamp of the update is written into the WAL for each update, and applied into the sst data files. However, older updates are dropped automatically by a process called compactions. Further, the hybrid timestamps are retained only for a short time period in the sst files. Recovering to a point in time in the past (called *history cutoff timestamp* requires that both the intermediate updates as well as the hydrid timestamps for each DML update be retained at least up to the *history cutoff timestamp*. For example, to allow recovering to any point in time over the last 24 hours retain all updates for the last 25 hours. This would require the following changes when PITR is enabled:
+Currently, the hybrid timestamp representing the timestamp of the update is written into the WAL for each update, and applied into the sst data files. However, older updates are dropped automatically by a process called compactions. Further, the hybrid timestamps are retained only for a short time period in the sst files. Recovering to a point in time in the past (called *history cutoff timestamp* requires that both the intermediate updates as well as the hybrid timestamps for each DML update be retained at least up to the *history cutoff timestamp*. For example, to allow recovering to any point in time over the last 24 hours retain all updates for the last 25 hours. This would require the following changes when PITR is enabled:
 * Compactions should not purge any older values once updates to rows occur. They would continue to purge the older updates once it is outside the retention window.
 * Every update should retain its corresponding hybrid timestamp.
 

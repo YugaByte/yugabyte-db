@@ -155,7 +155,7 @@ The sink cluster nodes will periodically write a *checkpoint* consisting of the 
 
 # Transactional Guarantees
 
-Note that the CDC change stream generates updates (including provisoinal writes) at the granularity of document attributes and not at the granularity of user-issued transactions. However, transactional guarantees are important for 2DC deployments. The *sink replication consumer* ensures the following:
+Note that the CDC change stream generates updates (including provisional writes) at the granularity of document attributes and not at the granularity of user-issued transactions. However, transactional guarantees are important for 2DC deployments. The *sink replication consumer* ensures the following:
 
 * **Atomicity of transactions**: This implies one can never read a partial result of a transaction on the sink cluster.
 * **Not globally ordered**: The transactions (especially those that do not involve overlapping rows) may not be applied in the same order as they occur in the source cluster.
@@ -279,7 +279,7 @@ Once the last cdc stream for a tablet is deleted from cdc_state, we will call `L
   * Future: bootstrapping the sink cluster can be automated.
 
 * **Replicating DDL changes**:
-  * Currently: DDL changes are not automatically replicated. Applying create table and alter table commands to the sync clusters is the responsibiity of the user.
+  * Currently: DDL changes are not automatically replicated. Applying create table and alter table commands to the sync clusters is the responsibility of the user.
   * Future: Allow safe DDL changes to be propagated automatically.
 
 * **Safety of DDL and DML in active-active**:
