@@ -113,6 +113,7 @@ class UserList extends Component {
                 onHide={closeModal}
                 createUser={this.props.createUser}
                 getCustomerUsers={this.props.getCustomerUsers}
+                passwordValidationInfo={this.props.passwordValidationInfo}
               />
             )}
             {showModal && visibleModal === 'editRoleModal' && (

@@ -11,7 +11,13 @@ import * as Yup from 'yup';
 
 import './RegisterForm.scss';
 
+const MIN_PASSWORD_LENGTH = 8;
 class RegisterForm extends Component {
+  componentDidMount() {
+    const { validateRegistration } = this.props;
+    validateRegistration();
+  }
+
   componentDidUpdate(prevProps) {
     const {
       customer: { authToken }
@@ -29,8 +35,9 @@ class RegisterForm extends Component {
 
   render() {
     const {
-      customer: { authToken }
+      customer: { authToken }, passwordValidationInfo
     } = this.props;
+    const minPasswordLength = passwordValidationInfo?.minLength || MIN_PASSWORD_LENGTH;
 
     const validationSchema = Yup.object().shape({
       code: Yup.string()
@@ -43,9 +50,12 @@ class RegisterForm extends Component {
 
       password: Yup.string()
         .required('Enter password')
-        .min(8, 'Password is too short - must be 8 characters minimum.')
+        .min(minPasswordLength, `Password is too short - must be ${minPasswordLength} characters minimum.`)
         .matches(/^(?=.*[0-9])(?=.*[!@#$%^&*])(?=.*[a-z])(?=.*[A-Z])[a-zA-Z0-9!@#$%^&*]{8,256}$/,
-          'Password must contain at least 1 digit, 1 capital, 1 lowercase and one of the !@#$%^&* (special) characters.'),
+          `Password must contain at least ${passwordValidationInfo?.minDigits} digit
+          , ${passwordValidationInfo?.minUppercase} capital
+          , ${passwordValidationInfo?.minLowercase} lowercase
+          and ${passwordValidationInfo?.minSpecialCharacters} of the !@#$%^&* (special) characters.`),
 
       confirmPassword: Yup.string()
         .oneOf([Yup.ref('password'), null], "Passwords don't match")

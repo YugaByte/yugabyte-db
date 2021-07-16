@@ -1,7 +1,10 @@
 // Copyright (c) YugaByte, Inc.
 
 import RegisterForm from './RegisterForm';
-import { register, registerResponse } from '../../../../actions/customers';
+import { register, registerResponse, 
+  fetchPasswordPolicy, 
+  fetchPasswordPolicyResponse 
+} from '../../../../actions/customers';
 import { connect } from 'react-redux';
 
 const mapDispatchToProps = (dispatch) => {
@@ -14,7 +17,14 @@ const mapDispatchToProps = (dispatch) => {
         }
         dispatch(registerResponse(response.payload));
       });
-    }
+    },
+    validateRegistration: () => {
+      dispatch(fetchPasswordPolicy()).then((response) => {
+        if (response.payload.status === 200) {
+          dispatch(fetchPasswordPolicyResponse(response.payload));
+        }
+      });
+    },
   };
 };
 
@@ -22,7 +32,8 @@ function mapStateToProps(state) {
   return {
     customer: state.customer,
     validateFields: state.validateFields,
-    initialValues: { code: 'dev' }
+    initialValues: { code: 'dev' },
+    passwordValidationInfo: state.customer.passwordValidationInfo
   };
 }
 

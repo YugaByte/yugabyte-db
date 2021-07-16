@@ -27,6 +27,7 @@ import com.yugabyte.yw.common.config.RuntimeConfigFactory;
 import com.yugabyte.yw.common.password.PasswordPolicyService;
 import com.yugabyte.yw.forms.CustomerLoginFormData;
 import com.yugabyte.yw.forms.CustomerRegisterFormData;
+import com.yugabyte.yw.forms.PasswordPolicyFormData;
 import com.yugabyte.yw.forms.SetSecurityFormData;
 import com.yugabyte.yw.forms.YWResults;
 import com.yugabyte.yw.models.*;
@@ -329,6 +330,16 @@ public class SessionController extends Controller {
         return ApiResponse.error(BAD_REQUEST, "Only Super Admins can register tenant.");
       }
     }
+  }
+
+  public Result getPasswordPolicy() {
+    // PasswordPolicyService passwordPolicyService;
+    PasswordPolicyFormData validPolicy = passwordPolicyService.getPasswordPolicyData();
+     if (validPolicy != null) {
+      return YWResults.withData(validPolicy);
+    }
+    return ApiResponse.error(
+      INTERNAL_SERVER_ERROR, "Failed to get validation policy");
   }
 
   private Result registerCustomer(CustomerRegisterFormData data, boolean isSuper) {

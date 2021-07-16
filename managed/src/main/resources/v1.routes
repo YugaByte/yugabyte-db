@@ -17,6 +17,7 @@ PUT     /customers/:cUUID/api_token                                            c
 GET     /logout                                                                com.yugabyte.yw.controllers.SessionController.logout()
 + nocsrf
 POST    /register                                                              com.yugabyte.yw.controllers.SessionController.register()
+GET     /password_policy                                                       com.yugabyte.yw.controllers.SessionController.getPasswordPolicy()
 GET     /customer_count                                                        com.yugabyte.yw.controllers.SessionController.customerCount()
 GET     /customers/:cUUID/host_info                                            com.yugabyte.yw.controllers.CustomerController.getHostInfo(cUUID: java.util.UUID)
 GET     /app_version                                                           com.yugabyte.yw.controllers.SessionController.appVersion()

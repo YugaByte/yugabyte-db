@@ -6,6 +6,8 @@ import {
   VALIDATE_FROM_TOKEN_RESPONSE,
   REGISTER,
   REGISTER_RESPONSE,
+  FETCH_PASSWORD_POLICY,
+  FETCH_PASSWORD_POLICY_RESPONSE,
   LOGIN,
   LOGIN_RESPONSE,
   INSECURE_LOGIN,
@@ -123,6 +125,11 @@ export default function (state = INITIAL_STATE, action) {
       return setLoadingState(state, 'authToken', {});
     case REGISTER_RESPONSE:
       return setPromiseResponse(state, 'authToken', action);
+
+    case FETCH_PASSWORD_POLICY:
+      return { ...state, passwordValidationInfo: {} };
+    case FETCH_PASSWORD_POLICY_RESPONSE:
+      return { ...state, passwordValidationInfo: action.payload.data };
 
     case LOGIN:
       return setLoadingState(state, 'authToken', {});

@@ -13,6 +13,10 @@ export const VALIDATE_FROM_TOKEN_RESPONSE = 'VALIDATE_FROM_TOKEN_RESPONSE';
 export const REGISTER = 'REGISTER';
 export const REGISTER_RESPONSE = 'REGISTER_RESPONSE';
 
+// Validate Customer registration
+export const FETCH_PASSWORD_POLICY = 'FETCH_PASSWORD_POLICY';
+export const FETCH_PASSWORD_POLICY_RESPONSE = 'FETCH_PASSWORD_POLICY_RESPONSE';
+
 // Sign In Customer
 export const LOGIN = 'LOGIN';
 export const LOGIN_RESPONSE = 'LOGIN_RESPONSE';
@@ -163,6 +167,21 @@ export function register(formValues) {
 export function registerResponse(response) {
   return {
     type: REGISTER_RESPONSE,
+    payload: response
+  };
+}
+
+export function fetchPasswordPolicy() {
+  const request = axios.get(`${ROOT_URL}/password_policy`);
+  return {
+    type: FETCH_PASSWORD_POLICY,
+    payload: request
+  };
+}
+
+export function fetchPasswordPolicyResponse(response) {
+  return {
+    type: FETCH_PASSWORD_POLICY_RESPONSE,
     payload: response
   };
 }
