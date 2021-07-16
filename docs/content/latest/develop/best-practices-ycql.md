@@ -8,13 +8,23 @@ menu:
     identifier: best-practices-ycql
     parent: develop
     weight: 582
-aliases:
-  - /latest/develop/best-practices/
 isTocNested: 4
 showAsideToc: true
 ---
 
 <ul class="nav nav-tabs-alt nav-tabs-yb">
+  <li >
+    <a href="{{< ref "best-practices.md" >}}" class="nav-link">
+      <i class="icon-" aria-hidden="true"></i>
+      DocDB
+    </a>
+  </li>
+  <li >
+    <a href="{{< ref "best-practices-ysql.md" >}}" class="nav-link">
+      <i class="icon-postgres" aria-hidden="true"></i>
+      YSQL
+    </a>
+  </li>
   <li >
     <a href="" class="nav-link active">
       <i class="icon-cassandra" aria-hidden="true"></i>
