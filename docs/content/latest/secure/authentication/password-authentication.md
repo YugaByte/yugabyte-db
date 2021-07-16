@@ -177,3 +177,36 @@ Because all existing passwords must be changed, you can manage the migration of 
 by maintaining rules in the `--ysql_hba_conf_csv` setting to allow both MD5 passwords and SCRAM-SHA-256 passwords to work until 
 all passwords have been migrated to SCRAM-SHA-256. For an example, see [Create a cluster that uses SCRAM-SHA-256 password authentication](#Create-a-cluster-that-uses-scram-sha-256-password-authentication) above. 
 If you follow a similar approach for an existing cluster, you can enhance your cluster security, track and migrate passwords, and then remove the much weaker MD5 rules after all passwords have been updated.
+
+## Resetting user password
+
+In PostgreSQL if the administrator password is lost or changed to an unknown value the `pg_hba.conf` can be modified to allow 
+administrator access without a password. In PostgreSQL this is a static file that is used to control client authentication. 
+To reset the password for the `postgres` user, parameters are modified in this configuration file, the database is restarted, and then 
+the `postgres` user can login as `postgres` without a password, and reset the password.
+
+The same is also true for YugabyteDB, although the implementation is slightly different. YugabyteDB has a `ysql_hba.conf` file similar to Postgres. 
+However, unlike PostgreSQL, the contents of the file are dynamically generated leveraging a flag called [`--ysql_hba_conf_csv`](../../../reference/configuration/yb-tserver/#ysql-hba-conf-csv) 
+at yb-tserver startup. The following steps will outline how the use of this flag can allow administrative access for the `yugabyte` user if the 
+password is ever lost or changes to an unknown value.
+
+The `ysql_hba.conf` file can be modified to allow administrator access without a password by changing the `--ysql_hba_conf_csv` configuration flag in the yb-tserver which 
+we'll connect to reset the password. This is done by setting the flag as below and restarting the yb-tserver:
+
+```
+--ysql_hba_conf_csv=host all yugabyte 0.0.0.0/0 trust,host all all 0.0.0.0/0 md5,host all yugabyte ::0/0 trust,host all all ::0/0 md5
+```
+
+After restarting the yb-tserver, password authentication will be enforced for all users except `yugabyte` user. Now we 
+can connect without a password:
+
+```sh
+$ ./bin/ysqlsh
+```
+And update the password of the user to new desired password:
+
+```postgresql
+yugabyte=# ALTER ROLE yugabyte WITH PASSWORD 'new-password';
+```
+
+Rollback the configuration and restart the yb-tserver to enable password authentication for `yugabyte` user again.
