@@ -16,5 +16,5 @@ if [[ ${YB_DISABLE_LATEST_SYMLINK:-0} != "1" ]]; then
     #       treat LINK_NAME as a normal file always
     ln_args=-T
   fi
-  ( set -x; ln $ln_args -sf "$@" )
+  ( set -x; /bin/ln $ln_args -sf "$@" )
 fi
