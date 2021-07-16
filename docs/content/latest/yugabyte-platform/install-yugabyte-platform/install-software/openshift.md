@@ -349,14 +349,14 @@ To create a Yugabyte Platform instance, perform the following:
     name: yw-test-cluster-monitoring-view
     labels:
       app: yugaware
-    subjects:
-    - kind: ServiceAccount
-      name: yw-test
-      namespace: yb-platform
-    roleRef:
-      kind: ClusterRole
-      name: cluster-monitoring-view
-      apiGroup: rbac.authorization.k8s.io
+  subjects:
+  - kind: ServiceAccount
+    name: yw-test
+    namespace: yb-platform
+  roleRef:
+    kind: ClusterRole
+    name: cluster-monitoring-view
+    apiGroup: rbac.authorization.k8s.io
   EOF
   ```
 
