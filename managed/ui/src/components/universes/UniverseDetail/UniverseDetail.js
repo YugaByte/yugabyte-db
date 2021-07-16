@@ -665,11 +665,22 @@ class UniverseDetail extends Component {
                       2. One more condition needs to be added which specifies the
                       current status of the universe. */}
 
+                      {/*
+                      Read-only users should not be given the rights to "Pause Universe"
+                      */
+                      }
+
                       {isAWSUniverse(currentUniverse?.data) &&
                         !isEphemeralAwsStorage &&
                         (featureFlags.test['pausedUniverse'] ||
                           featureFlags.released['pausedUniverse']) && (
-                          <YBMenuItem onClick={showToggleUniverseStateModal}>
+                          <YBMenuItem 
+                            onClick={showToggleUniverseStateModal}
+                            availability={getFeatureState(
+                              currentCustomer.data.features,
+                              'universes.details.overview.pausedUniverse'
+                            )}
+                          >
                             <YBLabelWithIcon icon="fa fa-pause-circle-o">
                               {!universePaused ? 'Pause Universe' : 'Resume Universe'}
                             </YBLabelWithIcon>

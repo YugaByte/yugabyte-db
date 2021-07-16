@@ -20,6 +20,7 @@
         "readReplica": "hidden",
         "manageEncryption": "hidden",
         "restartUniverse": "hidden",
+        "pausedUniverse": "disabled",
         "deleteUniverse": "hidden",
         "costs": "hidden"
       }

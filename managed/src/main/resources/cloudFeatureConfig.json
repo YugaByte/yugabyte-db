@@ -24,6 +24,7 @@
         "editUniverse": "hidden",
         "manageEncryption": "hidden",
         "restartUniverse": "hidden",
+        "pausedUniverse": "hidden",
         "deleteUniverse": "hidden",
         "costs": "hidden"
       },
