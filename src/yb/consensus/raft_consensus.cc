@@ -82,11 +82,24 @@
 using namespace std::literals;
 using namespace std::placeholders;
 
+namespace{
+
+static bool HeartbeatIntervalLeaderLeaseDurationValidator(const char* flagname, int32_t value) {
+	if(value > FLAGS_leader_lease_duration_ms) {
+		LOG(INFO) << "Expect " << flagname << " to be less than leader_lease_duration_ms";
+		return false;
+	}
+	return true;
+}
+
+} // namespace
+
 DEFINE_int32(raft_heartbeat_interval_ms, yb::NonTsanVsTsan(500, 1000),
              "The heartbeat interval for Raft replication. The leader produces heartbeats "
              "to followers at this interval. The followers expect a heartbeat at this interval "
              "and consider a leader to have failed if it misses several in a row.");
 TAG_FLAG(raft_heartbeat_interval_ms, advanced);
+DEFINE_validator(raft_heartbeat_interval_ms, &HeartbeatIntervalLeaderLeaseDurationValidator);
 
 DEFINE_double(leader_failure_max_missed_heartbeat_periods, 6.0,
               "Maximum heartbeat periods that the leader can fail to heartbeat in before we "
@@ -174,11 +187,25 @@ METRIC_DEFINE_coarse_histogram(
   yb::MetricUnit::kMicroseconds,
   "Microseconds spent resolving DNS requests during RaftConsensus::UpdateRaftConfig");
 
+namespace{
+
+static bool LeaderLeaseDurationHeartbeatIntervalValidator(const char* flagname, int32_t value) {
+	if(value <= FLAGS_raft_heartbeat_interval_ms) {
+		LOG(INFO) << "Expect " << flagname << " to be more than raft_heartbeat_interval_ms";
+		return false;
+	}
+	return true;
+}
+
+} // namespace
+
 DEFINE_int32(leader_lease_duration_ms, yb::consensus::kDefaultLeaderLeaseDurationMs,
              "Leader lease duration. A leader keeps establishing a new lease or extending the "
              "existing one with every UpdateConsensus. A new server is not allowed to serve as a "
              "leader (i.e. serve up-to-date read requests or acknowledge write requests) until a "
              "lease of this duration has definitely expired on the old leader's side.");
+
+DEFINE_validator(leader_lease_duration_ms, &LeaderLeaseDurationHeartbeatIntervalValidator);
 
 DEFINE_int32(ht_lease_duration_ms, 2000,
              "Hybrid time leader lease duration. A leader keeps establishing a new lease or "
