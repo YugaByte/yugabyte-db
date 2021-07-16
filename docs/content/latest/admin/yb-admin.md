@@ -104,7 +104,7 @@ If you need to take a node down temporarily, but intend to bring it back up, you
 * If the node is down for less than 15 minutes, it will catch up through RPC calls when it comes back online.
 * If the node is offline longer than 15 minutes, then it will go through Remote Bootstrap, where the current leader will forward all relevant files to catch up.
 
-If you do not intend to bring a node back up (perhaps you brought it down for maintenance, but discovered that the disk is bad), then you want to decommission the node (using the `REMOTE_SERVER` subcommand) and then add in a new node (using the `ADD_SERVER` subcommand).
+If you do not intend to bring a node back up (perhaps you brought it down for maintenance, but discovered that the disk is bad), then you want to decommission the node (using the `REMOVE_SERVER` subcommand) and then add in a new node (using the `ADD_SERVER` subcommand).
 
 #### change_master_config
 
