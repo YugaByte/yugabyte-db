@@ -27,11 +27,9 @@ Schema YQLFunctionsVTable::CreateSchema() const {
   SchemaBuilder builder;
   CHECK_OK(builder.AddHashKeyColumn("keyspace_name", DataType::STRING));
   CHECK_OK(builder.AddKeyColumn("function_name", DataType::STRING));
-  // TODO: argument_types should be part of the primary key, but since we don't support the CQL
-  // 'frozen' type, we can't have collections in our primary key.
-  CHECK_OK(builder.AddColumn("argument_types", QLType::CreateTypeList(DataType::STRING)));
-  // TODO: argument_names should be a frozen list.
-  CHECK_OK(builder.AddColumn("argument_names", QLType::CreateTypeList(DataType::STRING)));
+  CHECK_OK(builder.AddKeyColumn("argument_types", QLType::CreateTypeFrozen(QLType::CreateTypeList(DataType::STRING))));
+  CHECK_OK(builder.AddColumn("argument_names", QLType::CreateTypeFrozen(QLType::CreateTypeList(DataType::STRING))));
+  CHECK_OK(builder.AddColumn("body", QLType::Create(DataType::STRING)));
   CHECK_OK(builder.AddColumn("called_on_null_input", QLType::Create(DataType::BOOL)));
   CHECK_OK(builder.AddColumn("language", QLType::Create(DataType::STRING)));
   CHECK_OK(builder.AddColumn("return_type", QLType::Create(DataType::STRING)));
