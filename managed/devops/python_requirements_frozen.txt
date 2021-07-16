@@ -5,7 +5,7 @@ PyNaCl==1.4.0
 PyYAML==5.1
 adal==1.2.7
 ansible-vault==1.2.0
-ansible==2.5.4
+ansible==2.9.20
 awscli==1.11.1
 azure-common==1.1.25
 azure-mgmt-compute==12.1.0
