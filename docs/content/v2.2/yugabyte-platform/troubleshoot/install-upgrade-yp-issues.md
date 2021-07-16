@@ -16,7 +16,13 @@ Here are some common issues encountered during installing or upgrading Yugabyte 
 
 ## SELinux turned on the Yugabyte Platform host
 
-If your host has SELinux turned on, then Docker Engine might not be able to connect with the host. To open the ports using firewall exceptions, run the following command.
+If your host has SELinux turned on, it can block access to files.
+
+## Firewall blocking traffic on the Yugabyte Platform host
+
+The Docker Engine might not be able to connect with the host with the firewall in place. 
+
+Either turn off the firewall or to open the ports using firewall exceptions, run the following command.
 
 ```sh
 sudo firewall-cmd --zone=trusted --add-interface=docker0
@@ -41,7 +47,11 @@ Create mount paths on the nodes with private IP addresses: `10.1.13.150`, `10.1.
 for IP in 10.1.12.103 10.1.12.104 10.1.12.105; do ssh $IP mkdir -p /mnt/data0; done
 ```
 
-## SELinux turned on for nodes
+## SELinux turned on the nodes
+
+If your nodes have SELinux turned on, it can block access to files.
+
+## Firewall blocking traffic on the nodes
 
 Add firewall exceptions on the nodes with private IP addresses: `10.1.13.150`, `10.1.13.151`, `10.1.13.152`.
 
