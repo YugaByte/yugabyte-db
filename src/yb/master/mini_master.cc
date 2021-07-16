@@ -130,12 +130,9 @@ Status MiniMaster::StartOnPorts(uint16_t rpc_port, uint16_t web_port,
   // A.B.C.D.xip.io resolves to A.B.C.D so it is very useful for testing.
   opts->broadcast_addresses = {
       HostPort(server::TEST_RpcAddress(index_, server::Private::kFalse), rpc_port) };
-
-  if (!opts->has_placement_cloud()) {
-    opts->SetPlacement(
-        Format("cloud$0", (index_ + 1) / FLAGS_TEST_nodes_per_cloud),
-        Format("rack$0", index_), "zone");
-  }
+  opts->SetPlacement(
+      Format("cloud$0", (index_ + 1) / FLAGS_TEST_nodes_per_cloud),
+      Format("rack$0", index_), "zone");
 
   std::unique_ptr<Master> server(new enterprise::Master(*opts));
   RETURN_NOT_OK(server->Init());
