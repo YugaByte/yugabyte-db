@@ -31,8 +31,8 @@ function_call ::= function_name '(' [ arguments ... ] ')'
 | BlobAs\<Type> | \<Type> | ([`BLOB`](../type_blob)) | Converts a value from `BLOB` |
 | \<Type>AsBlob | [`BLOB`](../type_blob) | (\<Type>) | Converts a value to `BLOB` |
 | [DateOf](../function_datetime/#dateof) | [`TIMESTAMP`](../type_datetime) | ([`TIMEUUID`](../type_uuid)) | Conversion |
-| MaxTimeUuid | [`TIMEUUID`](../type_uuid) | ([`TIMESTAMP`](../type_datetime)) | Returns the associated max time uuid  |
-| MinTimeUuid | [`TIMEUUID`](../type_uuid) | ([`TIMESTAMP`](../type_datetime)) | Returns the associated min time uuid  |
+| [MaxTimeUuid](../function_datetime/#maxtimeuuid-timestamp) | [`TIMEUUID`](../type_uuid) | ([`TIMESTAMP`](../type_datetime)) | Returns the associated max time uuid  |
+| [MinTimeUuid](../function_datetime/#mintimeuuid-timestamp) | [`TIMEUUID`](../type_uuid) | ([`TIMESTAMP`](../type_datetime)) | Returns the associated min time uuid  |
 | [CurrentDate](../function_datetime/#currentdate-currenttime-and-currenttimestamp) | [`DATE`](../type_datetime) | () | Return the system current date |
 | [CurrentTime](../function_datetime/#currentdate-currenttime-and-currenttimestamp) | [`TIME`](../type_datetime) | () | Return the system current time of day |
 | [CurrentTimestamp](../function_datetime/#currentdate-currenttime-and-currenttimestamp) | [`TIMESTAMP`](../type_datetime) | () | Return the system current timestamp |

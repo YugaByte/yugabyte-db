@@ -92,6 +92,98 @@ ycqlsh:example> SELECT v FROM test_now WHERE v < now();
  71bb5104-4fe9-11e8-8839-6336e659252a
 ```
 
+## minTimeUUID(<timestamp>)
+
+This function generates corresponding (`TIMEUUID`) with minimum node/clock component so that it includes all regular 
+`TIMEUUID` with that timestamp when comparing with another `TIMEUUID`.
+
+- It takes in an argument of type `TIMESTAMP`. 
+- The return value is a `TIMEUUID`.
+
+### Examples
+
+#### Insert values using now()
+
+```sql
+ycqlsh:example> CREATE TABLE test_min (k INT PRIMARY KEY, v TIMEUUID);
+```
+
+```sql
+ycqlsh:example> INSERT INTO test_min (k, v) VALUES (1, now());
+```
+
+```sql
+ycqlsh:ybdemo> select k, v, totimestamp(v) from test_min;
+```
+```sql
+ k | v                                    | totimestamp(v)
+---+--------------------------------------+---------------------------------
+ 1 | e9261bcc-395a-11eb-9edc-112a0241eb23 | 2020-12-08 13:40:18.636000+0000
+
+(1 rows)
+```
+
+#### Select using minTimeUUID()
+
+```sql
+ycqlsh:ybdemo> SELECT * FROM test_min WHERE v > minTimeUUID('2020-12-08 13:42:00+0000');
+```
+
+```
+ k | v
+---+---
+
+(0 rows)
+```
+
+## maxTimeUUID(<timestamp>)
+
+This function generates corresponding (`TIMEUUID`) with maximum node/clock component so that it includes all regular 
+`TIMEUUID` with that timestamp when comparing with another `TIMEUUID`.
+
+
+- It takes in an argument of type `TIMESTAMP`. 
+- The return value is a `TIMEUUID`.
+
+### Examples
+
+#### Insert values using now()
+
+```sql
+ycqlsh:example> CREATE TABLE test_min (k INT PRIMARY KEY, v TIMEUUID);
+```
+
+```sql
+ycqlsh:example> INSERT INTO test_min (k, v) VALUES (1, now());
+```
+
+```sql
+ycqlsh:ybdemo> select k, v, totimestamp(v) from test_min;
+```
+
+```sql
+ k | v                                    | totimestamp(v)
+---+--------------------------------------+---------------------------------
+ 1 | e9261bcc-395a-11eb-9edc-112a0241eb23 | 2020-12-08 13:40:18.636000+0000
+
+(1 rows)
+```
+
+#### Select using maxTimeUUID()
+
+```sql
+ycqlsh:ybdemo> SELECT * FROM test_min WHERE v <= maxTimeUUID('2019-01-25 00:34:32+0000');
+
+```
+
+```
+
+ k | v
+---+---
+
+(0 rows)
+```
+
 ## todate()
 
 This function converts a timestamp or TIMEUUID to the corresponding date.
