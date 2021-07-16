@@ -123,6 +123,12 @@ Specify the name of the constraint.
 
 This enforces that the set of columns specified in the `UNIQUE` constraint are unique in the table, that is, no two rows can have the same values for the set of columns specified in the `UNIQUE` constraint.
 
+#### Primary key
+
+This allows you to specify a primary key for a table created without one. Note that this will cause table to be re-created, and all the data to be carried over.
+This is only provided as a convenience method, mostly to support various dumps and ORMs.
+*The table should not be used concurrently, otherwise no data safety guarantees are provided!*
+
 #### Check
 
 This is used to enforce that data in the specified table meets the requirements specified in the `CHECK` clause.

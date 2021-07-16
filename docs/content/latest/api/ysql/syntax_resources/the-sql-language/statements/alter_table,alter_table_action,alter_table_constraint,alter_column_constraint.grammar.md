@@ -21,7 +21,8 @@ alter_table_constraint ::= [ CONSTRAINT constraint_name ]
                              | UNIQUE ( column_names ) 
                                index_parameters
                              | FOREIGN KEY ( column_names ) 
-                               references_clause } 
+                               references_clause }
+                             | PRIMARY KEY ( column_names )
                            [ DEFERRABLE | NOT DEFERRABLE ] 
                            [ INITIALLY DEFERRED
                              | INITIALLY IMMEDIATE ]
