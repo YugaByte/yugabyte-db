@@ -549,14 +549,10 @@ class KubernetesDetails():
     def __init__(self, server_fqdn, config_map):
         self.namespace = server_fqdn.split('.')[2]
         self.pod_name = server_fqdn.split('.')[0]
-        # The pod names are yb-master-n/yb-tserver-n where n is the pod number
-        # and yb-master/yb-tserver are the container names.
-
-        # TODO(bhavin192): need to change in case of multiple releases
-        # in one namespace. Something like find the word 'master' in
-        # the name.
-
-        self.container = self.pod_name.rsplit('-', 1)[0]
+        # The pod names are <helm fullname>yb-<master|tserver>-n where
+        # n is the pod number. <helm fullname> can be blank. And
+        # yb-master/yb-tserver are the container names.
+        self.container = "yb-master" if self.pod_name.find("master") > 0 else "yb-tserver"
         self.env_config = os.environ.copy()
         self.env_config["KUBECONFIG"] = config_map[self.namespace]
 

@@ -366,6 +366,9 @@ public class Util {
     return details;
   }
 
+  // Compare v1 and v2 Strings. Returns 0 if the versions are equal, a
+  // positive integer if v1 is newer than v2, a negative integer if v1
+  // is older than v2.
   public static int compareYbVersions(String v1, String v2) {
     Pattern versionPattern = Pattern.compile("^(\\d+.\\d+.\\d+.\\d+)(-(b(\\d+)|(\\w+)))?$");
     Matcher v1Matcher = versionPattern.matcher(v1);

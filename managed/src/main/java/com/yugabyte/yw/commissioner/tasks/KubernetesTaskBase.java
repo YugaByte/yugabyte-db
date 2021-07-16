@@ -203,10 +203,12 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
       String softwareVersion,
       int waitTime,
       boolean masterChanged,
-      boolean tserverChanged) {
+      boolean tserverChanged,
+      boolean newNamingStyle) {
 
     boolean edit = currPlacement != null;
     boolean isMultiAz = masterAddresses != null;
+    String nodePrefix = taskParams().nodePrefix;
 
     Map<UUID, Integer> serversToUpdate =
         serverType == ServerType.MASTER ? newPlacement.masters : newPlacement.tservers;
@@ -290,13 +292,15 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
             config,
             masterPartition,
             tserverPartition);
-        // TODO(bhavin192): might need to account for multiple
-        // releases in one namespace.
-        String podName = String.format("%s-%d", sType, partition);
+        String helmFullName =
+            PlacementInfoUtil.getHelmFullNameWithSuffix(
+                isMultiAz, nodePrefix, azCode, newNamingStyle);
+        String podName = String.format("%s%s-%d", helmFullName, sType, partition);
         createKubernetesWaitForPodTask(
             KubernetesWaitForPod.CommandType.WAIT_FOR_POD, podName, azCode, config);
 
-        NodeDetails node = getPodName(partition, azCode, serverType, isMultiAz);
+        NodeDetails node =
+            getPodName(partition, azCode, serverType, nodePrefix, isMultiAz, newNamingStyle);
         List<NodeDetails> nodeList = new ArrayList<>();
         nodeList.add(node);
         createWaitForServersTasks(nodeList, serverType)
@@ -401,13 +405,20 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
   Returns the NodeDetails of the pod that we need to wait for.
   */
   public NodeDetails getPodName(
-      int partition, String azCode, ServerType serverType, boolean isMultiAz) {
+      int partition,
+      String azCode,
+      ServerType serverType,
+      String nodePrefix,
+      boolean isMultiAz,
+      boolean newNamingStyle) {
     String sType = serverType == ServerType.MASTER ? "yb-master" : "yb-tserver";
     Set<NodeDetails> tservers = new HashSet<>();
+    String helmFullName =
+        PlacementInfoUtil.getHelmFullNameWithSuffix(isMultiAz, nodePrefix, azCode, newNamingStyle);
     String podName =
         isMultiAz
-            ? String.format("%s-%d_%s", sType, partition, azCode)
-            : String.format("%s-%d", sType, partition);
+            ? String.format("%s%s-%d_%s", helmFullName, sType, partition, azCode)
+            : String.format("%s%s-%d", helmFullName, sType, partition);
     NodeDetails node = new NodeDetails();
     node.nodeName = podName;
     return node;
@@ -420,7 +431,9 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
       Map<UUID, Integer> newPlacement,
       Map<UUID, Integer> currPlacement,
       ServerType serverType,
-      boolean isMultiAz) {
+      String nodePrefix,
+      boolean isMultiAz,
+      boolean newNamingStyle) {
 
     Set<NodeDetails> podsToAdd = new HashSet<NodeDetails>();
     for (Entry<UUID, Integer> entry : newPlacement.entrySet()) {
@@ -432,7 +445,7 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
         numCurrReplicas = currPlacement.getOrDefault(azUUID, 0);
       }
       for (int i = numCurrReplicas; i < numNewReplicas; i++) {
-        NodeDetails node = getPodName(i, azCode, serverType, isMultiAz);
+        NodeDetails node = getPodName(i, azCode, serverType, nodePrefix, isMultiAz, newNamingStyle);
         podsToAdd.add(node);
       }
     }
@@ -447,7 +460,9 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
       Map<UUID, Integer> currPlacement,
       ServerType serverType,
       Universe universe,
-      boolean isMultiAz) {
+      String nodePrefix,
+      boolean isMultiAz,
+      boolean newNamingStyle) {
     Set<NodeDetails> podsToRemove = new HashSet<NodeDetails>();
     for (Entry<UUID, Integer> entry : currPlacement.entrySet()) {
       UUID azUUID = entry.getKey();
@@ -455,7 +470,7 @@ public abstract class KubernetesTaskBase extends UniverseDefinitionTaskBase {
       int numCurrReplicas = entry.getValue();
       int numNewReplicas = newPlacement.getOrDefault(azUUID, 0);
       for (int i = numCurrReplicas - 1; i >= numNewReplicas; i--) {
-        NodeDetails node = getPodName(i, azCode, serverType, isMultiAz);
+        NodeDetails node = getPodName(i, azCode, serverType, nodePrefix, isMultiAz, newNamingStyle);
         podsToRemove.add(universe.getNode(node.nodeName));
       }
     }

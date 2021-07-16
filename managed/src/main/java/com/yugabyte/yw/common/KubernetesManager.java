@@ -43,8 +43,18 @@ public class KubernetesManager {
   // https://github.com/yugabyte/yugabyte-db/issues/7012
   public ShellResponse applySecret(
       Map<String, String> config, String namespace, String pullSecret) {
+    // TODO(bhavin192): REVIEW: update the kubectl binary to 1.16.x?
+    // --server-side flag ensures that there is no race condition when
+    // multiple kubectl apply try to apply same secret.
     List<String> commandList =
-        ImmutableList.of("kubectl", "apply", "-f", pullSecret, "--namespace", namespace);
+        ImmutableList.of(
+            "kubectl",
+            "apply",
+            "-f",
+            pullSecret,
+            "--namespace",
+            namespace,
+            "--experimental-server-side");
     return execCommand(config, commandList);
   }
 

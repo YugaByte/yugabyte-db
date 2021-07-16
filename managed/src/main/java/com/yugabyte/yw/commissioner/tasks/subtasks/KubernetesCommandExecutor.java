@@ -182,6 +182,7 @@ public class KubernetesCommandExecutor extends UniverseTaskBase {
       case UPDATE_NUM_NODES:
         int numNodes = this.getNumNodes();
         if (numNodes > 0) {
+          // TODO(bhavin192): FIX ME
           // TODO(bhavin192): we might also need nodePrefix later, so
           // that we can have multiple releases in one namespace.
           response = kubernetesManager.updateNumNodes(config, taskParams().namespace, numNodes);
@@ -270,11 +271,6 @@ public class KubernetesCommandExecutor extends UniverseTaskBase {
         JsonNode serviceMetadata = svcInfo.path("metadata");
         JsonNode serviceSpec = svcInfo.path("spec");
         String serviceType = serviceSpec.path("type").asText();
-        // TODO(bhavin192): this will need an update when we have
-        // multiple releases in one namespace, the generated service
-        // name will be different and not just yb-masters, yb-tservers
-        // etc. Values file will still have yb-masters, yb-tservers
-        // etc.
         serviceToIP.put(
             serviceMetadata.path("name").asText(), serviceSpec.path("clusterIP").asText());
       }
@@ -318,18 +314,20 @@ public class KubernetesCommandExecutor extends UniverseTaskBase {
         pod.put("az_uuid", azUUID.toString());
         pod.put("az_name", azName);
         pod.put("region_name", regionName);
+        String hostname = podSpec.path("hostname").asText();
         // Pod name is differentiated by the zone of deployment appended to
         // the hostname of the pod in case of multi-az.
-        String podName =
-            isMultiAz
-                ? String.format("%s_%s", podSpec.path("hostname").asText(), azName)
-                : podSpec.path("hostname").asText();
+        String podName = isMultiAz ? String.format("%s_%s", hostname, azName) : hostname;
         String podNamespace = podInfo.path("metadata").path("namespace").asText();
         if (podNamespace.isEmpty() || podNamespace == null) {
           throw new IllegalArgumentException(
               "metadata.namespace of pod " + podName + " is empty. This shouldn't happen");
         }
         pod.put("namespace", podNamespace);
+        // The Helm full name is added to all the pods by the Helm
+        // chart as a suffix, we are removing the yb-<server name>-N
+        // part from it.
+        pod.put("helmFullNameWithSuffix", hostname.replaceAll("yb-(master|tserver)-[0-9]+", ""));
         pods.set(podName, pod);
       }
     }
@@ -347,6 +345,7 @@ public class KubernetesCommandExecutor extends UniverseTaskBase {
             String hostname = pod.getKey();
             JsonNode podVals = pod.getValue();
             String namespace = podVals.get("namespace").asText();
+            String helmFullNameWithSuffix = podVals.get("helmFullNameWithSuffix").asText();
             UUID azUUID = UUID.fromString(podVals.get("az_uuid").asText());
             String domain = azToDomain.get(azUUID);
             if (hostname.contains("master")) {
@@ -354,13 +353,23 @@ public class KubernetesCommandExecutor extends UniverseTaskBase {
               nodeDetail.isMaster = true;
               nodeDetail.cloudInfo.private_ip =
                   String.format(
-                      "%s.%s.%s.%s", hostname.split("_")[0], "yb-masters", namespace, domain);
+                      "%s.%s%s.%s.%s",
+                      hostname.split("_")[0],
+                      helmFullNameWithSuffix,
+                      "yb-masters",
+                      namespace,
+                      domain);
             } else {
               nodeDetail.isMaster = false;
               nodeDetail.isTserver = true;
               nodeDetail.cloudInfo.private_ip =
                   String.format(
-                      "%s.%s.%s.%s", hostname.split("_")[0], "yb-tservers", namespace, domain);
+                      "%s.%s%s.%s.%s",
+                      hostname.split("_")[0],
+                      helmFullNameWithSuffix,
+                      "yb-tservers",
+                      namespace,
+                      domain);
             }
             if (isMultiAz) {
               nodeDetail.cloudInfo.az = podVals.get("az_name").asText();
@@ -722,10 +731,25 @@ public class KubernetesCommandExecutor extends UniverseTaskBase {
         Map<String, Object> endpoint = mapper.convertValue(serviceEndpoint, Map.class);
         String endpointName = (String) endpoint.get("name");
         if (serviceToIP.containsKey(endpointName)) {
+          // With the newNamingStyle, the serviceToIP map will have
+          // service names containing helmFullNameWithSuffix in
+          // them. NOT making any changes to this code, as we have
+          // deprecated Helm 2. And the newNamingStyle will be used
+          // for newly created universes using Helm 3.
           endpoint.put("clusterIP", serviceToIP.get(endpointName));
         }
       }
     }
+
+    if (u.usesHelmNewNamingStyle()) {
+      overrides.put("oldNamingStyle", false);
+    }
+
+    // TODO(bhavin192): REVIEW: do we want to have fullnameOverride
+    // for Helm?  That way we can avoid the -yugabyte from name. For
+    // example, currently the resource names i.e. pods, services etc
+    // are generated as yb-dev-my-universe-yugabyte-yb-master-0, we
+    // can make it yb-dev-my-universe-yb-master-0.
 
     try {
       Path tempFile = Files.createTempFile(taskParams().universeUUID.toString(), ".yml");

@@ -1895,6 +1895,7 @@ public class PlacementInfoUtil {
     return azConfig.getOrDefault("KUBENAMESPACE", defaultNamespace);
   }
 
+  // TODO(bhavin192): FIX ME
   // TODO(bhavin192): what if the same namespace is being used for
   // different AZs (can be possible when we allow multiple releases in
   // one namespace)? We need to have something like ns_az to make sure
@@ -1929,7 +1930,8 @@ public class PlacementInfoUtil {
       Map<UUID, Integer> azToNumMasters,
       String nodePrefix,
       Provider provider,
-      int masterRpcPort) {
+      int masterRpcPort,
+      boolean newNamingStyle) {
     List<String> masters = new ArrayList<String>();
     Map<UUID, String> azToDomain = getDomainPerAZ(pi);
     boolean isMultiAZ = isMultiAZ(provider);
@@ -1941,12 +1943,13 @@ public class PlacementInfoUtil {
       AvailabilityZone az = AvailabilityZone.get(entry.getKey());
       String namespace = getKubernetesNamespace(isMultiAZ, nodePrefix, az.code, az.getConfig());
       String domain = azToDomain.get(entry.getKey());
+      String helmFullName =
+          getHelmFullNameWithSuffix(isMultiAZ, nodePrefix, az.code, newNamingStyle);
       for (int idx = 0; idx < entry.getValue(); idx++) {
-        // TODO(bhavin192): might need to change when we have multiple
-        // releases in one namespace.
         String master =
             String.format(
-                "yb-master-%d.yb-masters.%s.%s:%d", idx, namespace, domain, masterRpcPort);
+                "%syb-master-%d.%syb-masters.%s.%s:%d",
+                helmFullName, idx, helmFullName, namespace, domain, masterRpcPort);
         masters.add(master);
       }
     }
@@ -1970,6 +1973,24 @@ public class PlacementInfoUtil {
     }
 
     return azToDomain;
+  }
+
+  // Returns a string which is exactly the same as yugabyte chart's
+  // helper template yugabyte.fullname. This is prefixed to all the
+  // resource names when newNamingstyle is being used.
+  // https://git.io/yugabyte.fullname
+  public static String getHelmFullNameWithSuffix(
+      boolean isMultiAZ, String nodePrefix, String azName, boolean newNamingStyle) {
+    if (!newNamingStyle) {
+      return "";
+    }
+    String releaseName = isMultiAZ ? String.format("%s-%s", nodePrefix, azName) : nodePrefix;
+    // <release name>-<chart name> | truncate 43
+    String fullName = String.format("%s-%s", releaseName, "yugabyte");
+    if (fullName.length() > 43) {
+      fullName = fullName.substring(0, 43);
+    }
+    return fullName + "-";
   }
 
   // Returns the start index for provisioning new nodes based on the current maximum node index

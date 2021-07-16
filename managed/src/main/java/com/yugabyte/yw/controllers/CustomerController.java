@@ -313,11 +313,10 @@ public class CustomerController extends AuthenticatedController {
           // yb-tserver-0 (single AZ).
           String[] nodeWithZone = params.remove("nodeName").split("_");
           filterJson.put(nodeFilterLabel, nodeWithZone[0]);
-          // TODO(bhavin192): might need to account for multiple
-          // releases in one namespace.
-          // The pod name is of the format yb-<server>-<replica_num> and we just need the
-          // container, which is yb-<server>.
-          String containerName = nodeWithZone[0].substring(0, nodeWithZone[0].lastIndexOf("-"));
+          // The pod name is of the format
+          // <helm_prefix>-yb-<server>-<replica_num> and we just need
+          // the container, which is yb-<server>.
+          String containerName = nodeWithZone[0].contains("yb-master") ? "yb-master" : "yb-tserver";
           String pvcName = String.format("(.*)-%s", nodeWithZone[0]);
           String azName = nodeWithZone.length == 2 ? nodeWithZone[1] : null;
 
@@ -326,6 +325,28 @@ public class CustomerController extends AuthenticatedController {
           filterJson.put(universeFilterLabel, getNamespacesFilter(customer, nodePrefix, azName));
         } else {
           filterJson.put(universeFilterLabel, getNamespacesFilter(customer, nodePrefix));
+          // Check if the universe is using newNamingStyle.
+          List<Universe> universes =
+              customer
+                  .getUniverses()
+                  .stream()
+                  .filter(universe -> universe.getUniverseDetails().nodePrefix.equals(nodePrefix))
+                  .collect(Collectors.toList());
+          if (universes.isEmpty()) {
+            throw new YWServiceException(
+                INTERNAL_SERVER_ERROR,
+                String.format("No universe found with nodePrefix %s.", nodePrefix));
+          }
+          if (universes.size() > 1) {
+            LOG.warn("Found mulitple universes with nodePrefix {}, using first one.", nodePrefix);
+          }
+
+          if (universes.get(0).usesHelmNewNamingStyle()) {
+            // TODO(bhavin192): FIX ME: can be changed if we decide to
+            // use fullnameOverride for Helm.
+            // The default value in metrics.yml is yb-tserver-(.*)
+            filterJson.put(nodeFilterLabel, nodePrefix + "-(.*)-yb-tserver-(.*)");
+          }
         }
       } else {
         final String nodePrefix = params.remove("nodePrefix");

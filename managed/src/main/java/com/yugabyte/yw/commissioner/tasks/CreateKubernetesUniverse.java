@@ -62,13 +62,18 @@ public class CreateKubernetesUniverse extends KubernetesTaskBase {
 
       KubernetesPlacement placement = new KubernetesPlacement(pi);
 
+      // TODO(bhavin192): REVIEW: should this be a taskParam? I
+      // personally don't think so.
+      boolean newNamingStyle = universe.usesHelmNewNamingStyle();
+
       String masterAddresses =
           PlacementInfoUtil.computeMasterAddresses(
               pi,
               placement.masters,
               taskParams().nodePrefix,
               provider,
-              taskParams().communicationPorts.masterRpcPort);
+              taskParams().communicationPorts.masterRpcPort,
+              newNamingStyle);
 
       boolean isMultiAz = PlacementInfoUtil.isMultiAZ(provider);
 
@@ -77,7 +82,13 @@ public class CreateKubernetesUniverse extends KubernetesTaskBase {
       createSingleKubernetesExecutorTask(KubernetesCommandExecutor.CommandType.POD_INFO, pi);
 
       Set<NodeDetails> tserversAdded =
-          getPodsToAdd(placement.tservers, null, ServerType.TSERVER, isMultiAz);
+          getPodsToAdd(
+              placement.tservers,
+              null,
+              ServerType.TSERVER,
+              taskParams().nodePrefix,
+              isMultiAz,
+              newNamingStyle);
 
       // Wait for new tablet servers to be responsive.
       createWaitForServersTasks(tserversAdded, ServerType.TSERVER)

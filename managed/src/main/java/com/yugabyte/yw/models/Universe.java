@@ -38,6 +38,7 @@ public class Universe extends Model {
   public static final String DISABLE_ALERTS_UNTIL = "disableAlertsUntilSecs";
   public static final String TAKE_BACKUPS = "takeBackups";
   public static final String HELM2_LEGACY = "helm2Legacy";
+  public static final String HELM_NAMING_STYLE = "helmNamingStyle";
 
   private static void checkUniverseInCustomer(UUID universeUUID, Customer customer) {
     if (!customer.getUniverseUUIDs().contains(universeUUID)) {
@@ -58,6 +59,11 @@ public class Universe extends Model {
   public enum HelmLegacy {
     V3,
     V2TO3
+  }
+
+  public enum HelmNamingStyle {
+    NEW,
+    OLD
   }
 
   // The universe UUID.
@@ -830,5 +836,21 @@ public class Universe extends Model {
       universe.universeDetails.upsertPrimaryCluster(userIntent, placementInfo);
     }
     return universe;
+  }
+
+  /**
+   * Check if the universe uses NEW {@link HelmNamingStyle}. This configuration key is used by
+   * Kubernetes based universes.
+   *
+   * @return true only if the HELM_NAMING_STYLE is present in the configuration and is set to NEW,
+   *     otherwise false.
+   */
+  public boolean usesHelmNewNamingStyle() {
+    String helmNamingStyle =
+        getConfig().getOrDefault(HELM_NAMING_STYLE, HelmNamingStyle.OLD.toString());
+    if (helmNamingStyle.equals(HelmNamingStyle.NEW.toString())) {
+      return true;
+    }
+    return false;
   }
 }
