@@ -110,3 +110,6 @@ thirdparty/
 
 # We don't use any submodules anymore.
 submodules/
+
+# Local Netlify folder
+.netlify
