@@ -259,6 +259,7 @@ export default (store) => {
         <Route path="/logs" component={YugawareLogs} />
         <Route path="/releases" component={Releases} />
         <Route path="/admin" component={Administration}>
+          <Route path="/admin/:tab" component={Administration} />
           <Route path="/admin/:tab/:section" component={Administration} />
         </Route>
         <Route path="/features" component={ToggleFeaturesInTest} />

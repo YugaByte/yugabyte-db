@@ -43,7 +43,7 @@ function mapStateToProps(state, ownProps) {
 
   return {
     customer: customer
-  };
+  }
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(AddCertificateForm);

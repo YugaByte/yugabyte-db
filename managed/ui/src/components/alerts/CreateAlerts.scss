@@ -1,0 +1,38 @@
+.row {
+  margin-left: 0;
+  margin-right: 0;
+}
+.percent-text {
+  padding: 5px 10px;
+  font-size: 20px;
+  margin: 0;
+}
+.flex-container {
+  display: flex;
+  justify-content: flex-start;
+}
+.alert-action-button-container {
+  position: relative !important;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 30px;
+  padding: 14px 12px;
+  border-top: 1px solid #ececea;
+  background-color: #f6f6f5;
+  margin-bottom: 0 !important;
+
+  .btn {
+    margin: 0 6px;
+    min-width: 120px !important;
+  }
+}
+
+.alert-config-actions {
+  position: relative;
+  top: 10px;
+}
+
+.alert-config-list {
+  width: 220px;
+}

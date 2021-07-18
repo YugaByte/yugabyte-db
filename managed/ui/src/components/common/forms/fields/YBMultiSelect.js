@@ -35,7 +35,7 @@ export class YBNewMultiSelect extends Component {
     const self = this;
     function onChange(val) {
       val = isMulti ? val : val.slice(-1);
-      if (isFunction(self.props.input.onChange)) {
+      if (isFunction(self.props.input?.onChange)) {
         self.props.input.onChange(val);
       }
       if (selectValChanged) {
