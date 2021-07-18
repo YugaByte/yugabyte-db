@@ -147,7 +147,8 @@ main(int argc, char *argv[])
 	{
 		fprintf(stderr, "Failed to create thread 1: %s **\nexiting\n",
 				strerror(errno));
-		exit(1);
+        pthread_mutex_unlock(&init_mutex);
+        exit(1);
 	}
 	rc = pthread_create(&thread2, NULL, (void *(*) (void *)) func_call_2, NULL);
 	if (rc != 0)
@@ -157,6 +158,7 @@ main(int argc, char *argv[])
 		 * 1 that uses it, so avoid using it.
 		 */
 		fprintf(stderr, "Failed to create thread 2 **\nexiting\n");
+        pthread_mutex_unlock(&init_mutex);
 		exit(1);
 	}
 
