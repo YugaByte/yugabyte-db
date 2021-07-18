@@ -57,7 +57,7 @@ class TabletRetentionPolicy : public docdb::HistoryRetentionPolicy {
   HybridTime EffectiveHistoryCutoff() REQUIRES(mutex_);
 
   // Check proposed history cutoff against other restrictions (for instance min reading timestamp),
-  // and returns most close value that satisfy them.
+  // and returns most close value that satisfies them.
   HybridTime SanitizeHistoryCutoff(HybridTime proposed_history_cutoff) REQUIRES(mutex_);
 
   const std::string& LogPrefix() const {
