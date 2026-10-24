@@ -2045,8 +2045,22 @@ ScanQueryForLocks(Query *parsetree, bool acquire)
 				break;
 
 			case RTE_SUBQUERY:
-				/* Recurse into subquery-in-FROM */
-				ScanQueryForLocks(rte->subquery, acquire);
+
+				/*
+				 * YB: rte->subquery is NULL if the planner pulled up the
+				 * subquery (pull_up_simple_subquery) while scribbling on a
+				 * one-shot utility tree, e.g. a simple-query-protocol
+				 * EXPLAIN ANALYZE over a view.  YB's query-layer retry
+				 * re-walks such trees via AcquireExecutorLocks.  Lock
+				 * coverage is preserved: pull-up merged the subquery's
+				 * rtable into this query's rtable, so the pulled-up
+				 * relations are locked by this same walk.
+				 */
+				if (rte->subquery)
+				{
+					/* Recurse into subquery-in-FROM */
+					ScanQueryForLocks(rte->subquery, acquire);
+				}
 				break;
 
 			default:

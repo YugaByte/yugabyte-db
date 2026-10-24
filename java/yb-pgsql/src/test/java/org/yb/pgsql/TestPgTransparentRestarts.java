@@ -42,6 +42,7 @@ import org.slf4j.LoggerFactory;
 import static org.yb.util.BuildTypeUtil.getTimeoutMultiplier;
 import static org.yb.util.BuildTypeUtil.nonTsanVsTsan;
 
+import org.yb.client.TestUtils;
 import org.yb.client.YBClient;
 import org.yb.minicluster.MiniYBClusterBuilder;
 import org.yb.util.CatchingThread;
@@ -358,6 +359,84 @@ public class TestPgTransparentRestarts extends BasePgSQLTest {
         return stmt;
       };
     }.runTest();
+  }
+
+  /**
+   * Regression test for #31135 (DB-21015): backend SIGSEGV on transparent query-layer retry of a
+   * simple-query-mode {@code EXPLAIN ANALYZE} over a view.
+   * <p>
+   * Under the simple query protocol a utility statement's contained query is one-shot, so the
+   * rewriter and planner scribble on it in place: {@code pull_up_simple_subquery} merges the
+   * view's subquery into the outer query and sets the view RTE's {@code rte->subquery} to NULL.
+   * When a conflicting committed write triggers YB's READ COMMITTED statement retry, re-acquiring
+   * executor locks used to re-walk that scribbled tree and crash on the NULL subquery in
+   * {@code ScanQueryForLocks}.
+   */
+  @Test
+  public void explainAnalyzeViewConflictRetry_simpleQueryMode() throws Exception {
+    try (Statement stmt = connection.createStatement()) {
+      stmt.execute("CREATE TABLE test_explain_restart (k INT PRIMARY KEY, v INT)");
+      stmt.execute("INSERT INTO test_explain_restart VALUES (1, 10)");
+      stmt.execute(
+          "CREATE VIEW test_explain_restart_view AS SELECT k, v FROM test_explain_restart");
+    }
+    try (Connection updateConn = getConnectionBuilder().connect();
+         Connection explainConn = getConnectionBuilder().withPreferQueryMode("simple").connect();
+         Statement updateStmt = updateConn.createStatement();
+         Statement explainStmt = explainConn.createStatement()) {
+      explainStmt.execute(LOG_RESTARTS_SQL);
+
+      // Hold a conflicting provisional write on the row so that the locking read below has to
+      // wait for it, then conflicts once it is committed.
+      updateStmt.execute("BEGIN");
+      updateStmt.execute("UPDATE test_explain_restart SET v = v + 1 WHERE k = 1");
+
+      CatchingThread explainThread = new CatchingThread("EXPLAIN ANALYZE", () -> {
+        List<String> planLines = new ArrayList<>();
+        try (ResultSet rs = explainStmt.executeQuery(
+            "EXPLAIN ANALYZE SELECT * FROM test_explain_restart_view WHERE k = 1 FOR UPDATE")) {
+          while (rs.next()) {
+            planLines.add(rs.getString(1));
+          }
+        }
+        assertFalse("EXPLAIN ANALYZE returned no plan output", planLines.isEmpty());
+        LOG.info("EXPLAIN ANALYZE completed, {} plan lines", planLines.size());
+      });
+      explainThread.start();
+
+      // Wait until the EXPLAIN ANALYZE is executing (i.e. blocked waiting on the held row lock),
+      // then commit to trigger the conflict retry.
+      TestUtils.waitFor(() -> {
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(
+                 "SELECT COUNT(*) FROM pg_stat_activity" +
+                 " WHERE state = 'active' AND query LIKE 'EXPLAIN ANALYZE%'")) {
+          return rs.next() && rs.getLong(1) > 0;
+        }
+      }, 30000L);
+      Thread.sleep(1000);
+      updateStmt.execute("COMMIT");
+
+      explainThread.join(60000);
+      assertFalse("EXPLAIN ANALYZE thread is still running", explainThread.isAlive());
+      explainThread.rethrowIfCaught();
+
+      // The backend must have survived the retried statement.
+      try (ResultSet rs =
+          explainStmt.executeQuery("SELECT COUNT(*) FROM test_explain_restart")) {
+        assertTrue(rs.next());
+        assertEquals(1, rs.getLong(1));
+      }
+    } finally {
+      // Best-effort cleanup: on unfixed code the backend crash takes down all connections, and
+      // that failure must not be masked by cleanup errors.
+      try (Statement stmt = connection.createStatement()) {
+        stmt.execute("DROP VIEW IF EXISTS test_explain_restart_view");
+        stmt.execute("DROP TABLE IF EXISTS test_explain_restart");
+      } catch (Exception e) {
+        LOG.warn("Cleanup failed (expected when the backend crashed)", e);
+      }
+    }
   }
 
   /**
