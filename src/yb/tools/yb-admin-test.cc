@@ -3655,6 +3655,65 @@ TEST_F(AdminCliTest, TestCompactionStatusAfterCompactionFinishes) {
   ASSERT_GT(last_request_time, time_before_compaction);
 }
 
+TEST_F(AdminCliTest, TestCompactTableOutputFormat) {
+  BuildAndStart();
+  const string output = ASSERT_RESULT(CallAdmin(
+      "compact_table", kTableName.namespace_name(), kTableName.table_name(), "30" /* timeout */));
+  const string expected_table_name =
+      Format("$0.$1", kTableName.namespace_name(), kTableName.table_name());
+  const std::regex regex(Format(R"(Compacted \[$0.*\] tables\.)", expected_table_name));
+  ASSERT_TRUE(std::regex_search(output, regex)) << "Unexpected output format: " << output;
+}
+
+TEST_F(AdminCliTest, TestCompactTableWithMissingTable) {
+  BuildAndStart();
+  const auto result = CallAdmin("compact_table");
+  ASSERT_FALSE(result.ok());
+  ASSERT_STR_CONTAINS(result.status().ToString(), "Empty list of tables");
+  ASSERT_STR_CONTAINS(result.status().ToString(), "Usage:");
+}
+
+TEST_F(AdminCliTest, TestCompactTableWithInvalidTable) {
+  BuildAndStart();
+  const auto result = CallAdmin(
+      "compact_table", "ycql.nonexistent_namespace", "nonexistent_table");
+  ASSERT_FALSE(result.ok());
+  ASSERT_STR_CONTAINS(result.status().ToString(), "not found");
+}
+
+TEST_F(AdminCliTest, TestCompactTableById) {
+  BuildAndStart();
+  const string master_address = ToString(cluster_->master()->bound_rpc_addr());
+  auto client = ASSERT_RESULT(YBClientBuilder().add_master_server_addr(master_address).Build());
+
+  auto tables = ASSERT_RESULT(client->ListTables(/* filter */ kTableName.table_name(),
+                                                  /* exclude_ysql */ true));
+  ASSERT_EQ(1, tables.size());
+  const auto table_id = tables.front().table_id();
+
+  const string output = ASSERT_RESULT(
+      CallAdmin("compact_table_by_id", table_id, /* timeout */ "30"));
+  const string expected_table_name =
+      Format("$0.$1", kTableName.namespace_name(), kTableName.table_name());
+  const std::regex regex(Format(R"(Compacted \[$0.*\] tables\.)", expected_table_name));
+  ASSERT_TRUE(std::regex_search(output, regex)) << "Unexpected output format: " << output;
+}
+
+TEST_F(AdminCliTest, TestCompactTableByIdWithMissingTableId) {
+  BuildAndStart();
+  const auto result = CallAdmin("compact_table_by_id");
+  ASSERT_FALSE(result.ok());
+  ASSERT_STR_CONTAINS(result.status().ToString(), "Usage:");
+}
+
+TEST_F(AdminCliTest, TestCompactTableByIdWithInvalidTableId) {
+  BuildAndStart();
+  const auto result = CallAdmin(
+      "compact_table_by_id", "nonexistent_table_id", /* timeout */ "30");
+  ASSERT_FALSE(result.ok());
+  ASSERT_STR_CONTAINS(result.status().ToString(), "not found");
+}
+
 // Covers https://github.com/yugabyte/yugabyte-db/issues/19957
 TEST_F(AdminCliTest, TestAdminCommandTimeout) {
   // The test checks that an admin command timeout for compactions and flushes is honored by
