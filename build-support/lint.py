@@ -179,6 +179,14 @@ def _changed_files(base: str | None = None) -> list[str]:
                          f"pointing at {_CANONICAL_REPO_HINT}; pass --rev <base> explicitly")
     resolved = _git("rev-parse", "--symbolic-full-name", base)
     print(f"[lint] comparing against {base} ({resolved})", file=sys.stderr)
+    # base...HEAD needs a merge base, and git refuses the whole diff when the two share no
+    # common ancestor -- an unrelated history, such as a vendored-upstream remote. Report
+    # that rather than letting the diff fail as an uncaught CalledProcessError.
+    try:
+        _git("merge-base", base, "HEAD")
+    except subprocess.CalledProcessError:
+        sys.exit(f"[lint] {base!r} has no common ancestor with HEAD -- unrelated histories. "
+                 "Pass --rev a ref on this branch's history.")
     committed = set(_git("diff", "--name-only", "--diff-filter=d", f"{base}...HEAD").splitlines())
     uncommitted = set(_git("diff", "--name-only", "--diff-filter=d", "HEAD").splitlines())
     untracked = set(_git("ls-files", "--others", "--exclude-standard").splitlines())
