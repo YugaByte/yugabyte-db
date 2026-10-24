@@ -10666,6 +10666,22 @@ class Configs(object):
 
         return configs
 
+    @staticmethod
+    def flags_dict_to_str(flags_dict):
+        parts = []
+        for key, value in flags_dict.items():
+            if value is None:
+                continue
+            if isinstance(value, bool):
+                parts.append("{}={}".format(key, str(value).lower()))
+            else:
+                str_value = str(value)
+                if ',' in str_value:
+                    parts.append("{}={{{}}}".format(key, str_value))
+                else:
+                    parts.append("{}={}".format(key, str_value))
+        return ','.join(parts)
+
     # Custom parser for reading user config file.
     @staticmethod
     def parse_user_config_file(user_conf_file):
@@ -10682,6 +10698,10 @@ class Configs(object):
         except Exception as e:
             Output.log_error_and_exit("Failed to read user config file {}: {}".format(
                                         user_conf_file, str(e)))
+
+        for flag_key in ("master_flags", "tserver_flags"):
+            if isinstance(user_configs.get(flag_key), dict):
+                user_configs[flag_key] = Configs.flags_dict_to_str(user_configs[flag_key])
 
         user_configs = Configs.expand_path_variables(user_configs)
 

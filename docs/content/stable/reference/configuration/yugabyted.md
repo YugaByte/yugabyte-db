@@ -901,6 +901,28 @@ You can set advanced flags using a configuration file, specified using the `--co
     }
     ```
 
+    The `master_flags` and `tserver_flags` fields also accept a JSON object instead of a comma-separated string. This is especially useful for flags whose values contain commas (such as `ysql_catalog_preload_additional_table_list` or `ysql_pg_conf_csv`), eliminating the need to use `{...}` escaping:
+
+    ```json
+    {
+        "master_webserver_port": 7100,
+        "tserver_webserver_port": 9100,
+        "master_flags": {
+            "ysql_enable_packed_row": true,
+            "ysql_beta_features": true
+        },
+        "tserver_flags": {
+            "ysql_enable_packed_row": true,
+            "ysql_beta_features": true,
+            "yb_enable_read_committed_isolation": true,
+            "enable_deadlock_detection": true,
+            "enable_wait_queues": true,
+            "ysql_catalog_preload_additional_table_list": "pg_operator,pg_amop,pg_cast",
+            "ysql_pg_conf_csv": "shared_preload_libraries=auto_explain,auto_explain.log_min_duration=100,yb_enable_cbo=on"
+        }
+    }
+    ```
+
 1. Start the node using the `--config` flag.
 
     ```sh
