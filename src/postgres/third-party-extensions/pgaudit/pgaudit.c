@@ -1367,6 +1367,15 @@ pgaudit_ExecutorCheckPerms_hook(List *rangeTabls, bool abort)
 {
   Oid auditOid = InvalidOid;
 
+    if (auditEventStack == NULL)
+    {
+        if (next_ExecutorCheckPerms_hook &&
+            !(*next_ExecutorCheckPerms_hook) (rangeTabls, abort))
+            return false;
+
+        return true;
+    }
+
     /* Get the audit oid if the role exists */
   if (auditRole != NULL && auditRole[0] != '\0') {
     auditOid = get_role_oid(auditRole, true);
@@ -1377,7 +1386,7 @@ pgaudit_ExecutorCheckPerms_hook(List *rangeTabls, bool abort)
         !IsAbortedTransactionBlockState())
     {
         /* If auditLogRows is on, wait for rows processed to be set */
-        if (auditLogRows && auditEventStack != NULL)
+        if (auditLogRows)
         {
             /* Check if the top item is SELECT/INSERT for CREATE TABLE AS */
             if (auditEventStack->auditEvent.commandTag == T_SelectStmt &&
