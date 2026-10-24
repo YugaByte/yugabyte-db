@@ -1997,25 +1997,33 @@ TEST_F_EX(QLTransactionTest, TransactionsEarlyLoadedTest, QLTransactionTestSingl
 
 TEST_F_EX(QLTransactionTest, YB_DEBUG_ONLY_TEST(WriteBatchDuringShutdown),
           QLTransactionTestSingleTablet) {
-  tablet::TabletPeer* follower;
+  std::string follower_uuid;
+  std::string tablet_id;
+  tablet::TransactionParticipantContext* follower_context = nullptr;
   {
     auto peers = ASSERT_RESULT(ListTabletPeersForTableName(
         cluster_.get(), table_->name().table_name(), ListPeersFilter::kNonLeaders));
     ASSERT_GE(peers.size(), 1);
-    follower = peers.front().get();
+    tablet::TabletPeer* follower = peers.front().get();
+    ASSERT_NE(follower, nullptr);
+    follower_uuid = follower->permanent_uuid();
+    tablet_id = follower->tablet_id();
+    // The raw TabletPeer must not escape this scope: its owning shared_ptr is
+    // released here, and the peer itself is destroyed by the tablet server
+    // shutdown below while the sync point callbacks can still fire. Callbacks
+    // may only capture values computed from the peer; the upcast pointer is
+    // used for identity comparison and never dereferenced.
+    follower_context = implicit_cast<tablet::TransactionParticipantContext*>(follower);
   }
-  ASSERT_NE(follower, nullptr);
-  auto follower_uuid = follower->permanent_uuid();
-  auto tablet_id = follower->tablet_id();
 
   auto& sync_point = *SyncPoint::GetInstance();
   CountDownLatch start_shutdown_latch(1);
   CountDownLatch write_batch_latch(1);
   sync_point.SetCallBack(
       "TransactionParticipant::Impl::StartShutdown",
-      [follower, &start_shutdown_latch](void* arg) {
+      [follower_context, &start_shutdown_latch](void* arg) {
     auto* context = static_cast<tablet::TransactionParticipantContext*>(arg);
-    if (implicit_cast<tablet::TransactionParticipantContext*>(follower) == context) {
+    if (follower_context == context) {
       LOG(INFO) << "TransactionParticipant::Impl::StartShutdown";
       start_shutdown_latch.CountDown();
     }
@@ -2023,10 +2031,10 @@ TEST_F_EX(QLTransactionTest, YB_DEBUG_ONLY_TEST(WriteBatchDuringShutdown),
   OpId apply_op_id;
   sync_point.SetCallBack(
       "RaftConsensus::UpdateReplica",
-      [follower, &write_batch_latch, &start_shutdown_latch, &apply_op_id](void* arg) {
+      [follower_uuid, tablet_id, &write_batch_latch, &start_shutdown_latch,
+       &apply_op_id](void* arg) {
     auto* request = static_cast<consensus::LWConsensusRequestPB*>(arg);
-    if (request->dest_uuid() != follower->permanent_uuid() ||
-        request->tablet_id() != follower->tablet_id()) {
+    if (request->dest_uuid() != follower_uuid || request->tablet_id() != tablet_id) {
       return;
     }
     LOG(INFO) << "RaftConsensus::UpdateReplica: " << request->ShortDebugString();
@@ -2064,7 +2072,10 @@ TEST_F_EX(QLTransactionTest, YB_DEBUG_ONLY_TEST(WriteBatchDuringShutdown),
   mini_tserver->Shutdown();
   LOG(INFO) << "RESTART MID";
   sync_point.DisableProcessing();
-  follower = nullptr;
+  // DisableProcessing() only stops new callback invocations. Also wait for
+  // in-flight callbacks to drain so no straggler can touch the latches on this
+  // test's stack after the test returns.
+  sync_point.ClearAllCallBacks();
   ASSERT_OK(mini_tserver->Start());
   LOG(INFO) << "RESTART END";
   latch.Wait();
