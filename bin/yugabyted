@@ -3315,6 +3315,20 @@ class ControlScript(object):
         if master_addresses == '':
             Output.log_error_and_exit(Output.make_red("Error") + ": cannot retreive the masters.")
 
+        # A patch or minor version upgrade within the same PostgreSQL major
+        # version does not need a YSQL major catalog upgrade. If the catalog is
+        # already on the current major version, skip the upgrade gracefully
+        # instead of failing, and mark it complete so the remaining restart and
+        # finalize steps continue to work.
+        _, catalog_state_ret_code = YBAdminProxy.check_for_ysql_catalog_upgrade_state(
+            master_addresses, timeout=30)
+        if not catalog_state_ret_code:
+            Output.print_out("The YSQL catalog is already on the current major version; " +
+                "no catalog upgrade is required.")
+            self.configs.saved_data["catalog_upgrade_completed"] = True
+            self.configs.save_configs()
+            return
+
         timeout = 300000
         if self.configs.temp_data.get("upgrade_timeout") is not None:
             timeout = self.configs.temp_data.get("upgrade_timeout")
@@ -11741,6 +11755,18 @@ class YBAdminProxy(object):
         match = re.search(r"awaiting finalization", out)
         if match:
             upgrade_return_code = 0
+            return [upgrade_error_message, upgrade_return_code]
+
+        # The YSQL catalog is already on the current major version. This is the
+        # case for a patch or minor upgrade within the same PostgreSQL major
+        # version, where no major catalog upgrade is needed. Treat it the same
+        # as a completed catalog upgrade so the tserver starts from the new
+        # release and the upgrade state is cleared on the next start.
+        match = re.search(r"already completed, or is not required", out)
+        if match:
+            upgrade_return_code = 0
+            Output.log("YSQL catalog is already on the current major version; "
+                       "no major catalog upgrade is required.")
             return [upgrade_error_message, upgrade_return_code]
 
         return [upgrade_error_message, upgrade_return_code]
