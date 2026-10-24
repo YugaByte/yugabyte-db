@@ -730,6 +730,23 @@ TEST_F(TestThreadPool, TestTokenConcurrency) {
                       kSubmitThreads, total_num_tokens_submitted.load());
 }
 
+// Repeated Shutdown() on a token of either execution mode stays idempotent, and the token keeps
+// rejecting submissions after every call.
+TEST_F(TestThreadPool, TestRepeatedTokenShutdown) {
+  const int kNumShutdowns = 40000;
+
+  std::unique_ptr<ThreadPool> thread_pool;
+  ASSERT_OK(ThreadPoolBuilder("test").Build(&thread_pool));
+
+  for (auto mode : {ThreadPool::ExecutionMode::SERIAL, ThreadPool::ExecutionMode::CONCURRENT}) {
+    auto token = thread_pool->NewToken(mode);
+    for (int i = 0; i < kNumShutdowns; i++) {
+      token->Shutdown();
+      ASSERT_TRUE(token->SubmitFunc([]() {}).IsShutdownInProgress());
+    }
+  }
+}
+
 TEST_F(TestThreadPool, TestTaskRunnerStopWait) {
   TaskRunner runner;
   ASSERT_OK(runner.Init(/* concurrency = */1));

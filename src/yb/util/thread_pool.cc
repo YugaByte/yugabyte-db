@@ -847,7 +847,7 @@ void YBThreadPool::SetCgroup(Cgroup* cgroup) {
 // ------------------------------------------------------------------------------------------------
 
 void ThreadSubPoolBase::Shutdown() {
-  auto active_enqueues = active_enqueues_.fetch_add(kStopMark, std::memory_order_acq_rel);
+  auto active_enqueues = active_enqueues_.fetch_or(kStopMark, std::memory_order_acq_rel);
   if (active_enqueues >= kStopMark) {
     while (!(active_enqueues & kStoppedMark)) {
       std::this_thread::sleep_for(1ms);
@@ -865,7 +865,7 @@ void ThreadSubPoolBase::Shutdown() {
     std::this_thread::sleep_for(1ms);
   }
   AbortTasks();
-  active_enqueues_.fetch_add(kStoppedMark, std::memory_order_acq_rel);
+  active_enqueues_.fetch_or(kStoppedMark, std::memory_order_acq_rel);
 }
 
 void ThreadSubPoolBase::AbortTasks() {
