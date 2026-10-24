@@ -2,12 +2,15 @@ package org.yb.minicluster;
 
 import com.google.common.io.ByteStreams;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +18,9 @@ import org.slf4j.LoggerFactory;
 public class YugabytedCommands {
 
     private static final Logger LOG = LoggerFactory.getLogger(YugabytedCommands.class);
+
+    /** Max time to wait for a `yugabyted start` invocation to return. */
+    private static final long START_WAIT_MS = 300000;
 
     public static String getYsqlConnectionCmd(String baseDir) {
         String binDir = YugabytedTestUtils.getYugabytedBinDir();
@@ -43,6 +49,50 @@ public class YugabytedCommands {
             return false;
         }
         return true;
+    }
+
+    public static String getStartCmd(String baseDir) {
+        String binDir = YugabytedTestUtils.getYugabytedBinDir();
+        return binDir + "/yugabyted start --base_dir " + baseDir;
+    }
+
+    /**
+     * Runs `yugabyted start` against an existing base_dir, i.e. a restart that picks up the
+     * persisted yugabyted.conf. Output is redirected to a temp file so that a chatty start
+     * cannot fill the pipe buffer and wedge the command, and the wait is bounded so that a
+     * start which never returns fails the test instead of hanging it.
+     */
+    public static boolean start(String baseDir) throws Exception {
+        String command = getStartCmd(baseDir);
+        LOG.info("Running command: " + command);
+        File startLog = File.createTempFile("yugabyted-start-", ".log");
+        ProcessBuilder procBuilder = new ProcessBuilder(command.split(" "));
+        procBuilder.redirectErrorStream(true);
+        procBuilder.redirectOutput(startLog);
+        Process proc = procBuilder.start();
+        boolean exited = proc.waitFor(START_WAIT_MS, TimeUnit.MILLISECONDS);
+        if (!exited) {
+            LOG.error("Yugabyted start command did not return within " + START_WAIT_MS + " ms");
+            proc.destroyForcibly();
+        }
+        LOG.info("Yugabyted start output:\n" + readFileQuietly(startLog));
+        if (!exited) {
+            return false;
+        }
+        int exitCode = proc.exitValue();
+        if (exitCode != 0) {
+            LOG.error("Yugabyted start command failed with exit code: " + exitCode);
+            return false;
+        }
+        return true;
+    }
+
+    private static String readFileQuietly(File file) {
+        try {
+            return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return "<unable to read " + file + ": " + e.getMessage() + ">";
+        }
     }
 
     public static String getStopCmd(String baseDir) {

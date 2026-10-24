@@ -760,6 +760,60 @@ def get_url_from_ip(ip):
         return "[" + str(ip) + "]"
     return str(ip)
 
+# Split a comma separated list of master addresses, dropping empty entries. "".split(",")
+# returns [""], and a host-less address makes the tserver block in ResolveMasterAddresses().
+def parse_master_addrs_csv(master_addrs_csv):
+    if not master_addrs_csv:
+        return []
+    return [ addr.strip() for addr in master_addrs_csv.split(",") if addr.strip() ]
+
+# Split "host:port", "[::1]:port" or a bare host into (host, port). port is None when absent.
+def split_master_addr(addr):
+    if addr.startswith("["):
+        host, sep, rest = addr[1:].partition("]")
+        if not sep:
+            return addr, None
+        return host, rest[1:] if rest.startswith(":") else None
+    host, sep, port = addr.rpartition(":")
+    if not sep:
+        return addr, None
+    return host, port
+
+def is_resolvable_master_addr(addr):
+    host, _ = split_master_addr(addr)
+    if not host:
+        return False
+    try:
+        socket.getaddrinfo(host, None)
+        return True
+    except socket.gaierror:
+        return False
+    except Exception as err:
+        # Keep the address on anything other than a definite lookup failure: a resolver that
+        # errors out for its own reasons is not evidence that this master is gone.
+        Output.log("Could not check whether master address {} resolves: {}".format(addr, err))
+        return True
+
+# yb-tserver's ResolveMasterAddresses() retries each entry for master_discovery_timeout_ms
+# (1h by default) before failing startup, so a single address that no longer resolves costs an
+# hour of silent hang. yugabyted only ever adds to current_masters, so an address can go stale
+# under it -- a container hostname from a previous run is the common case.
+# Returns (kept, dropped). keep_addr is never dropped, and if nothing resolves the list is left
+# alone: that is a DNS outage rather than a stale entry, and having no address at all is worse.
+def prune_unresolvable_master_addrs(master_addrs, keep_addr=None):
+    kept = []
+    dropped = []
+    for addr in master_addrs:
+        if addr in kept or addr in dropped:
+            continue
+        if addr == keep_addr or is_resolvable_master_addr(addr):
+            kept.append(addr)
+        else:
+            dropped.append(addr)
+    if not kept:
+        return list(master_addrs), []
+    return kept, dropped
+
 class ControlScript(object):
     def __init__(self):
         self.configs = None
@@ -6773,17 +6827,25 @@ class ControlScript(object):
     def update_tserver_master_addrs(self):
         tserver_cmd = self.processes["tserver"].cmd
         master_flag = [ flag for flag in tserver_cmd if flag.find(TS_MASTER_ADDRS_FLAG) >= 0 ]
-        full_master_list = self.configs.saved_data.get("current_masters").split(",")
+        full_master_list = parse_master_addrs_csv(
+            self.configs.saved_data.get("current_masters"))
 
         if not full_master_list:
             Output.log("Unable to get all masters list, keeping tserver flag: {}".format(
                 master_flag))
             return
 
-        if len(full_master_list) < 3:
-            my_master_ip = "{}:{}".format(get_url_from_ip(self.advertise_ip()),
-                                          self.configs.saved_data.get("master_rpc_port"))
-            full_master_list = list(set(full_master_list + [ my_master_ip ]))
+        my_master_ip = "{}:{}".format(get_url_from_ip(self.advertise_ip()),
+                                      self.configs.saved_data.get("master_rpc_port"))
+
+        full_master_list, stale_masters = prune_unresolvable_master_addrs(
+            full_master_list, my_master_ip)
+        if stale_masters:
+            Output.log("Dropped master addresses that no longer resolve: {}".format(
+                stale_masters))
+
+        if len(full_master_list) < 3 and my_master_ip not in full_master_list:
+            full_master_list.append(my_master_ip)
             Output.log("Got full master addrs list: {}".format(full_master_list))
 
         new_master_flag = "--{}={}".format(TS_MASTER_ADDRS_FLAG, ",".join(full_master_list))
@@ -6839,8 +6901,15 @@ class ControlScript(object):
         if not master_addrs:
             master_web_addrs_ip = advertise_ip
             master_addrs = self.get_current_masters_from_api(advertise_ip)
-        self.configs.saved_data["current_masters"] = master_addrs
-        Output.log("Master address list updated, new list: {}".format(master_addrs))
+        # Both lookups go through the tserver web server, so they return empty while the
+        # tserver is down. Persisting that would lose the master list for every later start.
+        if master_addrs:
+            self.configs.saved_data["current_masters"] = master_addrs
+            Output.log("Master address list updated, new list: {}".format(master_addrs))
+        else:
+            master_addrs = self.configs.saved_data.get("current_masters")
+            Output.log("Unable to query master address list, keeping known list: {}".format(
+                master_addrs))
 
         master_web_addrs = "{}:{}".format(get_url_from_ip(master_web_addrs_ip),
                                           self.configs.saved_data.get("master_webserver_port"))
@@ -8084,7 +8153,8 @@ class ControlScript(object):
     def update_master_list_on_background_thread(self):
 
         # global _global_current_list_of_masters
-        current_master_list = self.configs.saved_data.get("current_masters").split(",")
+        current_master_list = parse_master_addrs_csv(
+            self.configs.saved_data.get("current_masters"))
         Output.log("thread-uml: current masters {}".format(current_master_list))
 
         # thread for updating the master address list in the background
@@ -8098,10 +8168,11 @@ class ControlScript(object):
                     "keeping masters list: {}".format(current_master_list))
                 return
 
-        full_master_list = masters_csv.split(",")
-        # check if masters have changed since last refresh, if not return
-        if_any_new_masters = set(full_master_list).difference(current_master_list)
-        if if_any_new_masters:
+        full_master_list = parse_master_addrs_csv(masters_csv)
+        # Check if masters have changed since last refresh. Compare both ways so that
+        # addresses which went away are picked up too.
+        if set(full_master_list) != set(current_master_list):
+            masters_csv = ",".join(full_master_list)
             self.configs.saved_data["current_masters"] = masters_csv
             Output.log("thread-uml: master list updated, old list: {} ".format(
                 current_master_list) + "new list: {}".format(full_master_list))
@@ -10661,6 +10732,14 @@ class Configs(object):
             except ValueError as e:
                 Output.log_error_and_exit(
                     "Failed to read config file {}: {}".format(config_file, str(e)))
+            # Older versions could persist a host-less entry here (e.g. ",host:7100"). Drop it
+            # so that such a config recovers on the next start.
+            saved_masters = configs.saved_data.get("current_masters")
+            normalized_masters = ",".join(parse_master_addrs_csv(saved_masters))
+            if normalized_masters != saved_masters:
+                Output.log("Dropped empty master addresses from saved config: {} -> {}".format(
+                    saved_masters, normalized_masters))
+                configs.saved_data["current_masters"] = normalized_masters
 
         configs.saved_data = Configs.expand_path_variables(configs.saved_data)
 
