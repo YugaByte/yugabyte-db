@@ -5099,7 +5099,7 @@ CreateMatViewStmt:
 		;
 
 create_mv_target:
-			qualified_name opt_column_list table_access_method_clause opt_reloptions OptTableSpace
+			qualified_name opt_column_list table_access_method_clause opt_reloptions OptTableSpace YbOptSplit
 				{
 					$$ = makeNode(IntoClause);
 					$$->rel = $1;
@@ -5110,6 +5110,7 @@ create_mv_target:
 					$$->tableSpaceName = $5;
 					$$->viewQuery = NULL;		/* filled at analysis time */
 					$$->skipData = false;		/* might get changed later */
+					$$->split_options = $6;		/* YB: SPLIT clause */
 				}
 		;
 

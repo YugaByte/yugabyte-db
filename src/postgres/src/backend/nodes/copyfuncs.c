@@ -1609,6 +1609,7 @@ _copyIntoClause(const IntoClause *from)
 	COPY_STRING_FIELD(tableSpaceName);
 	COPY_NODE_FIELD(viewQuery);
 	COPY_SCALAR_FIELD(skipData);
+	COPY_NODE_FIELD(split_options);
 
 	return newnode;
 }

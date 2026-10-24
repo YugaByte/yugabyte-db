@@ -361,11 +361,21 @@ ExecRefreshMatView(RefreshMatViewStmt *stmt, const char *queryString,
 	 * Create the transient table that will receive the regenerated data. Lock
 	 * it against access by any other process until commit (by which time it
 	 * will be gone).
+	 *
+	 * YB: Preserve the matview's tablet split when it is swapped in for the
+	 * old storage (non-concurrent refresh).  Without this the new heap would
+	 * be created with default splitting (a single tablet), silently discarding
+	 * the pre-split requested at CREATE MATERIALIZED VIEW ... SPLIT INTO time
+	 * (and any subsequent auto-splitting), even though yb_presplit remains in
+	 * reloptions.  This mirrors the table-rewrite path in ATRewriteTables.
+	 * (The concurrent and in-place refresh paths use a temporary transient
+	 * relation and merge into the existing matview, so their splits are
+	 * unaffected by this flag.)
 	 */
 	OIDNewHeap = make_new_heap(matviewOid, tableSpace,
 							   matviewRel->rd_rel->relam,
 							   relpersistence, ExclusiveLock,
-							   false /* yb_copy_split_options */ );
+							   true /* yb_copy_split_options */ );
 	LockRelationOid(OIDNewHeap, AccessExclusiveLock);
 	dest = CreateTransientRelDestReceiver(OIDNewHeap);
 

@@ -1293,6 +1293,7 @@ _outIntoClause(StringInfo str, const IntoClause *node)
 	WRITE_STRING_FIELD(tableSpaceName);
 	WRITE_NODE_FIELD(viewQuery);
 	WRITE_BOOL_FIELD(skipData);
+	WRITE_NODE_FIELD(split_options);
 }
 
 static void

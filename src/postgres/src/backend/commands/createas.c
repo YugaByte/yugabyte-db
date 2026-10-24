@@ -114,6 +114,8 @@ create_ctas_internal(List *attrList, IntoClause *into)
 	create->tablespacename = into->tableSpaceName;
 	create->if_not_exists = false;
 	create->accessMethod = into->accessMethod;
+	/* YB: forward the SPLIT clause so the relation is pre-split at creation */
+	create->split_options = into->split_options;
 
 	/*
 	 * Create the relation.  (This will error out if there's an existing view,

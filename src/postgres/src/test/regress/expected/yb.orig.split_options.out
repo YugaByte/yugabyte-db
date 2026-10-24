@@ -104,6 +104,90 @@ SELECT * FROM test_mv_split ORDER BY k;
 
 DROP MATERIALIZED VIEW test_mv_split;
 DROP TABLE test_mv_source;
+-- Test CREATE MATERIALIZED VIEW with SPLIT INTO N TABLETS
+CREATE TABLE test_mv_split_into_source (k int, v int);
+INSERT INTO test_mv_split_into_source VALUES (1, 10), (2, 20), (3, 30);
+CREATE MATERIALIZED VIEW test_mv_split_into SPLIT INTO 3 TABLETS AS
+    SELECT * FROM test_mv_split_into_source;
+-- Verify tablet count
+SELECT num_tablets FROM yb_table_properties('test_mv_split_into'::regclass);
+ num_tablets 
+-------------
+           3
+(1 row)
+
+-- Verify yb_presplit is stored in reloptions
+SELECT reloptions FROM pg_class WHERE relname = 'test_mv_split_into';
+   reloptions    
+-----------------
+ {yb_presplit=3}
+(1 row)
+
+-- Verify data
+SELECT * FROM test_mv_split_into ORDER BY k;
+ k | v  
+---+----
+ 1 | 10
+ 2 | 20
+ 3 | 30
+(3 rows)
+
+-- REFRESH (non-concurrent) must preserve the pre-split tablet count
+REFRESH MATERIALIZED VIEW test_mv_split_into;
+SELECT num_tablets FROM yb_table_properties('test_mv_split_into'::regclass);
+ num_tablets 
+-------------
+           3
+(1 row)
+
+SELECT reloptions FROM pg_class WHERE relname = 'test_mv_split_into';
+   reloptions    
+-----------------
+ {yb_presplit=3}
+(1 row)
+
+DROP MATERIALIZED VIEW test_mv_split_into;
+-- Test CREATE MATERIALIZED VIEW ... SPLIT INTO ... WITH NO DATA
+CREATE MATERIALIZED VIEW test_mv_split_nodata SPLIT INTO 5 TABLETS AS
+    SELECT * FROM test_mv_split_into_source WITH NO DATA;
+SELECT num_tablets FROM yb_table_properties('test_mv_split_nodata'::regclass);
+ num_tablets 
+-------------
+           5
+(1 row)
+
+SELECT reloptions FROM pg_class WHERE relname = 'test_mv_split_nodata';
+   reloptions    
+-----------------
+ {yb_presplit=5}
+(1 row)
+
+DROP MATERIALIZED VIEW test_mv_split_nodata;
+-- Test SPLIT INTO and WITH (yb_presplit=...) together on a matview: the SPLIT
+-- clause governs the initial layout, the yb_presplit reloption is recorded
+-- as-is (they are allowed to disagree), mirroring the CREATE TABLE behavior.
+CREATE MATERIALIZED VIEW test_mv_split_both WITH (yb_presplit='5') SPLIT INTO 3 TABLETS AS
+    SELECT * FROM test_mv_split_into_source;
+SELECT num_tablets FROM yb_table_properties('test_mv_split_both'::regclass);
+ num_tablets 
+-------------
+           3
+(1 row)
+
+SELECT reloptions FROM pg_class WHERE relname = 'test_mv_split_both';
+   reloptions    
+-----------------
+ {yb_presplit=5}
+(1 row)
+
+DROP MATERIALIZED VIEW test_mv_split_both;
+-- Test SPLIT AT VALUES on a matview: the grammar accepts the clause, but a
+-- matview built from a SELECT has no range primary key, so creation fails
+-- with a clear error (mirrors the same restriction on hash-partitioned tables).
+CREATE MATERIALIZED VIEW test_mv_split_at SPLIT AT VALUES ((100), (200)) AS
+    SELECT * FROM test_mv_split_into_source;
+ERROR:  cannot split table that does not have primary key
+DROP TABLE test_mv_split_into_source;
 -- Test that SPLIT INTO and WITH (yb_presplit=...) are equivalent
 CREATE TABLE test_split_syntax1 (k int PRIMARY KEY, v int) SPLIT INTO 7 TABLETS;
 CREATE TABLE test_split_syntax2 (k int PRIMARY KEY, v int) WITH (yb_presplit=7);
