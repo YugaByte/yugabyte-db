@@ -105,6 +105,7 @@ DECLARE_bool(disable_clock_sync_error);
 DECLARE_bool(enable_active_table_metrics_filtering);
 DECLARE_uint32(max_active_table_metrics_table_count);
 DECLARE_string(metric_node_name);
+DECLARE_bool(TEST_tablet_peer_force_get_raft_consensus_failure);
 
 // Declare these metrics prototypes for simpler unit testing of their behavior.
 METRIC_DECLARE_counter(rows_inserted);
@@ -1203,6 +1204,29 @@ TEST_F(TabletServerTest, TestDeleteTablet_TabletNotCreated) {
                               "NotPresentTabletId",
                               tablet::TABLET_DATA_DELETED);
   ASSERT_TRUE(s.IsNotFound()) << s.ToString();
+}
+
+// Regression test for #31046. CheckTserverTabletHealth used to call
+// GetConsensusOrRespond inside its per-tablet loop, which (a) FATALed via
+// Result::get() on a non-OK Result before the 3-arg overload was fixed,
+// and (b) consumed the RpcContext on the first failing tablet, leading
+// the trailing context.RespondSuccess() to double-respond.
+// Production hits this when the RUNNING-state check in LookupTabletPeer
+// races with consensus transitioning to non-OK. We use a TEST flag to
+// force that condition deterministically: LookupTabletPeer still sees
+// the peer as RUNNING, but GetRaftConsensus returns IllegalState.
+// The RPC must complete without crashing the process.
+TEST_F(TabletServerTest, CheckTserverTabletHealthDoesNotCrashWhenConsensusUnavailable) {
+  // YBTest::flag_saver_ restores all gflags on fixture teardown, so no manual reset needed.
+  ANNOTATE_UNPROTECTED_WRITE(FLAGS_TEST_tablet_peer_force_get_raft_consensus_failure) = true;
+
+  CheckTserverTabletHealthRequestPB req;
+  req.add_tablet_ids(kTabletId);
+  CheckTserverTabletHealthResponsePB resp;
+  RpcController controller;
+  ASSERT_OK(proxy_->CheckTserverTabletHealth(req, &resp, &controller));
+  EXPECT_FALSE(resp.has_error());
+  EXPECT_EQ(0, resp.tablet_healths_size());
 }
 
 // Test that with concurrent requests to delete the same tablet, one wins and

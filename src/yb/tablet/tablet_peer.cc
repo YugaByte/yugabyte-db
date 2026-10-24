@@ -109,6 +109,11 @@ using std::vector;
 DEFINE_test_flag(int32, delay_init_tablet_peer_ms, 0,
                  "Wait before executing init tablet peer for specified amount of milliseconds.");
 
+DEFINE_test_flag(bool, tablet_peer_force_get_raft_consensus_failure, false,
+                 "If set, TabletPeer::GetRaftConsensus returns IllegalState immediately. "
+                 "Used to deterministically exercise error paths in callers that handle "
+                 "transient consensus unavailability.");
+
 DEFINE_UNKNOWN_int32(cdc_min_replicated_index_considered_stale_secs, 1800,
     "If cdc_min_replicated_index hasn't been replicated in this amount of time, we reset its"
     "value to max int64 to avoid retaining any logs");
@@ -1719,6 +1724,11 @@ Result<std::shared_ptr<consensus::Consensus>> TabletPeer::GetConsensus() const {
 
 Result<shared_ptr<consensus::RaftConsensus>> TabletPeer::GetRaftConsensus() const {
   std::lock_guard lock(lock_);
+  if (PREDICT_FALSE(FLAGS_TEST_tablet_peer_force_get_raft_consensus_failure)) {
+    return STATUS_FORMAT(
+        IllegalState, "$0FLAGS_TEST_tablet_peer_force_get_raft_consensus_failure is set",
+        LogPrefix());
+  }
   // Cannot use NotFound status for the shutting down case as later the status may be extended with
   // TabletServerErrorPB::TABLET_NOT_RUNNING error code, and this combination of the status and
   // the code is not expected and is not considered as a retryable operation at least by yb-client.
