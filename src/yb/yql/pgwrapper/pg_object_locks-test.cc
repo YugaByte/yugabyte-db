@@ -497,6 +497,12 @@ TEST_F(PgObjectLocksTestRF1Deadlock, YB_DISABLE_TEST_IN_SANITIZERS(TestDeadlockS
   ASSERT_OK(WaitFor([&]() {
     return NumWaitingLocks() >= 1;
   }, 5s * kTimeMultiplier, "Timed out waiting for num waiting locks to be >= 1"));
+  // At this point both txns have triggered SetStartTimeIfNecessary via the object-lock path, so
+  // their local start_ values are set. Wait for the next periodic transaction heartbeat to carry
+  // those values to each status-tablet coordinator before forming the deadlock cycle, so the
+  // deadlock detector sees real txn_start_us values instead of the stale first_touch_=0 left by
+  // the pool-prebuilt CREATED heartbeat.
+  SleepFor(FLAGS_transaction_heartbeat_usec * 1us * kTimeMultiplier * 2);
   auto status_future_2 = std::async(std::launch::async, [&]() -> Status {
     RETURN_NOT_OK(conn1.Execute("LOCK TABLE test IN ACCESS EXCLUSIVE MODE"));
     return Status::OK();
