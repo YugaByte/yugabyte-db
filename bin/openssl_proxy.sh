@@ -63,7 +63,7 @@ generate_root_certs() {
     default_ca = yugabyted_root_ca
 
     [ yugabyted_root_ca ]
-    default_days = 730
+    default_days = 1460
     serial = '"$root_certs_path"'/serial.txt
     database = '"$root_certs_path"'/index.txt
     default_md = sha256
@@ -92,7 +92,8 @@ generate_root_certs() {
     chmod 400 "$root_certs_path"/ca.key
     openssl req -new -x509 -config "$root_certs_path"/ca.conf \
                 -key "$root_certs_path"/ca.key \
-                -out "$root_certs_path"/ca.crt
+                -out "$root_certs_path"/ca.crt \
+                -days 1460
 }
 
 generate_node_certs() {
@@ -134,7 +135,7 @@ generate_node_certs() {
                 -out "$temp_certs_path"/node."$hostname".crt \
                 -outdir "$temp_certs_path" \
                 -in "$temp_certs_path"/node.csr \
-                -days 730 \
+                -days 365 \
                 -batch \
                 -extfile "$temp_certs_path"/node.conf \
                 -extensions req_ext
