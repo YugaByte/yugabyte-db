@@ -607,7 +607,7 @@ _PG_init(void)
 							 "Selects which statements are tracked by pg_stat_statements.",
 							 NULL,
 							 &pgss_track,
-							 PGSS_TRACK_TOP,
+							 PGSS_TRACK_ALL,	/* YB: change default */
 							 track_options,
 							 PGC_SUSET,
 							 0,
@@ -846,6 +846,7 @@ getYsqlStatementStats(void *cb_arg)
 
 			WriteIntToJson(cb_arg, "userid", entry->key.userid);
 			WriteIntToJson(cb_arg, "dbid", entry->key.dbid);
+			WriteBoolToJson(cb_arg, "toplevel", entry->key.toplevel);
 			WriteIntToJson(cb_arg, "query_id", entry->key.queryid);
 			WriteStringToJson(cb_arg, "query", qry);
 			WriteIntToJson(cb_arg, "calls", entry->counters.calls[PGSS_EXEC]);

@@ -123,6 +123,7 @@ void WriteStringToJson(void *p1, const char* key, const char* value);
 // required for current usecase and writing arrays of primitive types.
 void WriteIntToJson(void *p1, const char* key, const int64_t value);
 void WriteDoubleToJson(void *p1, const char* key, const double value);
+void WriteBoolToJson(void *p1, const char* key, const bool value);
 void WriteIntArrayToJson(void *p1, const char *key, const int64 *values, const size_t size);
 void WriteDoubleArrayToJson(void *p1, const char *key, const double *values, const size_t size);
 

@@ -661,6 +661,12 @@ void WriteDoubleToJson(void *p1, const char* key, const double value) {
   writer->Double(value);
 }
 
+void WriteBoolToJson(void *p1, const char* key, const bool value) {
+  JsonWriter *writer = static_cast<JsonWriter *>(p1);
+  writer->String(key);
+  writer->Bool(value);
+}
+
 void WriteIntArrayToJson(void *p1, const char *key, const int64 *values, const size_t size) {
   JsonWriter *writer = static_cast<JsonWriter *>(p1);
   writer->String(key);

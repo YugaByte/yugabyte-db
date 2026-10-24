@@ -4,6 +4,16 @@ CREATE EXTENSION pg_stat_statements;
 --
 SET pg_stat_statements.track_utility = TRUE;
 SET pg_stat_statements.track_planning = TRUE;
+-- YB: the default of pg_stat_statements.track is 'all' in YugabyteDB
+-- (upstream default: 'top').  Assert it, then pin 'top' so the rest of
+-- this test does not depend on the default.
+SELECT current_setting('pg_stat_statements.track') AS track;
+ track 
+-------
+ all
+(1 row)
+
+SET pg_stat_statements.track = 'top';
 --
 -- create / alter user
 --
