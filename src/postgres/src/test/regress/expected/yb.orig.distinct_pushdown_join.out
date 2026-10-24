@@ -363,19 +363,20 @@ EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY OFF) /*+Nestloop(t1 t2)*/ SELEC
 \set _echo_run_query :ECHO
 \set ECHO none
 EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY OFF) SELECT DISTINCT t1.r1 FROM t t1 JOIN t t2 ON t1.r1 = t2.r2 WHERE t1.r1 + RANDOM() < 5;
-                                         QUERY PLAN                                          
----------------------------------------------------------------------------------------------
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
  HashAggregate (actual rows=1 loops=1)
    Group Key: t1.r1
    ->  Hash Join (actual rows=3000 loops=1)
          Hash Cond: (t1.r1 = t2.r2)
          ->  Seq Scan on t t1 (actual rows=1000 loops=1)
-               Storage Filter: (((r1)::double precision + random()) < '5'::double precision)
+               Filter: (((r1)::double precision + random()) < '5'::double precision)
+               Rows Removed by Filter: 1000
          ->  Hash (actual rows=7 loops=1)
                Buckets: 1024 (originally 1024)  Original Batches: 1
                ->  Distinct Index Scan using t_pkey on t t2 (actual rows=7 loops=1)
                      Distinct Keys: t2.r1, t2.r2
-(10 rows)
+(11 rows)
 
 SELECT DISTINCT t1.r1 FROM t t1 JOIN t t2 ON t1.r1 = t2.r2 WHERE t1.r1 + RANDOM() < 5;
  r1 
@@ -388,8 +389,8 @@ SELECT DISTINCT t1.r1 FROM t t1 JOIN t t2 ON t1.r1 = t2.r2 WHERE t1.r1 + RANDOM(
 \set _echo_run_query :ECHO
 \set ECHO none
 EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY OFF) SELECT DISTINCT t1.r1 FROM t t1 JOIN t t2 USING (r1) JOIN t t3 USING (r1) WHERE t3.r1 + RANDOM() < 5;
-                                                  QUERY PLAN                                                   
----------------------------------------------------------------------------------------------------------------
+                                              QUERY PLAN                                               
+-------------------------------------------------------------------------------------------------------
  Unique (actual rows=1 loops=1)
    ->  Merge Join (actual rows=1000 loops=1)
          Merge Cond: (t2.r1 = t1.r1)
@@ -404,8 +405,9 @@ EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY OFF) SELECT DISTINCT t1.r1 FROM
                                  Distinct Keys: t1.r1
                      ->  Materialize (actual rows=1000 loops=1)
                            ->  Index Scan using t_pkey on t t3 (actual rows=1000 loops=1)
-                                 Storage Filter: (((r1)::double precision + random()) < '5'::double precision)
-(15 rows)
+                                 Filter: (((r1)::double precision + random()) < '5'::double precision)
+                                 Rows Removed by Filter: 1000
+(16 rows)
 
 SELECT DISTINCT t1.r1 FROM t t1 JOIN t t2 USING (r1) JOIN t t3 USING (r1) WHERE t3.r1 + RANDOM() < 5;
  r1 

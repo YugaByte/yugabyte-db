@@ -1,8 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * yb_exceptions_for_func_pushdown.c
- *    List of non-immutable functions that do not perform any accesses to
- *    the database.
+ *    Lists of exceptions for function pushdown.
  *
  * Copyright (c) YugabyteDB, Inc.
  *
@@ -29,10 +28,6 @@
 #include "catalog/pg_operator_d.h"
 #include "nodes/primnodes.h"
 #include "utils/fmgroids.h"
-
-const uint32 yb_funcs_safe_for_pushdown[] = {
-	F_RANDOM
-};
 
 const uint32 yb_funcs_unsafe_for_pushdown[] = {
 	/* to_tsany.c */
@@ -245,7 +240,6 @@ const SQLValueFunctionOp yb_pushdown_sqlvaluefunctions[] = {
 
 #define DEFINE_ARRAY_SIZE(array) const int array##_count = lengthof(array)
 
-DEFINE_ARRAY_SIZE(yb_funcs_safe_for_pushdown);
 DEFINE_ARRAY_SIZE(yb_funcs_unsafe_for_pushdown);
 DEFINE_ARRAY_SIZE(yb_funcs_safe_for_mixed_mode_pushdown);
 DEFINE_ARRAY_SIZE(yb_pushdown_funcs_to_constify);

@@ -28,10 +28,22 @@ EXPLAIN (COSTS FALSE) SELECT * FROM pushdown_test WHERE left(t1, i1) = 'v';
 
 SELECT * FROM pushdown_test WHERE left(t1, i1) = 'v';
 
--- Functions safe for pushdown (yb_safe_funcs_for_pushdown.c)
+-- Volatile function
 EXPLAIN (COSTS FALSE) SELECT * FROM pushdown_test WHERE i1 < 10 + random() * 90;
 
 SELECT * FROM pushdown_test WHERE i1 < 10 + random() * 90;
+
+-- random() uses backend-local state controlled by setseed(), so it must remain
+-- a local filter even when expression pushdown is enabled.
+SET yb_enable_expression_pushdown to on;
+EXPLAIN (COSTS FALSE) SELECT count(*) FROM pushdown_test WHERE random() < 0.5;
+
+SELECT setseed(0.41);
+SELECT count(*) AS seeded_count FROM pushdown_test WHERE random() < 0.5 \gset
+SELECT setseed(0.41);
+SELECT count(*) = :seeded_count AS seeded_random_repeats
+  FROM pushdown_test WHERE random() < 0.5;
+SET yb_enable_expression_pushdown to off;
 
 -- Null test
 EXPLAIN (COSTS FALSE) SELECT * FROM pushdown_test WHERE ts1 IS NULL;

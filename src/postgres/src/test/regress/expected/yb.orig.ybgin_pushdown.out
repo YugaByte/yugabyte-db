@@ -125,7 +125,7 @@ SELECT * FROM gin_pushdown WHERE json_content @> '{"refs": [{"val":"9"}]}' AND j
  9  | 9    | 9      | {"refs": [{"val": "9"}, {"val": "10"}]}
 (1 row)
 
--- Expression that does not refer any columns can go to the index.
+-- Volatile expressions cannot be pushed to the index.
 SELECT $$
 :P SELECT * FROM gin_pushdown WHERE json_content @> '{"refs": [{"val":"9"}]}' AND random() > 2.0;
 $$ AS query \gset
@@ -137,7 +137,7 @@ EXPLAIN (costs off) SELECT * FROM gin_pushdown WHERE json_content @> '{"refs": [
 -------------------------------------------------------------------
  Index Scan using gin_pushdown_json_content_idx on gin_pushdown
    Index Cond: (json_content @> '{"refs": [{"val": "9"}]}'::jsonb)
-   Storage Index Filter: (random() > '2'::double precision)
+   Filter: (random() > '2'::double precision)
 (3 rows)
 
 SELECT * FROM gin_pushdown WHERE json_content @> '{"refs": [{"val":"9"}]}' AND random() > 2.0;
@@ -156,7 +156,7 @@ EXPLAIN (costs off) SELECT * FROM gin_pushdown WHERE json_content @> '{"refs": [
 -------------------------------------------------------------------
  Index Scan using gin_pushdown_json_content_idx on gin_pushdown
    Index Cond: (json_content @> '{"refs": [{"val": "9"}]}'::jsonb)
-   Storage Index Filter: (random() < '2'::double precision)
+   Filter: (random() < '2'::double precision)
 (3 rows)
 
 SELECT * FROM gin_pushdown WHERE json_content @> '{"refs": [{"val":"9"}]}' AND random() < 2.0;
@@ -266,7 +266,7 @@ SELECT * FROM gin_pushdown WHERE guid = '9' AND json_content->'refs'->0->'val' =
  9  | 9    | 9      | {"refs": [{"val": "9"}, {"val": "10"}]}
 (1 row)
 
--- Expression that does not refer any columns can go to the index.
+-- Volatile expressions cannot be pushed to the index.
 SELECT $$
 :P SELECT * FROM gin_pushdown WHERE guid = '9' AND random() > 2.0;
 $$ AS query \gset
@@ -274,11 +274,11 @@ $$ AS query \gset
 \set _echo_run_query :ECHO
 \set ECHO none
 EXPLAIN (costs off) SELECT * FROM gin_pushdown WHERE guid = '9' AND random() > 2.0;
-                         QUERY PLAN                         
-------------------------------------------------------------
+                       QUERY PLAN                       
+--------------------------------------------------------
  Index Scan using gin_pushdown_guid_key on gin_pushdown
    Index Cond: ((guid)::text = '9'::text)
-   Storage Index Filter: (random() > '2'::double precision)
+   Filter: (random() > '2'::double precision)
 (3 rows)
 
 SELECT * FROM gin_pushdown WHERE guid = '9' AND random() > 2.0;
@@ -293,11 +293,11 @@ $$ AS query \gset
 \set _echo_run_query :ECHO
 \set ECHO none
 EXPLAIN (costs off) SELECT * FROM gin_pushdown WHERE guid = '9' AND random() < 2.0;
-                         QUERY PLAN                         
-------------------------------------------------------------
+                       QUERY PLAN                       
+--------------------------------------------------------
  Index Scan using gin_pushdown_guid_key on gin_pushdown
    Index Cond: ((guid)::text = '9'::text)
-   Storage Index Filter: (random() < '2'::double precision)
+   Filter: (random() < '2'::double precision)
 (3 rows)
 
 SELECT * FROM gin_pushdown WHERE guid = '9' AND random() < 2.0;

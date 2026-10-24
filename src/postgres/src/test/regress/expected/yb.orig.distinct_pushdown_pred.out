@@ -326,12 +326,12 @@ SELECT DISTINCT 0 * r1 AS r FROM t;
 -- In general, volatile expressions may have side effects, so they need to be run
 -- for each tuple. Cannot use a distinct index scan in that case.
 EXPLAIN (COSTS OFF, TIMING OFF, SUMMARY OFF) SELECT DISTINCT r1 FROM t WHERE r1 * RANDOM() > 1;
-                                      QUERY PLAN                                       
----------------------------------------------------------------------------------------
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
  HashAggregate
    Group Key: r1
    ->  Seq Scan on t
-         Storage Filter: (((r1)::double precision * random()) > '1'::double precision)
+         Filter: (((r1)::double precision * random()) > '1'::double precision)
 (4 rows)
 
 EXPLAIN (COSTS OFF, TIMING OFF, SUMMARY OFF) SELECT DISTINCT r1 * RANDOM() AS r FROM t;

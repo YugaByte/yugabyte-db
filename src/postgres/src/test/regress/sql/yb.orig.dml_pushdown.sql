@@ -284,11 +284,10 @@ EXPLAIN (COSTS OFF) UPDATE single_row_function_test SET random_field = 2 WHERE k
 -- Verify that using unsupported non-immutable functions to assign values does not disable the use of fast path.
 EXPLAIN (COSTS OFF) UPDATE single_row_function_test SET v=getpgusername() WHERE k = 1 AND date_pk = NOW();
 
--- Verify that using supported non-immutable functions (like random(), NOW(), timestamp, timestampz etc) which do not perform reads or writes to the database
--- to assign values/WHERE clause does not prevent the use of fast-path.
+-- Verify that locally evaluable non-immutable assignment expressions do not prevent the use of fast-path.
 EXPLAIN (COSTS OFF) UPDATE single_row_function_test SET created_at = '2022-01-01 00:00:00'::TIMESTAMP WITH TIME ZONE, random_field = ceil(random())::int  WHERE date_pk = NOW() AND k = 1;
 
--- Verify that even if the function used in the WHERE clause is a supported but volatile function, the fast path is still disabled.
+-- Verify that a volatile function in the WHERE clause disables fast-path and remains a local filter.
 EXPLAIN (COSTS OFF) UPDATE single_row_function_test SET created_at = '2022-01-01 00:00:00'::TIMESTAMP WITH TIME ZONE, random_field = ceil(random())::int  WHERE date_pk = NOW() AND k = random()::int;
 DROP TABLE single_row_function_test;
 

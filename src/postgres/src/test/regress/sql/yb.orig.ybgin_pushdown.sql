@@ -51,7 +51,7 @@ SELECT $$
 $$ AS query \gset
 \i :run_query
 
--- Expression that does not refer any columns can go to the index.
+-- Volatile expressions cannot be pushed to the index.
 SELECT $$
 :P SELECT * FROM gin_pushdown WHERE json_content @> '{"refs": [{"val":"9"}]}' AND random() > 2.0;
 $$ AS query \gset
@@ -87,7 +87,7 @@ SELECT $$
 $$ AS query \gset
 \i :run_query
 
--- Expression that does not refer any columns can go to the index.
+-- Volatile expressions cannot be pushed to the index.
 SELECT $$
 :P SELECT * FROM gin_pushdown WHERE guid = '9' AND random() > 2.0;
 $$ AS query \gset

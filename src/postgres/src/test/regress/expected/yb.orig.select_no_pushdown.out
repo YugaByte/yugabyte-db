@@ -87,7 +87,7 @@ SELECT * FROM pushdown_test WHERE left(t1, i1) = 'v';
  1 |  1 | value1 | Thu Nov 11 11:11:11 2021 | Thu Nov 11 10:11:11 2021 UTC | empty | {1,NULL,42}
 (1 row)
 
--- Functions safe for pushdown (yb_safe_funcs_for_pushdown.c)
+-- Volatile function
 EXPLAIN (COSTS FALSE) SELECT * FROM pushdown_test WHERE i1 < 10 + random() * 90;
                                              QUERY PLAN                                              
 -----------------------------------------------------------------------------------------------------
@@ -101,6 +101,38 @@ SELECT * FROM pushdown_test WHERE i1 < 10 + random() * 90;
  1 |  1 | value1 | Thu Nov 11 11:11:11 2021 | Thu Nov 11 10:11:11 2021 UTC | empty | {1,NULL,42}
 (1 row)
 
+-- random() uses backend-local state controlled by setseed(), so it must remain
+-- a local filter even when expression pushdown is enabled.
+SET yb_enable_expression_pushdown to on;
+EXPLAIN (COSTS FALSE) SELECT count(*) FROM pushdown_test WHERE random() < 0.5;
+                      QUERY PLAN                      
+------------------------------------------------------
+ Aggregate
+   ->  Seq Scan on pushdown_test
+         Filter: (random() < '0.5'::double precision)
+(3 rows)
+
+SELECT setseed(0.41);
+ setseed 
+---------
+ 
+(1 row)
+
+SELECT count(*) AS seeded_count FROM pushdown_test WHERE random() < 0.5 \gset
+SELECT setseed(0.41);
+ setseed 
+---------
+ 
+(1 row)
+
+SELECT count(*) = :seeded_count AS seeded_random_repeats
+  FROM pushdown_test WHERE random() < 0.5;
+ seeded_random_repeats 
+-----------------------
+ t
+(1 row)
+
+SET yb_enable_expression_pushdown to off;
 -- Null test
 EXPLAIN (COSTS FALSE) SELECT * FROM pushdown_test WHERE ts1 IS NULL;
         QUERY PLAN         

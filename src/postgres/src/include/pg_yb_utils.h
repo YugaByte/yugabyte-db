@@ -1315,14 +1315,6 @@ bool		IsYbExtensionUser(Oid member);
 bool		IsYbFdwUser(Oid member);
 
 /*
- * Array of IDs of non-immutable functions that do not perform any database
- * lookups or writes. When these functions are used in an INSERT/UPDATE/DELETE
- * statement, they will not cause the actual modify statement to become a
- * cross shard operation.
- */
-extern const uint32 yb_funcs_safe_for_pushdown[];
-
-/*
  * These functions are unsafe to run in a multi-threaded environment. There is
  * no specific attribute that identifies them as such, so we have to manually
  * identify them.
@@ -1351,7 +1343,6 @@ extern const SQLValueFunctionOp yb_pushdown_sqlvaluefunctions[];
 /*
  * Number of functions in the lists above.
  */
-extern const int yb_funcs_safe_for_pushdown_count;
 extern const int yb_funcs_unsafe_for_pushdown_count;
 extern const int yb_funcs_safe_for_mixed_mode_pushdown_count;
 extern const int yb_pushdown_funcs_to_constify_count;
