@@ -35,6 +35,14 @@ DocDB is a log-structured merge-tree (LSM) based storage engine. This design is 
 To understand more about how LSM tree stores data in SSTs, see [LSM and SST](./lsm-sst).
 {{</lead>}}
 
+## Vector indexes with Vector LSM
+
+YugabyteDB provides specialized support for vector indexes optimized for approximate nearest neighbor (ANN) search. Vector LSM is a customized log-structured merge tree designed specifically for managing vector data and maintaining vector indexes across distributed nodes.
+
+{{<lead link="./vector-lsm">}}
+To understand more about how Vector LSM manages vector indexes and handles compaction, see [Vector LSM](./vector-lsm).
+{{</lead>}}
+
 ## Performance
 
 DocDB is written in C++ and is designed to be highly performant on Linux.
