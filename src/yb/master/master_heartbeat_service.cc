@@ -987,7 +987,7 @@ Status MasterHeartbeatServiceImpl::ProcessTabletReportBatch(
           Format("Replica with old config index $0", report_opid_index);
       rpcs->push_back(catalog_manager_->MakeDeleteReplicaTask(
           ts_desc->permanent_uuid(), table, tablet_id, TABLET_DATA_TOMBSTONED,
-          prev_opid_index, epoch,
+          report_opid_index, epoch,
           Format("$0 (current committed config index is $1)", delete_msg, prev_opid_index)));
       continue;
     }

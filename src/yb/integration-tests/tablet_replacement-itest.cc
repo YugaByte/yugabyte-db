@@ -445,20 +445,32 @@ TEST_F(TabletReplacementITest, DontDeleteNewReplicaInPendingConfigAfterRbsFromFo
 
   // Ensure RBS is paused so we can reliably turn off next RBS attempts then.
   ASSERT_OK(cluster_->SetFlag(added_ts, "TEST_pause_rbs_before_download_wal", "true"));
-  LogWaiter log_waiter(
-      added_ts, tablet_id + ": Pausing due to flag TEST_pause_rbs_before_download_wal");
+  {
+    LogWaiter rbs_waiter(
+        added_ts, tablet_id + ": Pausing due to flag TEST_pause_rbs_before_download_wal");
 
-  LOG(INFO) << "Adding tablet " << tablet_id << " back to tserver " << added_ts->uuid();
-  // Expected timeout due to CHANGE_CONFIG can't commit yet.
-  ASSERT_NOK(itest::AddServer(
-      leader_ts_details, tablet_id, added_ts_details, PeerMemberType::PRE_VOTER, std::nullopt,
-      500ms));
+    LOG(INFO) << "Adding tablet " << tablet_id << " back to tserver " << added_ts->uuid();
+    // Expected timeout due to CHANGE_CONFIG can't commit yet.
+    ASSERT_NOK(itest::AddServer(
+        leader_ts_details, tablet_id, added_ts_details, PeerMemberType::PRE_VOTER, std::nullopt,
+        500ms));
 
-  // Wait for RBS to start.
-  ASSERT_OK(log_waiter.WaitFor(kTimeout));
+    // Wait for RBS to start.
+    ASSERT_OK(rbs_waiter.WaitFor(kTimeout));
+  }
 
   // Disable next RBS attempts.
   ASSERT_OK(cluster_->SetFlag(leader_ts, "TEST_enable_remote_bootstrap", "false"));
+
+  // Block the stale DeleteTablet request before it checks the tablet state.
+  ASSERT_OK(cluster_->SetFlag(added_ts, "TEST_pause_delete_tablet", "true"));
+  {
+    LogWaiter delete_waiter(added_ts, "Pausing due to flag TEST_pause_delete_tablet");
+    ASSERT_OK(delete_waiter.WaitFor(kTimeout));
+  }
+
+  // Keep the master from learning about the completed RBS before the stale delete runs.
+  ASSERT_OK(cluster_->SetFlag(added_ts, "TEST_tserver_disable_heartbeat", "true"));
 
   // Unpause RBS.
   ASSERT_OK(cluster_->SetFlag(added_ts, "TEST_pause_rbs_before_download_wal", "false"));
@@ -468,7 +480,16 @@ TEST_F(TabletReplacementITest, DontDeleteNewReplicaInPendingConfigAfterRbsFromFo
       kAddedTsIndex, tablet_id, tablet::TABLET_DATA_READY, kTimeout));
   LOG(INFO) << "RBS has been completed on added node";
 
-  AllowTimeForSpuriousDelete();
+  LogWaiter delete_result_waiter(
+      ASSERT_NOTNULL(cluster_->GetLeaderMaster()),
+      std::vector<std::string>{"due to a CAS failure", "successfully done"});
+  ASSERT_OK(cluster_->SetFlag(added_ts, "TEST_pause_delete_tablet", "false"));
+  ASSERT_OK(delete_result_waiter.WaitFor(kTimeout));
+
+  ASSERT_OK(cluster_->SetFlag(added_ts, "TEST_tserver_disable_heartbeat", "false"));
+  ASSERT_OK(cluster_->SetFlag(
+      cluster_->tablet_server(kRbsSourceFollowerTsIndex),
+      "TEST_follower_pause_update_consensus_requests", "false"));
 
   LOG(INFO) << "Make sure new replica doesn't get deleted";
   ASSERT_OK(inspect_->CheckTabletDataStateOnTS(kAddedTsIndex, tablet_id, TABLET_DATA_READY));
@@ -483,10 +504,6 @@ TEST_F(TabletReplacementITest, DontDeleteNewReplicaInPendingConfigAfterRbsFromFo
 
   AllowTimeForSpuriousDelete();
   ASSERT_OK(inspect_->CheckTabletDataStateOnTS(kAddedTsIndex, tablet_id, TABLET_DATA_READY));
-
-  ASSERT_OK(cluster_->SetFlag(
-      cluster_->tablet_server(kRbsSourceFollowerTsIndex),
-      "TEST_follower_pause_update_consensus_requests", "false"));
 }
 
 // Ensure that the Master will tombstone a replica if it reports in with an old
