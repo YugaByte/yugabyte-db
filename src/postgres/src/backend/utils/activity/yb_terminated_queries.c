@@ -46,10 +46,10 @@
 /* Caps the number of queries which can be stored in the array. */
 #define YB_TERMINATED_QUERIES_SIZE 1000
 
-#define YB_QUERY_TEXT_SIZE 256
+#define YB_QUERY_TEXT_SIZE 1024
 #define YB_QUERY_TERMINATION_SIZE 256
 
-#define YB_TERMINATED_QUERIES_FILE_FORMAT_ID	0x20250401
+#define YB_TERMINATED_QUERIES_FILE_FORMAT_ID	0x20260717
 #define YB_TERMINATED_QUERIES_FILENAME		"pg_stat/yb_terminated_queries.stat"
 #define YB_TERMINATED_QUERIES_TMPFILE		"pg_stat/yb_terminated_queries.tmp"
 
@@ -154,10 +154,11 @@ yb_report_query_termination(char *message, int pid)
 			SUB_SET(userid, beentry->st_userid);
 #undef SUB_SET
 
-#define SUB_MOVE(shfld, befld) strncpy(curr_entry->shfld, befld, sizeof(curr_entry->shfld)-1)
-			SUB_MOVE(query_string, beentry->st_activity_raw);
-			SUB_MOVE(termination_reason, message);
-#undef SUB_MOVE
+			strlcpy(curr_entry->query_string,
+					beentry->st_activity_raw ? beentry->st_activity_raw : "",
+					sizeof(curr_entry->query_string));
+			strlcpy(curr_entry->termination_reason, message ? message : "",
+					sizeof(curr_entry->termination_reason));
 
 			yb_terminated_queries->curr++;
 			LWLockRelease(yb_terminated_queries_lock);

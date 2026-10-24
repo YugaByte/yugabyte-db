@@ -30,17 +30,6 @@ SELECT * FROM generate_series(0, 1000001);
 SELECT pg_sleep(1);
 SELECT databasename, termination_reason, query_text FROM yb_terminated_queries;
 
-SELECT 'We were taught in this modern age that science and mathematics is the pinnacle of human achievement.'
-'Yet, in our complacency, we began to neglect the very thing which our ancestors had once done: to challenge the process.'
-'We need to stand back and critically analyze what we do and doing so would allow us to become better and so much more.'
-FROM generate_series(0, 1000000);
-
-SELECT pg_sleep(1);
-SELECT databasename, termination_reason, query_text FROM yb_terminated_queries;
-SELECT databasename, termination_reason, query_text FROM yb_terminated_queries WHERE databasename = 'yugabyte';
-SELECT databasename, termination_reason, query_text FROM yb_terminated_queries WHERE databasename = 'db2';
-SELECT query_text, length(query_text) AS query_length FROM yb_terminated_queries;
-
 -- Test permissions for different roles
 \c yugabyte
 SELECT databasename, termination_reason, query_text FROM yb_terminated_queries;
@@ -100,3 +89,15 @@ ALTER user test_user WITH nosuperuser;
 
 SELECT pg_sleep(1);
 SELECT databasename, termination_reason, query_text FROM yb_terminated_queries;
+
+SET work_mem TO 64;
+SELECT 'We were taught in this modern age that science and mathematics is the pinnacle of human achievement.'
+'Yet, in our complacency, we began to neglect the very thing which our ancestors had once done: to challenge the process.'
+'We need to stand back and critically analyze what we do and doing so would allow us to become better and so much more.'
+FROM generate_series(0, 1000000);
+
+SELECT pg_sleep(1);
+SELECT length(query_text) > 255 AS query_text_exceeds_255,
+       query_text LIKE '%FROM generate_series(0, 1000000);' AS query_text_is_complete
+FROM yb_terminated_queries
+WHERE query_text LIKE 'SELECT ''We were taught%';

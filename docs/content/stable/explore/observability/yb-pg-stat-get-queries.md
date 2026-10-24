@@ -51,7 +51,7 @@ The following table describes the fields and their values:
 | :---- | :--- | :---------- |
 | databasename | Name | Name of the database to which the backend was connected when the query was terminated. |
 | backend_pid | Integer | Backend process ID. |
-| query_text | Text | The query that was executed, up to a maximum of 256 characters. |
+| query_text | Text | The query that was executed, up to a maximum of 1,023 bytes. The captured text can be shorter if `track_activity_query_size` is lower. |
 | termination_reason | Text | An explanation of why the query was terminated. One of:<br/>Terminated by SIGKILL<br/>Terminated by SIGSEGV<br/>temporary file size exceeds temp_file_limit (xxx kB)
 | query_start_time | Timestampz | Time at which the query started. |
 | query_end_time | Timestampz | Time at which the query was terminated. |
