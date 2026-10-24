@@ -10,6 +10,8 @@ menu:
     parent: best-practices-operations
     weight: 10
 type: docs
+rightNav:
+  hideH3: true
 ---
 
 Database administrators can fine-tune YugabyteDB deployments for better reliability, performance, and operational efficiency by following targeted best practices. This guide outlines key recommendations for configuring single-AZ environments, optimizing memory use, accelerating CI/CD tests, and safely managing concurrent DML and DDL operations. These tips are designed to help DBAs maintain stable, scalable YSQL clusters in real-world and test scenarios alike.
@@ -48,21 +50,62 @@ You can set certain flags to increase performance using YugabyteDB in CI and CD 
 
 ## Concurrent DML during a DDL operation
 
-In YugabyteDB, DML is allowed to execute while a DDL statement modifies the schema that is accessed by the DML statement. For example, an `ALTER TABLE <table> .. ADD COLUMN` DDL statement may add a new column while a `SELECT * from <table>` executes concurrently on the same relation. In PostgreSQL, this is typically not allowed because such DDL statements take a table-level exclusive lock that prevents concurrent DML from executing. (Support for similar behavior in YugabyteDB is being tracked in issue {{<issue 11571>}}.)
+Do not run DML against a relation while DDL is modifying that relation's schema.
 
-In YugabyteDB, when a DDL modifies the schema of tables that are accessed by concurrent DML statements, the DML statement may do one of the following:
+By default, YugabyteDB doesn't restrict DML and DDL concurrency. DML is *allowed* to execute while a DDL statement changes the schema that the DML is using. For example, `ALTER TABLE <table> ADD COLUMN` can add a column while `SELECT * FROM <table>` runs on the same relation. PostgreSQL typically prevents this by taking an ACCESS EXCLUSIVE table lock; YugabyteDB does not, unless you enable table-level locking.
 
-- Operate with the old schema prior to the DDL.
-- Operate with the new schema after the DDL completes.
-- Encounter temporary errors such as `schema mismatch errors` or `catalog version mismatch`. It is recommended for the client to [retry such operations](https://www.yugabyte.com/blog/retry-mechanism-spring-boot-app/) whenever possible.
+Allowed does not mean correct. Concurrent DML can use a stale schema, skip newly added structures, or write rows that the DDL never sees. Some of those outcomes return errors; others succeed and silently leave wrong data.
 
-Most DDL statements complete quickly, so this is typically not a significant issue in practice. However, [certain kinds of ALTER TABLE DDL statements](../../api/ysql/the-sql-language/statements/ddl_alter_table/#alter-table-operations-that-involve-a-table-rewrite) involve making a full copy of the table(s) whose schema is being modified. For these operations, it is not recommended to run any concurrent DML statements on the table being modified by the `ALTER TABLE`, as the effect of such concurrent DML may not be reflected in the table copy.
+### Retryable errors
+
+Concurrent DML may fail with `schema mismatch` or `catalog version mismatch`. Applications should [retry those operations](https://www.yugabyte.com/blog/retry-mechanism-spring-boot-app/).
+
+### Silent correctness issues
+
+When concurrent DML does not error, the failures fall into these categories:
+
+| Risk | What happens |
+| :--- | :----------- |
+| Stale snapshot / missed writes | DDL rewrites the table or index at a point-in-time snapshot. Concurrent DML writes to the old storage and is lost. |
+| Constraint violation escapes validation | DDL scans the table to validate a constraint. Concurrent DML can insert violating rows after the scan completes but before the constraint is enforced. |
+| Stale catalog / wrong routing | DDL modifies the partition descriptor or relation metadata. Concurrent DML using a cached (stale) catalog version may route rows incorrectly or miss newly added structures. |
+| Stale catalog / missed trigger fire | DDL adds or enables a trigger. Concurrent DML that already cached the old trigger list does not fire the new trigger. |
+
+### DDL operations that are unsafe with concurrent DML
+
+| DDL operation | Issue with concurrent DML |
+| :------------ | :------------------------ |
+| `CREATE INDEX NONCONCURRENTLY` / `REINDEX` | The index is built by scanning the table at a snapshot. Concurrent INSERTs and UPDATEs are not inserted into the new index, so index entries are missing. See [Concurrent index creation](../../api/ysql/the-sql-language/statements/ddl_create_index/#concurrent-index-creation). |
+| Partition commands (`CREATE TABLE ... PARTITION OF`, `ATTACH PARTITION`, `DETACH PARTITION`) | These modify the parent's partition descriptor. Concurrent DML using a stale cached descriptor may route rows to the wrong partition (for example, the default instead of the new partition), skip partition constraint checks, or write to a detached partition. |
+| ALTER TABLE table rewrite (`ALTER COLUMN TYPE`, `ADD COLUMN ... DEFAULT <volatile expression>`, `ADD`/`DROP PRIMARY KEY`) | The table is rewritten by copying data at a snapshot. Concurrent DML writes to the old table and is not reflected in the new table — silent data loss. See [Alter table operations that involve a table rewrite](../../api/ysql/the-sql-language/statements/ddl_alter_table/#alter-table-operations-that-involve-a-table-rewrite). |
+| Constraints and triggers (`ADD CONSTRAINT` CHECK/UNIQUE/FK, `SET NOT NULL`, `CREATE`/`ENABLE`/`DISABLE TRIGGER`) | Constraint validation scans the table at a snapshot. Concurrent DML can insert violating rows after the scan but before enforcement begins. For triggers, concurrent DML using a stale catalog does not fire newly added or enabled triggers. |
+
+Most schema-only DDLs complete quickly. The operations in the table above copy or validate data, and they are not safe to overlap with DML on the same relation.
+
+### How to avoid these issues
+
+Pause DML on the affected relation until the DDL completes, or enable {{<tags/feature/ea idea="1114">}}[table-level locking](../../explore/transactions/explicit-locking/#table-level-locks). Table-level locks are disabled by default.
+
+For `ALTER TABLE ADD CONSTRAINT`, you can add the constraint as `NOT VALID` and validate it in a second step. This is safe even without table locking:
+
+```sql
+ALTER TABLE ... ADD CONSTRAINT ... NOT VALID;
+ALTER TABLE ... VALIDATE CONSTRAINT ...;
+```
+
+For `ALTER TABLE ... ATTACH PARTITION`, first add CHECK constraints on the existing partitions that exclude the newly attached range. That guarantees no rows are present in, or can be inserted into, that range on the existing partitions before you attach the new partition.
 
 ## Concurrent DDL during a DDL operation
 
-DDL statements that affect entities in different databases can be run concurrently. However, for DDL statements that impact the same database, it is recommended to execute them sequentially.
+Concurrent Data Definition Language (DDL) operations are currently unsupported. All DDL statements targeting the same database must be executed sequentially, one at a time, from a single database connection. DDL statements that operate on shared objects (roles, tablespaces) affect all databases in the cluster and must also be serialized. DDL statements that affect entities in different databases can be run concurrently.
 
-DDL statements that relate to shared objects, such as roles or tablespaces, are considered as affecting all databases in the cluster, so they should also be run sequentially.
+Enforce DDL serialization at the application and operational level:
+
+- Execute all DDLs sequentially from a single connection. Use a dedicated, non-pooled connection for schema migrations.
+- Wait for each DDL to fully complete before issuing the next statement.
+- Implement client-side retry logic for schema mismatch and catalog version mismatch errors in any [DML that may overlap with DDL windows](#concurrent-dml-during-a-ddl-operation).
+- Schedule DDL during maintenance windows to minimize overlap with application DML traffic, backup jobs, and other administrative operations.
+- In versions earlier than v2025.1.1, DDL verification states can block backup and restore operations; run DDL and backup jobs separately. (In v2025.2.1 and later, taking YSQL backups during DDL operations is supported by default, and backups succeed even in case of concurrent DDLs.)
 
 ## Preload PostgreSQL system catalog entries into the local catalog cache
 
