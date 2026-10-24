@@ -285,6 +285,57 @@ TEST_F(WebserverTest, TestStaticFiles) {
   ASSERT_EQ("Remote error: HTTP 403", s.ToString(/* no file/line */ false));
 }
 
+// Tests that enabling password authentication (--webserver_password_file /
+// --webserver_authentication_domain) works end-to-end.
+class WebserverAuthTest : public WebserverTest {
+ public:
+  WebserverAuthTest() {
+    password_file_ = GetTestPath("webserver-htpasswd");
+  }
+
+  WebserverOptions ServerOptions() override {
+    auto opts = WebserverTest::ServerOptions();
+    opts.authentication_domain = kAuthDomain;
+    opts.password_file = password_file_;
+    return opts;
+  }
+
+  void SetUp() override {
+    // The password file must exist before the webserver starts. squeasel uses HTTP Digest
+    // auth, so each line is "user:realm:HA1" where HA1 = md5(user:realm:password). Here:
+    // md5("yugabyte:YugabyteDB:yugabyte").
+    ASSERT_OK(WriteStringToFile(
+        env_.get(),
+        Format("$0:$1:0fbdc56fb215d4d2e29ff88863aa2da5\n", kUser, kAuthDomain),
+        password_file_));
+    // WebserverTest::SetUp() starts the server. Before the global_passwords_file ->
+    // global_auth_file fix, squeasel rejected the option and Start() failed here.
+    WebserverTest::SetUp();
+  }
+
+ protected:
+  static constexpr const char* kAuthDomain = "YugabyteDB";
+  static constexpr const char* kUser = "yugabyte";
+  static constexpr const char* kPassword = "yugabyte";
+  string password_file_;
+};
+
+// Regression test for the squeasel option-name mismatch (global_passwords_file vs.
+// global_auth_file) that prevented the webserver from starting whenever a password file was
+// set. The server must start (asserted in SetUp) and must actually enforce auth: a request
+// without credentials is rejected with HTTP 401.
+TEST_F(WebserverAuthTest, TestUnauthenticatedRequestRejected) {
+  Status s = curl_.FetchURL(url_, &buf_);
+  ASSERT_EQ("Remote error: HTTP 401", s.ToString(/* no file/line */ false));
+}
+
+// Companion to the above: a request carrying valid credentials must succeed, confirming the
+// password file is actually wired to squeasel's HTTP Digest auth (not merely that auth is on).
+TEST_F(WebserverAuthTest, TestAuthenticatedRequestSucceeds) {
+  curl_.set_auth_creds(kUser, kPassword);
+  ASSERT_OK(curl_.FetchURL(url_, &buf_));
+}
+
 class WebserverSecureTest : public WebserverTest {
  public:
   WebserverOptions ServerOptions() override {

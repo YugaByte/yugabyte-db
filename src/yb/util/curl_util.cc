@@ -152,6 +152,12 @@ Status EasyCurl::DoRequest(
     RETURN_NOT_OK(
         TranslateError(curl_easy_setopt(curl_, CURLOPT_SSL_CIPHER_LIST, cipher_list_.c_str())));
   }
+  if (!auth_creds_.empty()) {
+    // CURLAUTH_ANY lets curl pick whatever scheme the server advertises in its 401
+    // challenge (the embedded webserver uses Digest).
+    RETURN_NOT_OK(TranslateError(curl_easy_setopt(curl_, CURLOPT_HTTPAUTH, CURLAUTH_ANY)));
+    RETURN_NOT_OK(TranslateError(curl_easy_setopt(curl_, CURLOPT_USERPWD, auth_creds_.c_str())));
+  }
 
   typedef std::unique_ptr<curl_slist, std::function<void(curl_slist*)>> CurlSlistPtr;
   CurlSlistPtr http_header_list;

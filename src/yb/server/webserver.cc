@@ -422,7 +422,11 @@ Status Webserver::Impl::Start() {
       return STATUS(InvalidArgument, ss.str());
     }
     LOG(INFO) << "Webserver: Password file is " << opts_.password_file;
-    options.push_back("global_passwords_file");
+    // The bundled squeasel registers this config option under the name "global_auth_file"
+    // (the GLOBAL_PASSWORDS_FILE enum is only the internal index). Passing the old Mongoose/Kudu
+    // name "global_passwords_file" makes sq_start() reject it as an invalid option and refuse to
+    // start the webserver, breaking --webserver_password_file authentication entirely.
+    options.push_back("global_auth_file");
     options.push_back(opts_.password_file.c_str());
   }
 
