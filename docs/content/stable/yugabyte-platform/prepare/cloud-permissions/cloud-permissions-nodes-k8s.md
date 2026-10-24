@@ -58,6 +58,8 @@ For YugabyteDB Anywhere (YBA) to deploy and manage YugabyteDB universes on Kuber
 
 As a prerequisite for creating pods and deploying database clusters, YBA requires a service account in the Kubernetes cluster and a corresponding kubeconfig file.
 
+For S3 or GCS backup IAM on Kubernetes (which pods need roles, IRSA / Workload Identity, and how to make settings persistent), see [Permissions to back up and restore](../cloud-permissions-storage/) (AWS or GCP **Kubernetes** tab) and [Configure backup storage](../../../back-up-restore-universes/configure-backup-storage/#make-backup-settings-persistent-on-kubernetes).
+
 Do one of the following:
 
 - Create a [`yugabyte-platform-universe-management` service account](#create-a-service-account) and a [`kubeconfig` file](#create-a-kubeconfig-file) directly.

@@ -35,8 +35,28 @@ You can configure AWS S3 and S3-compatible storage as your backup target.
     If you are using custom self-signed or CA certificates, to connect to your S3 storage, you must add the certificates to the YugabyteDB Anywhere Trust Store. Refer to [Add certificates to your trust store](../../security/enable-encryption-in-transit/trust-store/).
 
     {{< note title="Certificate validation can't be disabled" >}}
-If you set the **Server certificate verification for S3 backup/restore** (`yb.certVerifyBackupRestore.is_enforced`) Global Runtime Configuration option to False, the setting will be ignored.
+If you set the **Server certificate verification for S3 backup/restore** Global Runtime Configuration option (config key `yb.certVerifyBackupRestore.is_enforced`) to False, the setting will be ignored.
     {{< /note >}}
+
+### Choose an S3 authentication method
+
+When you create an S3 backup configuration, choose how YugabyteDB Anywhere and the universe authenticate to the bucket. Enable **IAM Role** for either IAM path, or leave it disabled and provide static credentials.
+
+**Recommended default:** For production universes on AWS (including EKS with IRSA), use universe node IAM roles. Use static **Access Key** and **Access Secret** credentials for evaluation setups, or when neither the YBA host nor the universe nodes can assume IAM roles. Treat YBA instance IAM as legacy, and keep it only for existing configurations that already depend on it.
+
+| Option | When to use | Prerequisites | Trade-offs |
+| :--- | :--- | :--- | :--- |
+| Universe node IAM role {{<tags/feature/ea>}} | Production backups on AWS VMs or Kubernetes (EKS IRSA). Recommended for new deployments. | Attach IAM roles (or annotated Kubernetes service accounts) with the [required S3 IAM permissions](#required-s3-iam-permissions) to each universe node or database pod.<br>Set the **Use S3 IAM roles attached to DB node for Backup/Restore** [Universe Configuration option](../../administer-yugabyte-platform/manage-runtime-config/) to true. Enable **IAM Role** on the storage configuration. For EKS, see [Kubernetes backups (EKS)](#kubernetes-backups-eks). | YB Controller on each node authenticates to S3 directly, so backups scale with cluster size. Requires a universe-level runtime configuration change. Preferred path going forward. |
+| YBA instance IAM role (Legacy) {{<tags/feature/ga>}} | Existing setups that already use the IAM role attached to the YugabyteDB Anywhere VM or pod. | Attach an IAM role with the [required S3 IAM permissions](#required-s3-iam-permissions) to the YugabyteDB Anywhere host. Enable **IAM Role**. <br>Leave **Use S3 IAM roles attached to DB node for Backup/Restore** at the default (`false`). | YBA fetches temporary credentials from its own instance role and passes them to database nodes. This path does not scale well for large backups and is not recommended for new deployments. |
+| Access Key and Access Secret {{<tags/feature/ga>}} | Evaluation and proof-of-concept setups; environments where neither YBA nor universe nodes have IAM roles (including many S3-compatible targets). | An IAM user (or equivalent) with the [required S3 IAM permissions](#required-s3-iam-permissions). Leave **IAM Role** disabled and enter **Access Key** and **Access Secret**. | Simplest path to a first successful backup. Credentials are stored in YBA and must be rotated manually. Prefer IAM for production when available. |
+
+#### Examples
+
+- **First backup / evaluation.** Leave **IAM Role** disabled. Enter an AWS access key and secret for a user that can read and write the backup bucket.
+- **New production AWS or EKS universe.** Attach instance profiles (or IRSA service accounts) to the database nodes, set **Use S3 IAM roles attached to DB node for Backup/Restore** (`yb.backup.s3.use_db_nodes_iam_role_for_backup`) to true for the universe, then enable **IAM Role** on the storage configuration.
+- **Existing YBA-role configuration.** Keep **IAM Role** enabled and leave `yb.backup.s3.use_db_nodes_iam_role_for_backup` at `false` until you can migrate nodes to their own IAM roles.
+
+For cloud permission setup details, refer to [Permissions to back up and restore](../../prepare/cloud-permissions/cloud-permissions-storage/). On EKS, open the AWS **Kubernetes** tab on that page for IRSA setup.
 
 ### Create an AWS backup configuration
 
@@ -50,19 +70,21 @@ To configure S3 storage, do the following:
 
 1. Use the **Configuration Name** field to provide a meaningful name for your storage configuration.
 
-1. Enable **IAM Role** to use the YugabyteDB Anywhere instance's Identity Access Management (IAM) role or universe node IAM role for the S3 backup. See [Required S3 IAM permissions](#required-s3-iam-permissions).
+1. Choose authentication using the guidance in [Choose an S3 authentication method](#choose-an-s3-authentication-method):
 
-    To enable universe node IAM roles to access storage in S3, set the **Use S3 IAM roles attached to DB node for Backup/Restore** Universe Configuration option (config key `yb.backup.s3.use_db_nodes_iam_role_for_backup`) to true. Refer to [Manage runtime configuration settings](../../administer-yugabyte-platform/manage-runtime-config/).
+    - To use IAM (universe node IAM role or legacy YBA instance IAM role), enable **IAM Role**.
 
-1. If **IAM Role** is disabled, enter values for the **Access Key** and **Access Secret** fields.
+        For universe node IAM roles, also set the **Use S3 IAM roles attached to DB node for Backup/Restore** Universe Configuration option (config key `yb.backup.s3.use_db_nodes_iam_role_for_backup`) to true. Refer to [Manage runtime configuration settings](../../administer-yugabyte-platform/manage-runtime-config/).
 
-    For information on AWS access keys, see [Manage access keys for IAM users](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html).
+    - To use static credentials, leave **IAM Role** disabled and enter values for the **Access Key** and **Access Secret** fields.
+
+        For information on AWS access keys, see [Manage access keys for IAM users](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html).
 
 1. In the **S3 Bucket** field, enter the bucket name in the format `s3://bucket_name`, or `https://storage_vendor/s3-bucket-name` for S3-compatible storage.
 
 1. In the **S3 Bucket Host Base** field, enter the HTTP host header (endpoint URL) of the AWS S3 or S3-compatible storage, in the form `s3.amazonaws.com` or `my.storage.com`.
 
-1. If you are using S3-compatible storage, set the **S3 Path Style Access** option to true. (The option is only available if the **enablePathStyleAccess** feature is enabled.)
+1. If you are using S3-compatible storage, set the **S3 Path Style Access** option to true. (The option is only available after you enable the **Enable Path Access Style for Amazon S3** Global Runtime Configuration option, config key `yb.ui.feature_flags.enable_path_style_access`.)
 
 1. Click **Save**.
 
@@ -86,6 +108,80 @@ The following S3 IAM permissions are required:
 "s3:ListAllMyBuckets",
 "s3:GetBucketLocation"
 ```
+
+### Kubernetes backups (EKS)
+
+{{<tags/feature/ea>}}On Amazon EKS, use IRSA so database pods can assume an IAM role for S3. Node instance profiles alone do **not** grant S3 access to pods.
+
+For IAM role trust policy, KSA annotations, and verification steps, refer to the AWS **Kubernetes** tab in [Permissions to back up and restore](../../prepare/cloud-permissions/cloud-permissions-storage/).
+
+To configure S3 backups with universe node IAM on EKS:
+
+1. Create an IRSA-enabled Kubernetes service account (KSA) with the [required S3 IAM permissions](#required-s3-iam-permissions), in each namespace where database pods run.
+
+1. Attach the KSA to database pods using provider or universe Helm overrides. For example:
+
+    ```yaml
+    tserver:
+      serviceAccount: <KSA_NAME>
+    ```
+
+    For details, see [EKS service account](../../create-deployments/create-universe-multi-zone-kubernetes/#eks-service-account). If you use the [YugabyteDB Kubernetes Operator](../../anywhere-automation/yb-kubernetes-operator/), set the same override under `spec.kubernetesOverrides`.
+
+1. Set the **Use S3 IAM roles attached to DB node for Backup/Restore** Universe Configuration option (config key `yb.backup.s3.use_db_nodes_iam_role_for_backup`) to true. Refer to [Manage runtime configuration settings](../../administer-yugabyte-platform/manage-runtime-config/).
+
+1. Create an S3 storage configuration with **IAM Role** enabled, as described in [Create an AWS backup configuration](#create-an-aws-backup-configuration).
+
+1. Verify credentials from a tserver pod (see the prepare page), then run a test backup.
+
+For which settings survive pod restarts and upgrades, see [Make backup settings persistent on Kubernetes](#make-backup-settings-persistent-on-kubernetes).
+
+### Make backup settings persistent on Kubernetes
+
+Settings you apply with `kubectl edit`, one-off interactive install prompts, or temporary pod changes are **not** durable. Use the following so backup IAM configuration survives restarts and upgrades:
+
+| Setting | Persistent if you… | Not persistent if you… |
+| :--- | :--- | :--- |
+| Storage configuration (**IAM Role**, Access Key / Secret, GCS credentials) | Create or update it in the YBA UI or API (stored in the YBA database). | — |
+| **Use S3 IAM roles attached to DB node for Backup/Restore** (`yb.backup.s3.use_db_nodes_iam_role_for_backup`) | Set it via YBA [runtime configuration](../../administer-yugabyte-platform/manage-runtime-config/) (UI or API). | — |
+| Database pod `serviceAccount` (and GKE `nodeSelector`) | Set provider or universe **Helm overrides** in YBA, or Operator `kubernetesOverrides`, then apply/upgrade the universe. | Edit the live Deployment or Pod with `kubectl`, or change the SA only in the cluster without updating overrides. |
+| YBA pod service account (legacy YBA IAM / GKE YBA Workload Identity) | Put `yugaware.serviceAccount` (and any required `nodeSelector`) in your Helm `values.yaml` and run `helm upgrade`. | Rely only on interactive install answers that were never written to `values.yaml`. |
+| IRSA / Workload Identity annotations on the KSA | Keep annotations in the KSA manifest you manage (GitOps, Helm chart for the SA, or `kubectl apply` of that manifest). | Recreate the KSA without annotations, or expect YBA to recreate IRSA bindings for you. |
+
+#### Universe pod overrides (recommended path)
+
+Set the database pod service account in YBA (provider- or universe-level overrides), for example:
+
+```yaml
+tserver:
+  serviceAccount: <KSA_NAME>
+```
+
+For GKE, also include:
+
+```yaml
+nodeSelector:
+  iam.gke.io/gke-metadata-server-enabled: "true"
+```
+
+Saving these overrides in YBA and applying them to the universe is what makes the pod identity persistent. See [Helm overrides](../../create-deployments/create-universe-multi-zone-kubernetes/#helm-overrides).
+
+#### YBA Helm values (YBA pod IAM)
+
+If the YBA pod itself must use a cloud IAM role (legacy S3 path, or GKE validation), set the service account in values and upgrade:
+
+```yaml
+yugaware:
+  serviceAccount: <KSA_NAME>
+nodeSelector:
+  iam.gke.io/gke-metadata-server-enabled: "true"   # GKE only
+```
+
+```sh
+helm upgrade <RELEASE_NAME> yugabytedb/yugaware -n <YBA_NAMESPACE> -f values.yaml
+```
+
+For GKE install-time guidance, see [Enable GKE service account-based IAM](../../install-yugabyte-platform/install-software/kubernetes/#enable-gke-service-account-based-iam).
 
 ### Specify signing region
 
@@ -122,12 +218,21 @@ To grant access to your bucket, create a GCP service account with [IAM roles for
 roles/storage.admin
 ```
 
-The credentials for this account (in JSON format) are used when creating the backup storage configuration. For information on how to obtain GCS credentials, see [Cloud Storage authentication](https://cloud.google.com/storage/docs/authentication).
+The credentials for this account (in JSON format) are used when creating the backup storage configuration with static credentials. For information on how to obtain GCS credentials, see [Cloud Storage authentication](https://cloud.google.com/storage/docs/authentication).
 
 You can configure access control for the GCS bucket as follows:
 
 - Provide the required access control list (ACL) and set it as either uniform or fine-grained (for object-level access).
 - Add permissions, such as roles and members.
+
+### Choose a GCS authentication method
+
+When you create a GCS backup configuration, choose how YugabyteDB Anywhere and the universe authenticate to the bucket:
+
+- **Use GCP IAM** — Use Workload Identity (GKE) or the IAM identity on the YBA / database host. On GKE, attach a Google IAM service account to the Kubernetes service account used by database pods (and typically the YBA pod). See [Kubernetes backups (GKE)](#kubernetes-backups-gke).
+- **GCS Credentials (JSON)** — Simplest path for evaluation setups, or when Workload Identity / host IAM is unavailable. Leave **Use GCP IAM** disabled and paste the service account JSON.
+
+For cloud permission setup, refer to the GCP tab in [Permissions to back up and restore](../../prepare/cloud-permissions/cloud-permissions-storage/) (use the **Kubernetes** sub-tab for GKE).
 
 ### Create a GCS backup configuration
 
@@ -143,11 +248,37 @@ To create a GCP backup configuration, do the following:
 
 1. Enter the URI of your GCS bucket in the **GCS Bucket** field. For example, `gs://gcp-bucket/test_backups`.
 
-1. Select **Use GCP IAM** to use the YugabyteDB Anywhere instance's Identity Access Management (IAM) role for the GCS backup.
+1. Choose authentication:
 
-1. If **Use GCP IAM** is disabled, enter the credentials for your account in JSON format in the **GCS Credentials** field.
+    - To use IAM (including GKE Workload Identity), select **Use GCP IAM**.
+    - Otherwise, leave **Use GCP IAM** disabled and enter the credentials for your account in JSON format in the **GCS Credentials** field.
 
 1. Click **Save**.
+
+### Kubernetes backups (GKE)
+
+On GKE, use [Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) so database pods can access GCS. For KSA annotations, IAM bindings, and verification, refer to the GCP **Kubernetes** tab in [Permissions to back up and restore](../../prepare/cloud-permissions/cloud-permissions-storage/) and [GKE service account-based IAM](../../prepare/cloud-permissions/cloud-permissions-nodes-gcp/#gke-service-account-based-iam-gcp-iam).
+
+To configure GCS backups with Workload Identity:
+
+1. Create a Google IAM service account with the [required permissions](#required-gcp-service-account-permissions), and a Kubernetes service account (KSA) annotated for Workload Identity in each namespace where pods run.
+
+1. Attach the KSA to database pods using provider or universe Helm overrides:
+
+    ```yaml
+    tserver:
+      serviceAccount: <KSA_NAME>
+    nodeSelector:
+      iam.gke.io/gke-metadata-server-enabled: "true"
+    ```
+
+    For details, see [GKE service account](../../create-deployments/create-universe-multi-zone-kubernetes/#gke-service-account). To upgrade an existing universe, see [Upgrade universes for GKE service account-based IAM](../../manage-deployments/edit-helm-overrides/#upgrade-universes-for-gke-service-account-based-iam).
+
+1. If the YBA pod must also use Workload Identity (recommended so YBA can validate the bucket), set the YBA Helm service account as described in [Enable GKE service account-based IAM](../../install-yugabyte-platform/install-software/kubernetes/#enable-gke-service-account-based-iam), and persist it with `helm upgrade` — see [Make backup settings persistent on Kubernetes](#make-backup-settings-persistent-on-kubernetes).
+
+1. Create a GCS storage configuration with **Use GCP IAM** enabled, as described in [Create a GCS backup configuration](#create-a-gcs-backup-configuration).
+
+1. Verify the workload identity from a tserver pod, then run a test backup.
 
 ## Azure Storage
 

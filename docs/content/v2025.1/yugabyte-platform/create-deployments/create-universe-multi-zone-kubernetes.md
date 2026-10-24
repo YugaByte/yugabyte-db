@@ -168,6 +168,8 @@ nodeSelector:
   iam.gke.io/gke-metadata-server-enabled: "true"
 ```
 
+For end-to-end GCS backup setup on GKE (Workload Identity, storage configuration, and persistence), see [Kubernetes backups (GKE)](../../back-up-restore-universes/configure-backup-storage/#kubernetes-backups-gke) and the GCP **Kubernetes** tab in [Permissions to back up and restore](../../prepare/cloud-permissions/cloud-permissions-storage/).
+
 If you don't provide namespace names for each zone/region during [provider creation](../../configure-yugabyte-platform/kubernetes/), add the names using the following steps:
 
 1. Add the Kubernetes service account to the namespaces where the pods are created.
@@ -178,6 +180,10 @@ To enable the GKE service account service at the provider level, refer to [Overr
 #### EKS service account
 
 In AWS, you can attach a service account to database pods; the account can then be used to access storage. The service account used for the database pods should have annotations for the IAM role. The service account to be used can be applied to the DB pods as helm override with provider/universe level overrides. The IAM role used should be sufficient to access S3 storage.
+
+{{< note title="Node IAM is not pod IAM" >}}
+IAM roles on EKS worker nodes do not grant S3 access to pods. Use IRSA on the database pod service account. See [Kubernetes backups (EKS)](../../back-up-restore-universes/configure-backup-storage/#kubernetes-backups-eks) and the AWS **Kubernetes** tab in [Permissions to back up and restore](../../prepare/cloud-permissions/cloud-permissions-storage/).
+{{< /note >}}
 
 To enable IAM roles for S3, set the **Use S3 IAM roles attached to DB node for Backup/Restore** Universe Configuration option (config key `yb.backup.s3.use_db_nodes_iam_role_for_backup`) to true. Refer to [Manage runtime configuration settings](../../administer-yugabyte-platform/manage-runtime-config/).
 
@@ -191,6 +197,8 @@ tserver:
 ```
 
 To enable the EKS service account service at the provider level, refer to [Overrides](../../configure-yugabyte-platform/kubernetes/#overrides).
+
+Save these overrides in YBA (or Operator `kubernetesOverrides`) so they persist across upgrades — see [Make backup settings persistent on Kubernetes](../../back-up-restore-universes/configure-backup-storage/#make-backup-settings-persistent-on-kubernetes).
 
 #### Readiness probes
 

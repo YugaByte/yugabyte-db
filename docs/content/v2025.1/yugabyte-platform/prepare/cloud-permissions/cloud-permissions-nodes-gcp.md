@@ -101,9 +101,11 @@ By using Workload Identity, you avoid the need for manually managing service acc
 
 - To enable GCP IAM when installing YugabyteDB Anywhere on Kubernetes, refer to [Enable GKE service account-based IAM](../../../install-yugabyte-platform/install-software/kubernetes/#enable-gke-service-account-based-iam).
 
+- To prepare GCS permissions and Workload Identity for backups, refer to the GCP **Kubernetes** tab in [Permissions to back up and restore](../cloud-permissions-storage/).
+
 - To enable GCP IAM during universe creation on Kubernetes, refer to [Configure Helm overrides](../../../create-deployments/create-universe-multi-zone-kubernetes/#helm-overrides).
 
-- To enable GCP IAM for Google Cloud Storage backup configuration with Kubernetes, refer to [Configure backup storage](../../../back-up-restore-universes/configure-backup-storage/#google-cloud-storage).
+- To enable GCP IAM for Google Cloud Storage backup configuration with Kubernetes, refer to [Kubernetes backups (GKE)](../../../back-up-restore-universes/configure-backup-storage/#kubernetes-backups-gke).
 
 - To upgrade an existing universe with GCP IAM, refer to [Upgrade universes for GKE service account-based IAM support](../../../manage-deployments/edit-helm-overrides/#upgrade-universes-for-gke-service-account-based-iam).
 
