@@ -1340,7 +1340,7 @@ class ControlScript(object):
         self.start_callhome_thread(
             CALLHOME_EVENT_UPGRADE_CHECK_VERSION_COMPATIBILITY,
             lambda: self._send_upgrade_check_version_compatibility_callhome(
-                timeout, compatible, time_taken))
+                compatible, time_taken))
         self.shutdown_callhome_thread(
             CALLHOME_EVENT_UPGRADE_CHECK_VERSION_COMPATIBILITY, timeout=5)
 
