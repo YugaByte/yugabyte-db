@@ -7678,6 +7678,30 @@ gincost_pattern(IndexOptInfo *index, int indexcol,
 		return true;
 	}
 
+	if (IsYugaByteEnabled() && index->relam == YBGIN_AM_OID &&
+		index->opcintype[indexcol] == INT4ARRAYOID && nentries > 1)
+	{
+		/*
+		 * TODO(#7850): ybgin cannot execute a scan key that expands to more
+		 * than one required entry -- for example intarray's array-overlap "&&"
+		 * or a query_int OR such as "1 | 2" -- so the executor errors out at
+		 * run time with "unsupported ybgin index scan".  Until ybgin supports
+		 * multi-entry scans, steer such a query to a sequential scan instead of
+		 * a runtime error by piggybacking on attHasFullScan (which the caller
+		 * translates to disable_cost).
+		 *
+		 * This is intentionally scoped to intarray's gin__int_ops opclass,
+		 * identified by its _int4 (int[]) input type -- the only ybgin opclass
+		 * over int arrays.  The same executor limitation applies to the other
+		 * ybgin opclasses (array_ops, tsvector, jsonb, pg_trgm, hstore), but we
+		 * deliberately leave their behavior unchanged here to keep the blast
+		 * radius small; the general fix belongs in the executor.  See
+		 * https://github.com/yugabyte/yugabyte-db/issues/7850.
+		 */
+		counts->attHasFullScan[indexcol] = true;
+		return true;
+	}
+
 	for (i = 0; i < nentries; i++)
 	{
 		/*
