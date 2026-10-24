@@ -27,6 +27,8 @@ import com.yugabyte.yw.models.Customer;
 import com.yugabyte.yw.models.NodeAgent;
 import com.yugabyte.yw.models.NodeAgent.ArchType;
 import com.yugabyte.yw.models.NodeAgent.OSType;
+import com.yugabyte.yw.nodeagent.CheckYugabyteDbStatusRequest;
+import com.yugabyte.yw.nodeagent.CheckYugabyteDbStatusResponse;
 import com.yugabyte.yw.nodeagent.DescribeTaskRequest;
 import com.yugabyte.yw.nodeagent.DescribeTaskResponse;
 import com.yugabyte.yw.nodeagent.DownloadFileRequest;
@@ -41,12 +43,14 @@ import com.yugabyte.yw.nodeagent.PingRequest;
 import com.yugabyte.yw.nodeagent.PingResponse;
 import com.yugabyte.yw.nodeagent.PreflightCheckInput;
 import com.yugabyte.yw.nodeagent.PreflightCheckOutput;
+import com.yugabyte.yw.nodeagent.ProcessStatus;
 import com.yugabyte.yw.nodeagent.SubmitTaskRequest;
 import com.yugabyte.yw.nodeagent.SubmitTaskResponse;
 import com.yugabyte.yw.nodeagent.UpdateRequest;
 import com.yugabyte.yw.nodeagent.UpdateResponse;
 import com.yugabyte.yw.nodeagent.UploadFileRequest;
 import com.yugabyte.yw.nodeagent.UploadFileResponse;
+import com.yugabyte.yw.nodeagent.YugabyteProcessRole;
 import io.grpc.ConnectivityState;
 import io.grpc.ManagedChannel;
 import io.grpc.Status;
@@ -190,6 +194,25 @@ public class NodeAgentClientTest extends FakeDBApplication {
           public void update(
               UpdateRequest request, StreamObserver<UpdateResponse> responseObserver) {
             responseObserver.onNext(UpdateResponse.newBuilder().build());
+            responseObserver.onCompleted();
+          }
+
+          @Override
+          public void checkYugabyteDbStatus(
+              CheckYugabyteDbStatusRequest request,
+              StreamObserver<CheckYugabyteDbStatusResponse> responseObserver) {
+            responseObserver.onNext(
+                CheckYugabyteDbStatusResponse.newBuilder()
+                    .setMasterPresent(true)
+                    .setTserverPresent(true)
+                    .addProcesses(
+                        ProcessStatus.newBuilder()
+                            .setRole(YugabyteProcessRole.YB_ROLE_MASTER)
+                            .setRunning(true)
+                            .setPid(1001)
+                            .addListenPorts(7000)
+                            .build())
+                    .build());
             responseObserver.onCompleted();
           }
 
@@ -381,6 +404,18 @@ public class NodeAgentClientTest extends FakeDBApplication {
     clientWithStaleChannel.ping(nodeAgent);
     assertEquals(2, channelLoads.get());
     verify(unhealthyChannel).shutdown();
+  }
+
+  @Test
+  public void testCheckYugabyteDbStatus() {
+    CheckYugabyteDbStatusResponse response = nodeAgentClient.checkYugabyteDbStatus(nodeAgent);
+    assertNotNull("CheckYugabyteDbStatusResponse must be set", response);
+    assertEquals(true, response.getMasterPresent());
+    assertEquals(true, response.getTserverPresent());
+    ProcessStatus master = Iterables.getOnlyElement(response.getProcessesList());
+    assertEquals(YugabyteProcessRole.YB_ROLE_MASTER, master.getRole());
+    assertEquals(true, master.getRunning());
+    assertEquals(1001, master.getPid());
   }
 
   @Test

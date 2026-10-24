@@ -314,6 +314,70 @@ message RotateSshKeyInput {
 message RotateSshKeyOutput {
 }
 
+// YugabyteProcessRole identifies a YugabyteDB related process on the node.
+enum YugabyteProcessRole {
+    YB_ROLE_UNKNOWN = 0;
+    YB_ROLE_MASTER = 1;
+    YB_ROLE_TSERVER = 2;
+    YB_ROLE_CONTROLLER = 3;
+    YB_ROLE_POSTGRES = 4;
+    YB_ROLE_NODE_EXPORTER = 5;
+}
+
+// ProcessListener is a single listening socket classified to a role when known.
+message ProcessListener {
+    uint32 port = 1;
+    string protocol = 2;
+    int32 pid = 3;
+    YugabyteProcessRole role = 4;
+    string processName = 5;
+}
+
+// ProcessArg is a single key-value argument. Sensitive values are redacted.
+message ProcessArg {
+    string key = 1;
+    string value = 2;
+    // Source is one of "cmdline", "flagfile" or "merged".
+    string source = 3;
+}
+
+// ProcessConfig carries the flagfile and parsed arguments for a process. It is
+// only populated for master, tserver and controller when the process is running.
+message ProcessConfig {
+    string flagfilePath = 1;
+    bool flagfileExists = 2;
+    bool flagfileReadable = 3;
+    repeated ProcessArg cmdlineArgs = 4;
+    repeated ProcessArg flagfileArgs = 5;
+    // Merged effective arguments (flagfile overlaid by cmdline).
+    repeated ProcessArg args = 6;
+}
+
+// ProcessStatus is the detected status of a single role.
+message ProcessStatus {
+    YugabyteProcessRole role = 1;
+    bool running = 2;
+    // Primary pid when multiple processes match the role.
+    int32 pid = 3;
+    repeated uint32 listenPorts = 4;
+    repeated ProcessListener listeners = 5;
+    ProcessConfig config = 6;
+}
+
+message CheckYugabyteDbStatusRequest {
+}
+
+message CheckYugabyteDbStatusResponse {
+    bool masterPresent = 1;
+    bool tserverPresent = 2;
+    bool controllerPresent = 3;
+    bool postgresPresent = 4;
+    bool nodeExporterPresent = 5;
+    repeated ProcessStatus processes = 6;
+    // Listeners classified as YugabyteDB processes on non-default ports.
+    repeated ProcessListener otherListeners = 7;
+}
+
 message HealthCheckInput {
     // Opaque id for this schedule configuration. Changing it forces a reschedule.
     string generation_id = 1;

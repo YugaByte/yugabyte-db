@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"node-agent/app/task"
+	"node-agent/app/ybdb"
 	pb "node-agent/generated/service"
 	"node-agent/metric"
 	"node-agent/model"
@@ -739,6 +740,21 @@ func (server *RPCServer) Update(
 	}
 	res := &pb.UpdateResponse{Home: util.MustGetHomeDirectory()}
 	return res, err
+}
+
+// CheckYugabyteDbStatus detects the running YugabyteDB related processes on the
+// node, the ports they listen on and the configuration they were started with.
+func (server *RPCServer) CheckYugabyteDbStatus(
+	ctx context.Context,
+	in *pb.CheckYugabyteDbStatusRequest,
+) (*pb.CheckYugabyteDbStatusResponse, error) {
+	util.FileLogger().Debugf(ctx, "Received check YugabyteDB status")
+	res, err := ybdb.NewDetector().Detect(ctx)
+	if err != nil {
+		util.FileLogger().Errorf(ctx, "Error in detecting YugabyteDB status - %s", err.Error())
+		return nil, toGrpcErrorIfNeeded(codes.Internal, err)
+	}
+	return res, nil
 }
 
 /* End of gRPC methods. */

@@ -17,6 +17,8 @@ service NodeAgent {
     rpc UploadFile(stream UploadFileRequest) returns (UploadFileResponse);
     rpc DownloadFile(DownloadFileRequest) returns (stream DownloadFileResponse);
     rpc Update(UpdateRequest) returns (UpdateResponse);
+    rpc CheckYugabyteDbStatus(CheckYugabyteDbStatusRequest)
+        returns (CheckYugabyteDbStatusResponse);
 }
 
 message ServerInfo {

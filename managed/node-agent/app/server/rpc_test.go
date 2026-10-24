@@ -108,6 +108,42 @@ func TestPing(t *testing.T) {
 	}
 }
 
+func TestCheckYugabyteDbStatus(t *testing.T) {
+	conn, err := grpc.Dial(serverAddr, dialOpts...)
+	if err != nil {
+		t.Fatalf("Failed to dial: %v", err)
+	}
+	defer conn.Close()
+	client := pb.NewNodeAgentClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	res, err := client.CheckYugabyteDbStatus(ctx, &pb.CheckYugabyteDbStatusRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The test host is not expected to run YugabyteDB, so only the shape of the
+	// response is validated: one status entry per known role.
+	if len(res.GetProcesses()) == 0 {
+		t.Fatalf("Expected a status entry per role")
+	}
+	roles := map[pb.YugabyteProcessRole]bool{}
+	for _, status := range res.GetProcesses() {
+		roles[status.GetRole()] = true
+	}
+	expectedRoles := []pb.YugabyteProcessRole{
+		pb.YugabyteProcessRole_YB_ROLE_MASTER,
+		pb.YugabyteProcessRole_YB_ROLE_TSERVER,
+		pb.YugabyteProcessRole_YB_ROLE_CONTROLLER,
+		pb.YugabyteProcessRole_YB_ROLE_POSTGRES,
+		pb.YugabyteProcessRole_YB_ROLE_NODE_EXPORTER,
+	}
+	for _, role := range expectedRoles {
+		if !roles[role] {
+			t.Errorf("Expected status entry for role %s", role)
+		}
+	}
+}
+
 func TestExecuteInvalidCommand(t *testing.T) {
 	conn := newTestClient(t)
 	defer conn.Close()
