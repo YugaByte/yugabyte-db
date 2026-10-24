@@ -713,3 +713,80 @@ SELECT m.relname,
 FROM inh_idx_info m
 JOIN pg_class new ON new.relname = m.relname
 ORDER BY m.relname;
+
+--
+-- Test ALTER TYPE with yb_enable_alter_table_rewrite = OFF when no table
+-- rewrite is required (issue #32235). The legacy path used to skip
+-- ATPostAlterTypeCleanup entirely, leaving dependent indexes pointing at the
+-- old type's operator class; the stale operator class then made the YSQL
+-- major version upgrade's pg_restore fail with "operator class ... does not
+-- accept data type ...".
+--
+SET yb_enable_alter_table_rewrite = OFF;
+-- timestamp -> timestamptz requires no table rewrite only under UTC.
+SET timezone = 'UTC';
+CREATE TABLE legacy_alter_type_test (id int, id2 int, created_at timestamp,
+    PRIMARY KEY (id ASC));
+CREATE INDEX legacy_alter_type_idx ON legacy_alter_type_test (id2 ASC, created_at DESC);
+INSERT INTO legacy_alter_type_test
+    SELECT g, g, '2024-01-01 00:00:00'::timestamp + make_interval(mins => g)
+    FROM generate_series(1, 5) g;
+CREATE TEMP TABLE legacy_alter_type_info AS
+    SELECT oid, relfilenode FROM pg_class WHERE relname = 'legacy_alter_type_test';
+ALTER TABLE legacy_alter_type_test ALTER COLUMN created_at TYPE timestamptz;
+-- the no-rewrite type change must not have rewritten the table.
+SELECT CASE WHEN old.oid = new.oid AND old.relfilenode = new.relfilenode
+        THEN 'table not rewritten' ELSE 'table rewritten' END AS result
+    FROM legacy_alter_type_info old, pg_class new
+    WHERE new.relname = 'legacy_alter_type_test';
+-- the index must use the new type's default operator class, so
+-- pg_get_indexdef must not print an explicit operator class.
+SELECT pg_get_indexdef('legacy_alter_type_idx'::regclass);
+-- indclass and the index's pg_attribute rows must match the new column type.
+SELECT a.attname, format_type(a.atttypid, a.atttypmod) AS attr_type, opc.opcname
+    FROM pg_index i
+    JOIN pg_attribute a ON a.attrelid = i.indexrelid
+    JOIN pg_opclass opc ON opc.oid = i.indclass[a.attnum - 1]
+    WHERE i.indexrelid = 'legacy_alter_type_idx'::regclass
+    ORDER BY a.attnum;
+-- the rebuilt index is consistent with the base table and serves reads.
+SELECT yb_index_check('legacy_alter_type_idx'::regclass);
+/*+ IndexScan(legacy_alter_type_test legacy_alter_type_idx) */ EXPLAIN (COSTS OFF)
+SELECT id, id2 FROM legacy_alter_type_test
+    WHERE id2 > 3 AND created_at > '2024-01-01 00:00:00+00' ORDER BY id;
+/*+ IndexScan(legacy_alter_type_test legacy_alter_type_idx) */
+SELECT id, id2 FROM legacy_alter_type_test
+    WHERE id2 > 3 AND created_at > '2024-01-01 00:00:00+00' ORDER BY id;
+-- an index backing a UNIQUE constraint is fixed up through the same path.
+CREATE TABLE legacy_alter_type_unique_test (created_at timestamp UNIQUE);
+INSERT INTO legacy_alter_type_unique_test VALUES ('2024-01-01 00:00:00');
+ALTER TABLE legacy_alter_type_unique_test ALTER COLUMN created_at TYPE timestamptz;
+SELECT format_type(a.atttypid, a.atttypmod) AS attr_type, opc.opcname
+    FROM pg_index i
+    JOIN pg_attribute a ON a.attrelid = i.indexrelid
+    JOIN pg_opclass opc ON opc.oid = i.indclass[a.attnum - 1]
+    WHERE i.indexrelid = 'legacy_alter_type_unique_test_created_at_key'::regclass;
+SELECT yb_index_check('legacy_alter_type_unique_test_created_at_key'::regclass);
+INSERT INTO legacy_alter_type_unique_test VALUES ('2024-01-01 00:00:00+00'); -- should fail.
+-- a compatible no-rewrite change under the legacy path reuses the index in
+-- place and updates its attribute metadata.
+CREATE TABLE legacy_alter_compat_test (a varchar(10));
+CREATE INDEX legacy_alter_compat_idx ON legacy_alter_compat_test (a);
+CREATE TEMP TABLE legacy_alter_compat_info AS
+    SELECT c.oid, c.relfilenode, a.atttypmod FROM pg_class c, pg_attribute a
+    WHERE c.relname = 'legacy_alter_compat_idx' AND a.attrelid = c.oid AND a.attnum = 1;
+ALTER TABLE legacy_alter_compat_test ALTER COLUMN a TYPE varchar(100);
+SELECT CASE WHEN old.oid = new.oid THEN 'OID reused' ELSE 'OID changed' END,
+        CASE WHEN old.relfilenode = new.relfilenode
+            THEN 'relfilenode reused' ELSE 'relfilenode changed' END,
+        CASE WHEN old.atttypmod <> a.atttypmod
+            THEN 'atttypmod updated' ELSE 'atttypmod unchanged' END
+    FROM legacy_alter_compat_info old, pg_class new, pg_attribute a
+    WHERE new.relname = 'legacy_alter_compat_idx'
+        AND a.attrelid = new.oid AND a.attnum = 1;
+RESET yb_enable_alter_table_rewrite;
+RESET timezone;
+-- the restore-side failure that stale operator classes previously caused: an
+-- explicit operator class that does not accept the column type is rejected.
+CREATE TABLE restore_shape_test (id int, created_at timestamptz);
+CREATE INDEX ON restore_shape_test (created_at timestamp_ops DESC); -- should fail.

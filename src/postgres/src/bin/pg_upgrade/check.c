@@ -49,6 +49,7 @@ static void yb_check_user_attributes(PGconn *old_cluster_conn,
 static void yb_check_yugabyte_user(PGconn *old_cluster_conn);
 static void yb_check_old_cluster_user(PGconn *old_cluster_conn);
 static void yb_check_invalid_indexes();
+static void yb_check_index_opclass_consistency();
 static void yb_check_installed_extensions();
 static void yb_check_pgcrypto_schema();
 static void yb_check_yb_role_prefix();
@@ -235,6 +236,7 @@ check_and_dump_old_cluster(bool live_check)
 		old_9_3_check_for_line_data_type_usage(&old_cluster);
 
 	yb_check_invalid_indexes();
+	yb_check_index_opclass_consistency();
 	yb_check_installed_extensions();
 	yb_check_pgcrypto_schema();
 	yb_check_yb_role_prefix();
@@ -1881,6 +1883,154 @@ yb_check_invalid_indexes()
 	{
 		check_ok();
 	}
+}
+
+/*
+ * yb_check_index_opclass_consistency()
+ *
+ * Find indexes whose recorded operator class (pg_index.indclass) no longer
+ * accepts the data type of the indexed table column.  Older versions of
+ * YugabyteDB could leave such stale entries behind when ALTER TABLE ...
+ * ALTER COLUMN ... TYPE ran with yb_enable_alter_table_rewrite disabled and
+ * the type change did not require a table rewrite (GH issue #32235).
+ * pg_dump emits an explicit operator class for these indexes, which the new
+ * PostgreSQL version then refuses to restore.
+ */
+static void
+yb_check_index_opclass_consistency()
+{
+	int			dbnum;
+	bool		found = false;
+	char		output_path[MAXPGPATH];
+	FILE	   *script = NULL;
+
+	snprintf(output_path, sizeof(output_path), "%s/%s",
+			 log_opts.basedir,
+			 "index_opclass_mismatch.txt");
+
+	prep_status("Checking for indexes with mismatched operator classes");
+
+	for (dbnum = 0; dbnum < old_cluster.dbarr.ndbs; dbnum++)
+	{
+		PGresult   *res;
+		int			ntups;
+		int			rowno;
+		int			i_schemaname;
+		int			i_indexname;
+		int			i_indexrelid;
+		int			i_colname;
+		int			i_opcname;
+		int			i_opcintype;
+		int			i_coltype;
+		bool		db_used = false;
+		DbInfo	   *active_db = &old_cluster.dbarr.dbs[dbnum];
+		PGconn	   *conn = connectToServer(&old_cluster, active_db->db_name);
+
+		/*
+		 * Find index key columns whose operator class input type no longer
+		 * accepts the table column's data type, mirroring the validation
+		 * ResolveOpClass performs when the dumped index DDL is restored: the
+		 * column type must match the operator class input type or be
+		 * binary-coercible to it.  Domains are reduced to their base type
+		 * first (like GetDefaultOpClass does).  Operator classes with a
+		 * polymorphic/pseudo-type input (e.g. anyarray, anyenum) are skipped:
+		 * they were validated at index creation and accept every type of
+		 * their type class.  Expression columns (indkey entry 0) have no
+		 * table column to compare against.  Temporary relations are skipped
+		 * because pg_dump does not dump them.
+		 */
+		res = executeQueryOrDie(conn,
+								"WITH RECURSIVE resolved AS ( "
+								"  SELECT oid AS typid, oid AS base, typbasetype "
+								"  FROM pg_catalog.pg_type "
+								"  UNION ALL "
+								"  SELECT r.typid, t.oid, t.typbasetype "
+								"  FROM resolved r "
+								"  JOIN pg_catalog.pg_type t ON t.oid = r.typbasetype "
+								"), base_type AS ( "
+								"  SELECT typid, base FROM resolved WHERE typbasetype = 0 "
+								") "
+								"SELECT n.nspname AS schemaname, "
+								"       ic.relname AS indexname, "
+								"       i.indexrelid AS indexrelid, "
+								"       ta.attname AS colname, "
+								"       oc.opcname AS opcname, "
+								"       pg_catalog.format_type(oc.opcintype, NULL) AS opcintype, "
+								"       pg_catalog.format_type(ta.atttypid, ta.atttypmod) AS coltype "
+								"FROM pg_catalog.pg_index i "
+								"JOIN pg_catalog.pg_class ic ON ic.oid = i.indexrelid "
+								"JOIN pg_catalog.pg_class tc ON tc.oid = i.indrelid "
+								"JOIN pg_catalog.pg_namespace n ON n.oid = ic.relnamespace "
+								"CROSS JOIN LATERAL pg_catalog.generate_series(0, i.indnkeyatts - 1) AS k(k) "
+								"JOIN pg_catalog.pg_attribute ta "
+								"  ON ta.attrelid = i.indrelid AND ta.attnum = i.indkey[k.k] "
+								"JOIN pg_catalog.pg_opclass oc ON oc.oid = i.indclass[k.k] "
+								"JOIN pg_catalog.pg_type ot ON ot.oid = oc.opcintype "
+								"JOIN base_type bt ON bt.typid = ta.atttypid "
+								"WHERE i.indkey[k.k] != 0 "
+								"  AND tc.relpersistence != 't' "
+								"  AND ta.atttypid != oc.opcintype "
+								"  AND bt.base != oc.opcintype "
+								"  AND ot.typtype != 'p' "
+								"  AND NOT EXISTS ( "
+								"    SELECT 1 FROM pg_catalog.pg_cast c "
+								"    WHERE c.castsource = bt.base "
+								"      AND c.casttarget = oc.opcintype "
+								"      AND c.castmethod = 'b' "
+								"      AND c.castcontext = 'i') "
+								"ORDER BY n.nspname, ic.relname, k.k");
+
+		ntups = PQntuples(res);
+		i_schemaname = PQfnumber(res, "schemaname");
+		i_indexname = PQfnumber(res, "indexname");
+		i_indexrelid = PQfnumber(res, "indexrelid");
+		i_colname = PQfnumber(res, "colname");
+		i_opcname = PQfnumber(res, "opcname");
+		i_opcintype = PQfnumber(res, "opcintype");
+		i_coltype = PQfnumber(res, "coltype");
+
+		for (rowno = 0; rowno < ntups; rowno++)
+		{
+			found = true;
+			if (script == NULL && (script = fopen_priv(output_path, "w")) == NULL)
+				pg_fatal("could not open file \"%s\": %s\n", output_path,
+						 strerror(errno));
+			if (!db_used)
+			{
+				yb_fprintf_and_log(script, "In database: %s\n",
+								   active_db->db_name);
+				db_used = true;
+			}
+			yb_fprintf_and_log(script,
+							   "  %s.%s (oid=%s) column \"%s\": operator class \"%s\" accepts type %s, but the column is of type %s\n",
+							   PQgetvalue(res, rowno, i_schemaname),
+							   PQgetvalue(res, rowno, i_indexname),
+							   PQgetvalue(res, rowno, i_indexrelid),
+							   PQgetvalue(res, rowno, i_colname),
+							   PQgetvalue(res, rowno, i_opcname),
+							   PQgetvalue(res, rowno, i_opcintype),
+							   PQgetvalue(res, rowno, i_coltype));
+		}
+
+		PQclear(res);
+		PQfinish(conn);
+	}
+
+	if (found)
+	{
+		yb_fatal("Your installation contains indexes whose operator class does not accept\n"
+				 "the data type of the indexed table column. Older versions of YugabyteDB\n"
+				 "could leave indexes in this state when ALTER TABLE ... ALTER COLUMN ...\n"
+				 "TYPE was run with yb_enable_alter_table_rewrite disabled. pg_dump emits\n"
+				 "an explicit operator class for such indexes, and the new PostgreSQL\n"
+				 "version fails to restore them. You can fix this by dropping and\n"
+				 "recreating the affected indexes (for indexes backing constraints, drop\n"
+				 "and re-add the constraint).\n"
+				 "A list of the affected indexes is printed above and in the file:\n"
+				 "    %s\n\n", output_path);
+	}
+	else
+		check_ok();
 }
 
 static void

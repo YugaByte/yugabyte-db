@@ -5614,12 +5614,21 @@ ATRewriteCatalogs(List **wqueue, LOCKMODE lockmode,
 			 * ATExecAlterColumnType since it should be done only once if
 			 * multiple columns of a table are altered).
 			 *
-			 * Do not perform this work if it is a YB relation because we will
-			 * have created an entirely new table, so there is no need for
-			 * cleanup.
+			 * YB Note: skip the cleanup when the legacy ALTER TYPE flow
+			 * (yb_enable_alter_table_rewrite disabled) cloned the table onto
+			 * an entirely new relation, which recreated all dependent
+			 * objects. The clone only happens when the type change requires
+			 * a rewrite (see yb_clone_table in ATExecAlterColumnType). If no
+			 * rewrite was required (tab->rewrite == 0), the column type was
+			 * updated in place and the cleanup must still run to re-resolve
+			 * dependent indexes and constraints: skipping it used to leave
+			 * indexes with a stale operator class, making the dumped index
+			 * DDL fail to restore during a YSQL major version upgrade
+			 * (GH issue #32235).
 			 */
 			if (pass == AT_PASS_ALTER_TYPE &&
-				(!IsYBRelation(tab->rel) || yb_enable_alter_table_rewrite))
+				(!IsYBRelation(tab->rel) || yb_enable_alter_table_rewrite ||
+				 tab->rewrite == 0))
 				ATPostAlterTypeCleanup(wqueue, tab, lockmode);
 
 			if (tab->rel)

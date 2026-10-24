@@ -407,6 +407,54 @@ TEST_F(YsqlMajorUpgradeCheckTest, YbPrefixRoles) {
   ASSERT_OK(ValidateUpgradeCompatibility());
 }
 
+TEST_F(YsqlMajorUpgradeCheckTest, IndexOpclassMismatch) {
+  auto conn = ASSERT_RESULT(cluster_->ConnectToDB());
+
+  // Indexes whose operator class input type differs from the column type but
+  // is legitimately accepted must NOT be flagged: domains (opclass is on the
+  // base type), enums (polymorphic anyenum opclass), and binary-coercible
+  // types (varchar column with the text opclass).
+  ASSERT_OK(conn.Execute("CREATE DOMAIN posint AS int CHECK (VALUE > 0)"));
+  ASSERT_OK(conn.Execute("CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy')"));
+  ASSERT_OK(conn.Execute(
+      "CREATE TABLE opclass_ok_test (id int, d posint, m mood, v varchar(10), "
+      "PRIMARY KEY (id ASC))"));
+  ASSERT_OK(conn.Execute("CREATE INDEX idx_ok_domain ON opclass_ok_test (d)"));
+  ASSERT_OK(conn.Execute("CREATE INDEX idx_ok_enum ON opclass_ok_test (m)"));
+  ASSERT_OK(conn.Execute("CREATE INDEX idx_ok_coercible ON opclass_ok_test (v text_ops)"));
+  ASSERT_OK(ValidateUpgradeCompatibility());
+
+  // Simulate the stale state left behind by the legacy (rewrite disabled)
+  // ALTER TYPE path on older versions (GH #32235): the table column was
+  // changed from timestamp to timestamptz in place, but the dependent index
+  // kept the timestamp operator class in pg_index.indclass. The PG15 restore
+  // would reject the dumped index DDL with "operator class \"timestamp_ops\"
+  // does not accept data type timestamp with time zone".
+  ASSERT_OK(conn.Execute(
+      "CREATE TABLE opclass_test (id int, id2 int, created_at timestamptz, "
+      "PRIMARY KEY (id ASC))"));
+  ASSERT_OK(conn.Execute("CREATE INDEX idx_opclass_stale ON opclass_test (created_at DESC)"));
+  ASSERT_OK(conn.Execute("SET yb_non_ddl_txn_for_sys_tables_allowed TO on"));
+  ASSERT_OK(conn.Execute(
+      "UPDATE pg_index SET indclass = ("
+      "SELECT oid::text::oidvector FROM pg_opclass WHERE opcname = 'timestamp_ops' "
+      "AND opcmethod = (SELECT oid FROM pg_am WHERE amname = 'lsm')) "
+      "WHERE indexrelid = 'idx_opclass_stale'::regclass"));
+  ASSERT_OK(conn.Execute("RESET yb_non_ddl_txn_for_sys_tables_allowed"));
+
+  ASSERT_OK(ValidateUpgradeCompatibilityFailure(std::vector<std::string>{
+      "public.idx_opclass_stale",
+      "operator class \"timestamp_ops\" accepts type timestamp without time zone",
+      "column is of type timestamp with time zone",
+      "Your installation contains indexes whose operator class does not accept"}));
+
+  // Recovery: drop and recreate the index, which re-resolves the operator
+  // class from the current column type.
+  ASSERT_OK(conn.Execute("DROP INDEX idx_opclass_stale"));
+  ASSERT_OK(conn.Execute("CREATE INDEX idx_opclass_stale ON opclass_test (created_at DESC)"));
+  ASSERT_OK(ValidateUpgradeCompatibility());
+}
+
 TEST_F(YsqlMajorUpgradeCheckTest, StaleFunctionAclGrantors) {
   auto conn = ASSERT_RESULT(cluster_->ConnectToDB());
 
