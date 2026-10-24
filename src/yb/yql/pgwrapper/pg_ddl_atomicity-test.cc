@@ -168,6 +168,144 @@ class PgDdlAtomicityTest : public PgDdlAtomicityTestBase {
   }
 };
 
+class PgDdlAtomicityMasterFailoverTest : public PgDdlAtomicityTest {
+ protected:
+  int GetNumMasters() const override { return 3; }
+
+  bool TableLocksEnabled() const override { return true; }
+
+  void UpdateMiniClusterOptions(ExternalMiniClusterOptions* options) override {
+    PgDdlAtomicityTest::UpdateMiniClusterOptions(options);
+    options->bind_to_unique_loopback_addresses = false;
+    options->extra_tserver_flags.push_back("--ysql_oid_cache_prefetch_size=1");
+  }
+};
+
+TEST_F(PgDdlAtomicityMasterFailoverTest, CreateVectorExtensionDuringLeaderRestart) {
+  auto conn = ASSERT_RESULT(Connect());
+  ASSERT_OK(conn.Execute("CREATE DATABASE db_1"));
+
+  auto blocker_conn = ASSERT_RESULT(ConnectToDB("db_1"));
+  auto observer_conn = ASSERT_RESULT(ConnectToDB("db_1"));
+  ASSERT_OK(blocker_conn.Execute(R"sql(
+    CREATE FUNCTION block_vector_opclass() RETURNS event_trigger AS $$
+    BEGIN
+      RAISE LOG 'blocking vector operator class for master failover';
+      PERFORM pg_advisory_lock(32385);
+    END;
+    $$ LANGUAGE plpgsql;
+
+    CREATE EVENT TRIGGER block_vector_opclass
+      ON ddl_command_end
+      WHEN TAG IN ('CREATE OPERATOR CLASS')
+      EXECUTE FUNCTION block_vector_opclass();
+  )sql"));
+
+  const auto baseline_amop_count =
+      ASSERT_RESULT(observer_conn.FetchRow<PGUint64>("SELECT count(*) FROM pg_amop"));
+  const auto db_oid = ASSERT_RESULT(GetDatabaseOid(&observer_conn, "db_1"));
+  const auto catalog_version_query =
+      Format("SELECT current_version FROM pg_yb_catalog_version WHERE db_oid = $0", db_oid);
+  const auto baseline_catalog_version =
+      ASSERT_RESULT(observer_conn.FetchRow<PGUint64>(catalog_version_query));
+  ASSERT_OK(blocker_conn.Fetch("SELECT pg_advisory_lock(32385)"));
+
+  LogWaiter trigger_waiter(pg_ts, "blocking vector operator class for master failover");
+  auto extension_future = std::async(std::launch::async, [&]() -> Status {
+    auto extension_conn = VERIFY_RESULT(ConnectToDB("db_1"));
+    RETURN_NOT_OK(
+        extension_conn.ExecuteFormat("SET statement_timeout = '$0s'", 120 * kTimeMultiplier));
+    return extension_conn.Execute("CREATE EXTENSION IF NOT EXISTS vector");
+  });
+
+  bool blocker_lock_held = true;
+  auto unlock_blocker = ScopeExit([&] {
+    if (blocker_lock_held) {
+      WARN_NOT_OK(
+          blocker_conn.Fetch("SELECT pg_advisory_unlock(32385)"),
+          "Failed to release extension test advisory lock");
+    }
+  });
+
+  ASSERT_OK(trigger_waiter.WaitFor(30s * kTimeMultiplier));
+  ASSERT_EQ(extension_future.wait_for(0s), std::future_status::timeout);
+
+  ASSERT_EQ(
+      ASSERT_RESULT(observer_conn.FetchRow<PGUint64>(
+          "SELECT count(*) FROM pg_extension WHERE extname = 'vector'")),
+      0);
+  ASSERT_EQ(
+      ASSERT_RESULT(observer_conn.FetchRow<PGUint64>("SELECT count(*) FROM pg_amop")),
+      baseline_amop_count);
+  ASSERT_EQ(
+      ASSERT_RESULT(observer_conn.FetchRow<PGUint64>(catalog_version_query)),
+      baseline_catalog_version);
+
+  const auto old_leader_idx = ASSERT_RESULT(cluster_->GetLeaderMasterIndex());
+  auto* old_leader = cluster_->master(old_leader_idx);
+  bool old_leader_down = false;
+  auto restart_old_leader = ScopeExit([&] {
+    if (old_leader_down) {
+      WARN_NOT_OK(old_leader->Restart(), "Failed to restart old master leader");
+    }
+  });
+
+  old_leader->Shutdown();
+  old_leader_down = true;
+  size_t new_leader_idx = old_leader_idx;
+  ASSERT_OK(LoggedWaitFor(
+      [&]() -> Result<bool> {
+        const auto leader_idx = cluster_->GetLeaderMasterIndex();
+        if (!leader_idx.ok()) {
+          return false;
+        }
+        new_leader_idx = *leader_idx;
+        return new_leader_idx != old_leader_idx;
+      },
+      60s * kTimeMultiplier, "Wait for a new master leader"));
+  ASSERT_OK(old_leader->Restart());
+  old_leader_down = false;
+
+  ASSERT_TRUE(ASSERT_RESULT(blocker_conn.FetchRow<bool>("SELECT pg_advisory_unlock(32385)")));
+  blocker_lock_held = false;
+
+  ASSERT_EQ(extension_future.wait_for(120s * kTimeMultiplier), std::future_status::ready);
+  ASSERT_OK(extension_future.get());
+
+  ASSERT_EQ(
+      ASSERT_RESULT(observer_conn.FetchRow<PGUint64>(
+          "SELECT count(*) FROM pg_extension WHERE extname = 'vector'")),
+      1);
+  ASSERT_EQ(
+      ASSERT_RESULT(observer_conn.FetchRow<PGUint64>(catalog_version_query)),
+      baseline_catalog_version + 1);
+  const auto final_amop_count =
+      ASSERT_RESULT(observer_conn.FetchRow<PGUint64>("SELECT count(*) FROM pg_amop"));
+  ASSERT_GT(final_amop_count, baseline_amop_count);
+  ASSERT_EQ(
+      ASSERT_RESULT(observer_conn.FetchRow<PGUint64>("SELECT count(DISTINCT oid) FROM pg_amop")),
+      final_amop_count);
+  ASSERT_EQ(
+      ASSERT_RESULT(observer_conn.FetchRow<PGUint64>(R"sql(
+              SELECT count(*)
+              FROM pg_amop amop
+              LEFT JOIN pg_opfamily opfamily ON opfamily.oid = amop.amopfamily
+              LEFT JOIN pg_operator op ON op.oid = amop.amopopr
+              WHERE opfamily.oid IS NULL OR op.oid IS NULL
+            )sql")),
+      0);
+  ASSERT_OK(observer_conn.Fetch("SELECT '[1,2,3]'::vector <-> '[1,2,4]'::vector"));
+
+  ASSERT_OK(observer_conn.Execute("DROP EVENT TRIGGER block_vector_opclass"));
+  ASSERT_OK(observer_conn.Execute("DROP FUNCTION block_vector_opclass()"));
+  ASSERT_OK(observer_conn.Execute("DROP EXTENSION vector"));
+  ASSERT_EQ(
+      ASSERT_RESULT(observer_conn.FetchRow<PGUint64>("SELECT count(*) FROM pg_amop")),
+      baseline_amop_count);
+  ASSERT_OK(observer_conn.Execute("CREATE EXTENSION vector"));
+  ASSERT_OK(observer_conn.Fetch("SELECT '[1,2,3]'::vector <-> '[1,2,4]'::vector"));
+}
+
 TEST_F(PgDdlAtomicityTest, TestDatabaseGC) {
   TableName test_name = "test_pgsql";
   auto client = ASSERT_RESULT(cluster_->CreateClient());
