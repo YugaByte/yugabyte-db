@@ -148,7 +148,10 @@ class SyncClientMasterRpc : public internal::ClientMasterRpcBase {
       ClientData* client, CoarseTimePoint deadline, RespClass* resp,
       const std::string& name, const SyncLeaderMasterFunc& func)
       : ClientMasterRpcBase(client, deadline),
-        resp_(resp), name_(name), func_(func) {}
+        resp_(resp), name_(name), func_(func) {
+    this->mutable_retrier()->mutable_controller()->set_invoke_callback_mode(
+      rpc::InvokeCallbackMode::kReactorThread);
+  }
 
   void CallRemoteMethod() override {
     auto master_proxy = this->template master_proxy<ProxyClass>();
