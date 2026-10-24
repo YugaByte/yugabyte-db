@@ -2360,6 +2360,12 @@ TEST_F(CDCServiceTestMinSpace, TestLogRetentionByOpId_MinSpace) {
     WriteTestRow(i, kRowCount + i, "key" + std::to_string(i), tablet_id, proxy);
   }
 
+  // Ensure closed segments age past FLAGS_log_min_seconds_to_retain (1s) so that
+  // ApplyTimeRetentionPolicy doesn't truncate them out of the GC list. On fast hardware the
+  // write loop above can complete in well under a second, making every closed segment too
+  // young to be eligible for GC.
+  SleepFor(MonoDelta::FromSeconds(2));
+
   log::SegmentSequence segment_sequence;
   ASSERT_OK(tablet_peer->log()->TEST_GetSegmentsToGC(
       std::numeric_limits<int64_t>::max(), &segment_sequence));
