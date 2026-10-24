@@ -661,6 +661,35 @@ TEST_F(CqlIndexTest, ConcurrentUpdate2Columns) {
   TestConcurrentModify2Columns("UPDATE t SET $0 = ? WHERE key = ?");
 }
 
+// Deletes a whole partition of an indexed table with a single range delete (hash key given, range
+// key omitted), and checks that all the rows and all their index entries are gone.
+TEST_F(CqlIndexTest, RangeDeleteWithIndex) {
+  constexpr auto kNumRows = 16;
+  constexpr auto kNamespace = "test";
+
+  ANNOTATE_UNPROTECTED_WRITE(FLAGS_allow_index_table_read_write) = true;
+
+  auto session = ASSERT_RESULT(EstablishSession(driver_.get()));
+  ASSERT_OK(session.ExecuteQuery(
+      "CREATE TABLE t (h INT, r INT, value INT, PRIMARY KEY ((h), r)) WITH "
+      "transactions = { 'enabled' : true }"));
+  ASSERT_OK(session.ExecuteQuery("CREATE INDEX idx ON t (value)"));
+  ASSERT_OK(client_->WaitUntilIndexPermissionsAtLeast(
+      client::YBTableName(YQL_DATABASE_CQL, kNamespace, "t"),
+      client::YBTableName(YQL_DATABASE_CQL, kNamespace, "idx"),
+      IndexPermissions::INDEX_PERM_READ_WRITE_AND_DELETE));
+
+  for (int r = 1; r <= kNumRows; ++r) {
+    ASSERT_OK(session.ExecuteQuery(Format("INSERT INTO t (h, r, value) VALUES (1, $0, $0)", r)));
+  }
+  ASSERT_EQ(ASSERT_RESULT(session.FetchValue<int64_t>("SELECT COUNT(*) FROM idx")), kNumRows);
+
+  ASSERT_OK(session.ExecuteQuery("DELETE FROM t WHERE h = 1"));
+
+  ASSERT_EQ(ASSERT_RESULT(session.FetchValue<int64_t>("SELECT COUNT(*) FROM t")), 0);
+  ASSERT_EQ(ASSERT_RESULT(session.FetchValue<int64_t>("SELECT COUNT(*) FROM idx")), 0);
+}
+
 TEST_F(CqlIndexTest, SlowIndexResponse) {
   constexpr auto kNumKeys = NonTsanVsTsan(3000, 1500);
   constexpr auto kWriteBatchSize = NonTsanVsTsan(100, 30);

@@ -982,6 +982,10 @@ Status QLWriteOperation::ApplyForRegularColumns(const QLColumnValueMsg& column_v
 }
 
 Status QLWriteOperation::Apply(const DocOperationApplyData& data) {
+  // Anything a previous attempt accumulated is abandoned.
+  index_requests_.clear();
+  index_arena_.reset();
+
   data.doc_write_batch->SetDocReadContext(doc_read_context_);
 
   QLTableRow existing_row;
@@ -1471,8 +1475,12 @@ Status QLWriteOperation::UpdateIndexes(const QLTableRow& existing_row, const QLT
   VLOG(2) << "Updating indexes, existing: " << existing_row.ToString() << ", new: "
           << new_row.ToString();
   const auto& index_ids = request_.update_index_ids();
-  index_arena_ = SharedThreadSafeArena();
-  index_requests_.reserve(index_ids.size() * 2);
+  // index_requests_ holds raw pointers into index_arena_, so the arena has to outlive every call
+  // made within one apply attempt. Apply() resets both when a new attempt starts.
+  if (!index_arena_) {
+    index_arena_ = SharedThreadSafeArena();
+    index_requests_.reserve(index_ids.size() * 2);
+  }
   for (const auto& index_id : index_ids) {
     const auto* index = VERIFY_RESULT(index_map_.FindIndex(index_id));
     bool index_key_changed = false;
