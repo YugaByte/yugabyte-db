@@ -10,12 +10,24 @@
 // or implied.  See the License for the specific language governing permissions and limitations
 // under the License.
 
+#include <atomic>
+#include <string>
+#include <vector>
+
 #include "yb/util/logging.h"
 #include <gtest/gtest.h>
 
 #include "ybgate/ybgate_api.h"
 #include "ybgate/ybgate_status.h"
 #include "ybgate/ybgate_api-test.h"
+
+#include "yb/common/common.pb.h"
+#include "yb/common/value.pb.h"
+#include "yb/docdb/docdb_pgapi.h"
+#include "yb/util/env.h"
+#include "yb/util/path_util.h"
+#include "yb/util/result.h"
+#include "yb/util/test_thread_holder.h"
 #include "yb/util/test_util.h"
 #include "yb/util/yb_pg_errcodes.h"
 
@@ -302,4 +314,82 @@ TEST_F(YbGateTest, NoRepTryCatchRethrow) {
   // If error is caught and rethrown, YbGate crashes without setting up error handling
   EXPECT_DEATH(YbgTestNoReporting(YBGATE_TEST_TRY_CATCH_RETHROW),
                "PG error reporting has not been set up");
+}
+
+namespace {
+
+// Regression test for a data race on the process-wide static `struct pg_tm` buffer in
+// pg_localtime()/pg_gmtime() (src/postgres/src/timezone/localtime.c). The tserver decodes
+// timestamptz values through ybgate from multiple RPC threads, so concurrent decodes used to
+// tear each other's fields in that shared buffer. Fixed by making the buffer thread-local.
+
+constexpr int kTimestampTzOid = 1184;
+constexpr int kTimestampOid = 1114;
+constexpr int kNumDecodeThreads = 8;
+constexpr int64_t kDecodeIterations = 200000;
+constexpr int64_t kMicrosPerSecond = 1000000;
+constexpr int64_t kBaseMicros = 836000000LL * kMicrosPerSecond;
+
+yb::Result<std::string> DecodeDatumString(int pg_type_oid, int64_t micros) {
+  yb::QLValuePB ql_value;
+  ql_value.set_int64_value(micros);
+  yb::DatumMessagePB datum_message;
+  RETURN_NOT_OK(
+      yb::docdb::SetValueFromQLBinary(
+          ql_value, pg_type_oid, {} /* enum_oid_label_map */, {} /* composite_atts_map */,
+          datum_message));
+  return datum_message.datum_string();
+}
+
+void InitDocPg() {
+  std::string executable_path;
+  ASSERT_OK(yb::Env::Default()->GetExecutablePath(&executable_path));
+  const std::string postgres_path = yb::JoinPathSegments(
+      yb::DirName(yb::DirName(executable_path)), "postgres", "bin", "postgres");
+  ASSERT_OK(yb::docdb::DocPgInit(postgres_path));
+}
+
+// Decodes distinct constant values on many threads and compares each result against the
+// value decoded single-threaded up front. Before the fix, timestamptz decoding races and
+// mismatches appear; the plain timestamp path (no timezone) never touches the shared buffer
+// and stays clean.
+void CheckConcurrentDecodeIsStable(int pg_type_oid) {
+  std::vector<int64_t> values;
+  std::vector<std::string> expected;
+  for (int i = 0; i < kNumDecodeThreads; ++i) {
+    const int64_t micros = kBaseMicros + i * 7 * kMicrosPerSecond + (100 + i * 37) * 1000;
+    values.push_back(micros);
+    expected.push_back(ASSERT_RESULT(DecodeDatumString(pg_type_oid, micros)));
+  }
+
+  std::atomic<int64_t> mismatches{0};
+  yb::TestThreadHolder threads;
+  for (int i = 0; i < kNumDecodeThreads; ++i) {
+    threads.AddThreadFunctor([&, i] {
+      for (int64_t iteration = 0; iteration < kDecodeIterations; ++iteration) {
+        auto decoded = DecodeDatumString(pg_type_oid, values[i]);
+        if (!decoded.ok() || *decoded != expected[i]) {
+          mismatches.fetch_add(1, std::memory_order_relaxed);
+        }
+      }
+    });
+  }
+  threads.JoinAll();
+
+  ASSERT_EQ(mismatches.load(), 0)
+      << "concurrent datum decoding produced corrupted values (pg_type_oid=" << pg_type_oid << ")";
+}
+
+}  // namespace
+
+TEST_F(YbGateTest, TimestamptzDecodeIsThreadSafe) {
+  InitDocPg();
+  ASSERT_FALSE(HasFatalFailure());
+  CheckConcurrentDecodeIsStable(kTimestampTzOid);
+}
+
+TEST_F(YbGateTest, TimestampDecodeIsThreadSafe) {
+  InitDocPg();
+  ASSERT_FALSE(HasFatalFailure());
+  CheckConcurrentDecodeIsStable(kTimestampOid);
 }
